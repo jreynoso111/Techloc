@@ -111,10 +111,13 @@
         </div>
         
         <!-- Error Alert -->
-        <div id="csv-error" class="hidden mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-fade-in">
-          <p class="text-[11px] text-amber-300 flex gap-2">
-            <i data-lucide="info" class="h-4 w-4 shrink-0"></i>
-            <span>No se encontró el archivo de datos. Verifique que "assets/installers.csv" exista.</span>
+        <div id="csv-error" class="hidden mt-3 p-3 bg-red-900/30 border border-red-800 rounded-lg animate-fade-in">
+          <p class="text-[11px] text-red-200 flex gap-2 items-start">
+            <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0 text-red-400"></i>
+            <span>
+              <strong>Error de carga:</strong> No se pudo leer "assets/installers.csv".<br>
+              Asegúrate de que el archivo existe y estás usando un servidor local (localhost).
+            </span>
           </p>
         </div>
       </div>
@@ -124,7 +127,7 @@
         <!-- Loader -->
         <div class="py-12 text-center opacity-50">
           <i data-lucide="loader-2" class="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3"></i>
-          <p class="text-xs text-slate-400">Esperando datos...</p>
+          <p class="text-xs text-slate-400">Cargando flota...</p>
         </div>
       </div>
     </aside>
@@ -145,8 +148,10 @@
 
   <script>
     // --- Configuración Geográfica ---
+    // NOTA: Esta lista solo sirve para REFERENCIAR dónde poner los pines en el mapa
+    // ya que el CSV no tiene latitud/longitud. NO es el listado de técnicos.
+    // El listado de técnicos viene EXCLUSIVAMENTE del archivo CSV.
     const DEFAULT_CENTER = [39.8283, -98.5795]; // Centro USA
-    // Coordenadas base de los estados para ubicar técnicos si no hay lat/lng específico
     const STATE_COORDS = {
       'AL': [32.8067, -86.7911], 'AK': [61.3707, -152.4044], 'AZ': [33.7298, -111.4312], 'AR': [34.9697, -92.3731],
       'CA': [36.1162, -119.6816], 'CO': [39.0598, -105.3111], 'CT': [41.5978, -72.7554], 'DE': [39.3185, -75.5071],
@@ -176,28 +181,24 @@
       targetLayer = L.layerGroup().addTo(map);
     }
 
-    // --- Generación de Coordenadas "A prueba de fallos" ---
-    // Si el estado no existe en la lista, usamos un hash del nombre para ponerlo en un lugar fijo (aunque sea arbitrario en el mapa)
-    // para que el técnico NO desaparezca de la lista.
+    // --- Generación de Coordenadas ---
+    // Asigna una ubicación geográfica basada en el Estado del técnico.
+    // Aplica una dispersión circular ("Jitter") para evitar que se amontonen en un punto.
     function getCoords(state, zip, id) {
       const stateKey = (state || '').trim().toUpperCase();
       let base = STATE_COORDS[stateKey];
       
-      // FALLBACK: Si el estado no está en mi lista, generamos una lat/lng pseudo-aleatoria dentro de USA
-      // para asegurar que el técnico aparezca en el mapa y en la lista.
-      if (!base) {
-        // Generar coordenadas basades en el código ASCII del estado para que sean consistentes
-        const hash = stateKey.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        base = [35 + (hash % 15), -100 + (hash % 20)]; 
-      }
+      // Si el estado no está en el mapa, lo mandamos al centro para que no desaparezca de la lista
+      if (!base) base = DEFAULT_CENTER;
       
-      // Dispersión "Nube" (Circular)
-      const seed = parseInt((zip || '0').replace(/\D/g, '')) + (id * 47); 
-      const angle = (seed % 360) * (Math.PI / 180);
-      const radius = 0.1 + ((seed % 70) / 100); 
+      // Algoritmo de dispersión circular (Phyllotaxis) para evitar líneas rectas
+      // Usa el ZIP y el ID para que la posición sea siempre la misma para el mismo técnico
+      const seed = parseInt((zip || '0').replace(/\D/g, '')) + (id * 997); 
+      const angle = seed * 137.5 * (Math.PI / 180); // Ángulo dorado
+      const radius = 0.15 + ((seed % 100) / 150); // Radio variable
 
       const latOffset = radius * Math.cos(angle);
-      const lngOffset = radius * Math.sin(angle) * 1.3; 
+      const lngOffset = radius * Math.sin(angle) * 1.3; // Ajuste de proyección
 
       return {
         lat: base[0] + latOffset,
@@ -205,75 +206,80 @@
       };
     }
 
-    // --- Procesamiento de Datos ---
+    // --- Procesamiento de CSV ---
     function processCSV(text) {
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return;
+      if (lines.length < 2) return; // Si no hay datos
 
+      // Detectar encabezados (normalizados a minúsculas)
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
       
       allTechs = lines.slice(1).map((line, index) => {
-        // Regex para respetar comas dentro de comillas
+        // Regex para CSV: respeta comas dentro de comillas (ej: "Alabama (AL)")
         const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
         const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
         
         const row = {};
         headers.forEach((h, i) => row[h] = cleanValues[i] || '');
 
-        // Extraer estado (ej: "Alabama (AL)" -> "AL")
+        // Lógica específica para tu archivo:
+        // 1. Extraer código de estado de "Alabama (AL)"
         let stateRaw = row['state'] || '';
         let stateMatch = stateRaw.match(/\(([A-Z]{2})\)/); 
         let stateCode = stateMatch ? stateMatch[1] : (stateRaw.length === 2 ? stateRaw : 'UNKNOWN');
         
         const zip = row['zip'] || row['zipcode'] || '';
+        // Asignar ubicación en el mapa
         const coords = getCoords(stateCode, zip, index);
 
         return {
           id: index,
-          name: row['installation company'] || row['company'] || row['name'] || 'Instalador ' + index,
-          city: row['city'] || 'Ubicación Desconocida',
+          // Mapeo de columnas basado en tu foto
+          name: row['installation company'] || row['company'] || 'Técnico ' + index,
+          city: row['city'] || 'Sin ciudad',
           state: stateCode,
           zip: zip,
           phone: row['phone'] || 'No disponible',
           email: row['email'] || 'No disponible',
           lat: coords.lat,
           lng: coords.lng,
-          status: (index % 4 === 0) ? 'Busy' : 'Available',
+          status: (index % 5 === 0) ? 'Busy' : 'Available', // Estado simulado
           rating: (4 + Math.random()).toFixed(1)
         };
       });
 
+      // Actualizar UI
       document.getElementById('total-count').textContent = allTechs.length;
-      document.getElementById('csv-error').classList.add('hidden'); // Ocultar error si hubo éxito
+      document.getElementById('csv-error').classList.add('hidden');
       renderTechs(allTechs); 
       renderMapMarkers(allTechs);
     }
 
-    // --- Carga Automática (Intento) ---
+    // --- Carga Automática ---
     async function loadInitialData() {
       try {
         const response = await fetch('assets/installers.csv');
-        if (!response.ok) throw new Error("CSV local no encontrado o bloqueado por CORS");
+        if (!response.ok) throw new Error("Archivo no encontrado (404)");
         const text = await response.text();
         processCSV(text);
       } catch (e) {
-        console.warn("No se pudo cargar assets/installers.csv automáticamente.", e);
+        console.error("Error cargando assets/installers.csv:", e);
         document.getElementById('csv-error').classList.remove('hidden');
-        renderTechs([]); // Lista vacía hasta que carguen archivo
+        renderTechs([]); 
       }
     }
 
-    // --- Renderizado de Lista (CON DISTANCIA) ---
+    // --- Renderizado de Lista (con Distancia) ---
     function renderTechs(techs, targetCoords = null) {
       const container = document.getElementById('tech-list');
       container.innerHTML = '';
 
       if (techs.length === 0) {
-        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl">No hay técnicos cargados.</div>';
+        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl">No hay datos para mostrar.</div>';
         return;
       }
 
-      // IMPORTANTE: Calcular y ordenar por distancia
+      // Si hay una búsqueda activa, calculamos distancia y ordenamos
       let displayTechs = [...techs];
       if (targetCoords) {
         displayTechs = displayTechs.map(t => ({
@@ -282,8 +288,8 @@
         })).sort((a, b) => a.distance - b.distance);
       }
       
-      // Mostrar solo los primeros 100 para rendimiento
-      displayTechs.slice(0, 100).forEach((tech, idx) => {
+      // Renderizar (Límite de 50 para rendimiento UI, pero ordenados correctamente)
+      displayTechs.slice(0, 50).forEach((tech, idx) => {
         const isBest = idx === 0 && targetCoords;
         const el = document.createElement('div');
         
@@ -300,7 +306,7 @@
                 <i data-lucide="map-pin" class="h-3 w-3 text-slate-500"></i> ${tech.city}, ${tech.state} ${tech.zip}
               </div>
             </div>
-            ${targetCoords ? `
+            ${targetCoords && tech.distance !== undefined ? `
               <div class="text-right flex-shrink-0 w-1/3">
                 <span class="block text-xl font-black ${isBest ? 'text-blue-400' : 'text-slate-500'} tracking-tight leading-none">${Math.round(tech.distance)}</span>
                 <span class="text-[9px] font-bold text-slate-600 uppercase">millas</span>
@@ -376,18 +382,18 @@
       if (!query) return;
 
       if (allTechs.length === 0) {
-        alert("Primero carga un archivo CSV con tus técnicos.");
+        alert("El sistema aún no ha cargado los datos del CSV.");
         return;
       }
 
       let targetLat, targetLng;
       let foundMatch = false;
 
-      // 1. ZIP
+      // 1. Prioridad: ZIP
       const zipMatch = allTechs.find(t => t.zip && t.zip.includes(query) && query.length >= 3);
-      // 2. Ciudad
+      // 2. Prioridad: Ciudad
       const cityMatch = allTechs.find(t => t.city && t.city.toLowerCase().includes(query));
-      // 3. Estado
+      // 3. Prioridad: Estado
       const stateQuery = query.toUpperCase().substring(0, 2);
       const stateCoords = STATE_COORDS[stateQuery];
 
@@ -402,7 +408,7 @@
         alert("No encontramos técnicos exactos en esa ubicación. Mostrando vista general.");
       }
 
-      // Marcador de Búsqueda
+      // Pin de Búsqueda
       targetLayer.clearLayers();
       const targetIcon = L.divIcon({
         className: 'bg-transparent',
@@ -430,7 +436,7 @@
         map.setView([targetLat, targetLng], 7);
       }
 
-      // REORDENAR LA LISTA VISUAL
+      // Reordenar lista lateral
       renderTechs(allTechs, { lat: targetLat, lng: targetLng });
     }
 
@@ -450,7 +456,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       initMap();
-      loadInitialData(); // Intenta cargar automático
+      loadInitialData(); // Carga automática del CSV
       document.getElementById('search-form').addEventListener('submit', handleSearch);
     });
 
