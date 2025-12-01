@@ -45,11 +45,11 @@
       <div class="mx-auto flex max-w-7xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
         <div class="space-y-3">
           <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Vehicles to Fix</p>
-          <h2 class="text-4xl font-black text-white">Clientes con GPS dañado y técnico más cercano</h2>
-          <p class="text-sm text-slate-300 max-w-3xl">Visualiza los vehículos con GPS dañado (VIN, modelo, año y última ubicación) y confirma quién puede cubrirlos con la mejor proximidad estimada. Los técnicos se cargan desde el CSV.</p>
+          <h2 class="text-4xl font-black text-white">Vehicles with failed GPS and their nearest tech</h2>
+          <p class="text-sm text-slate-300 max-w-3xl">See vehicles with failed GPS units (VIN, model, year, and last location) and confirm who can cover them with the best proximity estimate. Technicians load from the CSV.</p>
         </div>
         <div class="flex items-center gap-2 rounded-full border border-emerald-900 bg-emerald-900/40 px-4 py-2 text-xs font-semibold text-emerald-100">
-          <i data-lucide="check-circle" class="h-4 w-4"></i> Cobertura automática
+          <i data-lucide="check-circle" class="h-4 w-4"></i> Automatic coverage
         </div>
       </div>
     </section>
@@ -59,8 +59,8 @@
         <div class="space-y-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Vehículos en alerta</p>
-              <p class="text-lg font-black text-white">Asignados al técnico más cercano</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Vehicles flagged</p>
+              <p class="text-lg font-black text-white">Assigned to the closest technician</p>
             </div>
             <span class="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-emerald-200" id="client-count">-</span>
           </div>
@@ -69,8 +69,8 @@
 
         <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-emerald-500/10">
           <div class="relative mx-auto max-w-5xl select-none">
-            <div class="relative aspect-[1.55] w-full">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/c/c6/USA_adm1_location_map.svg" alt="Mapa de vehículos" class="h-full w-full object-contain" style="filter: invert(10%) sepia(20%) saturate(80%) hue-rotate(190deg) brightness(90%) contrast(95%)" />
+            <div class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60">
+              <img src="assets/usa-map.svg" alt="Vehicle coverage map" class="h-full w-full object-cover opacity-90" />
               <div class="absolute inset-0" id="client-map-layer"></div>
             </div>
           </div>
@@ -84,12 +84,12 @@
       <div class="flex items-center gap-2 text-slate-300">
         <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
         <span class="font-semibold text-white">TechLoc</span>
-        <span class="text-slate-500">• Red de instaladores GPS en USA</span>
+        <span class="text-slate-500">• GPS installer network across the USA</span>
       </div>
       <div class="flex items-center gap-4 text-xs uppercase tracking-wide text-slate-500">
-        <span>Soporte 24/7</span>
-        <span>Seguridad de datos</span>
-        <span>Operación confiable</span>
+        <span>24/7 Support</span>
+        <span>Data security</span>
+        <span>Reliable operations</span>
       </div>
     </div>
   </footer>
@@ -179,7 +179,7 @@
             lng: coords.lng,
             rating: 4.4 + (idx % 6) * 0.1,
             jobsToday: idx % 5,
-            status: idx % 4 === 0 ? 'Ocupado' : 'Disponible',
+            status: idx % 4 === 0 ? 'Busy' : 'Available',
           };
         });
     };
@@ -197,12 +197,12 @@
           return {
             id: idx + 1,
             vin: row.VIN || row.vin || '',
-            model: row.Model || row.model || 'Vehículo',
+            model: row.Model || row.model || 'Vehicle',
             year: Number(row.Year) || row.Year || '',
             lastLocation: row.LastLocation || row.lastLocation || '',
             lat: parseFloat(row.Lat || row.lat || row.Latitude || 0),
             lng: parseFloat(row.Lng || row.lng || row.Longitude || 0),
-            severity: row.Severity || row.severity || 'Seguimiento',
+            severity: row.Severity || row.severity || 'Monitoring',
           };
         });
     };
@@ -238,7 +238,7 @@
             <span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide">${row.severity}</span>
           </div>
           <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
-            <span class="flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> Técnico: ${row.best?.name || 'Sin técnico'}</span>
+            <span class="flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> Technician: ${row.best?.name || 'No technician'}</span>
             <span class="text-slate-500">${row.best?.company || ''}</span>
           </div>
         </div>`).join('');
