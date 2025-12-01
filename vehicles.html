@@ -117,14 +117,6 @@
       DEFAULT: { lat: 39.5, lng: -98.35 },
     };
 
-    const VEHICLE_ALERTS = [
-      { id: 201, vin: '1HGCM82633A004352', model: 'Ford Transit', year: 2021, lastLocation: 'Atlanta, GA', lat: 33.749, lng: -84.388, severity: 'Crítico' },
-      { id: 202, vin: '1FTNE24W07DB12345', model: 'Chevy Express', year: 2020, lastLocation: 'Minneapolis, MN', lat: 44.9778, lng: -93.265, severity: 'Alerta' },
-      { id: 203, vin: '3GCPKTE79CG123456', model: 'Toyota Tacoma', year: 2019, lastLocation: 'Orlando, FL', lat: 28.5383, lng: -81.3792, severity: 'Alerta' },
-      { id: 204, vin: '1C6RR7LT3FS123456', model: 'RAM 1500', year: 2018, lastLocation: 'Portland, OR', lat: 45.5152, lng: -122.6784, severity: 'Crítico' },
-      { id: 205, vin: '1N6AD0CW5EN123456', model: 'Nissan Frontier', year: 2022, lastLocation: 'El Paso, TX', lat: 31.7619, lng: -106.485, severity: 'Seguimiento' },
-    ];
-
     const projectCoords = (lat, lng) => {
       const x = ((lng - LIMITS_USA.minLng) / (LIMITS_USA.maxLng - LIMITS_USA.minLng)) * 100;
       const y = ((LIMITS_USA.maxLat - lat) / (LIMITS_USA.maxLat - LIMITS_USA.minLat)) * 100;
@@ -155,16 +147,21 @@
       return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
     };
 
+    const parseCsvLine = (line = '') => {
+      const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      return values.map((value) => value.replace(/^"|"$/g, ''));
+    };
+
     const parseCsv = async () => {
       const response = await fetch('assets/installers.csv');
       const text = await response.text();
       const lines = text.trim().split(/\r?\n/);
-      const headers = (lines.shift() || '').split(',').map((h) => h.trim());
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
 
       return lines
         .filter((line) => line.trim())
         .map((line, idx) => {
-          const values = line.split(',');
+          const values = parseCsvLine(line);
           const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
           const state = String(row.State || row.state || '').trim().toUpperCase();
           const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
@@ -187,12 +184,35 @@
         });
     };
 
-    const renderClients = (techs) => {
+    const parseVehicles = async () => {
+      const response = await fetch('assets/vehicles.csv');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      return lines
+        .filter((line) => line.trim())
+        .map((line, idx) => {
+          const values = parseCsvLine(line);
+          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
+          return {
+            id: idx + 1,
+            vin: row.VIN || row.vin || '',
+            model: row.Model || row.model || 'Vehículo',
+            year: Number(row.Year) || row.Year || '',
+            lastLocation: row.LastLocation || row.lastLocation || '',
+            lat: parseFloat(row.Lat || row.lat || row.Latitude || 0),
+            lng: parseFloat(row.Lng || row.lng || row.Longitude || 0),
+            severity: row.Severity || row.severity || 'Seguimiento',
+          };
+        });
+    };
+
+    const renderClients = (techs, vehicles) => {
       const list = document.getElementById('client-list');
       const layer = document.getElementById('client-map-layer');
       list.innerHTML = '';
       layer.innerHTML = '';
-      const rows = VEHICLE_ALERTS.map((vehicle) => {
+      const rows = vehicles.map((vehicle) => {
         let best = null;
         let bestDistance = Infinity;
         techs.forEach((tech) => {
@@ -211,7 +231,7 @@
       list.innerHTML = rows.map((row) => `<div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
           <div class="flex items-center justify-between text-sm font-semibold text-white">
             <span>${row.model} ${row.year} • ${row.lastLocation}</span>
-            <span class="text-emerald-300">${row.distance} mi</span>
+            <span class="text-emerald-300">${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}</span>
           </div>
           <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
             <span class="flex items-center gap-1"><i data-lucide="barcode" class="h-3 w-3"></i> VIN: ${row.vin}</span>
@@ -227,6 +247,7 @@
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('class', 'pointer-events-none absolute inset-0 h-full w-full');
       rows.forEach((row) => {
+        if (!row.best) return;
         const clientPos = projectCoords(row.lat, row.lng);
         const techPos = projectCoords(row.best.lat, row.best.lng);
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -243,6 +264,7 @@
       fragment.appendChild(svg);
 
       rows.forEach((row) => {
+        if (!row.best) return;
         const clientPos = projectCoords(row.lat, row.lng);
         const techPos = projectCoords(row.best.lat, row.best.lng);
         const techMarker = document.createElement('div');
@@ -264,8 +286,8 @@
     };
 
     const init = async () => {
-      const techs = await parseCsv();
-      renderClients(techs);
+      const [techs, vehicles] = await Promise.all([parseCsv(), parseVehicles()]);
+      renderClients(techs, vehicles);
     };
 
     document.addEventListener('DOMContentLoaded', () => {
