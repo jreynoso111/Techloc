@@ -7,6 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
+    crossorigin=""
+  />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -18,11 +24,16 @@
     };
   </script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7kG1Q9bIwF6Yw2WrwslfLv7RHF9A0w0v0r3sLs="
+    crossorigin=""
+  ></script>
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
   <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-      <a href="/" class="flex items-center gap-3">
+      <a href="index.html" class="flex items-center gap-3">
         <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
           <i data-lucide="navigation" class="h-5 w-5"></i>
         </div>
@@ -32,7 +43,7 @@
         </div>
       </a>
       <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
-        <a href="/" class="transition-colors hover:text-white">Home</a>
+        <a href="index.html" class="transition-colors hover:text-white">Home</a>
         <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
         <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
       </nav>
@@ -117,10 +128,7 @@
           </div>
 
           <div class="relative mx-auto max-w-5xl select-none">
-            <div class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60">
-              <img src="assets/usa-map.svg" alt="Map of the United States" class="h-full w-full object-cover opacity-90" />
-              <div class="absolute inset-0" id="map-layer"></div>
-            </div>
+            <div id="tech-map" class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60"></div>
           </div>
         </div>
       </div>
@@ -143,7 +151,6 @@
   </footer>
 
   <script type="module">
-    const LIMITS_USA = { minLng: -125.5, maxLng: -66.5, minLat: 24.4, maxLat: 49.6 };
     const STATE_COORDS = {
       AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
       AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
@@ -163,12 +170,6 @@
       VA: { lat: 37.7693, lng: -78.1699 }, WA: { lat: 47.4009, lng: -121.4905 }, WV: { lat: 38.4912, lng: -80.9545 },
       WI: { lat: 44.2685, lng: -89.6165 }, WY: { lat: 42.7559, lng: -107.3025 }, DC: { lat: 38.9072, lng: -77.0369 },
       DEFAULT: { lat: 39.5, lng: -98.35 },
-    };
-
-    const projectCoords = (lat, lng) => {
-      const x = ((lng - LIMITS_USA.minLng) / (LIMITS_USA.maxLng - LIMITS_USA.minLng)) * 100;
-      const y = ((LIMITS_USA.maxLat - lat) / (LIMITS_USA.maxLat - LIMITS_USA.minLat)) * 100;
-      return { x, y };
     };
 
     const haversineMiles = (a, b) => {
@@ -213,8 +214,8 @@
           const coords = guessLatLng(state, zip);
           return {
             id: idx + 1,
-            name: row.Name || row.FullName || 'Installer',
-            company: row.Company || 'Partner',
+            name: row.Name || row.FullName || row.Company || 'Installer',
+            company: row.Company || row.Name || 'Partner',
             email: row.Email || '',
             phone: row.Phone || '',
             state,
@@ -274,19 +275,21 @@
       container.innerHTML = enriched.map((tech, index) => {
         const best = index === 0;
         const selected = selectedId === tech.id;
+        const title = tech.company || tech.name || 'Installer';
         const statusClass = tech.status === 'Available'
           ? 'bg-green-500/10 text-green-200 ring-1 ring-green-500/30'
           : tech.status === 'Busy'
             ? 'bg-red-500/10 text-red-200 ring-1 ring-red-500/30'
             : 'bg-amber-500/10 text-amber-200 ring-1 ring-amber-500/30';
-        return `<div data-tech-id="${tech.id}" class="relative cursor-pointer rounded-2xl border ${selected ? 'border-emerald-400 ring-2 ring-emerald-500/60 shadow-lg shadow-emerald-500/20' : best ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-800'} bg-slate-950/60 p-4 transition hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/5" role="button" aria-label="Select ${tech.name} on map">
+        return `<div data-tech-id="${tech.id}" class="relative cursor-pointer rounded-2xl border ${selected ? 'border-emerald-400 ring-2 ring-emerald-500/60 shadow-lg shadow-emerald-500/20' : best ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-800'} bg-slate-950/60 p-4 transition hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/5" role="button" aria-label="Select ${tech.name} on map">`
           ${best ? '<div class="absolute -top-2 -right-2 flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg shadow-emerald-500/30"><i data-lucide="star" class="h-3 w-3"></i> Best option</div>' : ''}
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-3">
-              <div class="flex h-12 w-12 items-center justify-center rounded-full ${best ? 'bg-blue-500/20 text-blue-100' : 'bg-slate-800 text-slate-200'} text-lg font-black">${tech.name.charAt(0)}</div>
+              <div class="flex h-12 w-12 items-center justify-center rounded-full ${best ? 'bg-blue-500/20 text-blue-100' : 'bg-slate-800 text-slate-200'} text-lg font-black">${title.charAt(0)}</div>
               <div>
-                <p class="text-sm font-bold text-white">${tech.name}</p>
+                <p class="text-sm font-bold text-white">${title}</p>
                 <div class="flex flex-col text-[11px] text-slate-400">
+                  <span class="flex items-center gap-1 font-medium"><i data-lucide="user" class="h-3 w-3 text-slate-500"></i> ${tech.name || 'Technician'}</span>
                   <span class="flex items-center gap-1 font-medium"><i data-lucide="map-pin" class="h-3 w-3 text-slate-500"></i> ${tech.city || tech.state}</span>
                   <span class="flex items-center gap-2">
                     <span class="flex items-center gap-1 text-amber-300"><i data-lucide="star" class="h-3 w-3"></i> ${tech.rating?.toFixed ? tech.rating.toFixed(1) : tech.rating}</span>
@@ -310,31 +313,41 @@
       lucide.createIcons();
     };
 
-    const renderTechMap = (techs, target, highlightedId) => {
-      const layer = document.getElementById('map-layer');
-      layer.innerHTML = '';
-      const fragment = document.createDocumentFragment();
+    let map;
+    let techLayer;
+    let routeLayer;
+    let targetLayer;
 
-      techs.forEach((tech) => {
-        const pos = projectCoords(tech.lat, tech.lng);
-        const highlighted = highlightedId === tech.id;
-        const marker = document.createElement('div');
-        marker.className = 'group absolute -translate-x-1/2 -translate-y-1/2';
-        marker.style.top = `${pos.y}%`;
-        marker.style.left = `${pos.x}%`;
-        const available = tech.status === 'Available';
-        marker.innerHTML = `<div class="relative"><div class="flex h-4 w-4 items-center justify-center rounded-full border ${highlighted ? 'border-emerald-300 scale-125' : 'border-white'} ${available ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.5)]' : 'bg-amber-500'}"><div class="h-2 w-2 rounded-full bg-white"></div></div><div class="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-100">${tech.name}</div></div>`;
-        fragment.appendChild(marker);
-      });
+    const initMap = () => {
+      map = L.map('tech-map', { zoomControl: false, worldCopyJump: true }).setView([STATE_COORDS.DEFAULT.lat, STATE_COORDS.DEFAULT.lng], 4.2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(map);
+      techLayer = L.layerGroup().addTo(map);
+      routeLayer = L.layerGroup().addTo(map);
+      targetLayer = L.layerGroup().addTo(map);
+    };
+
+    const renderTechMap = (techs, target, highlightedId) => {
+      if (!map) initMap();
+      techLayer.clearLayers();
+      routeLayer.clearLayers();
+      targetLayer.clearLayers();
+
+      const bounds = [];
 
       if (target) {
-        const posTarget = projectCoords(target.lat, target.lng);
-        const targetMarker = document.createElement('div');
-        targetMarker.className = 'absolute -translate-x-1/2 -translate-y-full';
-        targetMarker.style.top = `${posTarget.y}%`;
-        targetMarker.style.left = `${posTarget.x}%`;
-        targetMarker.innerHTML = `<div class="relative"><i data-lucide="map-pin" class="h-8 w-8 fill-red-500 stroke-white stroke-2 text-red-500 drop-shadow"></i><div class="absolute -bottom-1 left-1/2 h-1 w-3 -translate-x-1/2 rounded-full bg-black/50 blur-[2px]"></div></div>`;
-        fragment.appendChild(targetMarker);
+        const targetMarker = L.marker([target.lat, target.lng], {
+          title: 'Installation address',
+          icon: L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconAnchor: [12, 41],
+          }),
+        }).addTo(targetLayer);
+        bounds.push([target.lat, target.lng]);
 
         const nearest = highlightedId
           ? techs.find((t) => t.id === highlightedId)
@@ -343,27 +356,44 @@
             .sort((a, b) => a.distance - b.distance)[0];
 
         if (nearest) {
-          const posBest = projectCoords(nearest.lat, nearest.lng);
-          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-          svg.setAttribute('class', 'pointer-events-none absolute inset-0 h-full w-full');
-          const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-          defs.innerHTML = `<linearGradient id="gradienteRuta" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#22c55e"/><stop offset="50%" stop-color="#60a5fa"/><stop offset="100%" stop-color="#ef4444"/></linearGradient><filter id="brilloLinea"><feGaussianBlur stdDeviation="1.5" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
-          svg.appendChild(defs);
-          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-          line.setAttribute('x1', `${posBest.x}%`);
-          line.setAttribute('y1', `${posBest.y}%`);
-          line.setAttribute('x2', `${posTarget.x}%`);
-          line.setAttribute('y2', `${posTarget.y}%`);
-          line.setAttribute('stroke', 'url(#gradienteRuta)');
-          line.setAttribute('stroke-width', '3');
-          line.setAttribute('stroke-dasharray', '6,4');
-          line.setAttribute('filter', 'url(#brilloLinea)');
-          svg.appendChild(line);
-          fragment.appendChild(svg);
+          routeLayer.addLayer(L.polyline([[target.lat, target.lng], [nearest.lat, nearest.lng]], {
+            color: '#22c55e',
+            weight: 4,
+            opacity: 0.8,
+            dashArray: '6 4',
+          }));
         }
       }
 
-      layer.appendChild(fragment);
+      techs.forEach((tech) => {
+        const highlighted = highlightedId === tech.id;
+        const available = tech.status === 'Available';
+        const marker = L.circleMarker([tech.lat, tech.lng], {
+          radius: highlighted ? 9 : 7,
+          color: highlighted ? '#34d399' : '#60a5fa',
+          weight: highlighted ? 3 : 1.5,
+          fillColor: available ? '#3b82f6' : '#f59e0b',
+          fillOpacity: 0.9,
+          className: 'cursor-pointer',
+        }).addTo(techLayer);
+
+        marker.bindTooltip(`${tech.company || tech.name} (${available ? 'Available' : tech.status})`, { permanent: false, direction: 'top', offset: [0, -2] });
+
+        marker.on('click', () => {
+          highlightedTechId = tech.id;
+          renderTechCards(currentTechs, currentTarget, highlightedTechId);
+          renderTechMap(currentTechs, currentTarget, highlightedTechId);
+        });
+
+        bounds.push([tech.lat, tech.lng]);
+      });
+
+      if (bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+      } else if (bounds.length === 1) {
+        map.setView(bounds[0], 6);
+      }
+
       lucide.createIcons();
     };
 

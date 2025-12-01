@@ -7,6 +7,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
+    crossorigin=""
+  />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -18,11 +24,16 @@
     };
   </script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7kG1Q9bIwF6Yw2WrwslfLv7RHF9A0w0v0r3sLs="
+    crossorigin=""
+  ></script>
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
   <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-      <a href="/" class="flex items-center gap-3">
+      <a href="index.html" class="flex items-center gap-3">
         <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
           <i data-lucide="navigation" class="h-5 w-5"></i>
         </div>
@@ -32,7 +43,7 @@
         </div>
       </a>
       <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
-        <a href="/" class="transition-colors hover:text-white">Home</a>
+        <a href="index.html" class="transition-colors hover:text-white">Home</a>
         <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
         <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
       </nav>
@@ -69,10 +80,7 @@
 
         <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-emerald-500/10">
           <div class="relative mx-auto max-w-5xl select-none">
-            <div class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60">
-              <img src="assets/usa-map.svg" alt="Vehicle coverage map" class="h-full w-full object-cover opacity-90" />
-              <div class="absolute inset-0" id="client-map-layer"></div>
-            </div>
+            <div id="vehicles-map" class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60"></div>
           </div>
         </div>
       </div>
@@ -95,7 +103,6 @@
   </footer>
 
   <script type="module">
-    const LIMITS_USA = { minLng: -125.5, maxLng: -66.5, minLat: 24.4, maxLat: 49.6 };
     const STATE_COORDS = {
       AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
       AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
@@ -115,12 +122,6 @@
       VA: { lat: 37.7693, lng: -78.1699 }, WA: { lat: 47.4009, lng: -121.4905 }, WV: { lat: 38.4912, lng: -80.9545 },
       WI: { lat: 44.2685, lng: -89.6165 }, WY: { lat: 42.7559, lng: -107.3025 }, DC: { lat: 38.9072, lng: -77.0369 },
       DEFAULT: { lat: 39.5, lng: -98.35 },
-    };
-
-    const projectCoords = (lat, lng) => {
-      const x = ((lng - LIMITS_USA.minLng) / (LIMITS_USA.maxLng - LIMITS_USA.minLng)) * 100;
-      const y = ((LIMITS_USA.maxLat - lat) / (LIMITS_USA.maxLat - LIMITS_USA.minLat)) * 100;
-      return { x, y };
     };
 
     const haversineMiles = (a, b) => {
@@ -209,11 +210,30 @@
         });
     };
 
+    let vehiclesMap;
+    let vehicleLayer;
+    let techLayer;
+    let lineLayer;
+
+    const initMap = () => {
+      vehiclesMap = L.map('vehicles-map', { zoomControl: false, worldCopyJump: true }).setView([STATE_COORDS.DEFAULT.lat, STATE_COORDS.DEFAULT.lng], 4.2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(vehiclesMap);
+      vehicleLayer = L.layerGroup().addTo(vehiclesMap);
+      techLayer = L.layerGroup().addTo(vehiclesMap);
+      lineLayer = L.layerGroup().addTo(vehiclesMap);
+    };
+
     const renderClients = (techs, vehicles) => {
+      if (!vehiclesMap) initMap();
       const list = document.getElementById('client-list');
-      const layer = document.getElementById('client-map-layer');
       list.innerHTML = '';
-      layer.innerHTML = '';
+      vehicleLayer.clearLayers();
+      techLayer.clearLayers();
+      lineLayer.clearLayers();
+
       const rows = vehicles.map((vehicle) => {
         let best = null;
         let bestDistance = Infinity;
@@ -247,45 +267,44 @@
           ${row.best?.notes ? `<div class="mt-1 flex items-start gap-2 rounded-lg border border-slate-900 bg-slate-950/70 p-2 text-[11px] text-slate-300"><i data-lucide="user" class="h-3 w-3 text-blue-300"></i><span class="text-left leading-tight">Tech note: ${row.best.notes}</span></div>` : ''}
         </div>`).join('');
 
-      const fragment = document.createDocumentFragment();
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('class', 'pointer-events-none absolute inset-0 h-full w-full');
-      rows.forEach((row) => {
-        if (!row.best) return;
-        const clientPos = projectCoords(row.lat, row.lng);
-        const techPos = projectCoords(row.best.lat, row.best.lng);
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', `${techPos.x}%`);
-        line.setAttribute('y1', `${techPos.y}%`);
-        line.setAttribute('x2', `${clientPos.x}%`);
-        line.setAttribute('y2', `${clientPos.y}%`);
-        line.setAttribute('stroke', '#34d399');
-        line.setAttribute('stroke-width', '2');
-        line.setAttribute('stroke-dasharray', '6,4');
-        line.setAttribute('class', 'opacity-70');
-        svg.appendChild(line);
-      });
-      fragment.appendChild(svg);
+      const bounds = [];
 
       rows.forEach((row) => {
         if (!row.best) return;
-        const clientPos = projectCoords(row.lat, row.lng);
-        const techPos = projectCoords(row.best.lat, row.best.lng);
-        const techMarker = document.createElement('div');
-        techMarker.className = 'absolute -translate-x-1/2 -translate-y-1/2';
-        techMarker.style.top = `${techPos.y}%`;
-        techMarker.style.left = `${techPos.x}%`;
-        techMarker.innerHTML = '<div class="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]"><div class="h-2 w-2 rounded-full bg-white"></div></div>';
-        fragment.appendChild(techMarker);
+        lineLayer.addLayer(L.polyline([[row.lat, row.lng], [row.best.lat, row.best.lng]], {
+          color: '#34d399',
+          weight: 3,
+          dashArray: '6 4',
+          opacity: 0.8,
+        }));
 
-        const clientMarker = document.createElement('div');
-        clientMarker.className = 'group absolute -translate-x-1/2 -translate-y-full';
-        clientMarker.style.top = `${clientPos.y}%`;
-        clientMarker.style.left = `${clientPos.x}%`;
-        clientMarker.innerHTML = `<div class="relative"><i data-lucide="map-pin" class="h-8 w-8 fill-red-500 stroke-white stroke-2 text-red-500 drop-shadow"></i><div class="absolute -bottom-1 left-1/2 h-1 w-3 -translate-x-1/2 rounded-full bg-black/50 blur-[2px]"></div><div class="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl transition group-hover:opacity-100">${row.model} (${row.year}) • ${row.distance} mi</div></div>`;
-        fragment.appendChild(clientMarker);
+        const techMarker = L.circleMarker([row.best.lat, row.best.lng], {
+          radius: 7,
+          color: '#10b981',
+          weight: 2,
+          fillColor: '#22c55e',
+          fillOpacity: 0.9,
+        }).addTo(techLayer).bindTooltip(`${row.best.company || row.best.name}`, { direction: 'top', offset: [0, -2] });
+
+        const clientMarker = L.marker([row.lat, row.lng], {
+          title: `${row.model} (${row.year})`,
+          icon: L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconAnchor: [12, 41],
+          }),
+        }).addTo(vehicleLayer).bindPopup(`${row.model} (${row.year}) • ${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}`);
+
+        bounds.push([row.lat, row.lng], [row.best.lat, row.best.lng]);
       });
-      layer.appendChild(fragment);
+
+      if (bounds.length > 1) {
+        vehiclesMap.fitBounds(bounds, { padding: [30, 30] });
+      } else if (bounds.length === 1) {
+        vehiclesMap.setView(bounds[0], 6);
+      }
+
       lucide.createIcons();
     };
 
