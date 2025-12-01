@@ -137,8 +137,10 @@
       'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
     };
 
-    let map, techLayer, targetLayer;
+    let map, techLayer, targetLayer, connectionLayer;
     let technicians = [];
+    let lastClientLocation = null;
+    const cityCache = new Map();
 
     // --- 1. Initialize map ---
     function initMap() {
@@ -147,6 +149,7 @@
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       techLayer = L.layerGroup().addTo(map);
       targetLayer = L.layerGroup().addTo(map);
+      connectionLayer = L.layerGroup().addTo(map);
     }
 
     // --- 2. Load CSV ---
@@ -156,7 +159,7 @@
         if (!response.ok) throw new Error("Unable to read data file (Status " + response.status + ")");
 
         const text = await response.text();
-        parseCSV(text);
+        await parseCSV(text);
       } catch (err) {
         console.warn("System warning: " + err.message);
         document.getElementById('file-error').classList.remove('hidden');
@@ -171,13 +174,13 @@
     }
 
     // --- 3. Process CSV text ---
-    function parseCSV(csvText) {
+    async function parseCSV(csvText) {
       const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
       if (lines.length < 2) return;
 
       const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
 
-      technicians = lines.slice(1).map((line, idx) => {
+      const techPromises = lines.slice(1).map(async (line, idx) => {
         const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
         const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
 
@@ -198,6 +201,14 @@
         let lat = base[0] + (radius * Math.cos(angle));
         let lng = base[1] + (radius * Math.sin(angle) * 1.3);
 
+        if (!row['zip'] && row['city']) {
+          const cityCoords = await geocodeCity(row['city'], stateCode);
+          if (cityCoords) {
+            lat = cityCoords.lat;
+            lng = cityCoords.lng;
+          }
+        }
+
         return {
           id: idx,
           name: companyName,
@@ -212,12 +223,34 @@
         };
       });
 
+      technicians = await Promise.all(techPromises);
+
       document.getElementById('total-count').textContent = technicians.length;
       updateUI(technicians);
     }
 
+    async function geocodeCity(city, stateCode) {
+      const key = `${city},${stateCode}`.toLowerCase();
+      if (cityCache.has(key)) return cityCache.get(key);
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, ${stateCode}, USA`)}`);
+        const data = await response.json();
+        if (data && data.length > 0) {
+          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+          cityCache.set(key, coords);
+          return coords;
+        }
+      } catch (e) {
+        console.warn('City geocode failed', city, stateCode, e);
+      }
+
+      cityCache.set(key, null);
+      return null;
+    }
+
     // --- 4. Update map and list ---
-    function updateUI(techList, target = null) {
+    function updateUI(techList, target = null, clientLocation = null) {
       const listContainer = document.getElementById('tech-list');
       listContainer.innerHTML = '';
       techLayer.clearLayers();
@@ -254,7 +287,7 @@
           <div class="flex justify-between items-start mb-2">
             <div>
               <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Company</p>
-              <h3 class="font-bold text-white text-sm truncate w-48" title="${tech.company}">${tech.company}</h3>
+              <h3 class="font-bold text-white text-sm break-words" title="${tech.company}">${tech.company}</h3>
               <p class="text-xs text-slate-400 flex items-center gap-1 mt-1">
                 <i data-lucide="map-pin" class="h-3 w-3"></i> ${tech.city}, ${tech.state} ${tech.zip}
               </p>
@@ -276,6 +309,10 @@
 
         card.addEventListener('click', () => {
           map.flyTo([tech.lat, tech.lng], 10);
+          const clientPoint = clientLocation || lastClientLocation;
+          if (clientPoint) {
+            drawConnection(clientPoint, tech);
+          }
         });
 
         listContainer.appendChild(card);
@@ -329,6 +366,7 @@
 
       // 2. Draw customer point
       targetLayer.clearLayers();
+      connectionLayer.clearLayers();
       const targetIcon = L.divIcon({
         className: '',
         html: `<div class="w-4 h-4 bg-red-600 rounded-full border-2 border-white animate-ping"></div>`
@@ -336,6 +374,7 @@
       L.marker([location.lat, location.lng], { icon: targetIcon }).addTo(targetLayer);
       const popup = L.marker([location.lat, location.lng]).addTo(targetLayer);
       popup.bindPopup(`<b>Client</b><br>${query}`).openPopup();
+      lastClientLocation = location;
 
       // 3. Calculate distances for all technicians
       const sortedTechs = technicians.map(t => {
@@ -344,13 +383,14 @@
       }).sort((a, b) => a.distance - b.distance);
 
       // 4. Refresh ordered list
-      updateUI(sortedTechs, true);
+      updateUI(sortedTechs, true, location);
 
       // 5. Fit map to show customer and nearest tech
       if (sortedTechs.length > 0) {
         const nearest = sortedTechs[0];
         const bounds = L.latLngBounds([[location.lat, location.lng], [nearest.lat, nearest.lng]]);
         map.fitBounds(bounds, { padding: [100, 100], maxZoom: 9 });
+        drawConnection(location, nearest);
       }
     });
 
@@ -361,6 +401,17 @@
       const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                 Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
       return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    function drawConnection(client, tech) {
+      connectionLayer.clearLayers();
+      L.polyline(
+        [
+          [client.lat, client.lng],
+          [tech.lat, tech.lng]
+        ],
+        { color: '#38bdf8', weight: 3, opacity: 0.8, dashArray: '6 6' }
+      ).addTo(connectionLayer);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
