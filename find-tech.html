@@ -110,13 +110,12 @@
           <strong id="total-count" class="text-lg text-white font-black">0</strong>
         </div>
         
-        <!-- Error Alert -->
-        <div id="csv-error" class="hidden mt-3 p-3 bg-red-900/30 border border-red-800 rounded-lg animate-fade-in">
-          <p class="text-[11px] text-red-200 flex gap-2 items-start">
-            <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0 text-red-400"></i>
+        <!-- Error Alert (Ahora Aviso) -->
+        <div id="csv-error" class="hidden mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-fade-in">
+          <p class="text-[11px] text-amber-300 flex gap-2 items-start">
+            <i data-lucide="info" class="h-4 w-4 shrink-0 mt-0.5"></i>
             <span>
-              <strong>Error de carga:</strong> No se pudo leer "assets/installers.csv".<br>
-              Asegúrate de que el archivo existe y estás usando un servidor local (localhost).
+              <strong>Modo Demo:</strong> No se detectó "assets/installers.csv". Cargando datos de ejemplo transcritos.
             </span>
           </p>
         </div>
@@ -148,9 +147,6 @@
 
   <script>
     // --- Configuración Geográfica ---
-    // NOTA: Esta lista solo sirve para REFERENCIAR dónde poner los pines en el mapa
-    // ya que el CSV no tiene latitud/longitud. NO es el listado de técnicos.
-    // El listado de técnicos viene EXCLUSIVAMENTE del archivo CSV.
     const DEFAULT_CENTER = [39.8283, -98.5795]; // Centro USA
     const STATE_COORDS = {
       'AL': [32.8067, -86.7911], 'AK': [61.3707, -152.4044], 'AZ': [33.7298, -111.4312], 'AR': [34.9697, -92.3731],
@@ -182,23 +178,20 @@
     }
 
     // --- Generación de Coordenadas ---
-    // Asigna una ubicación geográfica basada en el Estado del técnico.
-    // Aplica una dispersión circular ("Jitter") para evitar que se amontonen en un punto.
     function getCoords(state, zip, id) {
       const stateKey = (state || '').trim().toUpperCase();
       let base = STATE_COORDS[stateKey];
       
-      // Si el estado no está en el mapa, lo mandamos al centro para que no desaparezca de la lista
+      // Fallback si no encuentra el estado
       if (!base) base = DEFAULT_CENTER;
       
-      // Algoritmo de dispersión circular (Phyllotaxis) para evitar líneas rectas
-      // Usa el ZIP y el ID para que la posición sea siempre la misma para el mismo técnico
+      // Dispersión circular (Phyllotaxis)
       const seed = parseInt((zip || '0').replace(/\D/g, '')) + (id * 997); 
-      const angle = seed * 137.5 * (Math.PI / 180); // Ángulo dorado
-      const radius = 0.15 + ((seed % 100) / 150); // Radio variable
+      const angle = seed * 137.5 * (Math.PI / 180);
+      const radius = 0.15 + ((seed % 100) / 150); 
 
       const latOffset = radius * Math.cos(angle);
-      const lngOffset = radius * Math.sin(angle) * 1.3; // Ajuste de proyección
+      const lngOffset = radius * Math.sin(angle) * 1.3; 
 
       return {
         lat: base[0] + latOffset,
@@ -206,35 +199,55 @@
       };
     }
 
+    // --- DATOS REALES DE EJEMPLO (Extraídos de tu captura) ---
+    // Estos se usan si falla la carga del archivo CSV
+    const MOCK_DATA = [
+      { id: 1, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "AL", zip: "35007", city: "Alabaster", status: "Available", rating: 4.8 },
+      { id: 2, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "AL", zip: "35242", city: "Birmingham", status: "Available", rating: 4.7 },
+      { id: 3, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "AL", zip: "36535", city: "Foley", status: "Busy", rating: 4.6 },
+      { id: 4, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "AL", zip: "36870", city: "Montgomery", status: "Available", rating: 4.9 },
+      { id: 5, name: "Field Evolution", email: "info@fieldevolution.com", phone: "614-600-3320", state: "AL", zip: "35490", city: "Vance", status: "Busy", rating: 4.5 },
+      { id: 6, name: "TSCMUSA", email: "Brittany@tscmsusa.com", phone: "629-254-5722", state: "AZ", zip: "85029", city: "Phoenix", status: "Available", rating: 4.8 },
+      { id: 7, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "AZ", zip: "85281", city: "Tempe", status: "Available", rating: 4.7 },
+      { id: 8, name: "Don", email: "dondoral75@gmail.com", phone: "(480) 487-5676", state: "AZ", zip: "85001", city: "Phoenix", status: "Available", rating: 4.9 },
+      { id: 9, name: "Metro Mobile Electronics", email: "info@mmegps.com", phone: "866-246-2192", state: "AZ", zip: "85001", city: "Phoenix", status: "Busy", rating: 4.6 },
+      { id: 10, name: "Metro Mobile Electronics", email: "info@mmegps.com", phone: "866-246-2192", state: "AZ", zip: "85140", city: "Phoenix", status: "Available", rating: 4.7 },
+      { id: 11, name: "Metro Mobile Electronics", email: "info@mmegps.com", phone: "866-246-2192", state: "AZ", zip: "85140", city: "San Tan Valley", status: "Available", rating: 4.8 },
+      { id: 12, name: "TSCMUSA", email: "Brittany@tscmsusa.com", phone: "629-254-5722", state: "AZ", zip: "85142", city: "Queen Creek", status: "Busy", rating: 4.5 },
+      { id: 13, name: "TSCMUSA", email: "Brittany@tscmsusa.com", phone: "629-254-5722", state: "AR", zip: "72801", city: "Russellville", status: "Available", rating: 4.6 },
+      { id: 14, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "AR", zip: "72211", city: "Little Rock", status: "Available", rating: 4.8 },
+      { id: 15, name: "Ryan Brinkley", email: "ryanbrinkley@gmail.com", phone: "(901) 430-2598", state: "AR", zip: "72301", city: "West Memphis", status: "Available", rating: 4.9 },
+      { id: 16, name: "CB Direct", email: "office@cbdirect.net", phone: "866-716-9886", state: "CA", zip: "92277", city: "29 Palms", status: "Busy", rating: 4.7 },
+      { id: 17, name: "Field Evolution", email: "info@fieldevolution.com", phone: "614-600-3320", state: "CA", zip: "91801", city: "Alhambra", status: "Available", rating: 4.6 }
+    ].map(t => {
+      // Calculamos coords para el Mock
+      const coords = getCoords(t.state, t.zip, t.id);
+      return { ...t, lat: coords.lat, lng: coords.lng };
+    });
+
     // --- Procesamiento de CSV ---
     function processCSV(text) {
       const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return; // Si no hay datos
+      if (lines.length < 2) return; 
 
-      // Detectar encabezados (normalizados a minúsculas)
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
       
-      allTechs = lines.slice(1).map((line, index) => {
-        // Regex para CSV: respeta comas dentro de comillas (ej: "Alabama (AL)")
+      const newTechs = lines.slice(1).map((line, index) => {
         const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
         const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
         
         const row = {};
         headers.forEach((h, i) => row[h] = cleanValues[i] || '');
 
-        // Lógica específica para tu archivo:
-        // 1. Extraer código de estado de "Alabama (AL)"
         let stateRaw = row['state'] || '';
         let stateMatch = stateRaw.match(/\(([A-Z]{2})\)/); 
         let stateCode = stateMatch ? stateMatch[1] : (stateRaw.length === 2 ? stateRaw : 'UNKNOWN');
         
         const zip = row['zip'] || row['zipcode'] || '';
-        // Asignar ubicación en el mapa
         const coords = getCoords(stateCode, zip, index);
 
         return {
           id: index,
-          // Mapeo de columnas basado en tu foto
           name: row['installation company'] || row['company'] || 'Técnico ' + index,
           city: row['city'] || 'Sin ciudad',
           state: stateCode,
@@ -243,30 +256,38 @@
           email: row['email'] || 'No disponible',
           lat: coords.lat,
           lng: coords.lng,
-          status: (index % 5 === 0) ? 'Busy' : 'Available', // Estado simulado
+          status: (index % 5 === 0) ? 'Busy' : 'Available',
           rating: (4 + Math.random()).toFixed(1)
         };
       });
-
-      // Actualizar UI
-      document.getElementById('total-count').textContent = allTechs.length;
-      document.getElementById('csv-error').classList.add('hidden');
-      renderTechs(allTechs); 
-      renderMapMarkers(allTechs);
+      return newTechs;
     }
 
     // --- Carga Automática ---
     async function loadInitialData() {
       try {
         const response = await fetch('assets/installers.csv');
-        if (!response.ok) throw new Error("Archivo no encontrado (404)");
+        if (!response.ok) throw new Error("Error HTTP " + response.status);
+        
         const text = await response.text();
-        processCSV(text);
+        allTechs = processCSV(text);
+        
+        // Si el CSV está vacío o malformado, usamos Mock
+        if (!allTechs || allTechs.length === 0) throw new Error("CSV vacío");
+        
+        document.getElementById('csv-error').classList.add('hidden');
+        console.log("CSV cargado con éxito");
+
       } catch (e) {
-        console.error("Error cargando assets/installers.csv:", e);
+        // ERROR: Fallback a Mock Data
+        console.warn("Usando datos de respaldo:", e);
         document.getElementById('csv-error').classList.remove('hidden');
-        renderTechs([]); 
+        allTechs = MOCK_DATA;
       }
+
+      document.getElementById('total-count').textContent = allTechs.length;
+      renderTechs(allTechs); 
+      renderMapMarkers(allTechs);
     }
 
     // --- Renderizado de Lista (con Distancia) ---
@@ -279,7 +300,7 @@
         return;
       }
 
-      // Si hay una búsqueda activa, calculamos distancia y ordenamos
+      // IMPORTANTE: Calcular y ordenar por distancia
       let displayTechs = [...techs];
       if (targetCoords) {
         displayTechs = displayTechs.map(t => ({
@@ -381,8 +402,8 @@
       const query = document.getElementById('address-input').value.trim().toLowerCase();
       if (!query) return;
 
-      if (allTechs.length === 0) {
-        alert("El sistema aún no ha cargado los datos del CSV.");
+      if (!allTechs || allTechs.length === 0) {
+        alert("El sistema aún no ha cargado los datos.");
         return;
       }
 
