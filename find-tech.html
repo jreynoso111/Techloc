@@ -82,7 +82,7 @@
               <p class="font-semibold text-white">How it works</p>
               <ol class="mt-2 space-y-1 list-decimal list-inside text-slate-400">
                 <li>We read your CSV installer file.</li>
-                <li>We search by ZIP first; if no match, we widen to state to calculate distance.</li>
+                <li>We search by ZIP first; if no match, we widen to city and then state to calculate distance.</li>
                 <li>We sort by availability, rating, and current load.</li>
               </ol>
             </div>
@@ -195,16 +195,18 @@
       return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
     };
 
+    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+
     const parseCsv = async () => {
       const response = await fetch('assets/installers.csv');
       const text = await response.text();
       const lines = text.trim().split(/\r?\n/);
-      const headers = (lines.shift() || '').split(',').map((h) => h.trim());
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
 
       return lines
         .filter((line) => line.trim())
         .map((line, idx) => {
-          const values = line.split(',');
+          const values = parseCsvLine(line);
           const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
           const state = String(row.State || row.state || '').trim().toUpperCase();
           const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
@@ -218,6 +220,7 @@
             state,
             city: row.City || '',
             zipcode: zip,
+            notes: row.Notes || row.Note || row.Observation || '',
             lat: coords.lat,
             lng: coords.lng,
             rating: 4.4 + (idx % 6) * 0.1,
@@ -234,9 +237,16 @@
       return { state: stateMatch ? stateMatch[1] : '', zip: zipMatch ? zipMatch[1] : '' };
     };
 
-    const pickTechsByLocation = (techs, zip, state) => {
+    const normalize = (value = '') => value.trim().toLowerCase();
+
+    const pickTechsByLocation = (techs, zip, city, state) => {
       const matchesByZip = zip ? techs.filter((tech) => tech.zipcode === zip) : [];
       if (matchesByZip.length) return matchesByZip;
+
+      const matchesByCity = city
+        ? techs.filter((tech) => normalize(tech.city) === normalize(city))
+        : [];
+      if (matchesByCity.length) return matchesByCity;
 
       const matchesByState = state ? techs.filter((tech) => tech.state === state) : [];
       if (matchesByState.length) return matchesByState;
@@ -244,7 +254,7 @@
       return techs;
     };
 
-    const renderTechCards = (techs, target) => {
+    const renderTechCards = (techs, target, selectedId) => {
       const container = document.getElementById('tech-cards');
       if (!target) {
         container.innerHTML = `<div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 px-6 py-10 text-center text-slate-400">
@@ -263,12 +273,13 @@
 
       container.innerHTML = enriched.map((tech, index) => {
         const best = index === 0;
+        const selected = selectedId === tech.id;
         const statusClass = tech.status === 'Available'
           ? 'bg-green-500/10 text-green-200 ring-1 ring-green-500/30'
           : tech.status === 'Busy'
             ? 'bg-red-500/10 text-red-200 ring-1 ring-red-500/30'
             : 'bg-amber-500/10 text-amber-200 ring-1 ring-amber-500/30';
-        return `<div class="relative rounded-2xl border ${best ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-800'} bg-slate-950/60 p-4 transition hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/5">
+        return `<div data-tech-id="${tech.id}" class="relative cursor-pointer rounded-2xl border ${selected ? 'border-emerald-400 ring-2 ring-emerald-500/60 shadow-lg shadow-emerald-500/20' : best ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-800'} bg-slate-950/60 p-4 transition hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/5" role="button" aria-label="Select ${tech.name} on map">
           ${best ? '<div class="absolute -top-2 -right-2 flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg shadow-emerald-500/30"><i data-lucide="star" class="h-3 w-3"></i> Best option</div>' : ''}
           <div class="flex items-start justify-between">
             <div class="flex items-center gap-3">
@@ -293,24 +304,26 @@
             <span class="flex items-center gap-2"><i data-lucide="phone" class="h-3 w-3"></i>${tech.phone || 'N/A'}</span>
             <span class="flex items-center gap-2"><i data-lucide="shield" class="h-3 w-3"></i>${tech.company || 'Tech partner'}</span>
           </div>
+          ${tech.notes ? `<div class="mt-2 flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-200"><i data-lucide="info" class="h-3 w-3 text-amber-300"></i><span class="text-left leading-tight">${tech.notes}</span></div>` : ''}
         </div>`;
       }).join('');
       lucide.createIcons();
     };
 
-    const renderTechMap = (techs, target) => {
+    const renderTechMap = (techs, target, highlightedId) => {
       const layer = document.getElementById('map-layer');
       layer.innerHTML = '';
       const fragment = document.createDocumentFragment();
 
       techs.forEach((tech) => {
         const pos = projectCoords(tech.lat, tech.lng);
+        const highlighted = highlightedId === tech.id;
         const marker = document.createElement('div');
         marker.className = 'group absolute -translate-x-1/2 -translate-y-1/2';
         marker.style.top = `${pos.y}%`;
         marker.style.left = `${pos.x}%`;
         const available = tech.status === 'Available';
-        marker.innerHTML = `<div class="relative"><div class="flex h-4 w-4 items-center justify-center rounded-full border border-white ${available ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.5)]' : 'bg-amber-500'}"><div class="h-2 w-2 rounded-full bg-white"></div></div><div class="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-100">${tech.name}</div></div>`;
+        marker.innerHTML = `<div class="relative"><div class="flex h-4 w-4 items-center justify-center rounded-full border ${highlighted ? 'border-emerald-300 scale-125' : 'border-white'} ${available ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.5)]' : 'bg-amber-500'}"><div class="h-2 w-2 rounded-full bg-white"></div></div><div class="pointer-events-none absolute left-1/2 top-full mt-1 -translate-x-1/2 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-100">${tech.name}</div></div>`;
         fragment.appendChild(marker);
       });
 
@@ -323,9 +336,11 @@
         targetMarker.innerHTML = `<div class="relative"><i data-lucide="map-pin" class="h-8 w-8 fill-red-500 stroke-white stroke-2 text-red-500 drop-shadow"></i><div class="absolute -bottom-1 left-1/2 h-1 w-3 -translate-x-1/2 rounded-full bg-black/50 blur-[2px]"></div></div>`;
         fragment.appendChild(targetMarker);
 
-        const nearest = techs
-          .map((tech) => ({ ...tech, distance: haversineMiles({ lat: tech.lat, lng: tech.lng }, target) }))
-          .sort((a, b) => a.distance - b.distance)[0];
+        const nearest = highlightedId
+          ? techs.find((t) => t.id === highlightedId)
+          : techs
+            .map((tech) => ({ ...tech, distance: haversineMiles({ lat: tech.lat, lng: tech.lng }, target) }))
+            .sort((a, b) => a.distance - b.distance)[0];
 
         if (nearest) {
           const posBest = projectCoords(nearest.lat, nearest.lng);
@@ -352,20 +367,40 @@
       lucide.createIcons();
     };
 
+    let currentTechs = [];
+    let currentTarget = null;
+    let highlightedTechId = null;
+
     const init = async () => {
       const techs = await parseCsv();
+      currentTechs = techs;
       document.getElementById('active-count').textContent = techs.length;
-      renderTechCards(techs, null);
-      renderTechMap(techs, null);
+      renderTechCards(techs, null, highlightedTechId);
+      renderTechMap(techs, null, highlightedTechId);
 
       document.getElementById('address-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const value = document.getElementById('address-input').value;
         const { state, zip } = extractAddressHint(value);
+        const cityGuess = value
+          .split(',')
+          .map((part) => part.trim())
+          .find((part) => part && !/\d{5}/.test(part) && !/\d/.test(part) && part.length > 2 && !/^[A-Z]{2}$/.test(part.toUpperCase())) || '';
         const target = guessLatLng(state || 'DEFAULT', zip);
-        const scopedTechs = pickTechsByLocation(techs, zip, state);
-        renderTechCards(scopedTechs, target);
-        renderTechMap(scopedTechs, target);
+        const scopedTechs = pickTechsByLocation(techs, zip, cityGuess, state);
+        currentTechs = scopedTechs;
+        currentTarget = target;
+        highlightedTechId = scopedTechs.length ? scopedTechs[0].id : null;
+        renderTechCards(scopedTechs, target, highlightedTechId);
+        renderTechMap(scopedTechs, target, highlightedTechId);
+      });
+
+      document.getElementById('tech-cards').addEventListener('click', (event) => {
+        const card = event.target.closest('[data-tech-id]');
+        if (!card || !currentTarget) return;
+        highlightedTechId = Number(card.getAttribute('data-tech-id'));
+        renderTechCards(currentTechs, currentTarget, highlightedTechId);
+        renderTechMap(currentTechs, currentTarget, highlightedTechId);
       });
     };
 

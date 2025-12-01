@@ -194,13 +194,15 @@
       return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
     };
 
+    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+
     const parseCsv = async () => {
       const response = await fetch('assets/installers.csv');
       const text = await response.text();
       const lines = text.trim().split(/\r?\n/);
-      const headers = (lines.shift() || '').split(',').map((h) => h.trim());
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
       return lines.filter((line) => line.trim()).map((line, idx) => {
-        const values = line.split(',');
+        const values = parseCsvLine(line);
         const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
         const state = String(row.State || row.state || '').trim().toUpperCase();
         const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
@@ -214,6 +216,7 @@
           state,
           city: row.City || '',
           zipcode: zip,
+          notes: row.Notes || row.Note || row.Observation || '',
           lat: coords.lat,
           lng: coords.lng,
           rating: 4.4 + (idx % 6) * 0.1,
