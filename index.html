@@ -1,378 +1,258 @@
-import React, { useState, useMemo } from 'react';
-import { Search, MapPin, Wrench, Navigation, Phone, Star, Menu, X, Shield, Filter, CheckCircle, Clock } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc • Home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+  <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+      <a href="/" class="flex items-center gap-3">
+        <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
+          <i data-lucide="navigation" class="h-5 w-5"></i>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">TechLoc Network</p>
+          <h1 class="text-lg font-black leading-tight">GPS Installer Hub</h1>
+        </div>
+      </a>
+      <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
+        <a href="/" class="transition-colors hover:text-white">Home</a>
+        <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
+        <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
+      </nav>
+    </div>
+  </header>
 
-// --- Configuración Geográfica ---
-// Límites calibrados para el mapa equirrectangular de EE.UU.
-const LIMITES_USA = {
-  minLng: -125.5, // Costa Oeste
-  maxLng: -66.5,  // Costa Este
-  minLat: 24.4,   // Sur de Florida
-  maxLat: 49.6    // Frontera Norte
-};
+  <main class="space-y-16">
+    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-16">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_35%)]"></div>
+      <div class="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-2">
+        <div class="space-y-6">
+          <div class="inline-flex items-center gap-2 rounded-full border border-slate-800/60 bg-slate-900/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-200">
+            <i data-lucide="shield" class="h-3 w-3"></i> Nationwide coverage • SLA in minutes
+          </div>
+          <h2 class="text-4xl font-black leading-tight text-white sm:text-5xl">Welcome to TechLoc</h2>
+          <p class="text-lg text-slate-300">Manage your GPS inventory with a verified network of installers. Start by assigning the nearest tech or checking which vehicles with broken GPS units already have nearby support.</p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <a href="find-tech.html" class="flex items-center justify-between rounded-2xl border border-blue-700/50 bg-blue-600/20 p-4 text-left shadow-lg shadow-blue-600/20 transition hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-600/30">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-blue-200">Quick path</p>
+                <p class="text-lg font-black text-white">Find an installer</p>
+                <p class="text-sm text-blue-100/80">Enter an address and get the best available option.</p>
+              </div>
+              <i data-lucide="search" class="h-8 w-8 text-white"></i>
+            </a>
+            <a href="vehicles.html" class="flex items-center justify-between rounded-2xl border border-emerald-700/50 bg-emerald-600/10 p-4 text-left shadow-lg shadow-emerald-600/10 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-600/20">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Operational map</p>
+                <p class="text-lg font-black text-white">Vehicles to fix</p>
+                <p class="text-sm text-emerald-100/80">Check coverage and assign nearby technicians.</p>
+              </div>
+              <i data-lucide="compass" class="h-8 w-8 text-emerald-200"></i>
+            </a>
+          </div>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-inner shadow-slate-900">
+              <p id="tech-count" class="text-3xl font-black text-white">-</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Registered technicians</p>
+            </div>
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-inner shadow-slate-900">
+              <p id="available-count" class="text-3xl font-black text-green-400">-</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Available now</p>
+            </div>
+            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-inner shadow-slate-900">
+              <p id="states-count" class="text-3xl font-black text-amber-300">-</p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">States covered</p>
+            </div>
+          </div>
+        </div>
+        <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/70 p-8 shadow-2xl shadow-blue-500/10">
+          <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10"></div>
+          <div class="relative space-y-6 text-sm text-slate-300">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Service level</p>
+                <p id="avg-rating" class="text-3xl font-black text-white">-</p>
+              </div>
+              <div class="flex items-center gap-2 rounded-full bg-slate-800/60 px-3 py-1 text-xs font-semibold text-emerald-200">
+                <i data-lucide="clock" class="h-4 w-4"></i> Dispatch time <span class="font-black text-white">&lt; 15 min</span>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-slate-950/60 p-5 ring-1 ring-slate-800">
+              <h3 class="mb-2 text-sm font-bold text-white">Available workflows</h3>
+              <p class="text-sm text-slate-400">Jump to “Find Tech” to locate installers or to “Vehicles to Fix” to see vehicles with damaged GPS units and their closest technician.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-xs text-slate-300">
+              <div class="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <i data-lucide="check-circle" class="h-4 w-4 text-green-400"></i> Background-checked
+              </div>
+              <div class="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <i data-lucide="phone" class="h-4 w-4 text-blue-400"></i> Direct contact
+              </div>
+              <div class="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <i data-lucide="map-pin" class="h-4 w-4 text-amber-300"></i> Precise ETA
+              </div>
+              <div class="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <i data-lucide="wrench" class="h-4 w-4 text-purple-300"></i> Device-specific SOP
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-// Función para convertir Latitud/Longitud a coordenadas X/Y (%) en la pantalla
-const proyectarCoordenadas = (lat, lng) => {
-  const x = ((lng - LIMITES_USA.minLng) / (LIMITES_USA.maxLng - LIMITES_USA.minLng)) * 100;
-  // La latitud se invierte porque en pantalla Y crece hacia abajo, pero Latitud crece hacia el Norte (arriba)
-  const y = ((LIMITES_USA.maxLat - lat) / (LIMITES_USA.maxLat - LIMITES_USA.minLat)) * 100;
-  return { x, y };
-};
+    <section class="mx-auto max-w-7xl px-6">
+      <div class="grid gap-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900 sm:grid-cols-2">
+        <div class="space-y-2">
+          <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">Home</p>
+          <h3 class="text-2xl font-black text-white">Choose where to start</h3>
+          <p class="text-sm text-slate-400">Jump straight into the installer locator or open the vehicles map to validate coverage.</p>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <a href="find-tech.html" class="group rounded-2xl border border-slate-800 bg-slate-900/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-400">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wide text-blue-200">Assign</span>
+              <i data-lucide="search" class="h-4 w-4 text-blue-300"></i>
+            </div>
+            <p class="text-sm font-semibold text-white">Find technician by address</p>
+            <p class="text-xs text-slate-400">Best for new installs or immediate visits.</p>
+          </a>
+          <a href="vehicles.html" class="group rounded-2xl border border-slate-800 bg-slate-900/70 p-4 transition hover:-translate-y-0.5 hover:border-emerald-400">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Validate</span>
+              <i data-lucide="compass" class="h-4 w-4 text-emerald-200"></i>
+            </div>
+            <p class="text-sm font-semibold text-white">Map of vehicles with issues</p>
+            <p class="text-xs text-slate-400">Confirm which customers are near active installers.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
 
-// --- Datos de Prueba (Técnicos en EE.UU.) ---
-const TECNICOS_INICIALES = [
-  { id: 1, nombre: "Miguel Rosas", ciudad: "New York, NY", valoracion: 4.9, estado: "Disponible", lat: 40.7128, lng: -74.0060, trabajosHoy: 1 },
-  { id: 2, nombre: "Sara Conner", ciudad: "Los Angeles, CA", valoracion: 4.8, estado: "Ocupado", lat: 34.0522, lng: -118.2437, trabajosHoy: 4 },
-  { id: 3, nombre: "Juan Vick", ciudad: "Chicago, IL", valoracion: 5.0, estado: "Disponible", lat: 41.8781, lng: -87.6298, trabajosHoy: 0 },
-  { id: 4, nombre: "Elena Ripley", ciudad: "Houston, TX", valoracion: 4.7, estado: "En Descanso", lat: 29.7604, lng: -95.3698, trabajosHoy: 3 },
-  { id: 5, nombre: "Antonio Stark", ciudad: "Miami, FL", valoracion: 4.6, estado: "Disponible", lat: 25.7617, lng: -80.1918, trabajosHoy: 2 },
-  { id: 6, nombre: "Bruno Wayne", ciudad: "Seattle, WA", valoracion: 4.5, estado: "Disponible", lat: 47.6062, lng: -122.3321, trabajosHoy: 0 },
-  { id: 7, nombre: "Pedro Parker", ciudad: "Denver, CO", valoracion: 4.9, estado: "Ocupado", lat: 39.7392, lng: -104.9903, trabajosHoy: 2 },
-  { id: 8, nombre: "Clark Kent", ciudad: "Kansas City, MO", valoracion: 4.8, estado: "Disponible", lat: 39.0997, lng: -94.5786, trabajosHoy: 1 },
-  { id: 9, nombre: "Diana Prince", ciudad: "Washington, DC", valoracion: 5.0, estado: "Ocupado", lat: 38.9072, lng: -77.0369, trabajosHoy: 5 },
-  { id: 10, nombre: "Logan James", ciudad: "Phoenix, AZ", valoracion: 4.4, estado: "Disponible", lat: 33.4484, lng: -112.0740, trabajosHoy: 1 },
-];
+  <footer class="border-t border-slate-900 bg-slate-950/80 py-6">
+    <div class="mx-auto flex max-w-7xl flex-col gap-2 px-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-2 text-slate-300">
+        <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
+        <span class="font-semibold text-white">TechLoc</span>
+        <span class="text-slate-500">• GPS installer network across the USA</span>
+      </div>
+      <div class="flex items-center gap-4 text-xs uppercase tracking-wide text-slate-500">
+        <span>24/7 Support</span>
+        <span>Data security</span>
+        <span>Reliable operations</span>
+      </div>
+    </div>
+  </footer>
 
-export default function GestorFlotaApp() {
-  // Estados de la Aplicación
-  const [direccion, setDireccion] = useState("");
-  const [ubicacionObjetivo, setUbicacionObjetivo] = useState(null); 
-  const [tecnicoSeleccionado, setTecnicoSeleccionado] = useState(null);
-  const [menuLateralAbierto, setMenuLateralAbierto] = useState(true);
-  const [tecnicos] = useState(TECNICOS_INICIALES);
-  const [calculando, setCalculando] = useState(false);
+  <script type="module">
+    const STATE_COORDS = {
+      AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
+      AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
+      CT: { lat: 41.5978, lng: -72.7554 }, DE: { lat: 39.3185, lng: -75.5071 }, FL: { lat: 27.7663, lng: -81.6868 },
+      GA: { lat: 33.0406, lng: -83.6431 }, HI: { lat: 21.0943, lng: -157.4983 }, ID: { lat: 44.2405, lng: -114.4788 },
+      IL: { lat: 40.3495, lng: -88.9861 }, IN: { lat: 39.8494, lng: -86.2583 }, IA: { lat: 42.0115, lng: -93.2105 },
+      KS: { lat: 38.5266, lng: -96.7265 }, KY: { lat: 37.6681, lng: -84.6701 }, LA: { lat: 31.1695, lng: -91.8678 },
+      ME: { lat: 44.6939, lng: -69.3819 }, MD: { lat: 39.0639, lng: -76.8021 }, MA: { lat: 42.2302, lng: -71.5301 },
+      MI: { lat: 43.3266, lng: -84.5361 }, MN: { lat: 45.6945, lng: -93.9002 }, MS: { lat: 32.7416, lng: -89.6787 },
+      MO: { lat: 38.4561, lng: -92.2884 }, MT: { lat: 46.9219, lng: -110.4544 }, NE: { lat: 41.1254, lng: -98.2681 },
+      NV: { lat: 38.3135, lng: -117.0554 }, NH: { lat: 43.4525, lng: -71.5639 }, NJ: { lat: 40.2989, lng: -74.521 },
+      NM: { lat: 34.8405, lng: -106.2485 }, NY: { lat: 42.1657, lng: -74.9481 }, NC: { lat: 35.6301, lng: -79.8064 },
+      ND: { lat: 47.5289, lng: -99.784 }, OH: { lat: 40.3888, lng: -82.7649 }, OK: { lat: 35.5653, lng: -96.9289 },
+      OR: { lat: 43.9336, lng: -120.5583 }, PA: { lat: 40.5908, lng: -77.2098 }, RI: { lat: 41.6809, lng: -71.5118 },
+      SC: { lat: 33.8569, lng: -80.945 }, SD: { lat: 44.2998, lng: -99.4388 }, TN: { lat: 35.7478, lng: -86.6923 },
+      TX: { lat: 31.0545, lng: -97.5635 }, UT: { lat: 40.15, lng: -111.8624 }, VT: { lat: 44.0459, lng: -72.7107 },
+      VA: { lat: 37.7693, lng: -78.1699 }, WA: { lat: 47.4009, lng: -121.4905 }, WV: { lat: 38.4912, lng: -80.9545 },
+      WI: { lat: 44.2685, lng: -89.6165 }, WY: { lat: 42.7559, lng: -107.3025 }, DC: { lat: 38.9072, lng: -77.0369 },
+      DEFAULT: { lat: 39.5, lng: -98.35 },
+    };
 
-  // Simulación de servicio de "Geocoding" (Convertir dirección a coordenadas)
-  const manejarBusqueda = (e) => {
-    e.preventDefault();
-    if (!direccion) return;
+    const jitterFromZip = (zip = '') => {
+      const seed = parseInt(String(zip).slice(-3) || '0', 10);
+      return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
+    };
 
-    setCalculando(true);
-    // Simulamos un retraso de red
-    setTimeout(() => {
-      // Para la demo: Generamos un punto aleatorio en el centro de EE.UU.
-      // En producción: Aquí usarías la API de Google Maps
-      const latAleatoria = 30 + (Math.random() * 15); // Latitud entre 30 y 45
-      const lngAleatoria = -110 + (Math.random() * 30); // Longitud entre -110 y -80
-      
-      setUbicacionObjetivo({ lat: latAleatoria, lng: lngAleatoria });
-      setTecnicoSeleccionado(null); 
-      setCalculando(false);
-      
-      // En móvil, abrir menú para ver resultados
-      if (window.innerWidth < 768) setMenuLateralAbierto(true);
-    }, 800);
+    const guessLatLng = (state, zip) => {
+      const base = STATE_COORDS[state] || STATE_COORDS.DEFAULT;
+      const jitter = jitterFromZip(zip);
+      return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
+    };
+
+    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+
+    const parseCsv = async () => {
+      const response = await fetch('assets/installers.csv');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      return lines.filter((line) => line.trim()).map((line, idx) => {
+        const values = parseCsvLine(line);
+        const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
+        const state = String(row.State || row.state || '').trim().toUpperCase();
+        const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
+        const coords = guessLatLng(state, zip);
+        return {
+          id: idx + 1,
+          name: row.Name || row.FullName || 'Installer',
+          company: row.Company || 'Partner',
+          email: row.Email || '',
+          phone: row.Phone || '',
+          state,
+          city: row.City || '',
+          zipcode: zip,
+          notes: row.Notes || row.Note || row.Observation || '',
+          lat: coords.lat,
+          lng: coords.lng,
+          rating: 4.4 + (idx % 6) * 0.1,
+          jobsToday: idx % 5,
+          status: idx % 4 === 0 ? 'Busy' : 'Available',
+      };
+    });
   };
 
-  // Calcular distancias y ordenar técnicos
-  const tecnicosOrdenados = useMemo(() => {
-    if (!ubicacionObjetivo) return tecnicos;
+  const renderStats = (techs) => {
+      const available = techs.filter((t) => t.status === 'Available').length;
+      const states = new Set(techs.map((t) => t.state)).size;
+      const rating = techs.length ? (techs.reduce((acc, t) => acc + (t.rating || 0), 0) / techs.length).toFixed(1) : '-';
+      const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+      };
+      set('tech-count', techs.length);
+      set('available-count', available);
+      set('states-count', states);
+      set('avg-rating', `${rating}/5`);
+    };
 
-    return [...tecnicos].map(tech => {
-      // Fórmula de Haversine para calcular distancia en millas
-      const R = 3958.8; // Radio de la Tierra en millas
-      const dLat = (ubicacionObjetivo.lat - tech.lat) * Math.PI / 180;
-      const dLon = (ubicacionObjetivo.lng - tech.lng) * Math.PI / 180;
-      const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(tech.lat * Math.PI / 180) * Math.cos(ubicacionObjetivo.lat * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distancia = Math.round(R * c);
-      
-      return { ...tech, distancia };
-    }).sort((a, b) => a.distance - b.distance); // Ordenar por distancia (menor a mayor)
-  }, [ubicacionObjetivo, tecnicos]);
+    const init = async () => {
+      try {
+        const techs = await parseCsv();
+        renderStats(techs);
+      } catch (err) {
+        console.warn('Error loading installer CSV', err);
+      }
+    };
 
-  // Proyectar coordenadas para el renderizado
-  const posicionesTecnicos = tecnicos.map(t => ({...t, pos: proyectarCoordenadas(t.lat, t.lng)}));
-  const posObjetivo = ubicacionObjetivo ? proyectarCoordenadas(ubicacionObjetivo.lat, ubicacionObjetivo.lng) : null;
-  const idMejorTecnico = tecnicosOrdenados[0]?.id;
-  const posMejorTecnico = posicionesTecnicos.find(t => t.id === idMejorTecnico)?.pos;
-
-  return (
-    <div className="flex h-screen w-full bg-slate-900 font-sans overflow-hidden text-slate-800">
-      
-      {/* --- Barra Lateral (Sidebar) --- */}
-      <aside 
-        className={`
-          absolute z-30 h-full bg-white shadow-2xl transition-all duration-300 ease-in-out border-r border-slate-200
-          ${menuLateralAbierto ? 'translate-x-0 w-full sm:w-96' : '-translate-x-full w-0'}
-          md:relative md:translate-x-0
-        `}
-      >
-        <div className="flex flex-col h-full">
-          {/* Encabezado */}
-          <div className="p-6 bg-slate-800 text-white shadow-lg z-10">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-2">
-                <div className="bg-blue-600 p-2 rounded-lg shadow-lg shadow-blue-900/50">
-                  <Navigation className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">FleetControl</h1>
-                  <p className="text-blue-200 text-xs">Gestión de Instaladores USA</p>
-                </div>
-              </div>
-              <button onClick={() => setMenuLateralAbierto(false)} className="md:hidden text-slate-400 hover:text-white transition-colors">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-          </div>
-
-          {/* Área de Búsqueda */}
-          <div className="p-5 border-b border-slate-100 bg-white z-10">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center">
-              <MapPin className="w-3 h-3 mr-1" /> Nueva Instalación
-            </label>
-            <form onSubmit={manejarBusqueda} className="relative">
-              <input
-                type="text"
-                placeholder="Ej: 123 Main St, Springfield..."
-                className="w-full pl-4 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-slate-700 font-medium placeholder:text-slate-400"
-                value={direccion}
-                onChange={(e) => setDireccion(e.target.value)}
-              />
-              <button 
-                type="submit"
-                disabled={calculando || !direccion}
-                className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center space-x-2 shadow-md hover:shadow-lg disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
-              >
-                {calculando ? (
-                  <span className="flex items-center"><Clock className="w-4 h-4 mr-2 animate-spin" /> Buscando...</span>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" />
-                    <span>Encontrar Técnico</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Lista de Resultados */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 scrollbar-thin scrollbar-thumb-slate-300">
-            {ubicacionObjetivo && (
-              <div className="flex items-center justify-between px-2 pb-1">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Resultados por Cercanía
-                </h3>
-                <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                  {tecnicos.length} Activos
-                </span>
-              </div>
-            )}
-
-            {!ubicacionObjetivo ? (
-               <div className="flex flex-col items-center justify-center h-64 text-center px-6 opacity-60">
-                 <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mb-4">
-                    <Filter className="w-8 h-8 text-slate-400" />
-                 </div>
-                 <h3 className="text-slate-900 font-bold text-lg mb-1">Esperando Dirección</h3>
-                 <p className="text-slate-500 text-sm">Ingresa una dirección arriba para escanear la red nacional y encontrar al mejor instalador disponible.</p>
-               </div>
-            ) : (
-              tecnicosOrdenados.map((tech, index) => {
-                const esMejorOpcion = index === 0;
-                const estaSeleccionado = tecnicoSeleccionado?.id === tech.id;
-                
-                return (
-                  <div 
-                    key={tech.id}
-                    onClick={() => setTecnicoSeleccionado(tech)}
-                    className={`
-                      relative p-4 rounded-xl cursor-pointer transition-all border group
-                      ${estaSeleccionado 
-                        ? 'bg-white border-blue-500 shadow-lg ring-1 ring-blue-500 z-10' 
-                        : 'bg-white border-slate-200 hover:border-blue-400 hover:shadow-md'
-                      }
-                    `}
-                  >
-                    {esMejorOpcion && (
-                      <div className="absolute -top-2 -right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm flex items-center animate-in zoom-in">
-                        <Star className="w-3 h-3 mr-1 fill-current" />
-                        MEJOR OPCIÓN
-                      </div>
-                    )}
-                    
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center space-x-3">
-                        <div className={`
-                          w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shadow-sm
-                          ${esMejorOpcion ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}
-                        `}>
-                          {tech.nombre.charAt(0)}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-800">{tech.nombre}</h4>
-                          <div className="flex flex-col text-slate-500 text-xs mt-1 space-y-0.5">
-                            <span className="flex items-center font-medium">
-                              <MapPin className="w-3 h-3 mr-1 text-slate-400" /> {tech.ciudad}
-                            </span>
-                            <div className="flex items-center text-slate-400">
-                                <span className="text-yellow-500 font-bold flex items-center mr-2">{tech.valoracion} ★</span>
-                                <span>{tech.trabajosHoy} trabajos hoy</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right flex flex-col items-end">
-                        <span className={`block font-black text-xl tracking-tight ${esMejorOpcion ? 'text-green-600' : 'text-slate-700'}`}>
-                          {tech.distancia} <span className="text-xs font-normal text-slate-400">millas</span>
-                        </span>
-                        <span className={`mt-2 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide border ${
-                            tech.estado === 'Disponible' ? 'bg-green-50 text-green-700 border-green-200' : 
-                            tech.estado === 'Ocupado' ? 'bg-red-50 text-red-700 border-red-200' :
-                            'bg-amber-50 text-amber-700 border-amber-200'
-                        }`}>
-                          {tech.estado}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </aside>
-
-      {/* --- Área Principal del Mapa --- */}
-      <main className="flex-1 relative bg-[#0f172a] overflow-hidden flex items-center justify-center p-4">
-        
-        {/* Botón Flotante para Móvil */}
-        <button 
-          onClick={() => setMenuLateralAbierto(true)}
-          className={`absolute top-4 left-4 z-40 bg-white p-3 rounded-lg shadow-lg md:hidden text-slate-900 ${menuLateralAbierto ? 'hidden' : 'block'}`}
-        >
-          <Menu className="w-6 h-6" />
-        </button>
-
-        {/* Leyenda del Mapa */}
-        <div className="absolute top-6 right-6 bg-slate-800/90 backdrop-blur-md p-4 rounded-xl shadow-2xl border border-slate-700 z-20 hidden lg:block animate-in fade-in slide-in-from-top-4">
-            <h4 className="font-bold text-slate-200 mb-3 text-xs uppercase tracking-wider flex items-center">
-              <Shield className="w-3 h-3 mr-2 text-blue-500" /> Estado de la Flota
-            </h4>
-            <div className="space-y-2 text-xs text-slate-400 font-medium">
-              <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-blue-500 mr-2 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div> Técnico Disponible</div>
-              <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-amber-500 mr-2"></div> Ocupado / En Pausa</div>
-              <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></div> Dirección de Instalación</div>
-            </div>
-        </div>
-
-        {/* --- CONTENEDOR DEL MAPA --- */}
-        <div className="relative w-full max-w-6xl aspect-[1.55] select-none">
-          
-          {/* Imagen de Fondo: Mapa de EE.UU. con división política (Estados).
-              Usamos una imagen SVG de Wikimedia Commons que usa proyección equirrectangular,
-              lo que permite que nuestra lógica simple de X/Y funcione correctamente.
-          */}
-          <img 
-            src="https://upload.wikimedia.org/wikipedia/commons/c/c6/USA_adm1_location_map.svg" 
-            alt="Mapa de Estados Unidos con Estados"
-            className="w-full h-full object-contain filter drop-shadow-2xl opacity-90 brightness-110 contrast-125"
-            style={{ 
-              filter: 'invert(15%) sepia(30%) saturate(60%) hue-rotate(180deg) brightness(90%) contrast(100%)' 
-            }}
-          />
-
-          {/* Capa de Superposición (Pins y Líneas) */}
-          <div className="absolute inset-0 w-full h-full">
-            
-            {/* Línea de Ruta Visual */}
-            {ubicacionObjetivo && posMejorTecnico && (
-               <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
-                 <defs>
-                   <linearGradient id="gradienteRuta" gradientUnits="userSpaceOnUse">
-                     <stop offset="0%" stopColor="#3b82f6" />
-                     <stop offset="100%" stopColor="#ef4444" />
-                   </linearGradient>
-                   <filter id="brilloLinea">
-                      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
-                      <feMerge>
-                          <feMergeNode in="coloredBlur"/>
-                          <feMergeNode in="SourceGraphic"/>
-                      </feMerge>
-                    </filter>
-                 </defs>
-                 {/* Línea principal */}
-                 <line 
-                   x1={`${posMejorTecnico.x}%`} 
-                   y1={`${posMejorTecnico.y}%`} 
-                   x2={`${posObjetivo.x}%`} 
-                   y2={`${posObjetivo.y}%`} 
-                   stroke="url(#gradienteRuta)" 
-                   strokeWidth="3" 
-                   strokeDasharray="6,4"
-                   filter="url(#brilloLinea)"
-                   className="animate-[pulse_1.5s_ease-in-out_infinite]"
-                 />
-                 {/* Puntos de conexión */}
-                 <circle cx={`${posMejorTecnico.x}%`} cy={`${posMejorTecnico.y}%`} r="4" fill="#3b82f6" />
-                 <circle cx={`${posObjetivo.x}%`} cy={`${posObjetivo.y}%`} r="4" fill="#ef4444" />
-               </svg>
-            )}
-
-            {/* Marcadores de Técnicos */}
-            {posicionesTecnicos.map((tech) => {
-              const esSeleccionado = tecnicoSeleccionado?.id === tech.id;
-              
-              return (
-                <div
-                  key={tech.id}
-                  onClick={() => {
-                    setTecnicoSeleccionado(tech);
-                    if(!menuLateralAbierto) setMenuLateralAbierto(true);
-                  }}
-                  className={`
-                    absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer group transition-all duration-300
-                    ${esSeleccionado ? 'z-50 scale-125' : 'z-30 hover:scale-125'}
-                  `}
-                  style={{ top: `${tech.pos.y}%`, left: `${tech.pos.x}%` }}
-                >
-                  {/* Etiqueta del Nombre (Hover o Seleccionado) */}
-                  <div className={`
-                    absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap px-3 py-1.5 bg-slate-900 text-white text-[11px] rounded-md font-bold shadow-xl transition-all border border-slate-700
-                    ${esSeleccionado ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0'}
-                  `}>
-                    <div className="flex items-center gap-1">
-                      {tech.nombre}
-                      {tech.estado === 'Disponible' && <CheckCircle className="w-3 h-3 text-green-400" />}
-                    </div>
-                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900"></div>
-                  </div>
-
-                  {/* Icono del Pin (Técnico) */}
-                  <div className={`
-                    w-4 h-4 md:w-6 md:h-6 rounded-full border-2 border-white shadow-[0_0_15px_rgba(0,0,0,0.5)] flex items-center justify-center transition-colors
-                    ${tech.estado === 'Disponible' ? 'bg-blue-500' : 'bg-amber-500'}
-                    ${esSeleccionado ? 'ring-4 ring-blue-500/50' : ''}
-                  `}>
-                     {/* Pequeño punto central */}
-                     <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Marcador de Dirección Objetivo (Cliente) */}
-            {ubicacionObjetivo && (
-              <div 
-                className="absolute transform -translate-x-1/2 -translate-y-full z-40"
-                style={{ top: `${posObjetivo.y}%`, left: `${posObjetivo.x}%` }}
-              >
-                <div className="relative group">
-                  <MapPin className="w-10 h-10 text-red-500 drop-shadow-2xl fill-red-500 stroke-white stroke-2 animate-bounce" />
-                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-black/50 blur-[2px] rounded-full animate-pulse"></div>
-                  
-                  {/* Tooltip de la dirección */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-red-600 text-white text-[10px] font-bold rounded whitespace-nowrap">
-                    CLIENTE
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      init();
+    });
+  </script>
+</body>
+</html>
