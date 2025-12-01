@@ -20,6 +20,9 @@
       theme: {
         extend: {
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            slate: { 750: '#2d3b4e', 850: '#1a2233' } // Colores personalizados para mejor contraste
+          }
         },
       },
     };
@@ -31,49 +34,49 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
   <style>
-    /* Aseguramos que el mapa tenga altura visible siempre */
+    /* Mapa oscuro y responsivo */
     #tech-map {
       height: 100%;
       min-height: 500px;
       width: 100%;
-      background-color: #0f172a; /* Slate 900 de fondo mientras carga */
+      background-color: #0f172a; 
       z-index: 1;
     }
-    /* Estilo oscuro para el mapa */
+    /* Filtro para modo oscuro profesional en el mapa */
     .leaflet-tile {
-      filter: grayscale(100%) invert(100%) contrast(80%);
+      filter: grayscale(100%) invert(100%) contrast(85%);
     }
-    /* Personalización del scroll */
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #1e293b; 
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #475569; 
-      border-radius: 4px;
-    }
+    /* Scrollbars personalizadas finas */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    
+    /* Animaciones suaves */
+    .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
-<body class="min-h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
+<body class="h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
 
   <!-- Header -->
-  <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-50">
-    <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 py-4">
+  <header class="flex-none border-b border-slate-800 bg-slate-900 z-50">
+    <div class="mx-auto flex w-full items-center justify-between px-6 py-4">
       <a href="#" class="flex items-center gap-3">
-        <div class="rounded-xl bg-blue-600 p-2 shadow-lg shadow-blue-500/20">
+        <div class="rounded-lg bg-blue-600 p-2 shadow-lg shadow-blue-500/20">
           <i data-lucide="satellite" class="h-5 w-5 text-white"></i>
         </div>
         <div>
           <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400">Sistema GPS</p>
-          <h1 class="text-lg font-black leading-tight tracking-tight">TechLoc Manager</h1>
+          <h1 class="text-lg font-black leading-tight">TechLoc Manager</h1>
         </div>
       </a>
-      
-      <div class="hidden md:flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/50 px-4 py-1.5 text-xs font-medium text-slate-400">
-        <span class="flex h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
-        Sistema Operativo
+      <div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+        </span>
+        <span class="text-xs font-medium text-slate-300">Sistema Online</span>
       </div>
     </div>
   </header>
@@ -81,147 +84,129 @@
   <!-- Main Layout -->
   <main class="flex-1 flex overflow-hidden">
     
-    <!-- Sidebar (Izquierda) -->
-    <aside class="w-[400px] flex-none border-r border-slate-800 bg-slate-900/90 flex flex-col shadow-2xl z-20">
+    <!-- Sidebar -->
+    <aside class="w-[420px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col shadow-2xl z-20">
       
       <!-- Panel de Búsqueda -->
-      <div class="p-6 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="mb-4">
-          <label class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">Dirección de Instalación</label>
-          <form id="search-form" class="relative group">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <i data-lucide="search" class="h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors"></i>
-            </div>
+          <label class="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 block">Dirección, Ciudad o Zip</label>
+          <form id="search-form" class="relative">
             <input 
               id="address-input" 
               type="text" 
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-10 pr-4 py-3 text-sm text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all shadow-inner" 
-              placeholder="Ej: 123 Main St, Miami, FL"
+              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3.5 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all font-medium" 
+              placeholder="Ej: 33101 o Phoenix..."
               autocomplete="off"
             >
-            <button type="submit" class="absolute inset-y-1 right-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 text-xs font-bold transition-colors">
+            <button type="submit" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors shadow-lg shadow-blue-900/20">
               BUSCAR
             </button>
           </form>
         </div>
 
-        <!-- Estadísticas Rápidas -->
-        <div class="flex items-center justify-between text-xs text-slate-400 bg-slate-800/50 p-3 rounded-lg border border-slate-800/50">
-          <span class="flex items-center gap-2">
-            <i data-lucide="users" class="h-3 w-3"></i>
-            Total Técnicos: <strong id="total-count" class="text-white">0</strong>
-          </span>
-          <a href="assets/installers.csv" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline">Ver CSV</a>
+        <!-- Stats y CSV Link -->
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+            <span class="text-slate-500 block mb-1">Total Técnicos</span>
+            <strong id="total-count" class="text-lg text-white font-black">0</strong>
+          </div>
+          <a href="assets/installers.csv" target="_blank" class="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50 flex flex-col justify-center items-center hover:bg-slate-800 transition-colors group cursor-pointer">
+            <span class="text-blue-400 font-bold group-hover:text-blue-300 flex items-center gap-1"><i data-lucide="file-spreadsheet" class="h-3 w-3"></i> Ver CSV</span>
+            <span class="text-[10px] text-slate-500">Archivo fuente</span>
+          </a>
         </div>
         
-        <!-- Alerta de Error CSV -->
-        <div id="csv-error" class="hidden mt-3 p-3 bg-red-900/20 border border-red-900/50 rounded-lg">
-          <p class="text-xs text-red-400 font-semibold flex items-start gap-2">
+        <!-- Error Alert -->
+        <div id="csv-error" class="hidden mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg animate-fade-in">
+          <p class="text-[11px] text-red-300 flex gap-2">
             <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0"></i>
-            <span>No se pudo cargar "assets/installers.csv". Usando datos de prueba. Asegúrate de usar un servidor local (http://) y no abrir el archivo directamente.</span>
+            <span>Error cargando CSV. Asegúrate de ejecutar esto en un servidor local (http://). Mostrando datos de prueba.</span>
           </p>
         </div>
       </div>
 
-      <!-- Lista de Técnicos (Scroll) -->
-      <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
-        <!-- Los técnicos se inyectarán aquí -->
-        <div class="text-center py-10 opacity-50">
+      <!-- Lista Scrollable -->
+      <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900 scroll-smooth">
+        <!-- Loader -->
+        <div class="py-12 text-center opacity-50">
           <i data-lucide="loader-2" class="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3"></i>
-          <p class="text-xs text-slate-400">Cargando flota...</p>
+          <p class="text-xs text-slate-400">Cargando base de datos...</p>
         </div>
       </div>
     </aside>
 
-    <!-- Mapa (Derecha) -->
+    <!-- Mapa -->
     <div class="flex-1 relative bg-slate-950">
-      
-      <!-- Leyenda Flotante -->
-      <div class="absolute top-4 right-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-700 p-4 rounded-xl shadow-2xl">
-        <h4 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Estado de Flota</h4>
+      <div class="absolute top-6 right-6 z-[400] bg-slate-900/95 backdrop-blur border border-slate-700 p-4 rounded-xl shadow-2xl min-w-[180px]">
+        <h4 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3 pb-2 border-b border-slate-800">Leyenda</h4>
         <div class="space-y-2 text-xs font-medium text-slate-300">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></span> Disponible
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Ocupado
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full border-2 border-white bg-red-500 animate-pulse"></span> Destino
-          </div>
+          <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></span> Disponible</div>
+          <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Ocupado</div>
+          <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full border-2 border-white bg-red-600 animate-pulse"></span> Búsqueda</div>
         </div>
       </div>
-
       <div id="tech-map"></div>
     </div>
   </main>
 
   <script>
-    // --- Configuración ---
-    const DEFAULT_CENTER = [39.8283, -98.5795]; // Centro de USA
+    // --- Configuración y Coordenadas Base por Estado ---
+    const DEFAULT_CENTER = [39.8283, -98.5795]; // Centro USA
     const STATE_COORDS = {
-      'AL': [32.806671, -86.791130], 'AK': [61.370716, -152.404419], 'AZ': [33.729759, -111.431221],
-      'AR': [34.969704, -92.373123], 'CA': [36.116203, -119.681564], 'CO': [39.059811, -105.311104],
-      'CT': [41.597782, -72.755371], 'DE': [39.318523, -75.507141], 'DC': [38.9072, -77.0369],
-      'FL': [27.766279, -81.686783], 'GA': [33.040619, -83.643074], 'HI': [21.094318, -157.498337],
-      'ID': [44.240459, -114.478828], 'IL': [40.349457, -88.986137], 'IN': [39.849426, -86.258278],
-      'IA': [42.011539, -93.210526], 'KS': [38.526600, -96.726486], 'KY': [37.668140, -84.670067],
-      'LA': [31.169546, -91.867805], 'ME': [44.693947, -69.381927], 'MD': [39.063946, -76.802101],
-      'MA': [42.230171, -71.530106], 'MI': [43.326618, -84.536095], 'MN': [45.694454, -93.900192],
-      'MS': [32.741646, -89.678696], 'MO': [38.456085, -92.288368], 'MT': [46.921925, -110.454353],
-      'NE': [41.125370, -98.268082], 'NV': [38.313515, -117.055374], 'NH': [43.452492, -71.563896],
-      'NJ': [40.298904, -74.521011], 'NM': [34.840515, -106.248482], 'NY': [42.165726, -74.948051],
-      'NC': [35.630066, -79.806419], 'ND': [47.528912, -99.784012], 'OH': [40.388783, -82.764915],
-      'OK': [35.565342, -96.928917], 'OR': [43.933600, -120.558319], 'PA': [40.590752, -77.209755],
-      'RI': [41.680893, -71.511780], 'SC': [33.856892, -80.945007], 'SD': [44.299782, -99.438828],
-      'TN': [35.747845, -86.692345], 'TX': [31.054487, -97.563461], 'UT': [40.150032, -111.862434],
-      'VT': [44.045876, -72.710686], 'VA': [37.769337, -78.169968], 'WA': [47.400902, -121.490494],
-      'WV': [38.491226, -80.954453], 'WI': [44.268543, -89.616508], 'WY': [42.755966, -107.302490]
+      'AL': [32.8067, -86.7911], 'AK': [61.3707, -152.4044], 'AZ': [33.7298, -111.4312], 'AR': [34.9697, -92.3731],
+      'CA': [36.1162, -119.6816], 'CO': [39.0598, -105.3111], 'CT': [41.5978, -72.7554], 'DE': [39.3185, -75.5071],
+      'FL': [27.7663, -81.6868], 'GA': [33.0406, -83.6431], 'HI': [21.0943, -157.4983], 'ID': [44.2405, -114.4788],
+      'IL': [40.3495, -88.9861], 'IN': [39.8494, -86.2583], 'IA': [42.0115, -93.2105], 'KS': [38.5266, -96.7265],
+      'KY': [37.6681, -84.6701], 'LA': [31.1695, -91.8678], 'ME': [44.6939, -69.3819], 'MD': [39.0639, -76.8021],
+      'MA': [42.2302, -71.5301], 'MI': [43.3266, -84.5361], 'MN': [45.6945, -93.9002], 'MS': [32.7416, -89.6787],
+      'MO': [38.4561, -92.2884], 'MT': [46.9219, -110.4544], 'NE': [41.1254, -98.2681], 'NV': [38.3135, -117.0554],
+      'NH': [43.4525, -71.5639], 'NJ': [40.2989, -74.5210], 'NM': [34.8405, -106.2485], 'NY': [42.1657, -74.9481],
+      'NC': [35.6301, -79.8064], 'ND': [47.5289, -99.7840], 'OH': [40.3888, -82.7649], 'OK': [35.5653, -96.9289],
+      'OR': [43.9336, -120.5583], 'PA': [40.5908, -77.2098], 'RI': [41.6809, -71.5118], 'SC': [33.8569, -80.9450],
+      'SD': [44.2998, -99.4388], 'TN': [35.7478, -86.6923], 'TX': [31.0545, -97.5635], 'UT': [40.1500, -111.8624],
+      'VT': [44.0459, -72.7107], 'VA': [37.7693, -78.1699], 'WA': [47.4009, -121.4905], 'WV': [38.4912, -80.9545],
+      'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
     };
 
-    // Datos de respaldo por si falla el CSV (Error de CORS o 404)
+    // Datos Mock (Respaldo)
     const MOCK_DATA = [
-      { id: 1, name: "Tech Demo NY", city: "New York", state: "NY", lat: 40.7128, lng: -74.0060, status: "Available", rating: 5.0 },
-      { id: 2, name: "Tech Demo CA", city: "Los Angeles", state: "CA", lat: 34.0522, lng: -118.2437, status: "Busy", rating: 4.8 },
-      { id: 3, name: "Tech Demo TX", city: "Houston", state: "TX", lat: 29.7604, lng: -95.3698, status: "Available", rating: 4.9 },
+      { id: 1, name: "CB Direct", city: "Alabaster", state: "AL", zip: "35007", phone: "866-716-9886", email: "office@cbdirect.net", lat: 33.2443, lng: -86.8164, status: "Available", rating: 4.9 },
+      { id: 2, name: "Field Evolution", city: "Phoenix", state: "AZ", zip: "85029", phone: "614-600-3320", email: "info@fieldevolution.com", lat: 33.4484, lng: -112.0740, status: "Busy", rating: 4.5 },
+      { id: 3, name: "Metro Mobile", city: "San Tan Valley", state: "AZ", zip: "85140", phone: "866-246-2192", email: "info@mmegps.com", lat: 33.1706, lng: -111.5710, status: "Available", rating: 4.8 },
+      { id: 4, name: "Don Installer", city: "Phoenix", state: "AZ", zip: "85001", phone: "480-487-5676", email: "dondoral75@gmail.com", lat: 33.4500, lng: -112.0800, status: "Available", rating: 4.7 }
     ];
 
     let map, techLayer, routeLayer, targetLayer;
     let allTechs = [];
 
-    // --- Funciones del Mapa ---
+    // --- Inicializar Mapa ---
     function initMap() {
-      // Inicializar Leaflet
-      map = L.map('tech-map', {
-        zoomControl: false,
-        attributionControl: false
-      }).setView(DEFAULT_CENTER, 4);
-
-      // Capa de mapa base (OpenStreetMap estándar, sin API Key)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
-
-      // Controles de zoom abajo a la derecha
+      map = L.map('tech-map', { zoomControl: false, attributionControl: false }).setView(DEFAULT_CENTER, 4);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-      // Capas para marcadores
       techLayer = L.layerGroup().addTo(map);
       routeLayer = L.layerGroup().addTo(map);
       targetLayer = L.layerGroup().addTo(map);
     }
 
-    // --- Funciones de Datos ---
-    
-    // Calcula coordenadas aproximadas basadas en el estado y un "jitter" (variación) aleatorio del ZIP
-    function getCoords(state, zip) {
+    // --- CORRECCIÓN: Dispersión Orgánica ("Nube" en vez de Línea Recta) ---
+    function getCoords(state, zip, id) {
       const stateKey = (state || '').trim().toUpperCase();
       const base = STATE_COORDS[stateKey] || DEFAULT_CENTER;
       
-      // Usar los últimos dígitos del ZIP para mover un poco el punto y que no caigan todos encima
-      const seed = parseInt((zip || '00000').replace(/\D/g, '').slice(-3)) || 0;
-      const latOffset = ((seed % 100) - 50) / 100; // +/- 0.5 grados
-      const lngOffset = ((seed % 50) - 25) / 50;  // +/- 0.5 grados
+      // Convertimos el ZIP y el ID en un número semilla
+      const seed = parseInt((zip || '0').replace(/\D/g, '')) + (id * 47); 
+      
+      // Ángulo aleatorio (0 a 360 grados) basado en la semilla
+      const angle = (seed % 360) * (Math.PI / 180);
+      
+      // Radio variable para crear una "nube" alrededor del punto central
+      // 0.1 a 0.8 grados de latitud/longitud
+      const radius = 0.1 + ((seed % 70) / 100); 
+
+      const latOffset = radius * Math.cos(angle);
+      const lngOffset = radius * Math.sin(angle) * 1.3; // 1.3 compensa la proyección del mapa
 
       return {
         lat: Array.isArray(base) ? base[0] + latOffset : base.lat,
@@ -229,101 +214,135 @@
       };
     }
 
+    // --- Carga de CSV ---
     async function loadTechs() {
       try {
-        console.log("Intentando cargar CSV...");
         const response = await fetch('assets/installers.csv');
-        
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
+        if (!response.ok) throw new Error("CSV not found");
         const text = await response.text();
-        console.log("CSV cargado, procesando...");
         
         const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        // Normalizamos cabeceras a minúsculas
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
         
+        // Mapeo inteligente de columnas
         allTechs = lines.slice(1).map((line, index) => {
-          // Regex simple para respetar comillas en CSV
+          // Regex para CSV que respeta comas dentro de comillas
           const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
           const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
-          
-          // Mapeo seguro de columnas
           const row = {};
           headers.forEach((h, i) => row[h] = cleanValues[i] || '');
 
-          // Detectar campos clave
-          const state = row.state || row.st || '';
-          const zip = row.zip || row.zipcode || row.postal || '';
-          const coords = getCoords(state, zip);
+          // Extraer código de estado, ej: "Alabama (AL)" -> "AL"
+          let stateRaw = row['state'] || '';
+          let stateMatch = stateRaw.match(/\(([A-Z]{2})\)/); 
+          let stateCode = stateMatch ? stateMatch[1] : (stateRaw.length === 2 ? stateRaw : 'UNKNOWN');
+
+          const zip = row['zip'] || row['zipcode'] || '';
+          // Generar coordenadas dispersas
+          const coords = getCoords(stateCode, zip, index);
 
           return {
             id: index,
-            name: row.name || row.installer || row.company || 'Técnico ' + index,
-            city: row.city || '',
-            state: state,
+            // Prioridades de nombre según tus columnas reales
+            name: row['installation company'] || row['company'] || row['name'] || 'Instalador ' + index,
+            city: row['city'] || 'N/A',
+            state: stateCode,
             zip: zip,
-            phone: row.phone || row.cell || 'N/A',
+            phone: row['phone'] || 'No listado',
+            email: row['email'] || 'No listado',
+            notes: row['notes'] || '',
             lat: coords.lat,
             lng: coords.lng,
-            status: (index % 3 === 0) ? 'Busy' : 'Available', // Simulado si no está en CSV
+            // Estado simulado para la demo
+            status: (index % 4 === 0) ? 'Busy' : 'Available', 
             rating: (4 + Math.random()).toFixed(1)
           };
         });
 
       } catch (e) {
-        console.error("Error cargando CSV:", e);
+        console.warn("Error cargando CSV, usando Mock Data:", e);
         document.getElementById('csv-error').classList.remove('hidden');
-        allTechs = MOCK_DATA; // Fallback para que la UI no quede rota
+        allTechs = MOCK_DATA;
       }
 
       document.getElementById('total-count').textContent = allTechs.length;
-      renderTechs(allTechs);
+      renderTechs(allTechs); 
       renderMapMarkers(allTechs);
     }
 
-    // --- Renderizado UI ---
+    // --- Renderizado de Lista ---
     function renderTechs(techs, targetCoords = null) {
       const container = document.getElementById('tech-list');
       container.innerHTML = '';
 
       if (techs.length === 0) {
-        container.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">No se encontraron técnicos.</div>';
+        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl">No se encontraron resultados.</div>';
         return;
       }
 
-      // Si hay objetivo, ordenar por distancia
+      // Ordenar por distancia si hay búsqueda
       let displayTechs = [...techs];
       if (targetCoords) {
-        displayTechs = displayTechs.map(t => {
-          const dist = getDistance(targetCoords.lat, targetCoords.lng, t.lat, t.lng);
-          return { ...t, distance: dist };
-        }).sort((a, b) => a.distance - b.distance);
+        displayTechs = displayTechs.map(t => ({
+          ...t, 
+          distance: getDistance(targetCoords.lat, targetCoords.lng, t.lat, t.lng)
+        })).sort((a, b) => a.distance - b.distance);
       }
-
-      displayTechs.forEach((tech, idx) => {
+      
+      // Renderizamos solo los primeros 50 para evitar lag
+      displayTechs.slice(0, 50).forEach((tech, idx) => {
         const isBest = idx === 0 && targetCoords;
         const el = document.createElement('div');
-        el.className = `p-4 rounded-xl border transition-all cursor-pointer bg-slate-800 ${isBest ? 'border-blue-500 shadow-lg shadow-blue-500/10' : 'border-slate-700 hover:border-slate-500'}`;
+        
+        el.className = `group relative p-4 rounded-xl border transition-all cursor-pointer bg-slate-900 animate-fade-in
+          ${isBest ? 'border-blue-500 bg-slate-800 shadow-lg shadow-blue-500/10 z-10 ring-1 ring-blue-500/50' : 'border-slate-800 hover:border-slate-600'}`;
+        
         el.innerHTML = `
+          ${isBest ? '<div class="absolute -top-2 -right-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md z-20">MEJOR OPCIÓN</div>' : ''}
+          
           <div class="flex justify-between items-start mb-2">
-            <div>
-              <h3 class="font-bold text-slate-200 text-sm">${tech.name}</h3>
-              <div class="text-xs text-slate-400 flex items-center gap-1">
-                <i data-lucide="map-pin" class="h-3 w-3"></i> ${tech.city}, ${tech.state}
+            <div class="pr-2">
+              <h3 class="font-bold text-slate-100 text-sm group-hover:text-blue-400 transition-colors truncate max-w-[200px]">${tech.name}</h3>
+              <div class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                <i data-lucide="map-pin" class="h-3 w-3 text-slate-500"></i> ${tech.city}, ${tech.state} ${tech.zip}
               </div>
             </div>
-            ${targetCoords ? `<span class="text-lg font-black ${isBest ? 'text-blue-400' : 'text-slate-500'}">${Math.round(tech.distance)} <span class="text-[10px] font-normal">mi</span></span>` : ''}
+            ${targetCoords ? `
+              <div class="text-right flex-shrink-0">
+                <span class="block text-xl font-black ${isBest ? 'text-blue-400' : 'text-slate-500'} tracking-tight leading-none">${Math.round(tech.distance)}</span>
+                <span class="text-[9px] font-bold text-slate-600 uppercase">millas</span>
+              </div>` : ''}
           </div>
-          <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50">
-            <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${tech.status === 'Available' ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300'}">${tech.status}</span>
-            <div class="flex items-center text-xs text-yellow-500 font-bold">
-              <i data-lucide="star" class="h-3 w-3 mr-1 fill-current"></i> ${tech.rating}
+
+          <!-- Datos de Contacto Visibles (CORRECCIÓN IMPORTANTE) -->
+          <div class="grid grid-cols-1 gap-1.5 my-3 pb-3 border-b border-slate-800/80">
+            <div class="flex items-center gap-2 text-xs text-slate-300 bg-slate-950/50 p-1.5 rounded border border-slate-800/50 hover:border-blue-500/30 transition-colors group/item">
+              <i data-lucide="phone" class="h-3 w-3 text-blue-500 shrink-0 group-hover/item:scale-110 transition-transform"></i>
+              <span class="truncate select-all cursor-text">${tech.phone}</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-300 bg-slate-950/50 p-1.5 rounded border border-slate-800/50 hover:border-blue-500/30 transition-colors group/item">
+              <i data-lucide="mail" class="h-3 w-3 text-blue-500 shrink-0 group-hover/item:scale-110 transition-transform"></i>
+              <span class="truncate select-all cursor-text" title="${tech.email}">${tech.email}</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <span class="flex items-center gap-1.5 text-[10px] uppercase font-bold px-2 py-1 rounded-md border ${tech.status === 'Available' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}">
+              <span class="w-1.5 h-1.5 rounded-full ${tech.status === 'Available' ? 'bg-blue-400' : 'bg-amber-400'}"></span>
+              ${tech.status === 'Available' ? 'Disponible' : 'Ocupado'}
+            </span>
+            <div class="flex items-center text-xs text-slate-300 font-bold bg-slate-950 px-2 py-1 rounded-md">
+              <i data-lucide="star" class="h-3 w-3 mr-1 text-yellow-500 fill-current"></i> ${tech.rating}
             </div>
           </div>
         `;
         
         el.addEventListener('click', () => {
           flyToTech(tech);
+          // Resaltar selección visualmente
+          document.querySelectorAll('#tech-list > div').forEach(d => d.classList.remove('ring-2', 'ring-blue-500'));
+          el.classList.add('ring-2', 'ring-blue-500');
         });
 
         container.appendChild(el);
@@ -340,67 +359,86 @@
         const marker = L.circleMarker([tech.lat, tech.lng], {
           radius: 6,
           fillColor: color,
-          color: '#fff',
+          color: '#0f172a',
           weight: 1,
           opacity: 1,
-          fillOpacity: 0.8
+          fillOpacity: 0.9
         }).addTo(techLayer);
 
-        marker.bindPopup(`<b>${tech.name}</b><br>${tech.city}, ${tech.state}`);
+        // Popup con datos completos
+        marker.bindPopup(`
+          <div class="text-slate-800 p-1 min-w-[200px]">
+            <strong class="block text-sm mb-1 font-bold text-slate-900 border-b pb-1">${tech.name}</strong>
+            <span class="text-xs block text-slate-500 mb-2 mt-1 flex items-center gap-1"><i style="width:12px" data-lucide="map-pin"></i> ${tech.city}, ${tech.state}</span>
+            <div class="grid gap-1.5">
+               <a href="tel:${tech.phone}" class="flex items-center gap-2 text-xs bg-blue-50 text-blue-700 px-2 py-1.5 rounded font-semibold border border-blue-100 hover:bg-blue-100 transition">📞 ${tech.phone}</a>
+               <a href="mailto:${tech.email}" class="flex items-center gap-2 text-xs bg-slate-50 text-slate-700 px-2 py-1.5 rounded border border-slate-200 hover:bg-slate-100 transition truncate">✉️ ${tech.email}</a>
+            </div>
+          </div>
+        `);
       });
     }
 
-    // --- Lógica de Búsqueda ---
+    // --- Lógica de Búsqueda en Cascada (Zip -> Ciudad -> Estado) ---
     function handleSearch(e) {
       e.preventDefault();
-      const query = document.getElementById('address-input').value.trim();
+      const query = document.getElementById('address-input').value.trim().toLowerCase();
       if (!query) return;
 
-      // 1. Intentar adivinar Estado y ZIP del texto
-      const stateMatch = query.match(/\b([A-Z]{2})\b/);
-      const zipMatch = query.match(/\b\d{5}\b/);
-      
       let targetLat, targetLng;
+      let foundMatch = false;
 
-      // Simulación de Geocoding (En producción usarías Google Maps API)
-      // Si encontramos un estado en el texto, vamos ahí. Si no, al centro.
-      if (stateMatch && STATE_COORDS[stateMatch[1]]) {
-        const coords = STATE_COORDS[stateMatch[1]];
-        // Añadimos variación aleatoria para simular dirección exacta
-        targetLat = coords[0] + (Math.random() - 0.5);
-        targetLng = coords[1] + (Math.random() - 0.5);
+      // 1. Prioridad: Buscar coincidencia exacta de ZIP
+      const zipMatch = allTechs.find(t => t.zip && t.zip.includes(query) && query.length >= 3);
+      
+      // 2. Prioridad: Buscar coincidencia de CIUDAD (parcial)
+      const cityMatch = allTechs.find(t => t.city && t.city.toLowerCase().includes(query));
+
+      // 3. Prioridad: Buscar coincidencia de ESTADO (2 letras)
+      const stateQuery = query.toUpperCase().substring(0, 2);
+      const stateCoords = STATE_COORDS[stateQuery];
+
+      if (zipMatch) {
+        targetLat = zipMatch.lat; targetLng = zipMatch.lng;
+        foundMatch = true;
+      } else if (cityMatch) {
+        targetLat = cityMatch.lat; targetLng = cityMatch.lng;
+        foundMatch = true;
+      } else if (stateCoords) {
+        targetLat = stateCoords[0]; targetLng = stateCoords[1];
+        foundMatch = true;
       } else {
-        // Fallback: Centro de USA
-        targetLat = 38.0; 
-        targetLng = -97.0;
+        targetLat = 38.0; targetLng = -97.0; // Centro USA fallback
+        alert("No encontramos técnicos exactos en esa ubicación. Mostrando vista general.");
       }
 
-      // Dibujar Target
+      // Marcador de Búsqueda
       targetLayer.clearLayers();
-      L.marker([targetLat, targetLng], {
-        icon: L.divIcon({
-          className: 'bg-transparent',
-          html: `<div class="relative"><div class="w-4 h-4 bg-red-600 rounded-full border-2 border-white shadow-lg animate-bounce"></div></div>`
-        })
-      }).addTo(targetLayer);
+      const targetIcon = L.divIcon({
+        className: 'bg-transparent',
+        html: `<div class="relative flex items-center justify-center">
+                <span class="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-red-500 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-4 w-4 bg-red-600 border-2 border-white shadow-xl"></span>
+              </div>`
+      });
+      L.marker([targetLat, targetLng], { icon: targetIcon }).addTo(targetLayer);
 
-      // Dibujar ruta al más cercano
-      routeLayer.clearLayers();
+      // Ruta al más cercano
       const nearest = allTechs.map(t => ({...t, dist: getDistance(targetLat, targetLng, t.lat, t.lng)}))
                               .sort((a,b) => a.dist - b.dist)[0];
       
-      if (nearest) {
+      routeLayer.clearLayers();
+      if (nearest && foundMatch) {
         L.polyline([[targetLat, targetLng], [nearest.lat, nearest.lng]], {
           color: '#3b82f6',
-          weight: 3,
-          dashArray: '5, 10'
+          weight: 2,
+          dashArray: '5, 5',
+          opacity: 0.8
         }).addTo(routeLayer);
-
-        // Zoom para ver ambos puntos
-        const bounds = L.latLngBounds([[targetLat, targetLng], [nearest.lat, nearest.lng]]);
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+        
+        map.fitBounds(L.latLngBounds([[targetLat, targetLng], [nearest.lat, nearest.lng]]), { padding: [100, 100], maxZoom: 10 });
       } else {
-        map.setView([targetLat, targetLng], 8);
+        map.setView([targetLat, targetLng], 7);
       }
 
       renderTechs(allTechs, { lat: targetLat, lng: targetLng });
@@ -408,25 +446,21 @@
 
     // --- Utilidades ---
     function getDistance(lat1, lon1, lat2, lon2) {
-      const R = 3958.8; // Radio tierra millas
+      const R = 3958.8; 
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }
 
     function flyToTech(tech) {
-      map.flyTo([tech.lat, tech.lng], 10, { duration: 1.5 });
+      map.flyTo([tech.lat, tech.lng], 11, { duration: 1.5 });
     }
 
-    // --- Arranque ---
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       initMap();
       loadTechs();
-
       document.getElementById('search-form').addEventListener('submit', handleSearch);
     });
 
