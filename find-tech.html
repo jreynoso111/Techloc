@@ -104,6 +104,22 @@
           </form>
         </div>
 
+        <!-- Carga de Archivo Manual -->
+        <div class="mb-4">
+          <label class="flex items-center justify-between w-full p-3 bg-slate-800/50 border border-dashed border-slate-700 rounded-xl cursor-pointer hover:bg-slate-800 hover:border-blue-500/50 transition-all group">
+            <div class="flex items-center gap-3">
+              <div class="bg-slate-900 p-2 rounded-lg group-hover:text-blue-400 text-slate-400 transition-colors">
+                <i data-lucide="upload-cloud" class="h-5 w-5"></i>
+              </div>
+              <div class="text-left">
+                <p class="text-xs font-bold text-slate-200">Cargar Lista Manual</p>
+                <p class="text-[10px] text-slate-500">Sube tu archivo .csv actualizado</p>
+              </div>
+            </div>
+            <input type="file" id="csv-upload" accept=".csv" class="hidden" />
+          </label>
+        </div>
+
         <!-- Stats -->
         <div class="flex items-center justify-between text-xs bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
           <span class="text-slate-500">Total Técnicos en Flota</span>
@@ -111,10 +127,10 @@
         </div>
         
         <!-- Error Alert -->
-        <div id="csv-error" class="hidden mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg animate-fade-in">
-          <p class="text-[11px] text-red-300 flex gap-2">
-            <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0"></i>
-            <span>Error cargando CSV. Ejecuta en servidor local. Usando datos de prueba.</span>
+        <div id="csv-error" class="hidden mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg animate-fade-in">
+          <p class="text-[11px] text-amber-300 flex gap-2">
+            <i data-lucide="info" class="h-4 w-4 shrink-0"></i>
+            <span>No se encontró CSV automático. Por favor, carga tu archivo manualmente arriba.</span>
           </p>
         </div>
       </div>
@@ -124,7 +140,7 @@
         <!-- Loader -->
         <div class="py-12 text-center opacity-50">
           <i data-lucide="loader-2" class="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3"></i>
-          <p class="text-xs text-slate-400">Cargando flota...</p>
+          <p class="text-xs text-slate-400">Esperando datos...</p>
         </div>
       </div>
     </aside>
@@ -146,6 +162,7 @@
   <script>
     // --- Configuración Geográfica ---
     const DEFAULT_CENTER = [39.8283, -98.5795]; // Centro USA
+    // Coordenadas base de los estados para ubicar técnicos si no hay lat/lng específico
     const STATE_COORDS = {
       'AL': [32.8067, -86.7911], 'AK': [61.3707, -152.4044], 'AZ': [33.7298, -111.4312], 'AR': [34.9697, -92.3731],
       'CA': [36.1162, -119.6816], 'CO': [39.0598, -105.3111], 'CT': [41.5978, -72.7554], 'DE': [39.3185, -75.5071],
@@ -162,14 +179,6 @@
       'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
     };
 
-    // Datos Mock (Respaldo por si falla la carga del CSV)
-    const MOCK_DATA = [
-      { id: 1, name: "CB Direct", city: "Alabaster", state: "AL", zip: "35007", phone: "866-716-9886", email: "office@cbdirect.net", lat: 33.2443, lng: -86.8164, status: "Available", rating: 4.9 },
-      { id: 2, name: "Field Evolution", city: "Phoenix", state: "AZ", zip: "85029", phone: "614-600-3320", email: "info@fieldevolution.com", lat: 33.4484, lng: -112.0740, status: "Busy", rating: 4.5 },
-      { id: 3, name: "Metro Mobile", city: "San Tan Valley", state: "AZ", zip: "85140", phone: "866-246-2192", email: "info@mmegps.com", lat: 33.1706, lng: -111.5710, status: "Available", rating: 4.8 },
-      { id: 4, name: "Don Installer", city: "Phoenix", state: "AZ", zip: "85001", phone: "480-487-5676", email: "dondoral75@gmail.com", lat: 33.4500, lng: -112.0800, status: "Available", rating: 4.7 }
-    ];
-
     let map, techLayer, routeLayer, targetLayer;
     let allTechs = [];
 
@@ -183,12 +192,22 @@
       targetLayer = L.layerGroup().addTo(map);
     }
 
-    // --- Lógica de Dispersión "Nube" ---
+    // --- Generación de Coordenadas "A prueba de fallos" ---
+    // Si el estado no existe en la lista, usamos un hash del nombre para ponerlo en un lugar fijo (aunque sea arbitrario en el mapa)
+    // para que el técnico NO desaparezca de la lista.
     function getCoords(state, zip, id) {
       const stateKey = (state || '').trim().toUpperCase();
-      const base = STATE_COORDS[stateKey] || DEFAULT_CENTER;
+      let base = STATE_COORDS[stateKey];
       
-      // Semilla única para posición consistente
+      // FALLBACK: Si el estado no está en mi lista, generamos una lat/lng pseudo-aleatoria dentro de USA
+      // para asegurar que el técnico aparezca en el mapa y en la lista.
+      if (!base) {
+        // Generar coordenadas basades en el código ASCII del estado para que sean consistentes
+        const hash = stateKey.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        base = [35 + (hash % 15), -100 + (hash % 20)]; 
+      }
+      
+      // Dispersión "Nube" (Circular)
       const seed = parseInt((zip || '0').replace(/\D/g, '')) + (id * 47); 
       const angle = (seed % 360) * (Math.PI / 180);
       const radius = 0.1 + ((seed % 70) / 100); 
@@ -197,70 +216,92 @@
       const lngOffset = radius * Math.sin(angle) * 1.3; 
 
       return {
-        lat: Array.isArray(base) ? base[0] + latOffset : base.lat,
-        lng: Array.isArray(base) ? base[1] + lngOffset : base.lng
+        lat: base[0] + latOffset,
+        lng: base[1] + lngOffset
       };
     }
 
-    // --- Carga de CSV ---
-    async function loadTechs() {
-      try {
-        const response = await fetch('assets/installers.csv');
-        if (!response.ok) throw new Error("CSV not found");
-        const text = await response.text();
+    // --- Procesamiento de Datos ---
+    function processCSV(text) {
+      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+      if (lines.length < 2) return;
+
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+      
+      allTechs = lines.slice(1).map((line, index) => {
+        // Regex para respetar comas dentro de comillas
+        const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+        const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
         
-        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+        const row = {};
+        headers.forEach((h, i) => row[h] = cleanValues[i] || '');
+
+        // Extraer estado (ej: "Alabama (AL)" -> "AL")
+        let stateRaw = row['state'] || '';
+        let stateMatch = stateRaw.match(/\(([A-Z]{2})\)/); 
+        let stateCode = stateMatch ? stateMatch[1] : (stateRaw.length === 2 ? stateRaw : 'UNKNOWN');
         
-        allTechs = lines.slice(1).map((line, index) => {
-          const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-          const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
-          const row = {};
-          headers.forEach((h, i) => row[h] = cleanValues[i] || '');
+        const zip = row['zip'] || row['zipcode'] || '';
+        const coords = getCoords(stateCode, zip, index);
 
-          let stateRaw = row['state'] || '';
-          let stateMatch = stateRaw.match(/\(([A-Z]{2})\)/); 
-          let stateCode = stateMatch ? stateMatch[1] : (stateRaw.length === 2 ? stateRaw : 'UNKNOWN');
-          const zip = row['zip'] || row['zipcode'] || '';
-          const coords = getCoords(stateCode, zip, index);
-
-          return {
-            id: index,
-            name: row['installation company'] || row['company'] || row['name'] || 'Instalador ' + index,
-            city: row['city'] || 'N/A',
-            state: stateCode,
-            zip: zip,
-            phone: row['phone'] || 'No listado',
-            email: row['email'] || 'No listado',
-            lat: coords.lat,
-            lng: coords.lng,
-            status: (index % 4 === 0) ? 'Busy' : 'Available', 
-            rating: (4 + Math.random()).toFixed(1)
-          };
-        });
-
-      } catch (e) {
-        console.warn("Error cargando CSV:", e);
-        document.getElementById('csv-error').classList.remove('hidden');
-        allTechs = MOCK_DATA;
-      }
+        return {
+          id: index,
+          name: row['installation company'] || row['company'] || row['name'] || 'Instalador ' + index,
+          city: row['city'] || 'Ubicación Desconocida',
+          state: stateCode,
+          zip: zip,
+          phone: row['phone'] || 'No disponible',
+          email: row['email'] || 'No disponible',
+          lat: coords.lat,
+          lng: coords.lng,
+          status: (index % 4 === 0) ? 'Busy' : 'Available',
+          rating: (4 + Math.random()).toFixed(1)
+        };
+      });
 
       document.getElementById('total-count').textContent = allTechs.length;
+      document.getElementById('csv-error').classList.add('hidden'); // Ocultar error si hubo éxito
       renderTechs(allTechs); 
-      renderMapMarkers(allTechs); // Marcamos TODOS al inicio
+      renderMapMarkers(allTechs);
     }
 
-    // --- Renderizado de Lista ---
+    // --- Carga Automática (Intento) ---
+    async function loadInitialData() {
+      try {
+        const response = await fetch('assets/installers.csv');
+        if (!response.ok) throw new Error("CSV local no encontrado o bloqueado por CORS");
+        const text = await response.text();
+        processCSV(text);
+      } catch (e) {
+        console.warn("No se pudo cargar assets/installers.csv automáticamente.", e);
+        document.getElementById('csv-error').classList.remove('hidden');
+        renderTechs([]); // Lista vacía hasta que carguen archivo
+      }
+    }
+
+    // --- Evento: Carga Manual de Archivo ---
+    document.getElementById('csv-upload').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        processCSV(e.target.result);
+      };
+      reader.readAsText(file);
+    });
+
+    // --- Renderizado de Lista (CON DISTANCIA) ---
     function renderTechs(techs, targetCoords = null) {
       const container = document.getElementById('tech-list');
       container.innerHTML = '';
 
       if (techs.length === 0) {
-        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl">No se encontraron resultados.</div>';
+        container.innerHTML = '<div class="p-8 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl">No hay técnicos cargados.</div>';
         return;
       }
 
-      // IMPORTANTE: Si hay búsqueda, ordenamos por distancia
+      // IMPORTANTE: Calcular y ordenar por distancia
       let displayTechs = [...techs];
       if (targetCoords) {
         displayTechs = displayTechs.map(t => ({
@@ -269,8 +310,8 @@
         })).sort((a, b) => a.distance - b.distance);
       }
       
-      // Limitamos el renderizado en la lista a 50 para rendimiento, pero la data está ordenada
-      displayTechs.slice(0, 50).forEach((tech, idx) => {
+      // Mostrar solo los primeros 100 para rendimiento
+      displayTechs.slice(0, 100).forEach((tech, idx) => {
         const isBest = idx === 0 && targetCoords;
         const el = document.createElement('div');
         
@@ -281,14 +322,14 @@
           ${isBest ? '<div class="absolute -top-2 -right-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md z-20">MEJOR OPCIÓN</div>' : ''}
           
           <div class="flex justify-between items-start mb-2">
-            <div class="pr-2">
-              <h3 class="font-bold text-slate-100 text-sm group-hover:text-blue-400 transition-colors truncate max-w-[200px]">${tech.name}</h3>
+            <div class="pr-2 w-2/3">
+              <h3 class="font-bold text-slate-100 text-sm group-hover:text-blue-400 transition-colors truncate">${tech.name}</h3>
               <div class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
                 <i data-lucide="map-pin" class="h-3 w-3 text-slate-500"></i> ${tech.city}, ${tech.state} ${tech.zip}
               </div>
             </div>
             ${targetCoords ? `
-              <div class="text-right flex-shrink-0">
+              <div class="text-right flex-shrink-0 w-1/3">
                 <span class="block text-xl font-black ${isBest ? 'text-blue-400' : 'text-slate-500'} tracking-tight leading-none">${Math.round(tech.distance)}</span>
                 <span class="text-[9px] font-bold text-slate-600 uppercase">millas</span>
               </div>` : ''}
@@ -318,7 +359,6 @@
         
         el.addEventListener('click', () => {
           flyToTech(tech);
-          // Highlight visual
           document.querySelectorAll('#tech-list > div').forEach(d => d.classList.remove('ring-2', 'ring-blue-500'));
           el.classList.add('ring-2', 'ring-blue-500');
         });
@@ -329,14 +369,14 @@
       lucide.createIcons();
     }
 
-    // --- Renderizado de Mapa (Todos los técnicos siempre) ---
+    // --- Renderizado de Mapa ---
     function renderMapMarkers(techs) {
       techLayer.clearLayers();
       
       techs.forEach(tech => {
         const color = tech.status === 'Available' ? '#3b82f6' : '#f59e0b';
         const marker = L.circleMarker([tech.lat, tech.lng], {
-          radius: 6,
+          radius: 5,
           fillColor: color,
           color: '#0f172a',
           weight: 1,
@@ -363,26 +403,28 @@
       const query = document.getElementById('address-input').value.trim().toLowerCase();
       if (!query) return;
 
+      if (allTechs.length === 0) {
+        alert("Primero carga un archivo CSV con tus técnicos.");
+        return;
+      }
+
       let targetLat, targetLng;
       let foundMatch = false;
 
-      // Prioridad 1: ZIP
+      // 1. ZIP
       const zipMatch = allTechs.find(t => t.zip && t.zip.includes(query) && query.length >= 3);
-      // Prioridad 2: Ciudad
+      // 2. Ciudad
       const cityMatch = allTechs.find(t => t.city && t.city.toLowerCase().includes(query));
-      // Prioridad 3: Estado
+      // 3. Estado
       const stateQuery = query.toUpperCase().substring(0, 2);
       const stateCoords = STATE_COORDS[stateQuery];
 
       if (zipMatch) {
-        targetLat = zipMatch.lat; targetLng = zipMatch.lng;
-        foundMatch = true;
+        targetLat = zipMatch.lat; targetLng = zipMatch.lng; foundMatch = true;
       } else if (cityMatch) {
-        targetLat = cityMatch.lat; targetLng = cityMatch.lng;
-        foundMatch = true;
+        targetLat = cityMatch.lat; targetLng = cityMatch.lng; foundMatch = true;
       } else if (stateCoords) {
-        targetLat = stateCoords[0]; targetLng = stateCoords[1];
-        foundMatch = true;
+        targetLat = stateCoords[0]; targetLng = stateCoords[1]; foundMatch = true;
       } else {
         targetLat = 38.0; targetLng = -97.0; // Fallback
         alert("No encontramos técnicos exactos en esa ubicación. Mostrando vista general.");
@@ -399,7 +441,7 @@
       });
       L.marker([targetLat, targetLng], { icon: targetIcon }).addTo(targetLayer);
 
-      // Ruta visual al más cercano
+      // Ruta visual
       const nearest = allTechs.map(t => ({...t, dist: getDistance(targetLat, targetLng, t.lat, t.lng)}))
                               .sort((a,b) => a.dist - b.dist)[0];
       
@@ -411,13 +453,12 @@
           dashArray: '5, 5',
           opacity: 0.8
         }).addTo(routeLayer);
-        
         map.fitBounds(L.latLngBounds([[targetLat, targetLng], [nearest.lat, nearest.lng]]), { padding: [100, 100], maxZoom: 10 });
       } else {
         map.setView([targetLat, targetLng], 7);
       }
 
-      // Reordenar lista lateral basada en la nueva búsqueda
+      // REORDENAR LA LISTA VISUAL
       renderTechs(allTechs, { lat: targetLat, lng: targetLng });
     }
 
@@ -437,7 +478,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       initMap();
-      loadTechs();
+      loadInitialData(); // Intenta cargar automático
       document.getElementById('search-form').addEventListener('submit', handleSearch);
     });
 
