@@ -49,7 +49,7 @@
           <p class="text-sm text-slate-300 max-w-3xl">Introduce la dirección de la instalación y visualiza a los técnicos más cercanos con disponibilidad y valoración en tiempo real. La lista proviene del CSV de instaladores.</p>
         </div>
         <a href="assets/installers.csv" class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-4 py-2 text-xs font-semibold text-slate-200">
-          <i data-lucide="file-text" class="h-4 w-4"></i> Descargar CSV
+          <i data-lucide="file-text" class="h-4 w-4"></i> Descargar lista de técnicos
         </a>
       </div>
     </section>
@@ -82,7 +82,7 @@
               <p class="font-semibold text-white">Cómo funciona</p>
               <ol class="mt-2 space-y-1 list-decimal list-inside text-slate-400">
                 <li>Leemos tu archivo CSV de instaladores.</li>
-                <li>Estimamos ubicación por estado/código postal para calcular distancias.</li>
+                <li>Buscamos coincidencias por ZIP; si no hay, ampliamos por estado para calcular distancias.</li>
                 <li>Ordenamos por disponibilidad, valoración y cargas actuales.</li>
               </ol>
             </div>
@@ -117,8 +117,8 @@
           </div>
 
           <div class="relative mx-auto max-w-5xl select-none">
-            <div class="relative aspect-[1.55] w-full">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/c/c6/USA_adm1_location_map.svg" alt="Mapa de Estados Unidos con Estados" class="h-full w-full object-contain" style="filter: invert(10%) sepia(20%) saturate(80%) hue-rotate(190deg) brightness(90%) contrast(95%)" />
+            <div class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60">
+              <img src="assets/usa-map.svg" alt="Mapa de Estados Unidos con Estados" class="h-full w-full object-cover opacity-90" />
               <div class="absolute inset-0" id="map-layer"></div>
             </div>
           </div>
@@ -232,6 +232,16 @@
       const stateMatch = upper.match(/,\s*([A-Z]{2})\b/) || upper.match(/\b([A-Z]{2})\b/);
       const zipMatch = upper.match(/(\d{5})/);
       return { state: stateMatch ? stateMatch[1] : '', zip: zipMatch ? zipMatch[1] : '' };
+    };
+
+    const pickTechsByLocation = (techs, zip, state) => {
+      const matchesByZip = zip ? techs.filter((tech) => tech.zipcode === zip) : [];
+      if (matchesByZip.length) return matchesByZip;
+
+      const matchesByState = state ? techs.filter((tech) => tech.state === state) : [];
+      if (matchesByState.length) return matchesByState;
+
+      return techs;
     };
 
     const renderTechCards = (techs, target) => {
@@ -353,8 +363,9 @@
         const value = document.getElementById('address-input').value;
         const { state, zip } = extractAddressHint(value);
         const target = guessLatLng(state || 'DEFAULT', zip);
-        renderTechCards(techs, target);
-        renderTechMap(techs, target);
+        const scopedTechs = pickTechsByLocation(techs, zip, state);
+        renderTechCards(scopedTechs, target);
+        renderTechMap(scopedTechs, target);
       });
     };
 
