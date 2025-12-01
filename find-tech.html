@@ -1,18 +1,19 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Find Tech</title>
+  <title>TechLoc • Red de Instaladores</title>
+  
+  <!-- Fuentes e Iconos -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
-    crossorigin=""
-  />
+  
+  <!-- Leaflet CSS (Mapas) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -23,421 +24,412 @@
       },
     };
   </script>
+  
+  <!-- Iconos Lucide -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j7kG1Q9bIwF6Yw2WrwslfLv7RHF9A0w0v0r3sLs="
-    crossorigin=""
-  ></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <style>
+    /* Aseguramos que el mapa tenga altura visible siempre */
+    #tech-map {
+      height: 100%;
+      min-height: 500px;
+      width: 100%;
+      background-color: #0f172a; /* Slate 900 de fondo mientras carga */
+      z-index: 1;
+    }
+    /* Estilo oscuro para el mapa */
+    .leaflet-tile {
+      filter: grayscale(100%) invert(100%) contrast(80%);
+    }
+    /* Personalización del scroll */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b; 
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569; 
+      border-radius: 4px;
+    }
+  </style>
 </head>
-<body class="min-h-screen bg-slate-950 font-sans text-slate-50">
-  <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-      <a href="index.html" class="flex items-center gap-3">
-        <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
-          <i data-lucide="navigation" class="h-5 w-5"></i>
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
+
+  <!-- Header -->
+  <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-50">
+    <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 py-4">
+      <a href="#" class="flex items-center gap-3">
+        <div class="rounded-xl bg-blue-600 p-2 shadow-lg shadow-blue-500/20">
+          <i data-lucide="satellite" class="h-5 w-5 text-white"></i>
         </div>
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">TechLoc Network</p>
-          <h1 class="text-lg font-black leading-tight">GPS Installer Hub</h1>
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-400">Sistema GPS</p>
+          <h1 class="text-lg font-black leading-tight tracking-tight">TechLoc Manager</h1>
         </div>
       </a>
-      <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
-        <a href="index.html" class="transition-colors hover:text-white">Home</a>
-        <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
-        <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
-      </nav>
+      
+      <div class="hidden md:flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/50 px-4 py-1.5 text-xs font-medium text-slate-400">
+        <span class="flex h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></span>
+        Sistema Operativo
+      </div>
     </div>
   </header>
 
-  <main class="space-y-12">
-    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-12">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_35%)]"></div>
-      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
-        <div class="space-y-3">
-          <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">Find Tech</p>
-          <h2 class="text-4xl font-black text-white">Locate, prioritize, and assign from one place</h2>
-          <p class="text-sm text-slate-300 max-w-3xl">Enter the installation address to see the closest technicians with availability and ratings in real time. The roster loads from the CSV installer list.</p>
+  <!-- Main Layout -->
+  <main class="flex-1 flex overflow-hidden">
+    
+    <!-- Sidebar (Izquierda) -->
+    <aside class="w-[400px] flex-none border-r border-slate-800 bg-slate-900/90 flex flex-col shadow-2xl z-20">
+      
+      <!-- Panel de Búsqueda -->
+      <div class="p-6 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+        <div class="mb-4">
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2 block">Dirección de Instalación</label>
+          <form id="search-form" class="relative group">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <i data-lucide="search" class="h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors"></i>
+            </div>
+            <input 
+              id="address-input" 
+              type="text" 
+              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-10 pr-4 py-3 text-sm text-slate-200 placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none transition-all shadow-inner" 
+              placeholder="Ej: 123 Main St, Miami, FL"
+              autocomplete="off"
+            >
+            <button type="submit" class="absolute inset-y-1 right-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 text-xs font-bold transition-colors">
+              BUSCAR
+            </button>
+          </form>
         </div>
-        <a href="assets/installers.csv" class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-4 py-2 text-xs font-semibold text-slate-200">
-          <i data-lucide="file-text" class="h-4 w-4"></i> Download installer list
-        </a>
+
+        <!-- Estadísticas Rápidas -->
+        <div class="flex items-center justify-between text-xs text-slate-400 bg-slate-800/50 p-3 rounded-lg border border-slate-800/50">
+          <span class="flex items-center gap-2">
+            <i data-lucide="users" class="h-3 w-3"></i>
+            Total Técnicos: <strong id="total-count" class="text-white">0</strong>
+          </span>
+          <a href="assets/installers.csv" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline">Ver CSV</a>
+        </div>
+        
+        <!-- Alerta de Error CSV -->
+        <div id="csv-error" class="hidden mt-3 p-3 bg-red-900/20 border border-red-900/50 rounded-lg">
+          <p class="text-xs text-red-400 font-semibold flex items-start gap-2">
+            <i data-lucide="alert-triangle" class="h-4 w-4 shrink-0"></i>
+            <span>No se pudo cargar "assets/installers.csv". Usando datos de prueba. Asegúrate de usar un servidor local (http://) y no abrir el archivo directamente.</span>
+          </p>
+        </div>
       </div>
-    </section>
 
-    <section class="mx-auto max-w-7xl space-y-6 px-6">
-      <div class="grid gap-6 lg:grid-cols-[420px,1fr]">
-        <aside class="rounded-3xl border border-slate-800 bg-slate-900/80 shadow-2xl shadow-blue-500/10">
-          <div class="flex items-center justify-between border-b border-slate-800 px-6 py-5">
-            <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-blue-600/20 p-2 text-blue-300">
-                <i data-lucide="map-pin" class="h-4 w-4"></i>
-              </div>
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Module</p>
-                <p class="text-lg font-black text-white">Assign installation</p>
-              </div>
-            </div>
+      <!-- Lista de Técnicos (Scroll) -->
+      <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
+        <!-- Los técnicos se inyectarán aquí -->
+        <div class="text-center py-10 opacity-50">
+          <i data-lucide="loader-2" class="h-8 w-8 text-blue-500 animate-spin mx-auto mb-3"></i>
+          <p class="text-xs text-slate-400">Cargando flota...</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Mapa (Derecha) -->
+    <div class="flex-1 relative bg-slate-950">
+      
+      <!-- Leyenda Flotante -->
+      <div class="absolute top-4 right-4 z-[1000] bg-slate-900/90 backdrop-blur border border-slate-700 p-4 rounded-xl shadow-2xl">
+        <h4 class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Estado de Flota</h4>
+        <div class="space-y-2 text-xs font-medium text-slate-300">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></span> Disponible
           </div>
-
-          <div class="space-y-6 p-6">
-            <form id="address-form" class="space-y-3">
-              <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Installation address</label>
-              <input id="address-input" type="text" placeholder="E.g., 123 Main St, Springfield, IL" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-4 py-3 text-sm font-medium text-slate-200 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
-              <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-blue-600/30 transition hover:-translate-y-0.5 hover:bg-blue-500">
-                <i data-lucide="search" class="h-4 w-4"></i> Find installers
-              </button>
-            </form>
-
-            <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-xs text-slate-300">
-              <p class="font-semibold text-white">How it works</p>
-              <ol class="mt-2 space-y-1 list-decimal list-inside text-slate-400">
-                <li>We read your CSV installer file.</li>
-                <li>We search by ZIP first; if no match, we widen to city and then state to calculate distance.</li>
-                <li>We sort by availability, rating, and current load.</li>
-              </ol>
-            </div>
-
-            <div class="space-y-3">
-              <div class="flex items-center justify-between text-xs font-semibold text-slate-300">
-                <span>Active in network</span>
-                <span class="rounded-full bg-slate-800 px-3 py-1 text-blue-200" id="active-count">-</span>
-              </div>
-
-              <div id="tech-cards" class="space-y-3">
-                <div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 px-6 py-10 text-center text-slate-400">
-                  <i data-lucide="filter" class="mb-3 h-10 w-10 text-slate-600"></i>
-                  <p class="text-sm font-semibold text-white">Waiting for address</p>
-                  <p class="text-xs text-slate-400">Enter a location and we will show the technician with the best ETA.</p>
-                </div>
-              </div>
-            </div>
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Ocupado
           </div>
-        </aside>
-
-        <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-blue-500/10">
-          <div class="absolute right-4 top-4 z-20 hidden rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-200 lg:block">
-            <h4 class="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-slate-300">
-              <i data-lucide="shield" class="h-3 w-3 text-blue-400"></i> Legend
-            </h4>
-            <div class="space-y-1 text-[11px] text-slate-400">
-              <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span> Available technician</div>
-              <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-amber-500"></span> Paused / busy</div>
-              <div class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-red-500 animate-pulse"></span> Installation address</div>
-            </div>
-          </div>
-
-          <div class="relative mx-auto max-w-5xl select-none">
-            <div id="tech-map" class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60"></div>
+          <div class="flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full border-2 border-white bg-red-500 animate-pulse"></span> Destino
           </div>
         </div>
       </div>
-    </section>
+
+      <div id="tech-map"></div>
+    </div>
   </main>
 
-  <footer class="border-t border-slate-900 bg-slate-950/80 py-6">
-    <div class="mx-auto flex max-w-7xl flex-col gap-2 px-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-      <div class="flex items-center gap-2 text-slate-300">
-        <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
-        <span class="font-semibold text-white">TechLoc</span>
-        <span class="text-slate-500">• GPS installer network across the USA</span>
-      </div>
-      <div class="flex items-center gap-4 text-xs uppercase tracking-wide text-slate-500">
-        <span>24/7 Support</span>
-        <span>Data security</span>
-        <span>Reliable operations</span>
-      </div>
-    </div>
-  </footer>
-
-  <script type="module">
+  <script>
+    // --- Configuración ---
+    const DEFAULT_CENTER = [39.8283, -98.5795]; // Centro de USA
     const STATE_COORDS = {
-      AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
-      AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
-      CT: { lat: 41.5978, lng: -72.7554 }, DE: { lat: 39.3185, lng: -75.5071 }, FL: { lat: 27.7663, lng: -81.6868 },
-      GA: { lat: 33.0406, lng: -83.6431 }, HI: { lat: 21.0943, lng: -157.4983 }, ID: { lat: 44.2405, lng: -114.4788 },
-      IL: { lat: 40.3495, lng: -88.9861 }, IN: { lat: 39.8494, lng: -86.2583 }, IA: { lat: 42.0115, lng: -93.2105 },
-      KS: { lat: 38.5266, lng: -96.7265 }, KY: { lat: 37.6681, lng: -84.6701 }, LA: { lat: 31.1695, lng: -91.8678 },
-      ME: { lat: 44.6939, lng: -69.3819 }, MD: { lat: 39.0639, lng: -76.8021 }, MA: { lat: 42.2302, lng: -71.5301 },
-      MI: { lat: 43.3266, lng: -84.5361 }, MN: { lat: 45.6945, lng: -93.9002 }, MS: { lat: 32.7416, lng: -89.6787 },
-      MO: { lat: 38.4561, lng: -92.2884 }, MT: { lat: 46.9219, lng: -110.4544 }, NE: { lat: 41.1254, lng: -98.2681 },
-      NV: { lat: 38.3135, lng: -117.0554 }, NH: { lat: 43.4525, lng: -71.5639 }, NJ: { lat: 40.2989, lng: -74.521 },
-      NM: { lat: 34.8405, lng: -106.2485 }, NY: { lat: 42.1657, lng: -74.9481 }, NC: { lat: 35.6301, lng: -79.8064 },
-      ND: { lat: 47.5289, lng: -99.784 }, OH: { lat: 40.3888, lng: -82.7649 }, OK: { lat: 35.5653, lng: -96.9289 },
-      OR: { lat: 43.9336, lng: -120.5583 }, PA: { lat: 40.5908, lng: -77.2098 }, RI: { lat: 41.6809, lng: -71.5118 },
-      SC: { lat: 33.8569, lng: -80.945 }, SD: { lat: 44.2998, lng: -99.4388 }, TN: { lat: 35.7478, lng: -86.6923 },
-      TX: { lat: 31.0545, lng: -97.5635 }, UT: { lat: 40.1500, lng: -111.8624 }, VT: { lat: 44.0459, lng: -72.7107 },
-      VA: { lat: 37.7693, lng: -78.1699 }, WA: { lat: 47.4009, lng: -121.4905 }, WV: { lat: 38.4912, lng: -80.9545 },
-      WI: { lat: 44.2685, lng: -89.6165 }, WY: { lat: 42.7559, lng: -107.3025 }, DC: { lat: 38.9072, lng: -77.0369 },
-      DEFAULT: { lat: 39.5, lng: -98.35 },
+      'AL': [32.806671, -86.791130], 'AK': [61.370716, -152.404419], 'AZ': [33.729759, -111.431221],
+      'AR': [34.969704, -92.373123], 'CA': [36.116203, -119.681564], 'CO': [39.059811, -105.311104],
+      'CT': [41.597782, -72.755371], 'DE': [39.318523, -75.507141], 'DC': [38.9072, -77.0369],
+      'FL': [27.766279, -81.686783], 'GA': [33.040619, -83.643074], 'HI': [21.094318, -157.498337],
+      'ID': [44.240459, -114.478828], 'IL': [40.349457, -88.986137], 'IN': [39.849426, -86.258278],
+      'IA': [42.011539, -93.210526], 'KS': [38.526600, -96.726486], 'KY': [37.668140, -84.670067],
+      'LA': [31.169546, -91.867805], 'ME': [44.693947, -69.381927], 'MD': [39.063946, -76.802101],
+      'MA': [42.230171, -71.530106], 'MI': [43.326618, -84.536095], 'MN': [45.694454, -93.900192],
+      'MS': [32.741646, -89.678696], 'MO': [38.456085, -92.288368], 'MT': [46.921925, -110.454353],
+      'NE': [41.125370, -98.268082], 'NV': [38.313515, -117.055374], 'NH': [43.452492, -71.563896],
+      'NJ': [40.298904, -74.521011], 'NM': [34.840515, -106.248482], 'NY': [42.165726, -74.948051],
+      'NC': [35.630066, -79.806419], 'ND': [47.528912, -99.784012], 'OH': [40.388783, -82.764915],
+      'OK': [35.565342, -96.928917], 'OR': [43.933600, -120.558319], 'PA': [40.590752, -77.209755],
+      'RI': [41.680893, -71.511780], 'SC': [33.856892, -80.945007], 'SD': [44.299782, -99.438828],
+      'TN': [35.747845, -86.692345], 'TX': [31.054487, -97.563461], 'UT': [40.150032, -111.862434],
+      'VT': [44.045876, -72.710686], 'VA': [37.769337, -78.169968], 'WA': [47.400902, -121.490494],
+      'WV': [38.491226, -80.954453], 'WI': [44.268543, -89.616508], 'WY': [42.755966, -107.302490]
     };
 
-    const haversineMiles = (a, b) => {
-      const R = 3958.8;
-      const dLat = (b.lat - a.lat) * Math.PI / 180;
-      const dLon = (b.lng - a.lng) * Math.PI / 180;
-      const lat1 = a.lat * Math.PI / 180;
-      const lat2 = b.lat * Math.PI / 180;
-      const sinDLat = Math.sin(dLat / 2);
-      const sinDLon = Math.sin(dLon / 2);
-      const calc = sinDLat * sinDLat + sinDLon * sinDLon * Math.cos(lat1) * Math.cos(lat2);
-      const c = 2 * Math.atan2(Math.sqrt(calc), Math.sqrt(1 - calc));
-      return Math.round(R * c);
-    };
+    // Datos de respaldo por si falla el CSV (Error de CORS o 404)
+    const MOCK_DATA = [
+      { id: 1, name: "Tech Demo NY", city: "New York", state: "NY", lat: 40.7128, lng: -74.0060, status: "Available", rating: 5.0 },
+      { id: 2, name: "Tech Demo CA", city: "Los Angeles", state: "CA", lat: 34.0522, lng: -118.2437, status: "Busy", rating: 4.8 },
+      { id: 3, name: "Tech Demo TX", city: "Houston", state: "TX", lat: 29.7604, lng: -95.3698, status: "Available", rating: 4.9 },
+    ];
 
-    const jitterFromZip = (zip = '') => {
-      const seed = parseInt(String(zip).slice(-3) || '0', 10);
-      return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
-    };
+    let map, techLayer, routeLayer, targetLayer;
+    let allTechs = [];
 
-    const guessLatLng = (state, zip) => {
-      const base = STATE_COORDS[state] || STATE_COORDS.DEFAULT;
-      const jitter = jitterFromZip(zip);
-      return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
-    };
+    // --- Funciones del Mapa ---
+    function initMap() {
+      // Inicializar Leaflet
+      map = L.map('tech-map', {
+        zoomControl: false,
+        attributionControl: false
+      }).setView(DEFAULT_CENTER, 4);
 
-    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
-
-    const parseCsv = async () => {
-      const response = await fetch('assets/installers.csv');
-      const text = await response.text();
-      const lines = text.trim().split(/\r?\n/);
-      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
-
-      return lines
-        .filter((line) => line.trim())
-        .map((line, idx) => {
-          const values = parseCsvLine(line);
-          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
-          const state = String(row.State || row.state || '').trim().toUpperCase();
-          const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
-          const coords = guessLatLng(state, zip);
-          return {
-            id: idx + 1,
-            name: row.Name || row.FullName || row.Company || 'Installer',
-            company: row.Company || row.Name || 'Partner',
-            email: row.Email || '',
-            phone: row.Phone || '',
-            state,
-            city: row.City || '',
-            zipcode: zip,
-            notes: row.Notes || row.Note || row.Observation || '',
-            lat: coords.lat,
-            lng: coords.lng,
-            rating: 4.4 + (idx % 6) * 0.1,
-            jobsToday: idx % 5,
-            status: idx % 4 === 0 ? 'Busy' : 'Available',
-          };
-        });
-    };
-
-    const extractAddressHint = (value) => {
-      const upper = (value || '').toUpperCase();
-      const stateMatch = upper.match(/,\s*([A-Z]{2})\b/) || upper.match(/\b([A-Z]{2})\b/);
-      const zipMatch = upper.match(/(\d{5})/);
-      return { state: stateMatch ? stateMatch[1] : '', zip: zipMatch ? zipMatch[1] : '' };
-    };
-
-    const normalize = (value = '') => value.trim().toLowerCase();
-
-    const pickTechsByLocation = (techs, zip, city, state) => {
-      const matchesByZip = zip ? techs.filter((tech) => tech.zipcode === zip) : [];
-      if (matchesByZip.length) return matchesByZip;
-
-      const matchesByCity = city
-        ? techs.filter((tech) => normalize(tech.city) === normalize(city))
-        : [];
-      if (matchesByCity.length) return matchesByCity;
-
-      const matchesByState = state ? techs.filter((tech) => tech.state === state) : [];
-      if (matchesByState.length) return matchesByState;
-
-      return techs;
-    };
-
-    const renderTechCards = (techs, target, selectedId) => {
-      const container = document.getElementById('tech-cards');
-      if (!target) {
-        container.innerHTML = `<div class="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 px-6 py-10 text-center text-slate-400">
-          <i data-lucide="filter" class="mb-3 h-10 w-10 text-slate-600"></i>
-          <p class="text-sm font-semibold text-white">Waiting for address</p>
-          <p class="text-xs text-slate-400">Enter the location and we will surface the technician with the best ETA.</p>
-        </div>`;
-        lucide.createIcons();
-        return;
-      }
-
-      const enriched = techs.map((tech) => ({
-        ...tech,
-        distance: haversineMiles({ lat: tech.lat, lng: tech.lng }, target),
-      })).sort((a, b) => a.distance - b.distance);
-
-      container.innerHTML = enriched.map((tech, index) => {
-        const best = index === 0;
-        const selected = selectedId === tech.id;
-        const title = tech.company || tech.name || 'Installer';
-        const statusClass = tech.status === 'Available'
-          ? 'bg-green-500/10 text-green-200 ring-1 ring-green-500/30'
-          : tech.status === 'Busy'
-            ? 'bg-red-500/10 text-red-200 ring-1 ring-red-500/30'
-            : 'bg-amber-500/10 text-amber-200 ring-1 ring-amber-500/30';
-        return `<div data-tech-id="${tech.id}" class="relative cursor-pointer rounded-2xl border ${selected ? 'border-emerald-400 ring-2 ring-emerald-500/60 shadow-lg shadow-emerald-500/20' : best ? 'border-blue-500 shadow-lg shadow-blue-500/20' : 'border-slate-800'} bg-slate-950/60 p-4 transition hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/5" role="button" aria-label="Select ${tech.name} on map">`
-          ${best ? '<div class="absolute -top-2 -right-2 flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white shadow-lg shadow-emerald-500/30"><i data-lucide="star" class="h-3 w-3"></i> Best option</div>' : ''}
-          <div class="flex items-start justify-between">
-            <div class="flex items-center gap-3">
-              <div class="flex h-12 w-12 items-center justify-center rounded-full ${best ? 'bg-blue-500/20 text-blue-100' : 'bg-slate-800 text-slate-200'} text-lg font-black">${title.charAt(0)}</div>
-              <div>
-                <p class="text-sm font-bold text-white">${title}</p>
-                <div class="flex flex-col text-[11px] text-slate-400">
-                  <span class="flex items-center gap-1 font-medium"><i data-lucide="user" class="h-3 w-3 text-slate-500"></i> ${tech.name || 'Technician'}</span>
-                  <span class="flex items-center gap-1 font-medium"><i data-lucide="map-pin" class="h-3 w-3 text-slate-500"></i> ${tech.city || tech.state}</span>
-                  <span class="flex items-center gap-2">
-                    <span class="flex items-center gap-1 text-amber-300"><i data-lucide="star" class="h-3 w-3"></i> ${tech.rating?.toFixed ? tech.rating.toFixed(1) : tech.rating}</span>
-                    <span class="text-slate-500">${tech.jobsToday} jobs today</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div class="text-right">
-              <p class="text-lg font-black ${best ? 'text-emerald-300' : 'text-slate-200'}">${tech.distance}<span class="ml-1 text-xs font-semibold text-slate-400">miles</span></p>
-              <span class="mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusClass}">${tech.status}</span>
-            </div>
-          </div>
-          <div class="mt-3 grid gap-2 text-[11px] text-slate-400 sm:grid-cols-2">
-            <span class="flex items-center gap-2"><i data-lucide="phone" class="h-3 w-3"></i>${tech.phone || 'N/A'}</span>
-            <span class="flex items-center gap-2"><i data-lucide="shield" class="h-3 w-3"></i>${tech.company || 'Tech partner'}</span>
-          </div>
-          ${tech.notes ? `<div class="mt-2 flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-200"><i data-lucide="info" class="h-3 w-3 text-amber-300"></i><span class="text-left leading-tight">${tech.notes}</span></div>` : ''}
-        </div>`;
-      }).join('');
-      lucide.createIcons();
-    };
-
-    let map;
-    let techLayer;
-    let routeLayer;
-    let targetLayer;
-
-    const initMap = () => {
-      map = L.map('tech-map', { zoomControl: false, worldCopyJump: true }).setView([STATE_COORDS.DEFAULT.lat, STATE_COORDS.DEFAULT.lng], 4.2);
+      // Capa de mapa base (OpenStreetMap estándar, sin API Key)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
       }).addTo(map);
+
+      // Controles de zoom abajo a la derecha
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Capas para marcadores
       techLayer = L.layerGroup().addTo(map);
       routeLayer = L.layerGroup().addTo(map);
       targetLayer = L.layerGroup().addTo(map);
-    };
+    }
 
-    const renderTechMap = (techs, target, highlightedId) => {
-      if (!map) initMap();
-      techLayer.clearLayers();
-      routeLayer.clearLayers();
-      targetLayer.clearLayers();
+    // --- Funciones de Datos ---
+    
+    // Calcula coordenadas aproximadas basadas en el estado y un "jitter" (variación) aleatorio del ZIP
+    function getCoords(state, zip) {
+      const stateKey = (state || '').trim().toUpperCase();
+      const base = STATE_COORDS[stateKey] || DEFAULT_CENTER;
+      
+      // Usar los últimos dígitos del ZIP para mover un poco el punto y que no caigan todos encima
+      const seed = parseInt((zip || '00000').replace(/\D/g, '').slice(-3)) || 0;
+      const latOffset = ((seed % 100) - 50) / 100; // +/- 0.5 grados
+      const lngOffset = ((seed % 50) - 25) / 50;  // +/- 0.5 grados
 
-      const bounds = [];
+      return {
+        lat: Array.isArray(base) ? base[0] + latOffset : base.lat,
+        lng: Array.isArray(base) ? base[1] + lngOffset : base.lng
+      };
+    }
 
-      if (target) {
-        const targetMarker = L.marker([target.lat, target.lng], {
-          title: 'Installation address',
-          icon: L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-            iconAnchor: [12, 41],
-          }),
-        }).addTo(targetLayer);
-        bounds.push([target.lat, target.lng]);
+    async function loadTechs() {
+      try {
+        console.log("Intentando cargar CSV...");
+        const response = await fetch('assets/installers.csv');
+        
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const text = await response.text();
+        console.log("CSV cargado, procesando...");
+        
+        const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+        
+        allTechs = lines.slice(1).map((line, index) => {
+          // Regex simple para respetar comillas en CSV
+          const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+          const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
+          
+          // Mapeo seguro de columnas
+          const row = {};
+          headers.forEach((h, i) => row[h] = cleanValues[i] || '');
 
-        const nearest = highlightedId
-          ? techs.find((t) => t.id === highlightedId)
-          : techs
-            .map((tech) => ({ ...tech, distance: haversineMiles({ lat: tech.lat, lng: tech.lng }, target) }))
-            .sort((a, b) => a.distance - b.distance)[0];
+          // Detectar campos clave
+          const state = row.state || row.st || '';
+          const zip = row.zip || row.zipcode || row.postal || '';
+          const coords = getCoords(state, zip);
 
-        if (nearest) {
-          routeLayer.addLayer(L.polyline([[target.lat, target.lng], [nearest.lat, nearest.lng]], {
-            color: '#22c55e',
-            weight: 4,
-            opacity: 0.8,
-            dashArray: '6 4',
-          }));
-        }
-      }
-
-      techs.forEach((tech) => {
-        const highlighted = highlightedId === tech.id;
-        const available = tech.status === 'Available';
-        const marker = L.circleMarker([tech.lat, tech.lng], {
-          radius: highlighted ? 9 : 7,
-          color: highlighted ? '#34d399' : '#60a5fa',
-          weight: highlighted ? 3 : 1.5,
-          fillColor: available ? '#3b82f6' : '#f59e0b',
-          fillOpacity: 0.9,
-          className: 'cursor-pointer',
-        }).addTo(techLayer);
-
-        marker.bindTooltip(`${tech.company || tech.name} (${available ? 'Available' : tech.status})`, { permanent: false, direction: 'top', offset: [0, -2] });
-
-        marker.on('click', () => {
-          highlightedTechId = tech.id;
-          renderTechCards(currentTechs, currentTarget, highlightedTechId);
-          renderTechMap(currentTechs, currentTarget, highlightedTechId);
+          return {
+            id: index,
+            name: row.name || row.installer || row.company || 'Técnico ' + index,
+            city: row.city || '',
+            state: state,
+            zip: zip,
+            phone: row.phone || row.cell || 'N/A',
+            lat: coords.lat,
+            lng: coords.lng,
+            status: (index % 3 === 0) ? 'Busy' : 'Available', // Simulado si no está en CSV
+            rating: (4 + Math.random()).toFixed(1)
+          };
         });
 
-        bounds.push([tech.lat, tech.lng]);
-      });
-
-      if (bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [30, 30] });
-      } else if (bounds.length === 1) {
-        map.setView(bounds[0], 6);
+      } catch (e) {
+        console.error("Error cargando CSV:", e);
+        document.getElementById('csv-error').classList.remove('hidden');
+        allTechs = MOCK_DATA; // Fallback para que la UI no quede rota
       }
 
+      document.getElementById('total-count').textContent = allTechs.length;
+      renderTechs(allTechs);
+      renderMapMarkers(allTechs);
+    }
+
+    // --- Renderizado UI ---
+    function renderTechs(techs, targetCoords = null) {
+      const container = document.getElementById('tech-list');
+      container.innerHTML = '';
+
+      if (techs.length === 0) {
+        container.innerHTML = '<div class="p-4 text-center text-slate-500 text-sm">No se encontraron técnicos.</div>';
+        return;
+      }
+
+      // Si hay objetivo, ordenar por distancia
+      let displayTechs = [...techs];
+      if (targetCoords) {
+        displayTechs = displayTechs.map(t => {
+          const dist = getDistance(targetCoords.lat, targetCoords.lng, t.lat, t.lng);
+          return { ...t, distance: dist };
+        }).sort((a, b) => a.distance - b.distance);
+      }
+
+      displayTechs.forEach((tech, idx) => {
+        const isBest = idx === 0 && targetCoords;
+        const el = document.createElement('div');
+        el.className = `p-4 rounded-xl border transition-all cursor-pointer bg-slate-800 ${isBest ? 'border-blue-500 shadow-lg shadow-blue-500/10' : 'border-slate-700 hover:border-slate-500'}`;
+        el.innerHTML = `
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <h3 class="font-bold text-slate-200 text-sm">${tech.name}</h3>
+              <div class="text-xs text-slate-400 flex items-center gap-1">
+                <i data-lucide="map-pin" class="h-3 w-3"></i> ${tech.city}, ${tech.state}
+              </div>
+            </div>
+            ${targetCoords ? `<span class="text-lg font-black ${isBest ? 'text-blue-400' : 'text-slate-500'}">${Math.round(tech.distance)} <span class="text-[10px] font-normal">mi</span></span>` : ''}
+          </div>
+          <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50">
+            <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded ${tech.status === 'Available' ? 'bg-blue-500/20 text-blue-300' : 'bg-amber-500/20 text-amber-300'}">${tech.status}</span>
+            <div class="flex items-center text-xs text-yellow-500 font-bold">
+              <i data-lucide="star" class="h-3 w-3 mr-1 fill-current"></i> ${tech.rating}
+            </div>
+          </div>
+        `;
+        
+        el.addEventListener('click', () => {
+          flyToTech(tech);
+        });
+
+        container.appendChild(el);
+      });
+      
       lucide.createIcons();
-    };
+    }
 
-    let currentTechs = [];
-    let currentTarget = null;
-    let highlightedTechId = null;
+    function renderMapMarkers(techs) {
+      techLayer.clearLayers();
+      
+      techs.forEach(tech => {
+        const color = tech.status === 'Available' ? '#3b82f6' : '#f59e0b';
+        const marker = L.circleMarker([tech.lat, tech.lng], {
+          radius: 6,
+          fillColor: color,
+          color: '#fff',
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).addTo(techLayer);
 
-    const init = async () => {
-      const techs = await parseCsv();
-      currentTechs = techs;
-      document.getElementById('active-count').textContent = techs.length;
-      renderTechCards(techs, null, highlightedTechId);
-      renderTechMap(techs, null, highlightedTechId);
-
-      document.getElementById('address-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const value = document.getElementById('address-input').value;
-        const { state, zip } = extractAddressHint(value);
-        const cityGuess = value
-          .split(',')
-          .map((part) => part.trim())
-          .find((part) => part && !/\d{5}/.test(part) && !/\d/.test(part) && part.length > 2 && !/^[A-Z]{2}$/.test(part.toUpperCase())) || '';
-        const target = guessLatLng(state || 'DEFAULT', zip);
-        const scopedTechs = pickTechsByLocation(techs, zip, cityGuess, state);
-        currentTechs = scopedTechs;
-        currentTarget = target;
-        highlightedTechId = scopedTechs.length ? scopedTechs[0].id : null;
-        renderTechCards(scopedTechs, target, highlightedTechId);
-        renderTechMap(scopedTechs, target, highlightedTechId);
+        marker.bindPopup(`<b>${tech.name}</b><br>${tech.city}, ${tech.state}`);
       });
+    }
 
-      document.getElementById('tech-cards').addEventListener('click', (event) => {
-        const card = event.target.closest('[data-tech-id]');
-        if (!card || !currentTarget) return;
-        highlightedTechId = Number(card.getAttribute('data-tech-id'));
-        renderTechCards(currentTechs, currentTarget, highlightedTechId);
-        renderTechMap(currentTechs, currentTarget, highlightedTechId);
-      });
-    };
+    // --- Lógica de Búsqueda ---
+    function handleSearch(e) {
+      e.preventDefault();
+      const query = document.getElementById('address-input').value.trim();
+      if (!query) return;
 
+      // 1. Intentar adivinar Estado y ZIP del texto
+      const stateMatch = query.match(/\b([A-Z]{2})\b/);
+      const zipMatch = query.match(/\b\d{5}\b/);
+      
+      let targetLat, targetLng;
+
+      // Simulación de Geocoding (En producción usarías Google Maps API)
+      // Si encontramos un estado en el texto, vamos ahí. Si no, al centro.
+      if (stateMatch && STATE_COORDS[stateMatch[1]]) {
+        const coords = STATE_COORDS[stateMatch[1]];
+        // Añadimos variación aleatoria para simular dirección exacta
+        targetLat = coords[0] + (Math.random() - 0.5);
+        targetLng = coords[1] + (Math.random() - 0.5);
+      } else {
+        // Fallback: Centro de USA
+        targetLat = 38.0; 
+        targetLng = -97.0;
+      }
+
+      // Dibujar Target
+      targetLayer.clearLayers();
+      L.marker([targetLat, targetLng], {
+        icon: L.divIcon({
+          className: 'bg-transparent',
+          html: `<div class="relative"><div class="w-4 h-4 bg-red-600 rounded-full border-2 border-white shadow-lg animate-bounce"></div></div>`
+        })
+      }).addTo(targetLayer);
+
+      // Dibujar ruta al más cercano
+      routeLayer.clearLayers();
+      const nearest = allTechs.map(t => ({...t, dist: getDistance(targetLat, targetLng, t.lat, t.lng)}))
+                              .sort((a,b) => a.dist - b.dist)[0];
+      
+      if (nearest) {
+        L.polyline([[targetLat, targetLng], [nearest.lat, nearest.lng]], {
+          color: '#3b82f6',
+          weight: 3,
+          dashArray: '5, 10'
+        }).addTo(routeLayer);
+
+        // Zoom para ver ambos puntos
+        const bounds = L.latLngBounds([[targetLat, targetLng], [nearest.lat, nearest.lng]]);
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+      } else {
+        map.setView([targetLat, targetLng], 8);
+      }
+
+      renderTechs(allTechs, { lat: targetLat, lng: targetLng });
+    }
+
+    // --- Utilidades ---
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 3958.8; // Radio tierra millas
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    function flyToTech(tech) {
+      map.flyTo([tech.lat, tech.lng], 10, { duration: 1.5 });
+    }
+
+    // --- Arranque ---
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
-      init();
+      initMap();
+      loadTechs();
+
+      document.getElementById('search-form').addEventListener('submit', handleSearch);
     });
+
   </script>
 </body>
 </html>
