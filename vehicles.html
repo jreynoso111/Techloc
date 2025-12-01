@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc • Vehicles to Fix</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+  <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+      <a href="/" class="flex items-center gap-3">
+        <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
+          <i data-lucide="navigation" class="h-5 w-5"></i>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">TechLoc Network</p>
+          <h1 class="text-lg font-black leading-tight">GPS Installer Hub</h1>
+        </div>
+      </a>
+      <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
+        <a href="/" class="transition-colors hover:text-white">Home</a>
+        <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
+        <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="space-y-12">
+    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-12">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_35%)]"></div>
+      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
+        <div class="space-y-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Vehicles to Fix</p>
+          <h2 class="text-4xl font-black text-white">Vehicles with failed GPS and their nearest tech</h2>
+          <p class="text-sm text-slate-300 max-w-3xl">See vehicles with failed GPS units (VIN, model, year, and last location) and confirm who can cover them with the best proximity estimate. Technicians load from the CSV.</p>
+        </div>
+        <div class="flex items-center gap-2 rounded-full border border-emerald-900 bg-emerald-900/40 px-4 py-2 text-xs font-semibold text-emerald-100">
+          <i data-lucide="check-circle" class="h-4 w-4"></i> Automatic coverage
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl space-y-6 px-6">
+      <div class="grid gap-6 lg:grid-cols-[420px,1fr]">
+        <div class="space-y-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Vehicles flagged</p>
+              <p class="text-lg font-black text-white">Assigned to the closest technician</p>
+            </div>
+            <span class="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-emerald-200" id="client-count">-</span>
+          </div>
+          <div id="client-list" class="space-y-3 text-sm text-slate-300"></div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-emerald-500/10">
+          <div class="relative mx-auto max-w-5xl select-none">
+            <div class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60">
+              <img src="assets/usa-map.svg" alt="Vehicle coverage map" class="h-full w-full object-cover opacity-90" />
+              <div class="absolute inset-0" id="client-map-layer"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-slate-900 bg-slate-950/80 py-6">
+    <div class="mx-auto flex max-w-7xl flex-col gap-2 px-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-2 text-slate-300">
+        <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
+        <span class="font-semibold text-white">TechLoc</span>
+        <span class="text-slate-500">• GPS installer network across the USA</span>
+      </div>
+      <div class="flex items-center gap-4 text-xs uppercase tracking-wide text-slate-500">
+        <span>24/7 Support</span>
+        <span>Data security</span>
+        <span>Reliable operations</span>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module">
+    const LIMITS_USA = { minLng: -125.5, maxLng: -66.5, minLat: 24.4, maxLat: 49.6 };
+    const STATE_COORDS = {
+      AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
+      AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
+      CT: { lat: 41.5978, lng: -72.7554 }, DE: { lat: 39.3185, lng: -75.5071 }, FL: { lat: 27.7663, lng: -81.6868 },
+      GA: { lat: 33.0406, lng: -83.6431 }, HI: { lat: 21.0943, lng: -157.4983 }, ID: { lat: 44.2405, lng: -114.4788 },
+      IL: { lat: 40.3495, lng: -88.9861 }, IN: { lat: 39.8494, lng: -86.2583 }, IA: { lat: 42.0115, lng: -93.2105 },
+      KS: { lat: 38.5266, lng: -96.7265 }, KY: { lat: 37.6681, lng: -84.6701 }, LA: { lat: 31.1695, lng: -91.8678 },
+      ME: { lat: 44.6939, lng: -69.3819 }, MD: { lat: 39.0639, lng: -76.8021 }, MA: { lat: 42.2302, lng: -71.5301 },
+      MI: { lat: 43.3266, lng: -84.5361 }, MN: { lat: 45.6945, lng: -93.9002 }, MS: { lat: 32.7416, lng: -89.6787 },
+      MO: { lat: 38.4561, lng: -92.2884 }, MT: { lat: 46.9219, lng: -110.4544 }, NE: { lat: 41.1254, lng: -98.2681 },
+      NV: { lat: 38.3135, lng: -117.0554 }, NH: { lat: 43.4525, lng: -71.5639 }, NJ: { lat: 40.2989, lng: -74.521 },
+      NM: { lat: 34.8405, lng: -106.2485 }, NY: { lat: 42.1657, lng: -74.9481 }, NC: { lat: 35.6301, lng: -79.8064 },
+      ND: { lat: 47.5289, lng: -99.784 }, OH: { lat: 40.3888, lng: -82.7649 }, OK: { lat: 35.5653, lng: -96.9289 },
+      OR: { lat: 43.9336, lng: -120.5583 }, PA: { lat: 40.5908, lng: -77.2098 }, RI: { lat: 41.6809, lng: -71.5118 },
+      SC: { lat: 33.8569, lng: -80.945 }, SD: { lat: 44.2998, lng: -99.4388 }, TN: { lat: 35.7478, lng: -86.6923 },
+      TX: { lat: 31.0545, lng: -97.5635 }, UT: { lat: 40.1500, lng: -111.8624 }, VT: { lat: 44.0459, lng: -72.7107 },
+      VA: { lat: 37.7693, lng: -78.1699 }, WA: { lat: 47.4009, lng: -121.4905 }, WV: { lat: 38.4912, lng: -80.9545 },
+      WI: { lat: 44.2685, lng: -89.6165 }, WY: { lat: 42.7559, lng: -107.3025 }, DC: { lat: 38.9072, lng: -77.0369 },
+      DEFAULT: { lat: 39.5, lng: -98.35 },
+    };
+
+    const projectCoords = (lat, lng) => {
+      const x = ((lng - LIMITS_USA.minLng) / (LIMITS_USA.maxLng - LIMITS_USA.minLng)) * 100;
+      const y = ((LIMITS_USA.maxLat - lat) / (LIMITS_USA.maxLat - LIMITS_USA.minLat)) * 100;
+      return { x, y };
+    };
+
+    const haversineMiles = (a, b) => {
+      const R = 3958.8;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLon = (b.lng - a.lng) * Math.PI / 180;
+      const lat1 = a.lat * Math.PI / 180;
+      const lat2 = b.lat * Math.PI / 180;
+      const sinDLat = Math.sin(dLat / 2);
+      const sinDLon = Math.sin(dLon / 2);
+      const calc = sinDLat * sinDLat + sinDLon * sinDLon * Math.cos(lat1) * Math.cos(lat2);
+      const c = 2 * Math.atan2(Math.sqrt(calc), Math.sqrt(1 - calc));
+      return Math.round(R * c);
+    };
+
+    const jitterFromZip = (zip = '') => {
+      const seed = parseInt(String(zip).slice(-3) || '0', 10);
+      return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
+    };
+
+    const guessLatLng = (state, zip) => {
+      const base = STATE_COORDS[state] || STATE_COORDS.DEFAULT;
+      const jitter = jitterFromZip(zip);
+      return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
+    };
+
+    const parseCsvLine = (line = '') => {
+      const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      return values.map((value) => value.replace(/^"|"$/g, ''));
+    };
+
+    const parseCsv = async () => {
+      const response = await fetch('assets/installers.csv');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+
+      return lines
+        .filter((line) => line.trim())
+        .map((line, idx) => {
+          const values = parseCsvLine(line);
+          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
+          const state = String(row.State || row.state || '').trim().toUpperCase();
+          const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
+          const coords = guessLatLng(state, zip);
+          return {
+            id: idx + 1,
+            name: row.Name || row.FullName || 'Installer',
+            company: row.Company || 'Partner',
+            email: row.Email || '',
+            phone: row.Phone || '',
+            state,
+            city: row.City || '',
+            zipcode: zip,
+            lat: coords.lat,
+            lng: coords.lng,
+            rating: 4.4 + (idx % 6) * 0.1,
+            jobsToday: idx % 5,
+            status: idx % 4 === 0 ? 'Busy' : 'Available',
+          };
+        });
+    };
+
+    const parseVehicles = async () => {
+      const response = await fetch('assets/vehicles.csv');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      return lines
+        .filter((line) => line.trim())
+        .map((line, idx) => {
+          const values = parseCsvLine(line);
+          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
+          return {
+            id: idx + 1,
+            vin: row.VIN || row.vin || '',
+            model: row.Model || row.model || 'Vehicle',
+            year: Number(row.Year) || row.Year || '',
+            lastLocation: row.LastLocation || row.lastLocation || '',
+            lat: parseFloat(row.Lat || row.lat || row.Latitude || 0),
+            lng: parseFloat(row.Lng || row.lng || row.Longitude || 0),
+            severity: row.Severity || row.severity || 'Monitoring',
+          };
+        });
+    };
+
+    const renderClients = (techs, vehicles) => {
+      const list = document.getElementById('client-list');
+      const layer = document.getElementById('client-map-layer');
+      list.innerHTML = '';
+      layer.innerHTML = '';
+      const rows = vehicles.map((vehicle) => {
+        let best = null;
+        let bestDistance = Infinity;
+        techs.forEach((tech) => {
+          const distance = haversineMiles({ lat: tech.lat, lng: tech.lng }, vehicle);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = tech;
+          }
+        });
+        return { ...vehicle, best, distance: bestDistance };
+      }).sort((a, b) => a.distance - b.distance);
+
+      const clientCounter = document.getElementById('client-count');
+      if (clientCounter) clientCounter.textContent = rows.length;
+
+      list.innerHTML = rows.map((row) => `<div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+          <div class="flex items-center justify-between text-sm font-semibold text-white">
+            <span>${row.model} ${row.year} • ${row.lastLocation}</span>
+            <span class="text-emerald-300">${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
+            <span class="flex items-center gap-1"><i data-lucide="barcode" class="h-3 w-3"></i> VIN: ${row.vin}</span>
+            <span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide">${row.severity}</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
+            <span class="flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> Technician: ${row.best?.name || 'No technician'}</span>
+            <span class="text-slate-500">${row.best?.company || ''}</span>
+          </div>
+        </div>`).join('');
+
+      const fragment = document.createDocumentFragment();
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'pointer-events-none absolute inset-0 h-full w-full');
+      rows.forEach((row) => {
+        if (!row.best) return;
+        const clientPos = projectCoords(row.lat, row.lng);
+        const techPos = projectCoords(row.best.lat, row.best.lng);
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', `${techPos.x}%`);
+        line.setAttribute('y1', `${techPos.y}%`);
+        line.setAttribute('x2', `${clientPos.x}%`);
+        line.setAttribute('y2', `${clientPos.y}%`);
+        line.setAttribute('stroke', '#34d399');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-dasharray', '6,4');
+        line.setAttribute('class', 'opacity-70');
+        svg.appendChild(line);
+      });
+      fragment.appendChild(svg);
+
+      rows.forEach((row) => {
+        if (!row.best) return;
+        const clientPos = projectCoords(row.lat, row.lng);
+        const techPos = projectCoords(row.best.lat, row.best.lng);
+        const techMarker = document.createElement('div');
+        techMarker.className = 'absolute -translate-x-1/2 -translate-y-1/2';
+        techMarker.style.top = `${techPos.y}%`;
+        techMarker.style.left = `${techPos.x}%`;
+        techMarker.innerHTML = '<div class="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]"><div class="h-2 w-2 rounded-full bg-white"></div></div>';
+        fragment.appendChild(techMarker);
+
+        const clientMarker = document.createElement('div');
+        clientMarker.className = 'group absolute -translate-x-1/2 -translate-y-full';
+        clientMarker.style.top = `${clientPos.y}%`;
+        clientMarker.style.left = `${clientPos.x}%`;
+        clientMarker.innerHTML = `<div class="relative"><i data-lucide="map-pin" class="h-8 w-8 fill-red-500 stroke-white stroke-2 text-red-500 drop-shadow"></i><div class="absolute -bottom-1 left-1/2 h-1 w-3 -translate-x-1/2 rounded-full bg-black/50 blur-[2px]"></div><div class="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl transition group-hover:opacity-100">${row.model} (${row.year}) • ${row.distance} mi</div></div>`;
+        fragment.appendChild(clientMarker);
+      });
+      layer.appendChild(fragment);
+      lucide.createIcons();
+    };
+
+    const init = async () => {
+      const [techs, vehicles] = await Promise.all([parseCsv(), parseVehicles()]);
+      renderClients(techs, vehicles);
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      init();
+    });
+  </script>
+</body>
+</html>
