@@ -113,9 +113,9 @@
       <div id="tech-map"></div>
 
       <!-- Floating Legend -->
-      <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300">
-        <div class="flex items-center gap-2 mb-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+      <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-cyan-500/40 p-3 rounded shadow-lg text-[10px] text-slate-100">
+        <div class="flex items-center gap-2 mb-1"><span class="w-2 h-2 rounded-full bg-cyan-300 ring-1 ring-cyan-100"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-400 ring-1 ring-red-100"></span> Client location</div>
       </div>
     </div>
   </main>
@@ -193,7 +193,7 @@
       const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
 
       const techPromises = lines.slice(1).map(async (line, idx) => {
-        const values = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+        const values = line.match(/("[^"]*(""[^"]*)*"|[^,]*)(?=,|$)/g) || [];
         const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
 
         const row = {};
@@ -270,12 +270,12 @@
       // Map markers
       techList.forEach(tech => {
         const marker = L.circleMarker([tech.lat, tech.lng], {
-          radius: 5,
-          fillColor: '#3b82f6',
-          color: '#0f172a',
-          weight: 1,
+          radius: 6.5,
+          fillColor: '#60a5fa',
+          color: '#1d4ed8',
+          weight: 2,
           opacity: 1,
-          fillOpacity: 0.8
+          fillOpacity: 0.95
         }).addTo(techLayer);
 
         marker.bindPopup(`
@@ -293,20 +293,20 @@
         const isNearest = target && idx === 0;
 
         const card = document.createElement('div');
-        card.className = `p-4 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
+        card.className = `p-4 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-cyan-400/80 ring-1 ring-cyan-400/60 shadow-lg shadow-cyan-500/10' : 'bg-slate-900/80 border-slate-700 hover:border-cyan-500/60 hover:bg-slate-900'}`;
 
         card.innerHTML = `
           <div class="flex justify-between items-start mb-2">
             <div>
               <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Company</p>
-              <h3 class="font-bold text-white text-sm break-words" title="${tech.company}">${tech.company}</h3>
-              <p class="text-xs text-slate-400 flex items-center gap-1 mt-1">
+              <h3 class="font-bold text-white text-sm break-words leading-snug" title="${tech.company}">${tech.company}</h3>
+              <p class="text-xs text-slate-300 flex items-center gap-1 mt-1">
                 <i data-lucide="map-pin" class="h-3 w-3"></i> ${tech.city}, ${tech.state} ${tech.zip}
               </p>
             </div>
             ${target ? `<div class="text-right">
-              <span class="block text-lg font-black text-blue-400 leading-none">${Math.round(tech.distance)}</span>
-              <span class="text-[9px] text-slate-500 font-bold">miles</span>
+              <span class="block text-lg font-black text-cyan-300 leading-none">${Math.round(tech.distance)}</span>
+              <span class="text-[9px] text-slate-400 font-bold">miles</span>
             </div>` : ''}
           </div>
           <div class="grid grid-cols-2 gap-2 mt-3">
@@ -432,7 +432,7 @@
           [client.lat, client.lng],
           [tech.lat, tech.lng]
         ],
-        { color: '#38bdf8', weight: 3, opacity: 0.8, dashArray: '6 6' }
+        { color: '#67e8f9', weight: 4, opacity: 0.9, dashArray: '8 6' }
       ).addTo(connectionLayer);
     }
 
