@@ -61,6 +61,16 @@
   </header>
 
   <main class="flex-1 flex overflow-hidden">
+    <aside class="w-[360px] flex-none border-r border-slate-800 bg-slate-900/80 flex flex-col z-10">
+      <div class="p-5 border-b border-slate-800 bg-slate-900">
+        <p class="text-[10px] font-bold uppercase text-blue-200 mb-1">Installers</p>
+        <h2 class="text-lg font-black text-white leading-tight">Coverage pulled from assets/installers.csv</h2>
+      </div>
+      <div id="installer-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/80">
+        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
+      </div>
+    </aside>
+
     <aside class="w-[420px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <p class="text-[10px] font-bold uppercase text-emerald-300 mb-1">Vehicles to fix</p>
@@ -83,16 +93,6 @@
       </div>
       <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
         <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
-      </div>
-    </aside>
-
-    <aside class="w-[360px] flex-none border-r border-slate-800 bg-slate-900/80 flex flex-col z-10">
-      <div class="p-5 border-b border-slate-800 bg-slate-900">
-        <p class="text-[10px] font-bold uppercase text-blue-200 mb-1">Installers</p>
-        <h2 class="text-lg font-black text-white leading-tight">Coverage pulled from assets/installers.csv</h2>
-      </div>
-      <div id="installer-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/80">
-        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
       </div>
     </aside>
 
@@ -155,6 +155,15 @@
     const geoCache = new Map();
     const cityCache = new Map();
 
+    const hashString = (value = '') => {
+      let hash = 0;
+      for (let i = 0; i < value.length; i += 1) {
+        hash = (hash << 5) - hash + value.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash);
+    };
+
     const haversineMiles = (a, b) => {
       const R = 3958.8;
       const dLat = (b.lat - a.lat) * Math.PI / 180;
@@ -168,61 +177,62 @@
       return Math.round(R * c);
     };
 
+    const stripBom = (text = '') => text.replace(/^\uFEFF/, '');
     const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, '').trim());
 
-    const jitterFallback = (place = '', seed = 0) => {
+    const jitterFallback = (place = '', seed = 0, baseOverride = null) => {
       const stateMatch = place.match(/,\s*([A-Z]{2})\b/);
-      const base = STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
+      const base = baseOverride || STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
       const angle = (seed * 57.3) * (Math.PI / 180);
       const radius = 0.35 + ((seed % 10) * 0.02);
       return { lat: base.lat + Math.cos(angle) * radius, lng: base.lng + Math.sin(angle) * radius };
     };
 
-    const geocodePlace = async (place = '', seed = 0) => {
+    const guessStateCenter = (place = '') => {
+      const stateMatch = place.match(/,\s*([A-Z]{2})\b/);
+      return STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
+    };
+
+    const geocodePlace = (place = '', seed = 0) => {
       const key = place.trim().toLowerCase();
       if (!key) return jitterFallback(place, seed);
       if (geoCache.has(key)) return geoCache.get(key);
 
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(place)}`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          geoCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('Vehicle geocode failed', place, e);
-      }
+      const stateCenter = guessStateCenter(place);
+      const hash = hashString(key) + seed;
+      const angle = (hash % 360) * (Math.PI / 180);
+      const radius = 0.15 + ((hash % 120) / 800); // keeps clusters tight but visible per state
+      const fallback = {
+        lat: stateCenter.lat + Math.cos(angle) * radius,
+        lng: stateCenter.lng + Math.sin(angle) * radius,
+      };
 
-      const fallback = jitterFallback(place, seed);
       geoCache.set(key, fallback);
       return fallback;
     };
 
-    const geocodeCity = async (city, stateCode) => {
+    const geocodeCity = (city, stateCode) => {
       const key = `${city},${stateCode}`.toLowerCase();
       if (cityCache.has(key)) return cityCache.get(key);
 
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, ${stateCode}, USA`)}`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          cityCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('City geocode failed', city, stateCode, e);
-      }
+      const stateCenter = STATE_CENTERS[stateCode] || STATE_CENTERS.DEFAULT;
+      const hash = hashString(key);
+      const angle = (hash % 360) * (Math.PI / 180);
+      const radius = 0.12 + ((hash % 50) / 500);
+      const coords = {
+        lat: stateCenter.lat + Math.cos(angle) * radius,
+        lng: stateCenter.lng + Math.sin(angle) * radius,
+      };
 
-      cityCache.set(key, null);
-      return null;
+      cityCache.set(key, coords);
+      return coords;
     };
 
     const loadInstallers = async () => {
       const response = await fetch('assets/installers.csv');
-      const text = await response.text();
+      if (!response.ok) throw new Error('Installer file could not be loaded');
+
+      const text = stripBom(await response.text());
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
       const headers = lines.shift().toLowerCase().split(',').map((h) => h.trim().replace(/"/g, ''));
 
@@ -268,9 +278,11 @@
 
     const loadVehicles = async () => {
       const response = await fetch('assets/vehicles.csv');
-      const text = await response.text();
+      if (!response.ok) throw new Error('Vehicle file could not be loaded');
+
+      const text = stripBom(await response.text());
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
-      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      const headers = parseCsvLine(lines.shift() || '').map((h) => stripBom(h.trim()));
 
       const vehiclePromises = lines.map(async (line, idx) => {
         const values = parseCsvLine(line);
@@ -373,6 +385,7 @@
       lineLayer.clearLayers();
       highlightLayer.clearLayers();
       vehicleMarkers.clear();
+      const bounds = [];
 
       const rows = vehicles.map((vehicle) => {
         let best = null;
@@ -390,13 +403,6 @@
       document.getElementById('vehicles-count').textContent = rows.length;
       document.getElementById('installers-count').textContent = techs.length;
       document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        card.addEventListener('click', () => {
-          if (!row.best) return;
-          vehiclesMap.flyTo([row.lat, row.lng], 7);
-          const marker = L.circleMarker([row.lat, row.lng], { radius: 8, color: '#fbbf24', weight: 2, fillColor: '#fcd34d', fillOpacity: 0.9 });
-          connectionLayerHighlight(marker, row.best);
-        });
 
       rows.forEach((row) => {
         const card = document.createElement('div');
@@ -475,22 +481,29 @@
       lucide.createIcons();
     };
 
-    const connectionLayerHighlight = (marker, tech) => {
-      highlightLayer.clearLayers();
-      marker.addTo(highlightLayer);
-      highlightLayer.addLayer(L.polyline([marker.getLatLng(), [tech.lat, tech.lng]], { color: '#22d3ee', weight: 3, dashArray: '4 6' }));
+    const showError = (targetId, message) => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.innerHTML = `<div class="text-center mt-10 text-slate-500 text-xs">${message}</div>`;
     };
 
     const init = async () => {
-      const [techs, vehicles] = await Promise.all([loadInstallers(), loadVehicles()]);
-      installersData = techs;
-      vehiclesData = vehicles;
-      renderInstallers(installersData);
-      renderVehicles(installersData, vehiclesData);
+      try {
+        const [techs, vehicles] = await Promise.all([loadInstallers(), loadVehicles()]);
+        installersData = techs;
+        vehiclesData = vehicles;
+        renderInstallers(installersData);
+        renderVehicles(installersData, vehiclesData);
+      } catch (err) {
+        console.error('Failed to load data', err);
+        showError('installer-list', 'Unable to load installer data. Check that assets/installers.csv is reachable.');
+        showError('vehicle-list', 'Unable to load vehicle data. Check that assets/vehicles.csv is reachable.');
+      }
     };
 
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
+      initMap();
       init();
     });
   </script>
