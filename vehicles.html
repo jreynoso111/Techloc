@@ -373,6 +373,7 @@
       lineLayer.clearLayers();
       highlightLayer.clearLayers();
       vehicleMarkers.clear();
+      const bounds = [];
 
       const rows = vehicles.map((vehicle) => {
         let best = null;
@@ -390,13 +391,6 @@
       document.getElementById('vehicles-count').textContent = rows.length;
       document.getElementById('installers-count').textContent = techs.length;
       document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        card.addEventListener('click', () => {
-          if (!row.best) return;
-          vehiclesMap.flyTo([row.lat, row.lng], 7);
-          const marker = L.circleMarker([row.lat, row.lng], { radius: 8, color: '#fbbf24', weight: 2, fillColor: '#fcd34d', fillOpacity: 0.9 });
-          connectionLayerHighlight(marker, row.best);
-        });
 
       rows.forEach((row) => {
         const card = document.createElement('div');
@@ -473,12 +467,6 @@
       }
 
       lucide.createIcons();
-    };
-
-    const connectionLayerHighlight = (marker, tech) => {
-      highlightLayer.clearLayers();
-      marker.addTo(highlightLayer);
-      highlightLayer.addLayer(L.polyline([marker.getLatLng(), [tech.lat, tech.lng]], { color: '#22d3ee', weight: 3, dashArray: '4 6' }));
     };
 
     const init = async () => {
