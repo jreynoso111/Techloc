@@ -55,11 +55,17 @@
 
   <main class="flex-1 flex overflow-hidden">
     <aside class="w-[420px] flex-none border-r border-slate-800 bg-slate-900/80 backdrop-blur flex flex-col z-20 shadow-2xl">
-      <div class="p-5 border-b border-slate-800 bg-slate-900/90">
-        <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Vehicles with GPS issues</p>
-        <div class="flex items-baseline justify-between">
-          <h2 class="text-xl font-black text-white">Vehicles</h2>
-          <span id="vehicle-count" class="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-bold text-emerald-300">-</span>
+      <div class="p-5 border-b border-slate-800 bg-slate-900/90 space-y-3">
+        <div>
+          <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Vehicles with GPS issues</p>
+          <div class="flex items-baseline justify-between">
+            <h2 class="text-xl font-black text-white">Vehicles</h2>
+            <span id="vehicle-count" class="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-bold text-emerald-300">-</span>
+          </div>
+        </div>
+        <div class="relative">
+          <input id="vehicle-search" type="text" placeholder="Search VIN, model, city..." class="w-full rounded-xl border border-slate-700 bg-slate-800/80 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none" />
+          <i data-lucide="search" class="absolute right-3 top-3 h-4 w-4 text-slate-400"></i>
         </div>
       </div>
       <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900"></div>
@@ -79,11 +85,18 @@
     </div>
 
     <aside class="w-[420px] flex-none border-l border-slate-800 bg-slate-900/80 backdrop-blur flex flex-col z-20 shadow-2xl">
-      <div class="p-5 border-b border-slate-800 bg-slate-900/90">
-        <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Installer coverage</p>
-        <div class="flex items-baseline justify-between">
-          <h2 class="text-xl font-black text-white">Installers</h2>
-          <span id="installer-count" class="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-bold text-cyan-300">-</span>
+      <div class="p-5 border-b border-slate-800 bg-slate-900/90 space-y-3">
+        <div>
+          <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Installer coverage</p>
+          <div class="flex items-baseline justify-between">
+            <h2 class="text-xl font-black text-white">Installers</h2>
+            <span id="installer-count" class="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-bold text-cyan-300">-</span>
+          </div>
+          <p id="installer-hint" class="text-[11px] text-slate-400 mt-1">Select a vehicle to sort technicians by distance.</p>
+        </div>
+        <div class="relative">
+          <input id="installer-search" type="text" placeholder="Search company, city, phone..." class="w-full rounded-xl border border-slate-700 bg-slate-800/80 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none" />
+          <i data-lucide="search" class="absolute right-3 top-3 h-4 w-4 text-slate-400"></i>
         </div>
         <p id="installer-hint" class="text-[11px] text-slate-400 mt-1">Select a vehicle to sort technicians by distance.</p>
       </div>
@@ -126,9 +139,13 @@
     };
 
     const cityCache = new Map();
+    const zipCache = new Map();
     let vehicles = [];
+    let filteredVehicles = [];
+    let vehicleFilterTerm = '';
     let installers = [];
     let activeVehicle = null;
+    let installerFilterTerm = '';
     let map, vehicleLayer, installerLayer, lineLayer;
     const vehicleMarkers = new Map();
     const installerMarkers = new Map();
@@ -164,6 +181,24 @@
       return null;
     }
 
+    async function geocodeZip(zip, stateCode) {
+      const key = `${zip}-${stateCode}`.toLowerCase();
+      if (zipCache.has(key)) return zipCache.get(key);
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&postalcode=${encodeURIComponent(zip)}&country=USA`);
+        const data = await response.json();
+        if (data && data.length > 0) {
+          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+          zipCache.set(key, coords);
+          return coords;
+        }
+      } catch (e) {
+        console.warn('ZIP geocode failed', zip, stateCode, e);
+      }
+      zipCache.set(key, null);
+      return null;
+    }
+
     function jitterFromZip(zip = '') {
       const seed = parseInt(String(zip).slice(-3) || '0', 10);
       return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
@@ -183,6 +218,7 @@
         severity: row['severity'] || 'Monitoring',
         notes: row['notes'] || '',
       }));
+      filteredVehicles = vehicles;
       document.getElementById('vehicle-count').textContent = vehicles.length;
     }
 
@@ -198,7 +234,13 @@
         const jitter = jitterFromZip(zip);
         let lat = base[0] + jitter.lat;
         let lng = base[1] + jitter.lng;
-        if (!zip && row['city']) {
+
+        if (zip.trim()) {
+          const zipCoords = await geocodeZip(zip, stateCode);
+          if (zipCoords) { lat = zipCoords.lat; lng = zipCoords.lng; }
+        }
+
+        if (row['city'] && (lat === base[0] + jitter.lat && lng === base[1] + jitter.lng)) {
           const cityCoords = await geocodeCity(row['city'], stateCode);
           if (cityCoords) { lat = cityCoords.lat; lng = cityCoords.lng; }
         }
@@ -265,7 +307,12 @@
     function renderVehiclesList() {
       const container = document.getElementById('vehicle-list');
       container.innerHTML = '';
-      vehicles.forEach((vehicle) => {
+      if (!filteredVehicles.length) {
+        container.innerHTML = '<p class="text-sm text-slate-400">No vehicles match your search.</p>';
+        return;
+      }
+
+      filteredVehicles.forEach((vehicle) => {
         const isActive = activeVehicle?.id === vehicle.id;
         const card = document.createElement('div');
         card.className = `p-4 rounded-xl border cursor-pointer transition-colors ${isActive ? 'bg-red-900/40 border-red-400/60 shadow-lg shadow-red-500/10' : 'bg-slate-900/70 border-slate-800 hover:border-red-400/50'}`;
@@ -297,10 +344,50 @@
       })).sort((a, b) => a.distance - b.distance);
     }
 
+    function applyVehicleFilter(term) {
+      vehicleFilterTerm = term.toLowerCase();
+      filteredVehicles = vehicles.filter(vehicle => `${vehicle.vin} ${vehicle.model} ${vehicle.year} ${vehicle.lastLocation}`.toLowerCase().includes(vehicleFilterTerm));
+
+      if (!filteredVehicles.length) {
+        activeVehicle = null;
+        renderVehiclesList();
+        renderInstallersList();
+        highlightMarkers(null, null);
+        clearLine();
+        return;
+      }
+
+      if (activeVehicle && filteredVehicles.some(v => v.id === activeVehicle.id)) {
+        activeVehicle = filteredVehicles.find(v => v.id === activeVehicle.id) || filteredVehicles[0];
+        renderVehiclesList();
+        renderInstallersList();
+        highlightMarkers(activeVehicle.id, null);
+      } else {
+        selectVehicle(filteredVehicles[0]);
+      }
+    }
+
+    function applyInstallerFilter(term) {
+      installerFilterTerm = term.toLowerCase();
+      renderInstallersList();
+    }
+
     function renderInstallersList() {
       const container = document.getElementById('installer-list');
       container.innerHTML = '';
-      const list = installerListFor(activeVehicle);
+      let list = installerListFor(activeVehicle);
+      if (installerFilterTerm) {
+        const term = installerFilterTerm;
+        list = list.filter(installer => `${installer.company} ${installer.city} ${installer.state} ${installer.zip} ${installer.phone}`.toLowerCase().includes(term));
+      }
+
+      if (!list.length) {
+        container.innerHTML = '<p class="text-sm text-slate-400">No installers match your search.</p>';
+        document.getElementById('installer-hint').textContent = 'Adjust your search to see technicians.';
+        lucide.createIcons();
+        return;
+      }
+
       list.forEach((installer, idx) => {
         const isNearest = idx === 0 && activeVehicle;
         const card = document.createElement('div');
@@ -412,6 +499,8 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
+      document.getElementById('vehicle-search').addEventListener('input', (e) => applyVehicleFilter(e.target.value));
+      document.getElementById('installer-search').addEventListener('input', (e) => applyInstallerFilter(e.target.value));
       init();
     });
   </script>
