@@ -236,6 +236,14 @@
           lng = base[1] + (radius * Math.sin(angle) * 1.3);
         }
 
+        if (!row['zip'] && row['city']) {
+          const cityCoords = await geocodeCity(row['city'], stateCode);
+          if (cityCoords) {
+            lat = cityCoords.lat;
+            lng = cityCoords.lng;
+          }
+        }
+
         return {
           id: idx,
           name: companyName,
