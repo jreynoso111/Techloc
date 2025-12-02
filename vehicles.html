@@ -61,6 +61,16 @@
   </header>
 
   <main class="flex-1 flex overflow-hidden">
+    <aside class="w-[360px] flex-none border-r border-slate-800 bg-slate-900/80 flex flex-col z-10">
+      <div class="p-5 border-b border-slate-800 bg-slate-900">
+        <p class="text-[10px] font-bold uppercase text-blue-200 mb-1">Installers</p>
+        <h2 class="text-lg font-black text-white leading-tight">Coverage pulled from assets/installers.csv</h2>
+      </div>
+      <div id="installer-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/80">
+        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
+      </div>
+    </aside>
+
     <aside class="w-[420px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <p class="text-[10px] font-bold uppercase text-emerald-300 mb-1">Vehicles to fix</p>
@@ -83,16 +93,6 @@
       </div>
       <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
         <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
-      </div>
-    </aside>
-
-    <aside class="w-[360px] flex-none border-r border-slate-800 bg-slate-900/80 flex flex-col z-10">
-      <div class="p-5 border-b border-slate-800 bg-slate-900">
-        <p class="text-[10px] font-bold uppercase text-blue-200 mb-1">Installers</p>
-        <h2 class="text-lg font-black text-white leading-tight">Coverage pulled from assets/installers.csv</h2>
-      </div>
-      <div id="installer-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/80">
-        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
       </div>
     </aside>
 
@@ -222,6 +222,8 @@
 
     const loadInstallers = async () => {
       const response = await fetch('assets/installers.csv');
+      if (!response.ok) throw new Error('Installer file could not be loaded');
+
       const text = await response.text();
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
       const headers = lines.shift().toLowerCase().split(',').map((h) => h.trim().replace(/"/g, ''));
@@ -268,6 +270,8 @@
 
     const loadVehicles = async () => {
       const response = await fetch('assets/vehicles.csv');
+      if (!response.ok) throw new Error('Vehicle file could not be loaded');
+
       const text = await response.text();
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
       const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
@@ -469,16 +473,29 @@
       lucide.createIcons();
     };
 
+    const showError = (targetId, message) => {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.innerHTML = `<div class="text-center mt-10 text-slate-500 text-xs">${message}</div>`;
+    };
+
     const init = async () => {
-      const [techs, vehicles] = await Promise.all([loadInstallers(), loadVehicles()]);
-      installersData = techs;
-      vehiclesData = vehicles;
-      renderInstallers(installersData);
-      renderVehicles(installersData, vehiclesData);
+      try {
+        const [techs, vehicles] = await Promise.all([loadInstallers(), loadVehicles()]);
+        installersData = techs;
+        vehiclesData = vehicles;
+        renderInstallers(installersData);
+        renderVehicles(installersData, vehiclesData);
+      } catch (err) {
+        console.error('Failed to load data', err);
+        showError('installer-list', 'Unable to load installer data. Check that assets/installers.csv is reachable.');
+        showError('vehicle-list', 'Unable to load vehicle data. Check that assets/vehicles.csv is reachable.');
+      }
     };
 
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
+      initMap();
       init();
     });
   </script>
