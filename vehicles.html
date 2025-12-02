@@ -7,104 +7,87 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+zWATbFveLLNqWO2gtiw3HL/lh1giY/Inf1BJ0z14="
+    crossorigin=""
+  />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          colors: { slate: { 850: '#1a2233', 950: '#020617' } }
         },
       },
     };
   </script>
-  <style>
-    #vehicles-map { height: 100%; width: 100%; background-color: #020617; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-  </style>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-o9N1j7kG1Q9bIwF6Yw2WrwslfLv7RHF9A0w0v0r3sLs="
+    crossorigin=""
+  ></script>
 </head>
-<body class="h-screen bg-slate-950 font-sans text-slate-50 flex flex-col">
-  <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-50">
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+  <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <a href="index.html" class="flex items-center gap-3">
-        <div class="relative h-10 w-10 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 shadow-lg shadow-blue-500/30 ring-2 ring-blue-400/40">
-          <div class="absolute inset-0 bg-[conic-gradient(at_30%_30%,rgba(255,255,255,0.18),transparent_30%)]"></div>
-          <span class="relative flex h-full items-center justify-center text-xs font-black uppercase tracking-[0.2em] text-white">TL</span>
+        <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
+          <i data-lucide="navigation" class="h-5 w-5"></i>
         </div>
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200">TechLoc</p>
-          <h1 class="text-lg font-black leading-tight">Vehicles to Fix</h1>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">TechLoc Network</p>
+          <h1 class="text-lg font-black leading-tight">GPS Installer Hub</h1>
         </div>
       </a>
-      <nav class="hidden items-center gap-6 text-sm font-semibold text-slate-200 md:flex">
+      <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
         <a href="index.html" class="transition-colors hover:text-white">Home</a>
         <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
-        <a href="vehicles.html" class="text-white underline decoration-blue-400 decoration-2 underline-offset-8">Vehicles to Fix</a>
+        <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
       </nav>
-      <div class="hidden items-center gap-2 text-xs font-semibold text-slate-300 sm:flex">
-        <span class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-blue-300 shadow-inner shadow-slate-900">USA</span>
-        <span class="text-slate-400">Fleet & installer overview</span>
-      </div>
     </div>
   </header>
 
-  <main class="flex-1 flex overflow-hidden">
-    <aside class="w-[420px] flex-none border-r border-slate-800 bg-slate-900/80 backdrop-blur flex flex-col z-20 shadow-2xl">
-      <div class="p-5 border-b border-slate-800 bg-slate-900/90 space-y-3">
-        <div>
-          <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Vehicles with GPS issues</p>
-          <div class="flex items-baseline justify-between">
-            <h2 class="text-xl font-black text-white">Vehicles</h2>
-            <span id="vehicle-count" class="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-bold text-emerald-300">-</span>
+  <main class="space-y-12">
+    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-12">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_35%)]"></div>
+      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
+        <div class="space-y-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Vehicles to Fix</p>
+          <h2 class="text-4xl font-black text-white">Vehicles with failed GPS and their nearest tech</h2>
+          <p class="text-sm text-slate-300 max-w-3xl">See vehicles with failed GPS units (VIN, model, year, and last location) and confirm who can cover them with the best proximity estimate. Technicians load from the CSV.</p>
+        </div>
+        <div class="flex items-center gap-2 rounded-full border border-emerald-900 bg-emerald-900/40 px-4 py-2 text-xs font-semibold text-emerald-100">
+          <i data-lucide="check-circle" class="h-4 w-4"></i> Automatic coverage
+        </div>
+      </div>
+    </section>
+
+    <section class="mx-auto max-w-7xl space-y-6 px-6">
+      <div class="grid gap-6 lg:grid-cols-[420px,1fr]">
+        <div class="space-y-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Vehicles flagged</p>
+              <p class="text-lg font-black text-white">Assigned to the closest technician</p>
+            </div>
+            <span class="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-emerald-200" id="client-count">-</span>
+          </div>
+          <div id="client-list" class="space-y-3 text-sm text-slate-300"></div>
+        </div>
+
+        <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-emerald-500/10">
+          <div class="relative mx-auto max-w-5xl select-none">
+            <div id="vehicles-map" class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60"></div>
           </div>
         </div>
-        <div class="relative">
-          <input id="vehicle-search" type="text" placeholder="Search VIN, model, city..." class="w-full rounded-xl border border-slate-700 bg-slate-800/80 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none" />
-          <i data-lucide="search" class="absolute right-3 top-3 h-4 w-4 text-slate-400"></i>
-        </div>
       </div>
-      <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900"></div>
-    </aside>
-
-    <div class="flex-1 relative bg-slate-950">
-      <div id="vehicles-map"></div>
-      <div class="absolute top-4 right-4 z-[400] flex gap-2 text-[10px]">
-        <span class="px-3 py-1 rounded-full bg-red-500/20 text-red-100 border border-red-400/40 font-semibold shadow-lg shadow-red-500/10">Vehicles</span>
-        <span class="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-100 border border-emerald-400/50 font-semibold shadow-lg shadow-emerald-500/10">Installers</span>
-      </div>
-      <div class="absolute bottom-4 left-4 z-[400] bg-slate-900/90 backdrop-blur border border-cyan-500/40 p-3 rounded shadow-lg text-[10px] text-slate-100">
-        <div class="flex items-center gap-2 mb-1"><span class="w-2 h-2 rounded-full bg-red-400 ring-1 ring-red-100"></span> Vehicle</div>
-        <div class="flex items-center gap-2 mb-1"><span class="w-2 h-2 rounded-full bg-emerald-300 ring-1 ring-emerald-100"></span> Installer</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyan-300 ring-1 ring-cyan-100"></span> Distance line</div>
-      </div>
-    </div>
-
-    <aside class="w-[420px] flex-none border-l border-slate-800 bg-slate-900/80 backdrop-blur flex flex-col z-20 shadow-2xl">
-      <div class="p-5 border-b border-slate-800 bg-slate-900/90 space-y-3">
-        <div>
-          <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Installer coverage</p>
-          <div class="flex items-baseline justify-between">
-            <h2 class="text-xl font-black text-white">Installers</h2>
-            <span id="installer-count" class="rounded-full bg-slate-800 px-2 py-1 text-[11px] font-bold text-cyan-300">-</span>
-          </div>
-          <p id="installer-hint" class="text-[11px] text-slate-400 mt-1">Select a vehicle to sort technicians by distance.</p>
-        </div>
-        <div class="relative">
-          <input id="installer-search" type="text" placeholder="Search company, city, phone..." class="w-full rounded-xl border border-slate-700 bg-slate-800/80 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none" />
-          <i data-lucide="search" class="absolute right-3 top-3 h-4 w-4 text-slate-400"></i>
-        </div>
-        <p id="installer-hint" class="text-[11px] text-slate-400 mt-1">Select a vehicle to sort technicians by distance.</p>
-      </div>
-      <div id="installer-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900"></div>
-    </aside>
+    </section>
   </main>
 
-  <footer class="border-t border-slate-900 bg-slate-950/80 py-4">
+  <footer class="border-t border-slate-900 bg-slate-950/80 py-6">
     <div class="mx-auto flex max-w-7xl flex-col gap-2 px-6 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
       <div class="flex items-center gap-2 text-slate-300">
         <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
@@ -113,185 +96,35 @@
       </div>
       <div class="flex items-center gap-4 text-xs uppercase tracking-wide text-slate-500">
         <span>24/7 Support</span>
-        <span>Fleet visibility</span>
+        <span>Data security</span>
         <span>Reliable operations</span>
       </div>
     </div>
   </footer>
 
-  <script>
-    const CSV_REGEX = /(\"[^\"]*(\"\"[^\"]*)*\"|[^,]*)(?=,|$)/g;
-    const STATE_CENTERS = {
-      'AL': [32.8067, -86.7911], 'AK': [61.3707, -152.4044], 'AZ': [33.7298, -111.4312], 'AR': [34.9697, -92.3731],
-      'CA': [36.1162, -119.6816], 'CO': [39.0598, -105.3111], 'CT': [41.5978, -72.7554], 'DE': [39.3185, -75.5071],
-      'FL': [27.7663, -81.6868], 'GA': [33.0406, -83.6431], 'HI': [21.0943, -157.4983], 'ID': [44.2405, -114.4788],
-      'IL': [40.3495, -88.9861], 'IN': [39.8494, -86.2583], 'IA': [42.0115, -93.2105], 'KS': [38.5266, -96.7265],
-      'KY': [37.6681, -84.6701], 'LA': [31.1695, -91.8678], 'ME': [44.6939, -69.3819], 'MD': [39.0639, -76.8021],
-      'MA': [42.2302, -71.5301], 'MI': [43.3266, -84.5361], 'MN': [45.6945, -93.9002], 'MS': [32.7416, -89.6787],
-      'MO': [38.4561, -92.2884], 'MT': [46.9219, -110.4544], 'NE': [41.1254, -98.2681], 'NV': [38.3135, -117.0554],
-      'NH': [43.4525, -71.5639], 'NJ': [40.2989, -74.5210], 'NM': [34.8405, -106.2485], 'NY': [42.1657, -74.9481],
-      'NC': [35.6301, -79.8064], 'ND': [47.5289, -99.7840], 'OH': [40.3888, -82.7649], 'OK': [35.5653, -96.9289],
-      'OR': [43.9336, -120.5583], 'PA': [40.5908, -77.2098], 'RI': [41.6809, -71.5118], 'SC': [33.8569, -80.9450],
-      'SD': [44.2998, -99.4388], 'TN': [35.7478, -86.6923], 'TX': [31.0545, -97.5635], 'UT': [40.1500, -111.8624],
-      'VT': [44.0459, -72.7107], 'VA': [37.7693, -78.1699], 'WA': [47.4009, -121.4905], 'WV': [38.4912, -80.9545],
-      'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369],
-      DEFAULT: [39.5, -98.35]
+  <script type="module">
+    const STATE_COORDS = {
+      AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
+      AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
+      CT: { lat: 41.5978, lng: -72.7554 }, DE: { lat: 39.3185, lng: -75.5071 }, FL: { lat: 27.7663, lng: -81.6868 },
+      GA: { lat: 33.0406, lng: -83.6431 }, HI: { lat: 21.0943, lng: -157.4983 }, ID: { lat: 44.2405, lng: -114.4788 },
+      IL: { lat: 40.3495, lng: -88.9861 }, IN: { lat: 39.8494, lng: -86.2583 }, IA: { lat: 42.0115, lng: -93.2105 },
+      KS: { lat: 38.5266, lng: -96.7265 }, KY: { lat: 37.6681, lng: -84.6701 }, LA: { lat: 31.1695, lng: -91.8678 },
+      ME: { lat: 44.6939, lng: -69.3819 }, MD: { lat: 39.0639, lng: -76.8021 }, MA: { lat: 42.2302, lng: -71.5301 },
+      MI: { lat: 43.3266, lng: -84.5361 }, MN: { lat: 45.6945, lng: -93.9002 }, MS: { lat: 32.7416, lng: -89.6787 },
+      MO: { lat: 38.4561, lng: -92.2884 }, MT: { lat: 46.9219, lng: -110.4544 }, NE: { lat: 41.1254, lng: -98.2681 },
+      NV: { lat: 38.3135, lng: -117.0554 }, NH: { lat: 43.4525, lng: -71.5639 }, NJ: { lat: 40.2989, lng: -74.521 },
+      NM: { lat: 34.8405, lng: -106.2485 }, NY: { lat: 42.1657, lng: -74.9481 }, NC: { lat: 35.6301, lng: -79.8064 },
+      ND: { lat: 47.5289, lng: -99.784 }, OH: { lat: 40.3888, lng: -82.7649 }, OK: { lat: 35.5653, lng: -96.9289 },
+      OR: { lat: 43.9336, lng: -120.5583 }, PA: { lat: 40.5908, lng: -77.2098 }, RI: { lat: 41.6809, lng: -71.5118 },
+      SC: { lat: 33.8569, lng: -80.945 }, SD: { lat: 44.2998, lng: -99.4388 }, TN: { lat: 35.7478, lng: -86.6923 },
+      TX: { lat: 31.0545, lng: -97.5635 }, UT: { lat: 40.1500, lng: -111.8624 }, VT: { lat: 44.0459, lng: -72.7107 },
+      VA: { lat: 37.7693, lng: -78.1699 }, WA: { lat: 47.4009, lng: -121.4905 }, WV: { lat: 38.4912, lng: -80.9545 },
+      WI: { lat: 44.2685, lng: -89.6165 }, WY: { lat: 42.7559, lng: -107.3025 }, DC: { lat: 38.9072, lng: -77.0369 },
+      DEFAULT: { lat: 39.5, lng: -98.35 },
     };
 
-    const cityCache = new Map();
-    const zipCache = new Map();
-    let vehicles = [];
-    let filteredVehicles = [];
-    let vehicleFilterTerm = '';
-    let installers = [];
-    let activeVehicle = null;
-    let installerFilterTerm = '';
-    let map, vehicleLayer, installerLayer, lineLayer;
-    const vehicleMarkers = new Map();
-    const installerMarkers = new Map();
-
-    function parseCsvText(text) {
-      const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (!lines.length) return [];
-      const headers = (lines.shift() || '').match(CSV_REGEX)?.map(h => h.replace(/^\"|\"$/g, '').trim().toLowerCase()) || [];
-      return lines.map((line) => {
-        const values = line.match(CSV_REGEX) || [];
-        const cleaned = values.map(v => v.replace(/^\"|\"$/g, '').trim());
-        const row = {};
-        headers.forEach((h, idx) => row[h] = cleaned[idx] || '');
-        return row;
-      });
-    }
-
-    async function geocodeCity(city, stateCode) {
-      const key = `${city},${stateCode}`.toLowerCase();
-      if (cityCache.has(key)) return cityCache.get(key);
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, ${stateCode}, USA`)}`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          cityCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('City geocode failed', city, stateCode, e);
-      }
-      cityCache.set(key, null);
-      return null;
-    }
-
-    async function geocodeZip(zip, stateCode) {
-      const key = `${zip}-${stateCode}`.toLowerCase();
-      if (zipCache.has(key)) return zipCache.get(key);
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&postalcode=${encodeURIComponent(zip)}&country=USA`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          zipCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('ZIP geocode failed', zip, stateCode, e);
-      }
-      zipCache.set(key, null);
-      return null;
-    }
-
-    function jitterFromZip(zip = '') {
-      const seed = parseInt(String(zip).slice(-3) || '0', 10);
-      return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
-    }
-
-    async function loadVehicles() {
-      const response = await fetch('assets/vehicles.csv');
-      const rows = parseCsvText(await response.text());
-      vehicles = rows.map((row, idx) => ({
-        id: idx + 1,
-        vin: row['vin'] || '',
-        model: row['model'] || 'Vehicle',
-        year: row['year'] || '',
-        lastLocation: row['lastlocation'] || row['last location'] || '',
-        lat: parseFloat(row['lat'] || row['latitude'] || '0') || 0,
-        lng: parseFloat(row['lng'] || row['longitude'] || row['lon'] || '0') || 0,
-        severity: row['severity'] || 'Monitoring',
-        notes: row['notes'] || '',
-      }));
-      filteredVehicles = vehicles;
-      document.getElementById('vehicle-count').textContent = vehicles.length;
-    }
-
-    async function loadInstallers() {
-      const response = await fetch('assets/installers.csv');
-      const rows = parseCsvText(await response.text());
-      installers = await Promise.all(rows.map(async (row, idx) => {
-        const company = row['installation company'] || row['company'] || 'Installer';
-        const stateRaw = row['state'] || '';
-        const stateCode = (stateRaw.match(/\(([A-Z]{2})\)/i)?.[1] || stateRaw).replace(/[^A-Z]/gi, '').toUpperCase();
-        const base = STATE_CENTERS[stateCode] || STATE_CENTERS.DEFAULT;
-        const zip = (row['zip'] || row['zipcode'] || row['postal code'] || '').padStart(5, '0');
-        const jitter = jitterFromZip(zip);
-        let lat = base[0] + jitter.lat;
-        let lng = base[1] + jitter.lng;
-
-        if (zip.trim()) {
-          const zipCoords = await geocodeZip(zip, stateCode);
-          if (zipCoords) { lat = zipCoords.lat; lng = zipCoords.lng; }
-        }
-
-        if (row['city'] && (lat === base[0] + jitter.lat && lng === base[1] + jitter.lng)) {
-          const cityCoords = await geocodeCity(row['city'], stateCode);
-          if (cityCoords) { lat = cityCoords.lat; lng = cityCoords.lng; }
-        }
-        return {
-          id: idx + 1,
-          name: company,
-          company,
-          email: row['email'] || '-',
-          phone: row['phone'] || '-',
-          city: row['city'] || '',
-          state: stateCode,
-          zip: row['zip'] || '',
-          lat,
-          lng,
-        };
-      }));
-      document.getElementById('installer-count').textContent = installers.length;
-    }
-
-    function initMap() {
-      map = L.map('vehicles-map', { zoomControl: false }).setView([39.8, -98.5], 4);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-      vehicleLayer = L.layerGroup().addTo(map);
-      installerLayer = L.layerGroup().addTo(map);
-      lineLayer = L.layerGroup().addTo(map);
-    }
-
-    function vehicleStyle(isActive = false) {
-      return {
-        radius: isActive ? 8 : 6.5,
-        fillColor: isActive ? '#fca5a5' : '#f87171',
-        color: isActive ? '#fef2f2' : '#b91c1c',
-        weight: isActive ? 3 : 2,
-        opacity: 1,
-        fillOpacity: 0.95,
-      };
-    }
-
-    function installerStyle(isActive = false) {
-      return {
-        radius: isActive ? 8 : 6.5,
-        fillColor: isActive ? '#6ee7b7' : '#22c55e',
-        color: isActive ? '#ecfdf3' : '#065f46',
-        weight: isActive ? 3 : 2,
-        opacity: 1,
-        fillOpacity: 0.95,
-      };
-    }
-
-    function haversineMiles(a, b) {
+    const haversineMiles = (a, b) => {
       const R = 3958.8;
       const dLat = (b.lat - a.lat) * Math.PI / 180;
       const dLon = (b.lng - a.lng) * Math.PI / 180;
@@ -302,205 +135,186 @@
       const calc = sinDLat * sinDLat + sinDLon * sinDLon * Math.cos(lat1) * Math.cos(lat2);
       const c = 2 * Math.atan2(Math.sqrt(calc), Math.sqrt(1 - calc));
       return Math.round(R * c);
-    }
+    };
 
-    function renderVehiclesList() {
-      const container = document.getElementById('vehicle-list');
-      container.innerHTML = '';
-      if (!filteredVehicles.length) {
-        container.innerHTML = '<p class="text-sm text-slate-400">No vehicles match your search.</p>';
-        return;
-      }
+    const jitterFromZip = (zip = '') => {
+      const seed = parseInt(String(zip).slice(-3) || '0', 10);
+      return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
+    };
 
-      filteredVehicles.forEach((vehicle) => {
-        const isActive = activeVehicle?.id === vehicle.id;
-        const card = document.createElement('div');
-        card.className = `p-4 rounded-xl border cursor-pointer transition-colors ${isActive ? 'bg-red-900/40 border-red-400/60 shadow-lg shadow-red-500/10' : 'bg-slate-900/70 border-slate-800 hover:border-red-400/50'}`;
-        card.innerHTML = `
-          <div class="flex items-start justify-between gap-3">
-            <div class="space-y-1">
-              <p class="text-[10px] uppercase tracking-wide font-bold text-slate-400">VIN</p>
-              <p class="font-mono text-sm text-white break-all">${vehicle.vin}</p>
-              <p class="text-xs text-slate-300">${vehicle.model} ${vehicle.year}</p>
-              <p class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${vehicle.lastLocation}</p>
-            </div>
-            <div class="text-right">
-              <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${vehicle.severity.toLowerCase() === 'critical' ? 'bg-red-500/20 text-red-200 border border-red-400/40' : 'bg-amber-500/20 text-amber-100 border border-amber-400/40'}">${vehicle.severity}</span>
-            </div>
-          </div>
-          ${vehicle.notes ? `<div class="mt-2 flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-950/70 p-2 text-[11px] text-slate-200"><i data-lucide="info" class="h-3 w-3 text-amber-300"></i><span class="leading-tight">${vehicle.notes}</span></div>` : ''}
-        `;
-        card.addEventListener('click', () => selectVehicle(vehicle));
-        container.appendChild(card);
-      });
-      lucide.createIcons();
-    }
+    const guessLatLng = (state, zip) => {
+      const base = STATE_COORDS[state] || STATE_COORDS.DEFAULT;
+      const jitter = jitterFromZip(zip);
+      return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
+    };
 
-    function installerListFor(vehicle) {
-      if (!vehicle) return installers;
-      return installers.map(installer => ({
-        ...installer,
-        distance: haversineMiles({ lat: vehicle.lat, lng: vehicle.lng }, installer)
-      })).sort((a, b) => a.distance - b.distance);
-    }
+    const parseCsvLine = (line = '') => {
+      const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      return values.map((value) => value.replace(/^"|"$/g, ''));
+    };
 
-    function applyVehicleFilter(term) {
-      vehicleFilterTerm = term.toLowerCase();
-      filteredVehicles = vehicles.filter(vehicle => `${vehicle.vin} ${vehicle.model} ${vehicle.year} ${vehicle.lastLocation}`.toLowerCase().includes(vehicleFilterTerm));
+    const parseCsv = async () => {
+      const response = await fetch('assets/installers.csv');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
 
-      if (!filteredVehicles.length) {
-        activeVehicle = null;
-        renderVehiclesList();
-        renderInstallersList();
-        highlightMarkers(null, null);
-        clearLine();
-        return;
-      }
+      return lines
+        .filter((line) => line.trim())
+        .map((line, idx) => {
+          const values = parseCsvLine(line);
+          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
+          const state = String(row.State || row.state || '').trim().toUpperCase();
+          const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
+          const coords = guessLatLng(state, zip);
+          return {
+            id: idx + 1,
+            name: row.Name || row.FullName || 'Installer',
+            company: row.Company || 'Partner',
+            email: row.Email || '',
+            phone: row.Phone || '',
+            state,
+            city: row.City || '',
+            zipcode: zip,
+            notes: row.Notes || row.Note || row.Observation || '',
+            lat: coords.lat,
+            lng: coords.lng,
+            rating: 4.4 + (idx % 6) * 0.1,
+            jobsToday: idx % 5,
+            status: idx % 4 === 0 ? 'Busy' : 'Available',
+          };
+        });
+    };
 
-      if (activeVehicle && filteredVehicles.some(v => v.id === activeVehicle.id)) {
-        activeVehicle = filteredVehicles.find(v => v.id === activeVehicle.id) || filteredVehicles[0];
-        renderVehiclesList();
-        renderInstallersList();
-        highlightMarkers(activeVehicle.id, null);
-      } else {
-        selectVehicle(filteredVehicles[0]);
-      }
-    }
+    const parseVehicles = async () => {
+      const response = await fetch('assets/vehicles.csv');
+      const text = await response.text();
+      const lines = text.trim().split(/\r?\n/);
+      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      return lines
+        .filter((line) => line.trim())
+        .map((line, idx) => {
+          const values = parseCsvLine(line);
+          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
+          return {
+            id: idx + 1,
+            vin: row.VIN || row.vin || '',
+            model: row.Model || row.model || 'Vehicle',
+            year: Number(row.Year) || row.Year || '',
+            lastLocation: row.LastLocation || row.lastLocation || '',
+            lat: parseFloat(row.Lat || row.lat || row.Latitude || 0),
+            lng: parseFloat(row.Lng || row.lng || row.Longitude || 0),
+            severity: row.Severity || row.severity || 'Monitoring',
+            notes: row.Notes || row.Note || row.Observation || '',
+          };
+        });
+    };
 
-    function applyInstallerFilter(term) {
-      installerFilterTerm = term.toLowerCase();
-      renderInstallersList();
-    }
+    let vehiclesMap;
+    let vehicleLayer;
+    let techLayer;
+    let lineLayer;
 
-    function renderInstallersList() {
-      const container = document.getElementById('installer-list');
-      container.innerHTML = '';
-      let list = installerListFor(activeVehicle);
-      if (installerFilterTerm) {
-        const term = installerFilterTerm;
-        list = list.filter(installer => `${installer.company} ${installer.city} ${installer.state} ${installer.zip} ${installer.phone}`.toLowerCase().includes(term));
-      }
+    const initMap = () => {
+      vehiclesMap = L.map('vehicles-map', { zoomControl: false, worldCopyJump: true }).setView([STATE_COORDS.DEFAULT.lat, STATE_COORDS.DEFAULT.lng], 4.2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors',
+      }).addTo(vehiclesMap);
+      vehicleLayer = L.layerGroup().addTo(vehiclesMap);
+      techLayer = L.layerGroup().addTo(vehiclesMap);
+      lineLayer = L.layerGroup().addTo(vehiclesMap);
+    };
 
-      if (!list.length) {
-        container.innerHTML = '<p class="text-sm text-slate-400">No installers match your search.</p>';
-        document.getElementById('installer-hint').textContent = 'Adjust your search to see technicians.';
-        lucide.createIcons();
-        return;
-      }
-
-      list.forEach((installer, idx) => {
-        const isNearest = idx === 0 && activeVehicle;
-        const card = document.createElement('div');
-        card.className = `p-4 rounded-xl border cursor-pointer transition-colors ${isNearest ? 'bg-emerald-900/40 border-emerald-400/70 shadow-lg shadow-emerald-500/10' : 'bg-slate-900/70 border-slate-800 hover:border-emerald-400/60'}`;
-        card.innerHTML = `
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <p class="text-[10px] uppercase tracking-wide font-bold text-slate-400">Company</p>
-              <h3 class="font-bold text-white text-sm break-words leading-snug" title="${installer.company}">${installer.company}</h3>
-              <p class="text-xs text-slate-300 flex items-center gap-1 mt-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${installer.city}, ${installer.state} ${installer.zip}</p>
-              <p class="text-xs text-slate-400 flex items-center gap-1 mt-1"><i data-lucide="phone" class="h-3 w-3"></i> ${installer.phone}</p>
-              <p class="text-xs text-slate-400 flex items-center gap-1 mt-1"><i data-lucide="mail" class="h-3 w-3"></i> <span class="break-words">${installer.email}</span></p>
-            </div>
-            ${activeVehicle ? `<div class="text-right">
-              <span class="block text-xl font-black text-emerald-300 leading-none">${installer.distance}</span>
-              <span class="text-[10px] text-slate-400 font-bold">mi</span>
-            </div>` : ''}
-          </div>
-        `;
-        card.addEventListener('click', () => selectInstaller(installer));
-        container.appendChild(card);
-      });
-      document.getElementById('installer-hint').textContent = activeVehicle ? 'Distances are calculated from the selected vehicle.' : 'Select a vehicle to sort technicians by distance.';
-      lucide.createIcons();
-    }
-
-    function clearLine() {
-      lineLayer.clearLayers();
-    }
-
-    function drawLine(vehicle, installer) {
-      if (!vehicle || !installer) return;
-      lineLayer.clearLayers();
-      L.polyline([[vehicle.lat, vehicle.lng], [installer.lat, installer.lng]], {
-        color: '#67e8f9',
-        weight: 4,
-        opacity: 0.9,
-        dashArray: '8 6'
-      }).addTo(lineLayer);
-      map.fitBounds([[vehicle.lat, vehicle.lng], [installer.lat, installer.lng]], { padding: [60, 60] });
-    }
-
-    function highlightMarkers(vehicleId = null, installerId = null) {
-      vehicleMarkers.forEach((marker, id) => marker.setStyle(vehicleStyle(id === vehicleId)));
-      installerMarkers.forEach((marker, id) => marker.setStyle(installerStyle(id === installerId)));
-    }
-
-    function selectVehicle(vehicle) {
-      activeVehicle = vehicle;
-      renderVehiclesList();
-      renderInstallersList();
-      highlightMarkers(vehicle.id, null);
-      const nearest = installerListFor(vehicle)[0];
-      if (nearest) {
-        drawLine(vehicle, nearest);
-        highlightMarkers(vehicle.id, nearest.id);
-      } else {
-        clearLine();
-      }
-      const marker = vehicleMarkers.get(vehicle.id);
-      if (marker) marker.openPopup();
-    }
-
-    function selectInstaller(installer) {
-      if (!activeVehicle) return;
-      drawLine(activeVehicle, installer);
-      highlightMarkers(activeVehicle.id, installer.id);
-      const marker = installerMarkers.get(installer.id);
-      if (marker) marker.openPopup();
-    }
-
-    function plotLayers() {
+    const renderClients = (techs, vehicles) => {
+      if (!vehiclesMap) initMap();
+      const list = document.getElementById('client-list');
+      list.innerHTML = '';
       vehicleLayer.clearLayers();
-      installerLayer.clearLayers();
-      vehicleMarkers.clear();
-      installerMarkers.clear();
+      techLayer.clearLayers();
+      lineLayer.clearLayers();
+
+      const rows = vehicles.map((vehicle) => {
+        let best = null;
+        let bestDistance = Infinity;
+        techs.forEach((tech) => {
+          const distance = haversineMiles({ lat: tech.lat, lng: tech.lng }, vehicle);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = tech;
+          }
+        });
+        return { ...vehicle, best, distance: bestDistance };
+      }).sort((a, b) => a.distance - b.distance);
+
+      const clientCounter = document.getElementById('client-count');
+      if (clientCounter) clientCounter.textContent = rows.length;
+
+      list.innerHTML = rows.map((row) => `<div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+          <div class="flex items-center justify-between text-sm font-semibold text-white">
+            <span>${row.model} ${row.year} • ${row.lastLocation}</span>
+            <span class="text-emerald-300">${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
+            <span class="flex items-center gap-1"><i data-lucide="barcode" class="h-3 w-3"></i> VIN: ${row.vin}</span>
+            <span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide">${row.severity}</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
+            <span class="flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> Technician: ${row.best?.name || 'No technician'}</span>
+            <span class="text-slate-500">${row.best?.company || ''}</span>
+          </div>
+          ${row.notes ? `<div class="mt-2 flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-200"><i data-lucide="info" class="h-3 w-3 text-amber-300"></i><span class="text-left leading-tight">${row.notes}</span></div>` : ''}
+          ${row.best?.notes ? `<div class="mt-1 flex items-start gap-2 rounded-lg border border-slate-900 bg-slate-950/70 p-2 text-[11px] text-slate-300"><i data-lucide="user" class="h-3 w-3 text-blue-300"></i><span class="text-left leading-tight">Tech note: ${row.best.notes}</span></div>` : ''}
+        </div>`).join('');
 
       const bounds = [];
 
-      vehicles.forEach(vehicle => {
-        const marker = L.circleMarker([vehicle.lat, vehicle.lng], vehicleStyle());
-        marker.addTo(vehicleLayer).bindPopup(`<div class="text-sm text-slate-900 font-semibold">${vehicle.model} (${vehicle.year})<br><span class="text-xs text-slate-600">VIN: ${vehicle.vin}</span></div>`);
-        marker.on('click', () => selectVehicle(vehicle));
-        vehicleMarkers.set(vehicle.id, marker);
-        bounds.push([vehicle.lat, vehicle.lng]);
+      rows.forEach((row) => {
+        if (!row.best) return;
+        lineLayer.addLayer(L.polyline([[row.lat, row.lng], [row.best.lat, row.best.lng]], {
+          color: '#34d399',
+          weight: 3,
+          dashArray: '6 4',
+          opacity: 0.8,
+        }));
+
+        const techMarker = L.circleMarker([row.best.lat, row.best.lng], {
+          radius: 7,
+          color: '#10b981',
+          weight: 2,
+          fillColor: '#22c55e',
+          fillOpacity: 0.9,
+        }).addTo(techLayer).bindTooltip(`${row.best.company || row.best.name}`, { direction: 'top', offset: [0, -2] });
+
+        const clientMarker = L.marker([row.lat, row.lng], {
+          title: `${row.model} (${row.year})`,
+          icon: L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconAnchor: [12, 41],
+          }),
+        }).addTo(vehicleLayer).bindPopup(`${row.model} (${row.year}) • ${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}`);
+
+        bounds.push([row.lat, row.lng], [row.best.lat, row.best.lng]);
       });
 
-      installers.forEach(installer => {
-        const marker = L.circleMarker([installer.lat, installer.lng], installerStyle());
-        marker.addTo(installerLayer).bindPopup(`<div class="text-sm text-slate-900 font-semibold">${installer.company}<br><span class="text-xs text-slate-600">${installer.city}, ${installer.state}</span></div>`);
-        marker.on('click', () => selectInstaller(installer));
-        installerMarkers.set(installer.id, marker);
-        bounds.push([installer.lat, installer.lng]);
-      });
-
-      if (bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [60, 60] });
+      if (bounds.length > 1) {
+        vehiclesMap.fitBounds(bounds, { padding: [30, 30] });
+      } else if (bounds.length === 1) {
+        vehiclesMap.setView(bounds[0], 6);
       }
-    }
 
-    async function init() {
-      initMap();
-      await Promise.all([loadVehicles(), loadInstallers()]);
-      plotLayers();
-      renderVehiclesList();
-      renderInstallersList();
-      if (vehicles[0]) selectVehicle(vehicles[0]);
-    }
+      lucide.createIcons();
+    };
+
+    const init = async () => {
+      const [techs, vehicles] = await Promise.all([parseCsv(), parseVehicles()]);
+      renderClients(techs, vehicles);
+    };
 
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
-      document.getElementById('vehicle-search').addEventListener('input', (e) => applyVehicleFilter(e.target.value));
-      document.getElementById('installer-search').addEventListener('input', (e) => applyInstallerFilter(e.target.value));
       init();
     });
   </script>
