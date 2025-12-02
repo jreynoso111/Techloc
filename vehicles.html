@@ -155,6 +155,15 @@
     const geoCache = new Map();
     const cityCache = new Map();
 
+    const hashString = (value = '') => {
+      let hash = 0;
+      for (let i = 0; i < value.length; i += 1) {
+        hash = (hash << 5) - hash + value.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash);
+    };
+
     const haversineMiles = (a, b) => {
       const R = 3958.8;
       const dLat = (b.lat - a.lat) * Math.PI / 180;
@@ -168,63 +177,62 @@
       return Math.round(R * c);
     };
 
+    const stripBom = (text = '') => text.replace(/^\uFEFF/, '');
     const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, '').trim());
 
-    const jitterFallback = (place = '', seed = 0) => {
+    const jitterFallback = (place = '', seed = 0, baseOverride = null) => {
       const stateMatch = place.match(/,\s*([A-Z]{2})\b/);
-      const base = STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
+      const base = baseOverride || STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
       const angle = (seed * 57.3) * (Math.PI / 180);
       const radius = 0.35 + ((seed % 10) * 0.02);
       return { lat: base.lat + Math.cos(angle) * radius, lng: base.lng + Math.sin(angle) * radius };
     };
 
-    const geocodePlace = async (place = '', seed = 0) => {
+    const guessStateCenter = (place = '') => {
+      const stateMatch = place.match(/,\s*([A-Z]{2})\b/);
+      return STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
+    };
+
+    const geocodePlace = (place = '', seed = 0) => {
       const key = place.trim().toLowerCase();
       if (!key) return jitterFallback(place, seed);
       if (geoCache.has(key)) return geoCache.get(key);
 
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(place)}`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          geoCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('Vehicle geocode failed', place, e);
-      }
+      const stateCenter = guessStateCenter(place);
+      const hash = hashString(key) + seed;
+      const angle = (hash % 360) * (Math.PI / 180);
+      const radius = 0.15 + ((hash % 120) / 800); // keeps clusters tight but visible per state
+      const fallback = {
+        lat: stateCenter.lat + Math.cos(angle) * radius,
+        lng: stateCenter.lng + Math.sin(angle) * radius,
+      };
 
-      const fallback = jitterFallback(place, seed);
       geoCache.set(key, fallback);
       return fallback;
     };
 
-    const geocodeCity = async (city, stateCode) => {
+    const geocodeCity = (city, stateCode) => {
       const key = `${city},${stateCode}`.toLowerCase();
       if (cityCache.has(key)) return cityCache.get(key);
 
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, ${stateCode}, USA`)}`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          cityCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('City geocode failed', city, stateCode, e);
-      }
+      const stateCenter = STATE_CENTERS[stateCode] || STATE_CENTERS.DEFAULT;
+      const hash = hashString(key);
+      const angle = (hash % 360) * (Math.PI / 180);
+      const radius = 0.12 + ((hash % 50) / 500);
+      const coords = {
+        lat: stateCenter.lat + Math.cos(angle) * radius,
+        lng: stateCenter.lng + Math.sin(angle) * radius,
+      };
 
-      cityCache.set(key, null);
-      return null;
+      cityCache.set(key, coords);
+      return coords;
     };
 
     const loadInstallers = async () => {
       const response = await fetch('assets/installers.csv');
       if (!response.ok) throw new Error('Installer file could not be loaded');
 
-      const text = await response.text();
+      const text = stripBom(await response.text());
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
       const headers = lines.shift().toLowerCase().split(',').map((h) => h.trim().replace(/"/g, ''));
 
@@ -272,9 +280,9 @@
       const response = await fetch('assets/vehicles.csv');
       if (!response.ok) throw new Error('Vehicle file could not be loaded');
 
-      const text = await response.text();
+      const text = stripBom(await response.text());
       const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
-      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      const headers = parseCsvLine(lines.shift() || '').map((h) => stripBom(h.trim()));
 
       const vehiclePromises = lines.map(async (line, idx) => {
         const values = parseCsvLine(line);
