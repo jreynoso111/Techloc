@@ -29,62 +29,80 @@
     integrity="sha256-o9N1j7kG1Q9bIwF6Yw2WrwslfLv7RHF9A0w0v0r3sLs="
     crossorigin=""
   ></script>
+  <style>
+    #vehicles-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; }
+    .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
 </head>
-<body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+<body class="h-screen bg-slate-950 font-sans text-slate-50 flex flex-col overflow-hidden">
   <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <a href="index.html" class="flex items-center gap-3">
-        <div class="rounded-xl bg-blue-600/90 p-2 shadow-lg shadow-blue-500/30">
-          <i data-lucide="navigation" class="h-5 w-5"></i>
+        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+          <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
         </div>
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">TechLoc Network</p>
-          <h1 class="text-lg font-black leading-tight">GPS Installer Hub</h1>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
+          <h1 class="text-lg font-black leading-tight text-white">Vehicles to Fix</h1>
         </div>
       </a>
-      <nav class="hidden items-center gap-8 text-sm font-semibold text-slate-200 md:flex">
-        <a href="index.html" class="transition-colors hover:text-white">Home</a>
-        <a href="find-tech.html" class="transition-colors hover:text-white">Find Tech</a>
-        <a href="vehicles.html" class="transition-colors hover:text-white">Vehicles to Fix</a>
+      <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
+        <a href="index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+        <a href="find-tech.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Find Tech</a>
+        <a href="vehicles.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Vehicles to Fix</a>
       </nav>
+      <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex">
+        <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span> Live coverage
+      </div>
     </div>
   </header>
 
-  <main class="space-y-12">
-    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-12">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_35%)]"></div>
-      <div class="mx-auto flex max-w-7xl flex-col gap-6 px-6 sm:flex-row sm:items-center sm:justify-between">
-        <div class="space-y-3">
-          <p class="text-xs font-semibold uppercase tracking-wide text-emerald-300">Vehicles to Fix</p>
-          <h2 class="text-4xl font-black text-white">Vehicles with failed GPS and their nearest tech</h2>
-          <p class="text-sm text-slate-300 max-w-3xl">See vehicles with failed GPS units (VIN, model, year, and last location) and confirm who can cover them with the best proximity estimate. Technicians load from the CSV.</p>
-        </div>
-        <div class="flex items-center gap-2 rounded-full border border-emerald-900 bg-emerald-900/40 px-4 py-2 text-xs font-semibold text-emerald-100">
-          <i data-lucide="check-circle" class="h-4 w-4"></i> Automatic coverage
-        </div>
-      </div>
-    </section>
-
-    <section class="mx-auto max-w-7xl space-y-6 px-6">
-      <div class="grid gap-6 lg:grid-cols-[420px,1fr]">
-        <div class="space-y-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Vehicles flagged</p>
-              <p class="text-lg font-black text-white">Assigned to the closest technician</p>
-            </div>
-            <span class="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-emerald-200" id="client-count">-</span>
+  <main class="flex-1 flex overflow-hidden">
+    <aside class="w-[470px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
+      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+        <p class="text-[10px] font-bold uppercase text-emerald-300 mb-1">Vehicles to fix</p>
+        <h2 class="text-xl font-black text-white leading-tight">GPS issues with nearest technician coverage</h2>
+        <p class="text-xs text-slate-400 mt-1">Pulled directly from <span class="font-semibold text-emerald-200">assets/vehicles.csv</span>.</p>
+        <div class="mt-4 grid grid-cols-3 gap-2 text-center">
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <p class="text-xs uppercase text-slate-400 font-bold">Vehicles</p>
+            <p id="vehicles-count" class="text-2xl font-black text-white">-</p>
           </div>
-          <div id="client-list" class="space-y-3 text-sm text-slate-300"></div>
-        </div>
-
-        <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-2xl shadow-emerald-500/10">
-          <div class="relative mx-auto max-w-5xl select-none">
-            <div id="vehicles-map" class="relative aspect-[1.55] w-full overflow-hidden rounded-2xl bg-slate-950/60 ring-1 ring-slate-800/60"></div>
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <p class="text-xs uppercase text-slate-400 font-bold">Installers</p>
+            <p id="installers-count" class="text-2xl font-black text-white">-</p>
+          </div>
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <p class="text-xs uppercase text-slate-400 font-bold">Updated</p>
+            <p id="last-refresh" class="text-sm font-semibold text-emerald-300">--:--</p>
           </div>
         </div>
       </div>
-    </section>
+      <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
+        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
+      </div>
+    </aside>
+
+    <div class="flex-1 relative bg-slate-950">
+      <div id="vehicles-map"></div>
+      <div class="absolute top-4 right-4 z-[400] space-y-2">
+        <div class="rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-lg text-xs text-slate-200">
+          <div class="flex items-center gap-2 text-[11px] uppercase tracking-wide text-slate-400">
+            <i data-lucide="radar" class="h-3 w-3"></i> Coverage view
+          </div>
+          <p class="text-sm font-semibold text-white">Tap a vehicle card to highlight its assigned installer.</p>
+        </div>
+      </div>
+
+      <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle location</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-400"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-4 h-[2px] bg-emerald-400"></span> Assigned route</div>
+      </div>
+    </div>
   </main>
 
   <footer class="border-t border-slate-900 bg-slate-950/80 py-6">
@@ -103,7 +121,7 @@
   </footer>
 
   <script type="module">
-    const STATE_COORDS = {
+    const STATE_CENTERS = {
       AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
       AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
       CT: { lat: 41.5978, lng: -72.7554 }, DE: { lat: 39.3185, lng: -75.5071 }, FL: { lat: 27.7663, lng: -81.6868 },
@@ -124,6 +142,9 @@
       DEFAULT: { lat: 39.5, lng: -98.35 },
     };
 
+    const geoCache = new Map();
+    const cityCache = new Map();
+
     const haversineMiles = (a, b) => {
       const R = 3958.8;
       const dLat = (b.lat - a.lat) * Math.PI / 180;
@@ -137,102 +158,159 @@
       return Math.round(R * c);
     };
 
-    const jitterFromZip = (zip = '') => {
-      const seed = parseInt(String(zip).slice(-3) || '0', 10);
-      return { lat: ((seed % 7) - 3) * 0.08, lng: ((Math.floor(seed / 7) % 7) - 3) * 0.1 };
+    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, '').trim());
+
+    const jitterFallback = (place = '', seed = 0) => {
+      const stateMatch = place.match(/,\s*([A-Z]{2})\b/);
+      const base = STATE_CENTERS[stateMatch?.[1]] || STATE_CENTERS.DEFAULT;
+      const angle = (seed * 57.3) * (Math.PI / 180);
+      const radius = 0.35 + ((seed % 10) * 0.02);
+      return { lat: base.lat + Math.cos(angle) * radius, lng: base.lng + Math.sin(angle) * radius };
     };
 
-    const guessLatLng = (state, zip) => {
-      const base = STATE_COORDS[state] || STATE_COORDS.DEFAULT;
-      const jitter = jitterFromZip(zip);
-      return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
+    const geocodePlace = async (place = '', seed = 0) => {
+      const key = place.trim().toLowerCase();
+      if (!key) return jitterFallback(place, seed);
+      if (geoCache.has(key)) return geoCache.get(key);
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(place)}`);
+        const data = await response.json();
+        if (data && data.length > 0) {
+          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+          geoCache.set(key, coords);
+          return coords;
+        }
+      } catch (e) {
+        console.warn('Vehicle geocode failed', place, e);
+      }
+
+      const fallback = jitterFallback(place, seed);
+      geoCache.set(key, fallback);
+      return fallback;
     };
 
-    const parseCsvLine = (line = '') => {
-      const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
-      return values.map((value) => value.replace(/^"|"$/g, ''));
+    const geocodeCity = async (city, stateCode) => {
+      const key = `${city},${stateCode}`.toLowerCase();
+      if (cityCache.has(key)) return cityCache.get(key);
+
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, ${stateCode}, USA`)}`);
+        const data = await response.json();
+        if (data && data.length > 0) {
+          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+          cityCache.set(key, coords);
+          return coords;
+        }
+      } catch (e) {
+        console.warn('City geocode failed', city, stateCode, e);
+      }
+
+      cityCache.set(key, null);
+      return null;
     };
 
-    const parseCsv = async () => {
+    const loadInstallers = async () => {
       const response = await fetch('assets/installers.csv');
       const text = await response.text();
-      const lines = text.trim().split(/\r?\n/);
-      const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
+      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
+      const headers = lines.shift().toLowerCase().split(',').map((h) => h.trim().replace(/"/g, ''));
 
-      return lines
-        .filter((line) => line.trim())
-        .map((line, idx) => {
-          const values = parseCsvLine(line);
-          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
-          const state = String(row.State || row.state || '').trim().toUpperCase();
-          const zip = String(row.Zipcode || row.ZIP || row.Zip || '').padStart(5, '0');
-          const coords = guessLatLng(state, zip);
-          return {
-            id: idx + 1,
-            name: row.Name || row.FullName || 'Installer',
-            company: row.Company || 'Partner',
-            email: row.Email || '',
-            phone: row.Phone || '',
-            state,
-            city: row.City || '',
-            zipcode: zip,
-            notes: row.Notes || row.Note || row.Observation || '',
-            lat: coords.lat,
-            lng: coords.lng,
-            rating: 4.4 + (idx % 6) * 0.1,
-            jobsToday: idx % 5,
-            status: idx % 4 === 0 ? 'Busy' : 'Available',
-          };
-        });
+      const techPromises = lines.map(async (line, idx) => {
+        const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+        const cleanValues = values.map((v) => v.replace(/^"|"$/g, '').trim());
+
+        const row = {};
+        headers.forEach((h, i) => (row[h] = cleanValues[i] || ''));
+
+        const companyName = row['installation company'] || row['company'] || 'Installer';
+        const stateRaw = row['state'] || '';
+        const stateCode = stateRaw.match(/\(([A-Z]{2})\)/)?.[1] || (stateRaw.length === 2 ? stateRaw : 'US');
+
+        const base = STATE_CENTERS[stateCode] || STATE_CENTERS.DEFAULT;
+        let zipSeed = parseInt((row['zip'] || '0').replace(/\D/g, ''), 10) || idx;
+        let angle = (zipSeed * 137.5) * (Math.PI / 180);
+        let radius = 0.1 + ((zipSeed % 50) / 100);
+        let lat = base.lat + (radius * Math.cos(angle));
+        let lng = base.lng + (radius * Math.sin(angle) * 1.3);
+
+        if (!row['zip'] && row['city']) {
+          const cityCoords = await geocodeCity(row['city'], stateCode);
+          if (cityCoords) { lat = cityCoords.lat; lng = cityCoords.lng; }
+        }
+
+        return {
+          id: idx,
+          name: companyName,
+          company: companyName,
+          email: row['email'] || '-',
+          phone: row['phone'] || '-',
+          city: row['city'] || '',
+          state: stateCode,
+          zip: row['zip'] || '',
+          lat,
+          lng,
+        };
+      });
+
+      return Promise.all(techPromises);
     };
 
-    const parseVehicles = async () => {
+    const loadVehicles = async () => {
       const response = await fetch('assets/vehicles.csv');
       const text = await response.text();
-      const lines = text.trim().split(/\r?\n/);
+      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== '');
       const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
-      return lines
-        .filter((line) => line.trim())
-        .map((line, idx) => {
-          const values = parseCsvLine(line);
-          const row = Object.fromEntries(headers.map((h, i) => [h, (values[i] || '').trim()]));
-          return {
-            id: idx + 1,
-            vin: row.VIN || row.vin || '',
-            model: row.Model || row.model || 'Vehicle',
-            year: Number(row.Year) || row.Year || '',
-            lastLocation: row.LastLocation || row.lastLocation || '',
-            lat: parseFloat(row.Lat || row.lat || row.Latitude || 0),
-            lng: parseFloat(row.Lng || row.lng || row.Longitude || 0),
-            severity: row.Severity || row.severity || 'Monitoring',
-            notes: row.Notes || row.Note || row.Observation || '',
-          };
-        });
+
+      const vehiclePromises = lines.map(async (line, idx) => {
+        const values = parseCsvLine(line);
+        const row = Object.fromEntries(headers.map((h, i) => [h, values[i] || '']));
+        const locationText = row['Pt Last Loc.'] || row['PT Last Loc.'] || row['Last Location'] || row['Location'] || '';
+        const coords = await geocodePlace(locationText, idx);
+
+        return {
+          id: idx + 1,
+          customer: row['Cust. Name'] || row['Customer'] || 'Customer',
+          vin: row['ShortVIN'] || row['VIN'] || '',
+          model: row['Model'] || 'Vehicle',
+          year: row['Model Year'] || row['Year'] || '',
+          status: (row['Inv. Prep. Stat.'] || '').trim() || 'Monitoring',
+          schedule: row['Payment Schedule'] || '',
+          gpsFix: row['GPS Fix'] || row['GPS Moving'] || '',
+          severity: row['GPS Fix Reason'] || row['GPS Fix'] || '',
+          lastLocation: locationText,
+          lat: coords.lat,
+          lng: coords.lng,
+        };
+      });
+
+      return Promise.all(vehiclePromises);
     };
 
     let vehiclesMap;
     let vehicleLayer;
     let techLayer;
     let lineLayer;
+    let highlightLayer;
 
     const initMap = () => {
-      vehiclesMap = L.map('vehicles-map', { zoomControl: false, worldCopyJump: true }).setView([STATE_COORDS.DEFAULT.lat, STATE_COORDS.DEFAULT.lng], 4.2);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors',
-      }).addTo(vehiclesMap);
+      vehiclesMap = L.map('vehicles-map', { zoomControl: false }).setView([STATE_CENTERS.DEFAULT.lat, STATE_CENTERS.DEFAULT.lng], 4.1);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(vehiclesMap);
+      L.control.zoom({ position: 'bottomright' }).addTo(vehiclesMap);
       vehicleLayer = L.layerGroup().addTo(vehiclesMap);
       techLayer = L.layerGroup().addTo(vehiclesMap);
       lineLayer = L.layerGroup().addTo(vehiclesMap);
+      highlightLayer = L.layerGroup().addTo(vehiclesMap);
     };
 
-    const renderClients = (techs, vehicles) => {
+    const renderVehicles = (techs, vehicles) => {
       if (!vehiclesMap) initMap();
-      const list = document.getElementById('client-list');
+      const list = document.getElementById('vehicle-list');
       list.innerHTML = '';
       vehicleLayer.clearLayers();
       techLayer.clearLayers();
       lineLayer.clearLayers();
+      highlightLayer.clearLayers();
 
       const rows = vehicles.map((vehicle) => {
         let best = null;
@@ -247,60 +325,87 @@
         return { ...vehicle, best, distance: bestDistance };
       }).sort((a, b) => a.distance - b.distance);
 
-      const clientCounter = document.getElementById('client-count');
-      if (clientCounter) clientCounter.textContent = rows.length;
-
-      list.innerHTML = rows.map((row) => `<div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-          <div class="flex items-center justify-between text-sm font-semibold text-white">
-            <span>${row.model} ${row.year} • ${row.lastLocation}</span>
-            <span class="text-emerald-300">${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}</span>
-          </div>
-          <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
-            <span class="flex items-center gap-1"><i data-lucide="barcode" class="h-3 w-3"></i> VIN: ${row.vin}</span>
-            <span class="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide">${row.severity}</span>
-          </div>
-          <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
-            <span class="flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> Technician: ${row.best?.name || 'No technician'}</span>
-            <span class="text-slate-500">${row.best?.company || ''}</span>
-          </div>
-          ${row.notes ? `<div class="mt-2 flex items-start gap-2 rounded-lg border border-slate-800 bg-slate-900/70 p-2 text-[11px] text-slate-200"><i data-lucide="info" class="h-3 w-3 text-amber-300"></i><span class="text-left leading-tight">${row.notes}</span></div>` : ''}
-          ${row.best?.notes ? `<div class="mt-1 flex items-start gap-2 rounded-lg border border-slate-900 bg-slate-950/70 p-2 text-[11px] text-slate-300"><i data-lucide="user" class="h-3 w-3 text-blue-300"></i><span class="text-left leading-tight">Tech note: ${row.best.notes}</span></div>` : ''}
-        </div>`).join('');
+      document.getElementById('vehicles-count').textContent = rows.length;
+      document.getElementById('installers-count').textContent = techs.length;
+      document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       const bounds = [];
 
       rows.forEach((row) => {
-        if (!row.best) return;
-        lineLayer.addLayer(L.polyline([[row.lat, row.lng], [row.best.lat, row.best.lng]], {
-          color: '#34d399',
-          weight: 3,
-          dashArray: '6 4',
-          opacity: 0.8,
-        }));
+        const card = document.createElement('div');
+        card.className = 'p-4 rounded-lg border border-slate-800 bg-slate-900 hover:border-slate-700 transition-colors cursor-pointer';
+        card.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-[10px] font-semibold uppercase tracking-wide text-emerald-300">Vehicle</p>
+              <h3 class="font-bold text-white text-sm">${row.model} ${row.year}</h3>
+              <p class="text-xs text-slate-400 flex items-center gap-1 mt-1"><i data-lucide="barcode" class="h-3 w-3"></i> VIN: ${row.vin || 'N/A'}</p>
+              <p class="text-xs text-slate-400 flex items-center gap-1 mt-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${row.lastLocation || 'No location provided'}</p>
+            </div>
+            <div class="text-right">
+              <span class="block text-lg font-black text-emerald-300 leading-none">${row.distance === Infinity ? 'N/A' : Math.round(row.distance)}</span>
+              <span class="text-[9px] text-slate-500 font-bold">miles</span>
+              <div class="mt-2 text-[10px] px-2 py-1 rounded-full border border-slate-700 bg-slate-800/70 font-semibold uppercase tracking-wide text-slate-200">${row.status}</div>
+            </div>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 flex items-center gap-2 text-slate-200">
+              <i data-lucide="users" class="h-3 w-3 text-blue-400"></i>
+              <div class="text-left">
+                <p class="font-semibold text-white leading-tight">${row.best?.company || 'No technician'}</p>
+                <p class="text-[10px] text-slate-400">Nearest technician</p>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 flex items-center gap-2 text-slate-200">
+              <i data-lucide="wifi-off" class="h-3 w-3 text-amber-300"></i>
+              <div class="text-left">
+                <p class="font-semibold text-white leading-tight">${row.gpsFix || 'GPS issue'}</p>
+                <p class="text-[10px] text-slate-400">${row.severity || 'Pending'}</p>
+              </div>
+            </div>
+          </div>
+        `;
 
-        const techMarker = L.circleMarker([row.best.lat, row.best.lng], {
+        card.addEventListener('click', () => {
+          if (!row.best) return;
+          vehiclesMap.flyTo([row.lat, row.lng], 7);
+          const marker = L.circleMarker([row.lat, row.lng], { radius: 8, color: '#fbbf24', weight: 2, fillColor: '#fcd34d', fillOpacity: 0.9 });
+          connectionLayerHighlight(marker, row.best);
+        });
+
+        list.appendChild(card);
+
+        if (row.best) {
+          lineLayer.addLayer(L.polyline([[row.lat, row.lng], [row.best.lat, row.best.lng]], {
+            color: '#34d399',
+            weight: 3,
+            dashArray: '6 4',
+            opacity: 0.8,
+          }));
+
+          L.circleMarker([row.best.lat, row.best.lng], {
+            radius: 6,
+            color: '#2563eb',
+            weight: 2,
+            fillColor: '#3b82f6',
+            fillOpacity: 0.9,
+          }).addTo(techLayer).bindTooltip(`${row.best.company || row.best.name}`, { direction: 'top', offset: [0, -2] });
+        }
+
+        L.circleMarker([row.lat, row.lng], {
           radius: 7,
-          color: '#10b981',
+          color: '#f59e0b',
           weight: 2,
-          fillColor: '#22c55e',
+          fillColor: '#fbbf24',
           fillOpacity: 0.9,
-        }).addTo(techLayer).bindTooltip(`${row.best.company || row.best.name}`, { direction: 'top', offset: [0, -2] });
+        }).addTo(vehicleLayer).bindPopup(`${row.model} (${row.year})`);
 
-        const clientMarker = L.marker([row.lat, row.lng], {
-          title: `${row.model} (${row.year})`,
-          icon: L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-            iconAnchor: [12, 41],
-          }),
-        }).addTo(vehicleLayer).bindPopup(`${row.model} (${row.year}) • ${row.distance === Infinity ? 'N/A' : `${row.distance} mi`}`);
-
-        bounds.push([row.lat, row.lng], [row.best.lat, row.best.lng]);
+        bounds.push([row.lat, row.lng]);
+        if (row.best) bounds.push([row.best.lat, row.best.lng]);
       });
 
       if (bounds.length > 1) {
-        vehiclesMap.fitBounds(bounds, { padding: [30, 30] });
+        vehiclesMap.fitBounds(bounds, { padding: [40, 40] });
       } else if (bounds.length === 1) {
         vehiclesMap.setView(bounds[0], 6);
       }
@@ -308,9 +413,15 @@
       lucide.createIcons();
     };
 
+    const connectionLayerHighlight = (marker, tech) => {
+      highlightLayer.clearLayers();
+      marker.addTo(highlightLayer);
+      highlightLayer.addLayer(L.polyline([marker.getLatLng(), [tech.lat, tech.lng]], { color: '#22d3ee', weight: 3, dashArray: '4 6' }));
+    };
+
     const init = async () => {
-      const [techs, vehicles] = await Promise.all([parseCsv(), parseVehicles()]);
-      renderClients(techs, vehicles);
+      const [techs, vehicles] = await Promise.all([loadInstallers(), loadVehicles()]);
+      renderVehicles(techs, vehicles);
     };
 
     document.addEventListener('DOMContentLoaded', () => {
