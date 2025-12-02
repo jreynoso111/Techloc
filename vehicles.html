@@ -61,7 +61,7 @@
   </header>
 
   <main class="flex-1 flex overflow-hidden">
-    <aside class="w-[470px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
+    <aside class="w-[420px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <p class="text-[10px] font-bold uppercase text-emerald-300 mb-1">Vehicles to fix</p>
         <h2 class="text-xl font-black text-white leading-tight">GPS issues with nearest technician coverage</h2>
@@ -86,6 +86,16 @@
       </div>
     </aside>
 
+    <aside class="w-[360px] flex-none border-r border-slate-800 bg-slate-900/80 flex flex-col z-10">
+      <div class="p-5 border-b border-slate-800 bg-slate-900">
+        <p class="text-[10px] font-bold uppercase text-blue-200 mb-1">Installers</p>
+        <h2 class="text-lg font-black text-white leading-tight">Coverage pulled from assets/installers.csv</h2>
+      </div>
+      <div id="installer-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/80">
+        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
+      </div>
+    </aside>
+
     <div class="flex-1 relative bg-slate-950">
       <div id="vehicles-map"></div>
       <div class="absolute top-4 right-4 z-[400] space-y-2">
@@ -99,7 +109,7 @@
 
       <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle location</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-400"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-400"></span> Installer</div>
         <div class="flex items-center gap-2"><span class="w-4 h-[2px] bg-emerald-400"></span> Assigned route</div>
       </div>
     </div>
@@ -292,9 +302,13 @@
     let techLayer;
     let lineLayer;
     let highlightLayer;
+    let techMarkers = new Map();
+    let vehicleMarkers = new Map();
+    let installersData = [];
+    let vehiclesData = [];
 
     const initMap = () => {
-      vehiclesMap = L.map('vehicles-map', { zoomControl: false }).setView([STATE_CENTERS.DEFAULT.lat, STATE_CENTERS.DEFAULT.lng], 4.1);
+      vehiclesMap = L.map('vehicles-map', { zoomControl: false }).setView([39.8, -98.5], 4);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(vehiclesMap);
       L.control.zoom({ position: 'bottomright' }).addTo(vehiclesMap);
       vehicleLayer = L.layerGroup().addTo(vehiclesMap);
@@ -303,14 +317,62 @@
       highlightLayer = L.layerGroup().addTo(vehiclesMap);
     };
 
+    const connectionLayerHighlight = (vehicleMarker, techMarker) => {
+      highlightLayer.clearLayers();
+      if (vehicleMarker) highlightLayer.addLayer(L.circleMarker(vehicleMarker.getLatLng(), { radius: 8, color: '#fbbf24', weight: 2, fillColor: '#fcd34d', fillOpacity: 0.95 }));
+      if (techMarker) highlightLayer.addLayer(L.circleMarker(techMarker.getLatLng(), { radius: 7, color: '#3b82f6', weight: 2, fillColor: '#60a5fa', fillOpacity: 0.95 }));
+      if (vehicleMarker && techMarker) highlightLayer.addLayer(L.polyline([vehicleMarker.getLatLng(), techMarker.getLatLng()], { color: '#22d3ee', weight: 3, dashArray: '4 6' }));
+    };
+
+    const renderInstallers = (techs) => {
+      if (!vehiclesMap) initMap();
+      const list = document.getElementById('installer-list');
+      list.innerHTML = '';
+      techLayer.clearLayers();
+      techMarkers.clear();
+
+      techs.forEach((tech) => {
+        const card = document.createElement('div');
+        card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-slate-700 transition-colors cursor-pointer';
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-[10px] uppercase text-blue-300 font-bold">Installer</p>
+              <p class="font-semibold text-white leading-tight">${tech.company}</p>
+              <p class="text-[11px] text-slate-400">${tech.city || '—'}, ${tech.state}</p>
+              <p class="text-[11px] text-slate-500 mt-1">${tech.email || tech.phone || ''}</p>
+            </div>
+            <span class="text-[11px] px-2 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/40">Tech</span>
+          </div>
+        `;
+
+        const marker = L.circleMarker([tech.lat, tech.lng], {
+          radius: 6,
+          color: '#2563eb',
+          weight: 2,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.9,
+        }).addTo(techLayer).bindTooltip(`${tech.company}`, { direction: 'top', offset: [0, -2] });
+
+        techMarkers.set(tech.id, marker);
+
+        card.addEventListener('click', () => {
+          vehiclesMap.flyTo(marker.getLatLng(), 7);
+          connectionLayerHighlight(null, marker);
+        });
+
+        list.appendChild(card);
+      });
+    };
+
     const renderVehicles = (techs, vehicles) => {
       if (!vehiclesMap) initMap();
       const list = document.getElementById('vehicle-list');
       list.innerHTML = '';
       vehicleLayer.clearLayers();
-      techLayer.clearLayers();
       lineLayer.clearLayers();
       highlightLayer.clearLayers();
+      vehicleMarkers.clear();
 
       const rows = vehicles.map((vehicle) => {
         let best = null;
@@ -329,7 +391,12 @@
       document.getElementById('installers-count').textContent = techs.length;
       document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      const bounds = [];
+        card.addEventListener('click', () => {
+          if (!row.best) return;
+          vehiclesMap.flyTo([row.lat, row.lng], 7);
+          const marker = L.circleMarker([row.lat, row.lng], { radius: 8, color: '#fbbf24', weight: 2, fillColor: '#fcd34d', fillOpacity: 0.9 });
+          connectionLayerHighlight(marker, row.best);
+        });
 
       rows.forEach((row) => {
         const card = document.createElement('div');
@@ -366,39 +433,34 @@
           </div>
         `;
 
-        card.addEventListener('click', () => {
-          if (!row.best) return;
-          vehiclesMap.flyTo([row.lat, row.lng], 7);
-          const marker = L.circleMarker([row.lat, row.lng], { radius: 8, color: '#fbbf24', weight: 2, fillColor: '#fcd34d', fillOpacity: 0.9 });
-          connectionLayerHighlight(marker, row.best);
-        });
-
-        list.appendChild(card);
-
-        if (row.best) {
-          lineLayer.addLayer(L.polyline([[row.lat, row.lng], [row.best.lat, row.best.lng]], {
-            color: '#34d399',
-            weight: 3,
-            dashArray: '6 4',
-            opacity: 0.8,
-          }));
-
-          L.circleMarker([row.best.lat, row.best.lng], {
-            radius: 6,
-            color: '#2563eb',
-            weight: 2,
-            fillColor: '#3b82f6',
-            fillOpacity: 0.9,
-          }).addTo(techLayer).bindTooltip(`${row.best.company || row.best.name}`, { direction: 'top', offset: [0, -2] });
-        }
-
-        L.circleMarker([row.lat, row.lng], {
+        const vehicleMarker = L.circleMarker([row.lat, row.lng], {
           radius: 7,
           color: '#f59e0b',
           weight: 2,
           fillColor: '#fbbf24',
           fillOpacity: 0.9,
         }).addTo(vehicleLayer).bindPopup(`${row.model} (${row.year})`);
+        vehicleMarkers.set(row.id, vehicleMarker);
+
+        if (row.best) {
+          const techMarker = techMarkers.get(row.best.id);
+          if (techMarker) {
+            lineLayer.addLayer(L.polyline([[row.lat, row.lng], [row.best.lat, row.best.lng]], {
+              color: '#34d399',
+              weight: 3,
+              dashArray: '6 4',
+              opacity: 0.8,
+            }));
+          }
+        }
+
+        card.addEventListener('click', () => {
+          const bestMarker = row.best ? techMarkers.get(row.best.id) : null;
+          vehiclesMap.flyTo([row.lat, row.lng], 7);
+          connectionLayerHighlight(vehicleMarker, bestMarker);
+        });
+
+        list.appendChild(card);
 
         bounds.push([row.lat, row.lng]);
         if (row.best) bounds.push([row.best.lat, row.best.lng]);
@@ -421,7 +483,10 @@
 
     const init = async () => {
       const [techs, vehicles] = await Promise.all([loadInstallers(), loadVehicles()]);
-      renderVehicles(techs, vehicles);
+      installersData = techs;
+      vehiclesData = vehicles;
+      renderInstallers(installersData);
+      renderVehicles(installersData, vehiclesData);
     };
 
     document.addEventListener('DOMContentLoaded', () => {
