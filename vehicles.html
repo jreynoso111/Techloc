@@ -24,9 +24,47 @@
   </script>
 
   <style>
+    :root {
+      --left-sidebar-width: 430px;
+      --right-sidebar-width: 420px;
+    }
+
     /* Map */
-    #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; }
+    #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; position: absolute; inset: 0; }
     .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
+
+    .resizable-sidebar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      backdrop-filter: blur(12px);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 10px;
+      cursor: col-resize;
+      z-index: 60;
+      background: linear-gradient(90deg, transparent 30%, rgba(148, 163, 184, 0.12), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .resizable-sidebar:hover .resize-handle { opacity: 1; }
+    .resize-handle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 2px;
+      height: 28px;
+      background: rgba(226, 232, 240, 0.35);
+      border-radius: 9999px;
+      transform: translate(-50%, -50%);
+    }
 
     /* Vehicle popup styling */
     .vehicle-popup .leaflet-popup-content-wrapper {
@@ -73,10 +111,22 @@
     </div>
   </header>
 
-  <main class="flex-1 flex overflow-hidden">
+  <main id="map-layout" class="relative flex-1 overflow-hidden bg-slate-950">
+
+    <div class="absolute inset-0">
+      <div id="tech-map"></div>
+    </div>
+
+    <!-- Floating Legend -->
+    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle</div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+    </div>
 
     <!-- Sidebar: Control Panel -->
-    <aside class="w-[430px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
+    <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
+      <div class="resize-handle right-0"></div>
 
       <!-- Search -->
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
@@ -115,20 +165,9 @@
       </div>
     </aside>
 
-    <!-- Map -->
-    <div class="flex-1 relative bg-slate-950">
-      <div id="tech-map"></div>
-
-      <!-- Floating Legend -->
-      <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
-      </div>
-    </div>
-
     <!-- Vehicles Sidebar -->
-    <aside class="w-[420px] flex-none border-l border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
+    <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
+      <div class="resize-handle left-0"></div>
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -353,6 +392,8 @@
         return {
           id: idx,
           status: row['Deal Status'] || 'ACTIVE',
+          invPrepStatus: row['INV Prep Stat'] || row['Inv. Prep. Stat.'] || row['Inv Prep Stat'] || '',
+          remaining: row['Remaining'] || '',
           type: row['Unit Type'] || 'Vehicle',
           year: row['Model Year'] || '',
           model: row['Model'] || 'Vehicle',
@@ -504,6 +545,28 @@
                 </div>
               </div>
             </div>
+            <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-left">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Deal status</p>
+                <p class="font-semibold text-slate-100 leading-tight">${vehicle.status || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-left">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Inv. prep. stat.</p>
+                <p class="font-semibold text-slate-100 leading-tight">${vehicle.invPrepStatus || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-left">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Remaining</p>
+                <p class="font-semibold text-slate-100 leading-tight">${vehicle.remaining || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-left">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">PT status</p>
+                <p class="font-semibold text-slate-100 leading-tight">${vehicle.ptStatus || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 text-left col-span-2">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">PT last read</p>
+                <p class="font-semibold text-slate-100 leading-tight">${vehicle.lastRead || '—'}</p>
+              </div>
+            </div>
             ${nearest ? `<div class="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[11px] text-slate-200 flex items-center justify-between">
               <div>
                 <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Nearest tech</p>
@@ -583,6 +646,29 @@
               <p class="text-[11px] font-bold uppercase tracking-wide text-amber-200">GPS</p>
               <p class="text-base font-extrabold text-amber-100 leading-tight">${vehicle.gpsFix || 'Issue detected'}</p>
               <p class="text-[13px] text-amber-200">${vehicle.gpsReason || 'Pending review'}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-[12px] text-slate-200">
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Deal status</p>
+                <p class="font-semibold leading-tight">${vehicle.status || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Inv. prep. stat.</p>
+                <p class="font-semibold leading-tight">${vehicle.invPrepStatus || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Remaining</p>
+                <p class="font-semibold leading-tight">${vehicle.remaining || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">PT status</p>
+                <p class="font-semibold leading-tight">${vehicle.ptStatus || '—'}</p>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 col-span-2">
+                <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">PT last read</p>
+                <p class="font-semibold leading-tight">${vehicle.lastRead || '—'}</p>
+              </div>
             </div>
 
             ${nearest ? `
@@ -752,11 +838,64 @@
       ).addTo(connectionLayer);
     }
 
+    function setupResizableSidebars() {
+      const layout = document.getElementById('map-layout');
+      const leftSidebar = document.getElementById('left-sidebar');
+      const rightSidebar = document.getElementById('right-sidebar');
+      if (!layout || !leftSidebar || !rightSidebar) return;
+
+      const rootStyle = document.documentElement.style;
+      const minWidth = 260;
+      const maxWidth = 720;
+      let activeDrag = null;
+
+      const clampWidth = (value) => Math.min(Math.max(value, minWidth), maxWidth);
+
+      const applyWidth = (side, width) => {
+        rootStyle.setProperty(side === 'left' ? '--left-sidebar-width' : '--right-sidebar-width', `${width}px`);
+        if (map) {
+          map.invalidateSize();
+        }
+      };
+
+      const onMouseMove = (event) => {
+        if (!activeDrag) return;
+        const bounds = layout.getBoundingClientRect();
+
+        if (activeDrag === 'left') {
+          const newWidth = clampWidth(event.clientX - bounds.left);
+          applyWidth('left', newWidth);
+        }
+
+        if (activeDrag === 'right') {
+          const newWidth = clampWidth(bounds.right - event.clientX);
+          applyWidth('right', newWidth);
+        }
+      };
+
+      const stopDrag = () => {
+        activeDrag = null;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', stopDrag);
+      };
+
+      const startDrag = (side, event) => {
+        event.preventDefault();
+        activeDrag = side;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', stopDrag);
+      };
+
+      leftSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('left', e));
+      rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       iconLib.createIcons();
       initMap();
       loadTechnicians();
       loadVehicles();
+      setupResizableSidebars();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
     });
   </script>
