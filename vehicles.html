@@ -36,8 +36,10 @@
       border-radius: 14px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.45);
       overflow: hidden;
+      width: min(360px, calc(100vw - 80px));
+      max-width: min(360px, calc(100vw - 80px));
     }
-    .vehicle-popup .leaflet-popup-content { margin: 0; }
+    .vehicle-popup .leaflet-popup-content { margin: 0; width: 100%; }
     .vehicle-popup .leaflet-popup-tip { background: #0b1120; border: 1px solid #1f2937; }
 
     /* Scrollbar */
@@ -193,6 +195,22 @@
         if (technicians.length === 0) return;
         const lat = parseFloat(e.latlng.lat.toFixed(6));
         const lng = parseFloat(e.latlng.lng.toFixed(6));
+
+        const nearbyTech = findNearestTechnician({ lat, lng }, 32000);
+        if (nearbyTech) {
+          const vehicleForTech = findNearestVehicle({ lat: nearbyTech.lat, lng: nearbyTech.lng }, 120000);
+          if (vehicleForTech) {
+            focusVehicle(vehicleForTech);
+            return;
+          }
+        }
+
+        const nearbyVehicle = findNearestVehicle({ lat, lng });
+        if (nearbyVehicle) {
+          focusVehicle(nearbyVehicle);
+          return;
+        }
+
         processLocation({ lat, lng, name: 'Pinned location' }, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       });
     }
@@ -529,7 +547,12 @@
       const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 2, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
       halo.bringToBack();
 
-      anchorMarker.bindPopup(vehicleCard(vehicle, nearest), { className: 'vehicle-popup', autoPan: true }).openPopup();
+      anchorMarker.bindPopup(vehicleCard(vehicle, nearest), {
+        className: 'vehicle-popup',
+        autoPan: true,
+        keepInView: true,
+        autoPanPadding: [40, 40]
+      }).openPopup();
 
       if (nearest?.tech) {
         L.circleMarker([nearest.tech.lat, nearest.tech.lng], { radius: 9, color: '#3b82f6', weight: 2, fillColor: '#60a5fa', fillOpacity: 0.9 }).addTo(highlightLayer);
@@ -583,6 +606,38 @@
         v.lastLocation.toLowerCase().includes(q) ||
         v.customer.toLowerCase().includes(q)
       );
+    }
+
+    function findNearestTechnician(point, maxDistanceMeters = 40000) {
+      if (!technicians.length || !map) return null;
+      let closest = null;
+      let closestDistance = Infinity;
+
+      technicians.forEach((tech) => {
+        const dist = map.distance([point.lat, point.lng], [tech.lat, tech.lng]);
+        if (dist < closestDistance) {
+          closestDistance = dist;
+          closest = tech;
+        }
+      });
+
+      return closestDistance <= maxDistanceMeters ? closest : null;
+    }
+
+    function findNearestVehicle(point, maxDistanceMeters = 80000) {
+      if (!vehicles.length || !map) return null;
+      let closest = null;
+      let closestDistance = Infinity;
+
+      vehicles.forEach((vehicle) => {
+        const dist = map.distance([point.lat, point.lng], [vehicle.lat, vehicle.lng]);
+        if (dist < closestDistance) {
+          closestDistance = dist;
+          closest = vehicle;
+        }
+      });
+
+      return closestDistance <= maxDistanceMeters ? closest : null;
     }
 
     // --- 5. Real search logic (Nominatim) ---
