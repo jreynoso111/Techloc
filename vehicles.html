@@ -517,10 +517,25 @@
         bounds.push([vehicle.lat, vehicle.lng]);
         if (nearest?.tech) bounds.push([nearest.tech.lat, nearest.tech.lng]);
       });
+      L.marker([location.lat, location.lng], { icon: targetIcon }).addTo(targetLayer);
+      const popup = L.marker([location.lat, location.lng]).addTo(targetLayer);
+      popup.bindPopup(`<b>Client</b><br>${label || location.name || ''}`).openPopup();
+      lastClientLocation = location;
+
+      const sortedTechs = technicians.map(t => {
+        const dist = getDistance(location.lat, location.lng, t.lat, t.lng);
+        return { ...t, distance: dist };
+      }).sort((a, b) => a.distance - b.distance);
 
       if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [80, 80], maxZoom: 8 });
       }
+    }
+
+    document.getElementById('search-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const query = document.getElementById('address-input').value.trim();
+      if (!query || technicians.length === 0) return;
 
       iconLib.createIcons();
     }
