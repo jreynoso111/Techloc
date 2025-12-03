@@ -25,7 +25,6 @@
 
   <style>
     /* Map */
-    #map-canvas { position: absolute; inset: 0; }
     #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; }
     .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
 
@@ -47,18 +46,6 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-
-    /* Resizable sidebars */
-    .resize-handle {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 10px;
-      cursor: col-resize;
-      z-index: 30;
-    }
-    .resize-handle.left { right: -5px; }
-    .resize-handle.right { left: -5px; }
   </style>
 </head>
 <body class="h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
@@ -86,15 +73,10 @@
     </div>
   </header>
 
-  <main class="flex-1 relative overflow-hidden bg-slate-950">
-
-    <div id="map-canvas" class="z-0">
-      <div id="tech-map"></div>
-    </div>
+  <main class="flex-1 flex overflow-hidden">
 
     <!-- Sidebar: Control Panel -->
-    <aside id="left-sidebar" class="absolute left-0 top-0 bottom-0 w-[430px] border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl relative">
-      <div class="resize-handle left"></div>
+    <aside class="w-[430px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
 
       <!-- Search -->
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
@@ -133,16 +115,20 @@
       </div>
     </aside>
 
-    <!-- Floating Legend -->
-    <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+    <!-- Map -->
+    <div class="flex-1 relative bg-slate-950">
+      <div id="tech-map"></div>
+
+      <!-- Floating Legend -->
+      <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+      </div>
     </div>
 
     <!-- Vehicles Sidebar -->
-    <aside id="right-sidebar" class="absolute right-0 top-0 bottom-0 w-[420px] border-l border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl relative">
-      <div class="resize-handle right"></div>
+    <aside class="w-[420px] flex-none border-l border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -375,8 +361,6 @@
           gpsReason: row['GPS Fix Reason'] || '',
           gpsMoving: row['GPS Moving'] || '',
           ptStatus: row['PT Status'] || '',
-          prepStatus: row['Inv. Prep. Stat.'] || '',
-          remaining: row['Remaining'] || '',
           ptSerial: row['PT Serial '] || row['PT Serial'] || '',
           encoreSerial: row['Encore Serial'] || '',
           lastRead: row['PT Last Read'] || '',
@@ -567,7 +551,7 @@
         className: 'vehicle-popup',
         autoPan: true,
         keepInView: true,
-        autoPanPadding: getAutoPanPadding()
+        autoPanPadding: [40, 40]
       }).openPopup();
 
       if (nearest?.tech) {
@@ -578,7 +562,7 @@
 
     function vehicleCard(vehicle, nearest) {
       return `
-        <div class="w-[320px] max-w-[360px] bg-slate-950/95 text-white">
+        <div class="w-[300px] bg-slate-950/90 text-white">
           <div class="p-4 space-y-3">
             <div class="flex items-start justify-between gap-2">
               <div>
@@ -587,51 +571,18 @@
                 <p class="text-[13px] text-slate-200 mt-1">VIN: <span class="font-semibold text-white">${vehicle.vin || 'N/A'}</span></p>
                 <p class="text-sm text-slate-300">${vehicle.customer || 'Customer pending'}</p>
               </div>
-              <div class="text-right space-y-1">
-                <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status}</span>
-                <div class="text-[10px] text-slate-400">Prep: <span class="text-amber-200 font-semibold">${vehicle.prepStatus || '—'}</span></div>
-              </div>
+              <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status}</span>
             </div>
 
-            <div class="rounded-lg border border-slate-800 bg-slate-900/60 p-3 space-y-2 text-sm">
-              <div class="flex items-center gap-2 text-slate-100">
-                <span class="inline-flex h-2 w-2 rounded-full bg-amber-400"></span>
-                <span>${vehicle.lastLocation || 'No location provided'}</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2 text-[12px] text-slate-300">
-                <div class="rounded border border-slate-800/80 bg-slate-950/60 px-2 py-1.5">
-                  <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Remaining</p>
-                  <p class="font-semibold text-white">${vehicle.remaining || '—'}</p>
-                </div>
-                <div class="rounded border border-slate-800/80 bg-slate-950/60 px-2 py-1.5">
-                  <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">PT status</p>
-                  <p class="font-semibold text-white">${vehicle.ptStatus || '—'}</p>
-                </div>
-              </div>
+            <div class="flex items-center gap-2 text-sm text-slate-200">
+              <span class="inline-flex h-2 w-2 rounded-full bg-amber-400"></span>
+              <span>${vehicle.lastLocation || 'No location provided'}</span>
             </div>
 
-            <div class="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 text-sm text-amber-50 space-y-2">
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-amber-200">GPS</p>
-                <span class="text-[11px] px-2 py-1 rounded-full bg-amber-400/15 border border-amber-200/30 text-amber-100 font-semibold">${vehicle.gpsMoving || '—'}</span>
-              </div>
+            <div class="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 text-sm text-amber-50 space-y-1">
+              <p class="text-[11px] font-bold uppercase tracking-wide text-amber-200">GPS</p>
               <p class="text-base font-extrabold text-amber-100 leading-tight">${vehicle.gpsFix || 'Issue detected'}</p>
               <p class="text-[13px] text-amber-200">${vehicle.gpsReason || 'Pending review'}</p>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 text-[12px] text-slate-200">
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Encore serial</p>
-                <p class="font-semibold text-white">${vehicle.encoreSerial || '—'}</p>
-              </div>
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2">
-                <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">PT serial</p>
-                <p class="font-semibold text-white">${vehicle.ptSerial || '—'}</p>
-              </div>
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 col-span-2">
-                <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">PT last read</p>
-                <p class="font-semibold text-white">${vehicle.lastRead || '—'}</p>
-              </div>
             </div>
 
             ${nearest ? `
@@ -655,14 +606,6 @@
         v.lastLocation.toLowerCase().includes(q) ||
         v.customer.toLowerCase().includes(q)
       );
-    }
-
-    function getAutoPanPadding() {
-      const left = document.getElementById('left-sidebar');
-      const right = document.getElementById('right-sidebar');
-      const leftPad = left ? left.getBoundingClientRect().width + 32 : 40;
-      const rightPad = right ? right.getBoundingClientRect().width + 32 : 40;
-      return [Math.max(leftPad, rightPad), 60];
     }
 
     function findNearestTechnician(point, maxDistanceMeters = 40000) {
@@ -695,35 +638,6 @@
       });
 
       return closestDistance <= maxDistanceMeters ? closest : null;
-    }
-
-    function enableSidebarResizing(sidebar, handle, isLeft = true) {
-      if (!sidebar || !handle) return;
-      const minWidth = 280;
-      const maxWidth = 640;
-      handle.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        const startX = e.clientX;
-        const startWidth = sidebar.getBoundingClientRect().width;
-        document.body.classList.add('select-none');
-
-        const onMove = (moveEvent) => {
-          const delta = isLeft ? (moveEvent.clientX - startX) : (startX - moveEvent.clientX);
-          const newWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
-          sidebar.style.width = `${newWidth}px`;
-          map?.invalidateSize({ animate: false });
-        };
-
-        const onUp = () => {
-          document.removeEventListener('mousemove', onMove);
-          document.removeEventListener('mouseup', onUp);
-          document.body.classList.remove('select-none');
-          map?.invalidateSize({ animate: false });
-        };
-
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-      });
     }
 
     // --- 5. Real search logic (Nominatim) ---
@@ -844,15 +758,6 @@
       loadTechnicians();
       loadVehicles();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
-
-      const leftSidebar = document.getElementById('left-sidebar');
-      const rightSidebar = document.getElementById('right-sidebar');
-      enableSidebarResizing(leftSidebar, leftSidebar?.querySelector('.resize-handle.left'), true);
-      enableSidebarResizing(rightSidebar, rightSidebar?.querySelector('.resize-handle.right'), false);
-
-      window.addEventListener('resize', () => map && map.invalidateSize({ animate: false }));
-
-      setTimeout(() => map && map.invalidateSize({ animate: false }), 250);
     });
   </script>
 </body>
