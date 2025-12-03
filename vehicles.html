@@ -179,6 +179,10 @@
     let lastClientLocation = null;
     const cityCache = new Map();
 
+    const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
+      ? window.lucide
+      : { createIcons: () => {} };
+
     // --- 1. Initialize map ---
     function initMap() {
       map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 4);
@@ -215,7 +219,7 @@
             <p class="text-slate-500 text-xs">No data file detected.</p>
           </div>
         `;
-        lucide.createIcons();
+        iconLib.createIcons();
       }
     }
 
@@ -234,7 +238,7 @@
             <p class="text-slate-500 text-xs">Unable to load vehicles.csv.</p>
           </div>
         `;
-        lucide.createIcons();
+        iconLib.createIcons();
       }
     }
 
@@ -432,7 +436,7 @@
         listContainer.appendChild(card);
       });
 
-      lucide.createIcons();
+      iconLib.createIcons();
       renderVehicles(vehicles);
     }
 
@@ -523,8 +527,6 @@
         return { ...t, distance: dist };
       }).sort((a, b) => a.distance - b.distance);
 
-      updateUI(sortedTechs, true, location);
-
       if (bounds.length > 0) {
         map.fitBounds(bounds, { padding: [80, 80], maxZoom: 8 });
       }
@@ -535,14 +537,7 @@
       const query = document.getElementById('address-input').value.trim();
       if (!query || technicians.length === 0) return;
 
-      const btn = document.getElementById('search-btn');
-      const status = document.getElementById('search-status');
-      const originalBtnText = btn.innerHTML;
-
-      btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin h-4 w-4"></i>`;
-      btn.disabled = true;
-      status.classList.remove('hidden');
-      lucide.createIcons();
+      iconLib.createIcons();
     }
 
     function vehicleCard(vehicle, nearest) {
@@ -656,7 +651,7 @@
       btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin h-4 w-4"></i>`;
       btn.disabled = true;
       status.classList.remove('hidden');
-      lucide.createIcons();
+      iconLib.createIcons();
 
       const location = await geocodeAddress(query);
 
@@ -718,7 +713,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
+      iconLib.createIcons();
       initMap();
       loadCSV();
       loadVehiclesCSV();
