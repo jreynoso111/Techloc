@@ -116,10 +116,17 @@
       <div id="tech-map"></div>
     </div>
 
+    <div id="selection-banner" class="pointer-events-auto absolute top-4 left-1/2 z-[450] hidden -translate-x-1/2 transform rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
+      <span id="selection-text">Filtrado por selección</span>
+      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Limpiar</button>
+    </div>
+
     <!-- Floating Legend -->
     <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
       <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle</div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> Vehicle (GPS issue)</div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border-2 border-green-400"></span> Vehicle (Fully Working)</div>
+      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border-2 border-red-500"></span> Vehicle (All)</div>
       <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
     </div>
 
@@ -189,6 +196,20 @@
     </aside>
   </main>
 
+  <!-- Vehicle detail modal -->
+  <div id="vehicle-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Detalles del vehículo</p>
+          <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
+        </div>
+        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cerrar</button>
+      </div>
+      <div class="max-h-[70vh] overflow-y-auto p-4" id="vehicle-modal-body"></div>
+    </div>
+  </div>
+
   <script>
     // --- Base Config ---
     const STATE_CENTERS = {
@@ -210,6 +231,9 @@
     let map, techLayer, targetLayer, connectionLayer, vehicleLayer, highlightLayer;
     let technicians = [];
     let vehicles = [];
+    let vehicleHeaders = [];
+    let selectedVehicleId = null;
+    let selectedTechId = null;
     const vehicleMarkers = new Map();
     let lastClientLocation = null;
     const cityCache = new Map();
@@ -239,6 +263,7 @@
         if (nearbyTech) {
           const vehicleForTech = findNearestVehicle({ lat: nearbyTech.lat, lng: nearbyTech.lng }, 120000);
           if (vehicleForTech) {
+            applySelection(vehicleForTech.id, null);
             focusVehicle(vehicleForTech);
             return;
           }
@@ -246,6 +271,7 @@
 
         const nearbyVehicle = findNearestVehicle({ lat, lng });
         if (nearbyVehicle) {
+          applySelection(nearbyVehicle.id, null);
           focusVehicle(nearbyVehicle);
           return;
         }
@@ -279,7 +305,9 @@
         const response = await fetch('assets/vehicles.csv');
         if (!response.ok) throw new Error("Unable to read vehicle data (Status " + response.status + ")");
         const text = await response.text();
-        vehicles = parseVehicleCSV(text);
+        const parsed = parseVehicleCSV(text);
+        vehicles = parsed.rows;
+        vehicleHeaders = parsed.headers;
         renderVehicles();
       } catch (err) {
         console.warn("Vehicle load warning: " + err.message);
@@ -412,12 +440,13 @@
           lng: coords.lng,
           customer: row['PT City'] ? `${row['PT City']}, ${stateCode}` : stateCode || 'Unknown area',
           lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}`.trim(),
-          payment: row['Payment Schedule'] || ''
+          payment: row['Payment Schedule'] || '',
+          details: row
         };
       });
 
       document.getElementById('vehicles-count').textContent = vehiclesData.length;
-      return vehiclesData;
+      return { headers, rows: vehiclesData };
     }
 
     // --- 4. Update map and list ---
@@ -426,8 +455,14 @@
       listContainer.innerHTML = '';
       techLayer.clearLayers();
 
+      const displayList = selectedTechId !== null ? techList.filter(t => t.id === selectedTechId) : techList;
+
+      if (displayList.length === 0) {
+        listContainer.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No technicians match this selection.</div>`;
+      }
+
       // Map markers
-      techList.forEach(tech => {
+      displayList.forEach(tech => {
         const marker = L.circleMarker([tech.lat, tech.lng], {
           radius: 5,
           fillColor: '#3b82f6',
@@ -445,10 +480,15 @@
             <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
           </div>
         `);
+
+        marker.on('click', () => {
+          map.flyTo([tech.lat, tech.lng], 10);
+          applySelection(null, tech.id);
+        });
       });
 
       // List cards
-      techList.slice(0, 50).forEach((tech, idx) => {
+      displayList.slice(0, 50).forEach((tech, idx) => {
         const isNearest = target && idx === 0;
 
         const card = document.createElement('div');
@@ -484,6 +524,7 @@
           if (clientPoint) {
             drawConnection(clientPoint, tech);
           }
+          applySelection(null, tech.id);
         });
 
         listContainer.appendChild(card);
@@ -498,11 +539,10 @@
       if (!container) return;
       container.innerHTML = '';
       vehicleLayer.clearLayers();
-      highlightLayer.clearLayers();
       vehicleMarkers.clear();
 
         const searchBox = document.getElementById('vehicle-search');
-        const filtered = filterVehicles(vehicles, searchBox?.value || '');
+        const filtered = getVehicleList(searchBox?.value || '');
         document.getElementById('vehicles-count').textContent = filtered.length;
 
       if (filtered.length === 0) {
@@ -581,21 +621,52 @@
                 <p class="text-[10px] text-slate-500">${nearest.tech.city || ''} ${nearest.tech.state || ''}</p>
               </div>
             </div>` : ''}
+
+            <div class="pt-2 flex justify-end">
+              <button data-view-more class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                <i data-lucide="info" class="h-4 w-4"></i>
+                Ver más
+              </button>
+            </div>
           `;
 
-          const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 7,
-            fillColor: '#fbbf24',
-            color: '#92400e',
-            weight: 2,
+          const ringColor = getVehicleRingColor(vehicle);
+          const ring = L.circleMarker([vehicle.lat, vehicle.lng], {
+            radius: 9,
+            color: ringColor,
+            weight: 3,
             opacity: 1,
-            fillOpacity: 0.9
+            fillColor: '#fbbf24',
+            fillOpacity: 0.85
           }).addTo(vehicleLayer);
 
-          marker.on('click', () => focusVehicle(vehicle));
-          card.addEventListener('click', () => focusVehicle(vehicle));
+          const core = L.circleMarker([vehicle.lat, vehicle.lng], {
+            radius: 4,
+            color: '#7c2d12',
+            weight: 2,
+            opacity: 1,
+            fillColor: '#fb923c',
+            fillOpacity: 0.95
+          }).addTo(vehicleLayer);
 
-          vehicleMarkers.set(vehicle.id, { marker, nearest });
+          const focusHandler = () => {
+            applySelection(vehicle.id, nearest?.tech?.id || null);
+            focusVehicle(vehicle);
+          };
+
+          ring.on('click', focusHandler);
+          core.on('click', focusHandler);
+          card.addEventListener('click', focusHandler);
+
+          const viewMoreBtn = card.querySelector('[data-view-more]');
+          if (viewMoreBtn) {
+            viewMoreBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openVehicleModal(vehicle);
+            });
+          }
+
+          vehicleMarkers.set(vehicle.id, { marker: ring, nearest });
           container.appendChild(card);
         });
 
@@ -621,10 +692,14 @@
         autoPanPadding: [40, 40]
       }).openPopup();
 
+      setTimeout(attachPopupHandlers, 50);
+
       if (nearest?.tech) {
         L.circleMarker([nearest.tech.lat, nearest.tech.lng], { radius: 9, color: '#3b82f6', weight: 2, fillColor: '#60a5fa', fillOpacity: 0.9 }).addTo(highlightLayer);
         L.polyline([[vehicle.lat, vehicle.lng], [nearest.tech.lat, nearest.tech.lng]], { color: '#22d3ee', weight: 3, dashArray: '6 4', opacity: 0.9 }).addTo(highlightLayer);
       }
+
+      applySelection(vehicle.id, nearest?.tech?.id || null);
     }
 
     function vehicleCard(vehicle, nearest) {
@@ -686,6 +761,13 @@
                 <p class="text-[13px] text-sky-200">${Math.round(nearest.distance)} miles away</p>
               </div>
             ` : '<p class="mt-3 text-xs text-red-200">No technician nearby.</p>'}
+
+            <div class="pt-2 flex justify-end">
+              <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                <i data-lucide="info" class="h-4 w-4"></i>
+                Ver más
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -702,6 +784,48 @@
       );
     }
 
+    function getVehiclesForTech(tech) {
+      if (!tech || !map) return [];
+      const withDistance = vehicles.map(v => ({
+        vehicle: v,
+        distance: getDistance(v.lat, v.lng, tech.lat, tech.lng)
+      }));
+      return withDistance
+        .filter(item => item.distance <= 180)
+        .sort((a, b) => a.distance - b.distance)
+        .map(item => item.vehicle);
+    }
+
+    function getVehicleList(query) {
+      if (selectedVehicleId !== null) {
+        return vehicles.filter(v => v.id === selectedVehicleId);
+      }
+
+      if (selectedTechId !== null) {
+        const tech = technicians.find(t => t.id === selectedTechId);
+        const nearby = getVehiclesForTech(tech);
+        return nearby.length ? nearby : vehicles;
+      }
+
+      return filterVehicles(vehicles, query);
+    }
+
+    function getTechList(baseList = technicians) {
+      if (selectedTechId !== null) {
+        return baseList.filter(t => t.id === selectedTechId);
+      }
+
+      if (selectedVehicleId !== null) {
+        const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+        if (!vehicle) return baseList;
+        return baseList
+          .map(t => ({ ...t, distance: getDistance(vehicle.lat, vehicle.lng, t.lat, t.lng) }))
+          .sort((a, b) => a.distance - b.distance);
+      }
+
+      return baseList;
+    }
+
     function findNearestTechnician(point, maxDistanceMeters = 40000) {
       if (!technicians.length || !map) return null;
       let closest = null;
@@ -716,6 +840,53 @@
       });
 
       return closestDistance <= maxDistanceMeters ? closest : null;
+    }
+
+    function getVehicleRingColor(vehicle) {
+      const fix = (vehicle.gpsFix || '').trim().toLowerCase();
+      if (fix === 'all') return '#ef4444';
+      if (fix === 'fully working') return '#22c55e';
+      return '#facc15';
+    }
+
+    function toggleSelectionBanner() {
+      const banner = document.getElementById('selection-banner');
+      const text = document.getElementById('selection-text');
+      if (!banner || !text) return;
+
+      if (selectedVehicleId === null && selectedTechId === null) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+      const tech = technicians.find(t => t.id === selectedTechId);
+      const parts = [];
+      if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
+      if (tech) parts.push(`Técnico ${tech.company}`);
+      text.textContent = `Filtrado por ${parts.join(' & ')}`;
+      banner.classList.remove('hidden');
+    }
+
+    function applySelection(vehicleId = null, techId = null) {
+      selectedVehicleId = vehicleId;
+      selectedTechId = techId;
+      renderVehicles();
+
+      const techList = selectedVehicleId !== null
+        ? getTechList(technicians)
+        : getTechList(technicians);
+
+      updateTechUI(techList, !!selectedVehicleId);
+      toggleSelectionBanner();
+    }
+
+    function resetSelection() {
+      selectedVehicleId = null;
+      selectedTechId = null;
+      renderVehicles();
+      updateTechUI(technicians);
+      toggleSelectionBanner();
     }
 
     function findNearestVehicle(point, maxDistanceMeters = 80000) {
@@ -812,6 +983,42 @@
       processLocation(location, location.name || query);
     });
 
+    function openVehicleModal(vehicle) {
+      const modal = document.getElementById('vehicle-modal');
+      const title = document.getElementById('vehicle-modal-title');
+      const body = document.getElementById('vehicle-modal-body');
+      if (!modal || !title || !body) return;
+
+      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      const detailRows = vehicleHeaders.map(header => {
+        const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
+        return `<tr class="border-b border-slate-800/80"><th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">${header}</th><td class="text-xs text-slate-100 py-2">${value || '—'}</td></tr>`;
+      }).join('');
+      body.innerHTML = `<table class="w-full text-left">${detailRows}</table>`;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeVehicleModal() {
+      const modal = document.getElementById('vehicle-modal');
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function attachPopupHandlers() {
+      const btn = document.querySelector('.vehicle-popup button[data-view-more-popup]');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          const vehicleId = selectedVehicleId;
+          const vehicle = vehicles.find(v => v.id === vehicleId);
+          if (vehicle) openVehicleModal(vehicle);
+        });
+      }
+      iconLib.createIcons();
+    }
+
     function getDistance(lat1, lon1, lat2, lon2) {
       const R = 3958.8;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -905,6 +1112,12 @@
       loadVehicles();
       setupResizableSidebars();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
+
+      document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
+      document.getElementById('vehicle-modal-close')?.addEventListener('click', closeVehicleModal);
+      document.getElementById('vehicle-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'vehicle-modal') closeVehicleModal();
+      });
     });
   </script>
 </body>
