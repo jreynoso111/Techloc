@@ -24,9 +24,47 @@
   </script>
 
   <style>
+    :root {
+      --left-sidebar-width: 360px;
+      --right-sidebar-width: 360px;
+    }
+
     /* Map */
-    #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; }
+    #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; position: absolute; inset: 0; }
     .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
+
+    .resizable-sidebar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      backdrop-filter: blur(12px);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .resize-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 10px;
+      cursor: col-resize;
+      z-index: 60;
+      background: linear-gradient(90deg, transparent 30%, rgba(148, 163, 184, 0.12), transparent 70%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .resizable-sidebar:hover .resize-handle { opacity: 1; }
+    .resize-handle::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 2px;
+      height: 28px;
+      background: rgba(226, 232, 240, 0.35);
+      border-radius: 9999px;
+      transform: translate(-50%, -50%);
+    }
 
     /* Vehicle popup styling */
     .vehicle-popup .leaflet-popup-content-wrapper {
@@ -46,6 +84,14 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+    .vehicle-cross div {
+      color: #ef4444;
+      font-size: 16px;
+      font-weight: 800;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+      line-height: 1;
+    }
   </style>
 </head>
 <body class="h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
@@ -64,7 +110,6 @@
       </a>
       <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
         <a href="index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-        <a href="find-tech.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Find Tech</a>
         <a href="vehicles.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Vehicles to Fix</a>
       </nav>
       <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex">
@@ -73,10 +118,29 @@
     </div>
   </header>
 
-  <main class="flex-1 flex overflow-hidden">
+  <main id="map-layout" class="relative flex-1 overflow-hidden bg-slate-950">
+
+    <div class="absolute inset-0">
+      <div id="tech-map"></div>
+    </div>
+
+    <div id="selection-banner" class="pointer-events-auto absolute top-4 left-1/2 z-[450] hidden -translate-x-1/2 transform rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
+      <span id="selection-text">Filtrado por selección</span>
+      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Limpiar</button>
+    </div>
+
+    <!-- Floating Legend -->
+      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> Vehicle (GPS issue)</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Vehicle (Fully Working)</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> Vehicle (All)</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+      </div>
 
     <!-- Sidebar: Control Panel -->
-    <aside class="w-[430px] flex-none border-r border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
+    <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
+      <div class="resize-handle right-0"></div>
 
       <!-- Search -->
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
@@ -115,20 +179,9 @@
       </div>
     </aside>
 
-    <!-- Map -->
-    <div class="flex-1 relative bg-slate-950">
-      <div id="tech-map"></div>
-
-      <!-- Floating Legend -->
-      <div class="absolute bottom-6 left-6 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Vehicle</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
-      </div>
-    </div>
-
     <!-- Vehicles Sidebar -->
-    <aside class="w-[420px] flex-none border-l border-slate-800 bg-slate-900 flex flex-col z-20 shadow-2xl">
+    <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
+      <div class="resize-handle left-0"></div>
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -151,6 +204,20 @@
     </aside>
   </main>
 
+  <!-- Vehicle detail modal -->
+  <div id="vehicle-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Detalles del vehículo</p>
+          <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
+        </div>
+        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cerrar</button>
+      </div>
+      <div class="max-h-[70vh] overflow-y-auto p-4" id="vehicle-modal-body"></div>
+    </div>
+  </div>
+
   <script>
     // --- Base Config ---
     const STATE_CENTERS = {
@@ -172,6 +239,9 @@
     let map, techLayer, targetLayer, connectionLayer, vehicleLayer, highlightLayer;
     let technicians = [];
     let vehicles = [];
+    let vehicleHeaders = [];
+    let selectedVehicleId = null;
+    let selectedTechId = null;
     const vehicleMarkers = new Map();
     let lastClientLocation = null;
     const cityCache = new Map();
@@ -184,6 +254,7 @@
     function initMap() {
       map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 4);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       techLayer = L.layerGroup().addTo(map);
       vehicleLayer = L.layerGroup().addTo(map);
@@ -192,6 +263,13 @@
       highlightLayer = L.layerGroup().addTo(map);
 
       map.on('click', (e) => {
+        if (e.originalEvent?.handledByMarker) return;
+
+        if (selectedVehicleId !== null || selectedTechId !== null) {
+          resetSelection();
+          return;
+        }
+
         if (technicians.length === 0) return;
         const lat = parseFloat(e.latlng.lat.toFixed(6));
         const lng = parseFloat(e.latlng.lng.toFixed(6));
@@ -200,6 +278,7 @@
         if (nearbyTech) {
           const vehicleForTech = findNearestVehicle({ lat: nearbyTech.lat, lng: nearbyTech.lng }, 120000);
           if (vehicleForTech) {
+            applySelection(vehicleForTech.id, null);
             focusVehicle(vehicleForTech);
             return;
           }
@@ -207,6 +286,7 @@
 
         const nearbyVehicle = findNearestVehicle({ lat, lng });
         if (nearbyVehicle) {
+          applySelection(nearbyVehicle.id, null);
           focusVehicle(nearbyVehicle);
           return;
         }
@@ -240,7 +320,9 @@
         const response = await fetch('assets/vehicles.csv');
         if (!response.ok) throw new Error("Unable to read vehicle data (Status " + response.status + ")");
         const text = await response.text();
-        vehicles = parseVehicleCSV(text);
+        const parsed = parseVehicleCSV(text);
+        vehicles = parsed.rows;
+        vehicleHeaders = parsed.headers;
         renderVehicles();
       } catch (err) {
         console.warn("Vehicle load warning: " + err.message);
@@ -353,6 +435,8 @@
         return {
           id: idx,
           status: row['Deal Status'] || 'ACTIVE',
+          invPrepStatus: row['INV Prep Stat'] || row['Inv. Prep. Stat.'] || row['Inv Prep Stat'] || '',
+          remaining: row['Remaining'] || '',
           type: row['Unit Type'] || 'Vehicle',
           year: row['Model Year'] || '',
           model: row['Model'] || 'Vehicle',
@@ -360,6 +444,7 @@
           gpsFix: row['GPS Fix'] || '',
           gpsReason: row['GPS Fix Reason'] || '',
           gpsMoving: row['GPS Moving'] || '',
+          movingCalc: row['Moving (Calc)'] || '',
           ptStatus: row['PT Status'] || '',
           ptSerial: row['PT Serial '] || row['PT Serial'] || '',
           encoreSerial: row['Encore Serial'] || '',
@@ -371,12 +456,13 @@
           lng: coords.lng,
           customer: row['PT City'] ? `${row['PT City']}, ${stateCode}` : stateCode || 'Unknown area',
           lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}`.trim(),
-          payment: row['Payment Schedule'] || ''
+          payment: row['Payment Schedule'] || '',
+          details: row
         };
       });
 
       document.getElementById('vehicles-count').textContent = vehiclesData.length;
-      return vehiclesData;
+      return { headers, rows: vehiclesData };
     }
 
     // --- 4. Update map and list ---
@@ -385,8 +471,14 @@
       listContainer.innerHTML = '';
       techLayer.clearLayers();
 
+      const displayList = selectedTechId !== null ? techList.filter(t => t.id === selectedTechId) : techList;
+
+      if (displayList.length === 0) {
+        listContainer.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No technicians match this selection.</div>`;
+      }
+
       // Map markers
-      techList.forEach(tech => {
+      displayList.forEach(tech => {
         const marker = L.circleMarker([tech.lat, tech.lng], {
           radius: 5,
           fillColor: '#3b82f6',
@@ -404,10 +496,16 @@
             <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
           </div>
         `);
+
+        marker.on('click', (e) => {
+          e.originalEvent.handledByMarker = true;
+          map.flyTo([tech.lat, tech.lng], 10);
+          applySelection(null, tech.id);
+        });
       });
 
       // List cards
-      techList.slice(0, 50).forEach((tech, idx) => {
+      displayList.slice(0, 50).forEach((tech, idx) => {
         const isNearest = target && idx === 0;
 
         const card = document.createElement('div');
@@ -427,7 +525,7 @@
               <span class="text-[9px] text-slate-500 font-bold">miles</span>
             </div>` : ''}
           </div>
-          <div class="grid grid-cols-2 gap-2 mt-3">
+          <div class="mt-3 space-y-2">
              <div class="bg-slate-950/50 p-1.5 rounded text-xs text-slate-300 flex items-center gap-2 border border-slate-800">
                <i data-lucide="phone" class="h-3 w-3 text-blue-500"></i> ${tech.phone}
              </div>
@@ -443,6 +541,7 @@
           if (clientPoint) {
             drawConnection(clientPoint, tech);
           }
+          applySelection(null, tech.id);
         });
 
         listContainer.appendChild(card);
@@ -457,11 +556,10 @@
       if (!container) return;
       container.innerHTML = '';
       vehicleLayer.clearLayers();
-      highlightLayer.clearLayers();
       vehicleMarkers.clear();
 
         const searchBox = document.getElementById('vehicle-search');
-        const filtered = filterVehicles(vehicles, searchBox?.value || '');
+        const filtered = getVehicleList(searchBox?.value || '');
         document.getElementById('vehicles-count').textContent = filtered.length;
 
       if (filtered.length === 0) {
@@ -504,6 +602,32 @@
                 </div>
               </div>
             </div>
+            <div class="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
+              <p class="uppercase tracking-wide text-slate-500 font-bold">Ops snapshot</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
+                </div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
+                </div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Remaining</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.remaining || '—'}</p>
+                </div>
+                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <i data-lucide="clock-3" class="h-3 w-3"></i>
+                <span class="font-semibold text-slate-200">Last read:</span>
+                <span class="truncate">${vehicle.lastRead || '—'}</span>
+              </div>
+            </div>
             ${nearest ? `<div class="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[11px] text-slate-200 flex items-center justify-between">
               <div>
                 <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Nearest tech</p>
@@ -514,21 +638,59 @@
                 <p class="text-[10px] text-slate-500">${nearest.tech.city || ''} ${nearest.tech.state || ''}</p>
               </div>
             </div>` : ''}
+
+            <div class="pt-2 flex justify-end">
+              <button data-view-more class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                <i data-lucide="info" class="h-4 w-4"></i>
+                See more
+              </button>
+            </div>
           `;
 
-          const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 7,
-            fillColor: '#fbbf24',
-            color: '#92400e',
-            weight: 2,
+          const ringColor = getVehicleRingColor(vehicle);
+          const ring = L.circleMarker([vehicle.lat, vehicle.lng], {
+            radius: 9,
+            color: ringColor,
+            weight: 1.5,
             opacity: 1,
-            fillOpacity: 0.9
+            fillColor: '#fbbf24',
+            fillOpacity: 0.85
           }).addTo(vehicleLayer);
 
-          marker.on('click', () => focusVehicle(vehicle));
-          card.addEventListener('click', () => focusVehicle(vehicle));
+          const core = L.circleMarker([vehicle.lat, vehicle.lng], {
+            radius: 4,
+            color: '#7c2d12',
+            weight: 2,
+            opacity: 1,
+            fillColor: '#fb923c',
+            fillOpacity: 0.95
+          }).addTo(vehicleLayer);
 
-          vehicleMarkers.set(vehicle.id, { marker, nearest });
+          const focusHandler = () => {
+            applySelection(vehicle.id, null);
+            focusVehicle(vehicle);
+          };
+
+          ring.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+          core.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+          card.addEventListener('click', focusHandler);
+
+          const viewMoreBtn = card.querySelector('[data-view-more]');
+          if (viewMoreBtn) {
+            viewMoreBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openVehicleModal(vehicle);
+            });
+          }
+
+          if (vehicle.movingCalc === '-1') {
+            L.marker([vehicle.lat, vehicle.lng], {
+              icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+              interactive: false
+            }).addTo(vehicleLayer);
+          }
+
+          vehicleMarkers.set(vehicle.id, { marker: ring, nearest });
           container.appendChild(card);
         });
 
@@ -542,10 +704,17 @@
 
       const nearest = getNearestTech(vehicle);
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
-      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 2, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
+      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
 
-      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 2, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
+      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
       halo.bringToBack();
+
+      if (vehicle.movingCalc === '-1') {
+        L.marker([vehicle.lat, vehicle.lng], {
+          icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+          interactive: false
+        }).addTo(highlightLayer);
+      }
 
       anchorMarker.bindPopup(vehicleCard(vehicle, nearest), {
         className: 'vehicle-popup',
@@ -554,10 +723,14 @@
         autoPanPadding: [40, 40]
       }).openPopup();
 
+      setTimeout(attachPopupHandlers, 50);
+
       if (nearest?.tech) {
         L.circleMarker([nearest.tech.lat, nearest.tech.lng], { radius: 9, color: '#3b82f6', weight: 2, fillColor: '#60a5fa', fillOpacity: 0.9 }).addTo(highlightLayer);
         L.polyline([[vehicle.lat, vehicle.lng], [nearest.tech.lat, nearest.tech.lng]], { color: '#22d3ee', weight: 3, dashArray: '6 4', opacity: 0.9 }).addTo(highlightLayer);
       }
+
+      applySelection(vehicle.id, null);
     }
 
     function vehicleCard(vehicle, nearest) {
@@ -585,6 +758,33 @@
               <p class="text-[13px] text-amber-200">${vehicle.gpsReason || 'Pending review'}</p>
             </div>
 
+            <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3 text-[11px] text-slate-200 space-y-2">
+              <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Ops snapshot</p>
+              <div class="grid grid-cols-2 gap-2">
+                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
+                </div>
+                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
+                </div>
+                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Remaining</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.remaining || '—'}</p>
+                </div>
+                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <i data-lucide="clock-3" class="h-3 w-3"></i>
+                <span class="font-semibold text-slate-200">Last read:</span>
+                <span class="truncate">${vehicle.lastRead || '—'}</span>
+              </div>
+            </div>
+
             ${nearest ? `
               <div class="rounded-xl border border-sky-300/40 bg-sky-500/10 p-3 text-sm text-sky-50 space-y-1">
                 <p class="text-[11px] font-bold uppercase tracking-wide text-sky-200">Nearest technician</p>
@@ -592,6 +792,13 @@
                 <p class="text-[13px] text-sky-200">${Math.round(nearest.distance)} miles away</p>
               </div>
             ` : '<p class="mt-3 text-xs text-red-200">No technician nearby.</p>'}
+
+            <div class="pt-2 flex justify-end">
+              <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                <i data-lucide="info" class="h-4 w-4"></i>
+                See more
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -608,6 +815,48 @@
       );
     }
 
+    function getVehiclesForTech(tech) {
+      if (!tech || !map) return [];
+      const withDistance = vehicles.map(v => ({
+        vehicle: v,
+        distance: getDistance(v.lat, v.lng, tech.lat, tech.lng)
+      }));
+      return withDistance
+        .filter(item => item.distance <= 180)
+        .sort((a, b) => a.distance - b.distance)
+        .map(item => item.vehicle);
+    }
+
+    function getVehicleList(query) {
+      if (selectedVehicleId !== null) {
+        return vehicles.filter(v => v.id === selectedVehicleId);
+      }
+
+      if (selectedTechId !== null) {
+        const tech = technicians.find(t => t.id === selectedTechId);
+        const nearby = getVehiclesForTech(tech);
+        return nearby.length ? nearby : vehicles;
+      }
+
+      return filterVehicles(vehicles, query);
+    }
+
+    function getTechList(baseList = technicians) {
+      if (selectedTechId !== null) {
+        return baseList.filter(t => t.id === selectedTechId);
+      }
+
+      if (selectedVehicleId !== null) {
+        const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+        if (!vehicle) return baseList;
+        return baseList
+          .map(t => ({ ...t, distance: getDistance(vehicle.lat, vehicle.lng, t.lat, t.lng) }))
+          .sort((a, b) => a.distance - b.distance);
+      }
+
+      return baseList;
+    }
+
     function findNearestTechnician(point, maxDistanceMeters = 40000) {
       if (!technicians.length || !map) return null;
       let closest = null;
@@ -622,6 +871,53 @@
       });
 
       return closestDistance <= maxDistanceMeters ? closest : null;
+    }
+
+    function getVehicleRingColor(vehicle) {
+      const fix = (vehicle.gpsFix || '').trim().toLowerCase();
+      if (fix === 'all') return '#ef4444';
+      if (fix === 'fully working') return '#22c55e';
+      return '#facc15';
+    }
+
+    function toggleSelectionBanner() {
+      const banner = document.getElementById('selection-banner');
+      const text = document.getElementById('selection-text');
+      if (!banner || !text) return;
+
+      if (selectedVehicleId === null && selectedTechId === null) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+      const tech = technicians.find(t => t.id === selectedTechId);
+      const parts = [];
+      if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
+      if (tech) parts.push(`Técnico ${tech.company}`);
+      text.textContent = `Filtrado por ${parts.join(' & ')}`;
+      banner.classList.remove('hidden');
+    }
+
+    function applySelection(vehicleId = null, techId = null) {
+      selectedVehicleId = vehicleId;
+      selectedTechId = techId;
+      renderVehicles();
+
+      const techList = selectedVehicleId !== null
+        ? getTechList(technicians)
+        : getTechList(technicians);
+
+      updateTechUI(techList, !!selectedVehicleId);
+      toggleSelectionBanner();
+    }
+
+    function resetSelection() {
+      selectedVehicleId = null;
+      selectedTechId = null;
+      renderVehicles();
+      updateTechUI(technicians);
+      toggleSelectionBanner();
     }
 
     function findNearestVehicle(point, maxDistanceMeters = 80000) {
@@ -718,6 +1014,42 @@
       processLocation(location, location.name || query);
     });
 
+    function openVehicleModal(vehicle) {
+      const modal = document.getElementById('vehicle-modal');
+      const title = document.getElementById('vehicle-modal-title');
+      const body = document.getElementById('vehicle-modal-body');
+      if (!modal || !title || !body) return;
+
+      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      const detailRows = vehicleHeaders.map(header => {
+        const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
+        return `<tr class="border-b border-slate-800/80"><th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">${header}</th><td class="text-xs text-slate-100 py-2">${value || '—'}</td></tr>`;
+      }).join('');
+      body.innerHTML = `<table class="w-full text-left">${detailRows}</table>`;
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeVehicleModal() {
+      const modal = document.getElementById('vehicle-modal');
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function attachPopupHandlers() {
+      const btn = document.querySelector('.vehicle-popup button[data-view-more-popup]');
+      if (btn) {
+        btn.addEventListener('click', () => {
+          const vehicleId = selectedVehicleId;
+          const vehicle = vehicles.find(v => v.id === vehicleId);
+          if (vehicle) openVehicleModal(vehicle);
+        });
+      }
+      iconLib.createIcons();
+    }
+
     function getDistance(lat1, lon1, lat2, lon2) {
       const R = 3958.8;
       const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -752,12 +1084,71 @@
       ).addTo(connectionLayer);
     }
 
+    function setupResizableSidebars() {
+      const layout = document.getElementById('map-layout');
+      const leftSidebar = document.getElementById('left-sidebar');
+      const rightSidebar = document.getElementById('right-sidebar');
+      if (!layout || !leftSidebar || !rightSidebar) return;
+
+      const rootStyle = document.documentElement.style;
+      const minWidth = 260;
+      const maxWidth = 720;
+      let activeDrag = null;
+
+      const clampWidth = (value) => Math.min(Math.max(value, minWidth), maxWidth);
+
+      const applyWidth = (side, width) => {
+        rootStyle.setProperty(side === 'left' ? '--left-sidebar-width' : '--right-sidebar-width', `${width}px`);
+        if (map) {
+          map.invalidateSize();
+        }
+      };
+
+      const onMouseMove = (event) => {
+        if (!activeDrag) return;
+        const bounds = layout.getBoundingClientRect();
+
+        if (activeDrag === 'left') {
+          const newWidth = clampWidth(event.clientX - bounds.left);
+          applyWidth('left', newWidth);
+        }
+
+        if (activeDrag === 'right') {
+          const newWidth = clampWidth(bounds.right - event.clientX);
+          applyWidth('right', newWidth);
+        }
+      };
+
+      const stopDrag = () => {
+        activeDrag = null;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', stopDrag);
+      };
+
+      const startDrag = (side, event) => {
+        event.preventDefault();
+        activeDrag = side;
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', stopDrag);
+      };
+
+      leftSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('left', e));
+      rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       iconLib.createIcons();
       initMap();
       loadTechnicians();
       loadVehicles();
+      setupResizableSidebars();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
+
+      document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
+      document.getElementById('vehicle-modal-close')?.addEventListener('click', closeVehicleModal);
+      document.getElementById('vehicle-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'vehicle-modal') closeVehicleModal();
+      });
     });
   </script>
 </body>
