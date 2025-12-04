@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Technicians Admin</title>
+  <title>TechLoc • Installers Admin</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -27,13 +27,13 @@
         </div>
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
-          <h1 class="text-base font-black leading-tight text-white">Technicians</h1>
+          <h1 class="text-base font-black leading-tight text-white">Installers</h1>
         </div>
       </a>
       <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
         <a href="./index.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
         <a href="./vehicles.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
-        <a href="./technicians.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/30">Technicians</a>
+        <a href="./technicians.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/30">Installers</a>
       </nav>
       <div class="hidden items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200 md:flex">
         <i data-lucide="shield-check" class="h-4 w-4"></i>
@@ -45,9 +45,9 @@
   <main class="mx-auto max-w-6xl space-y-8 px-6 py-8">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">People ops</p>
-        <h2 class="text-2xl font-black text-white">Technician roster and status</h2>
-        <p class="text-sm text-slate-400">Search, filter, and confirm coverage across states.</p>
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Partner network</p>
+        <h2 class="text-2xl font-black text-white">Installer roster and coverage</h2>
+        <p class="text-sm text-slate-400">Search, filter, and confirm regional availability.</p>
       </div>
       <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
         <i data-lucide="file-up" class="h-4 w-4"></i>
@@ -57,16 +57,16 @@
 
     <section class="grid gap-3 sm:grid-cols-3">
       <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <p class="text-sm font-semibold text-slate-300">Total technicians</p>
+        <p class="text-sm font-semibold text-slate-300">Total installers</p>
         <p id="tech-total" class="text-3xl font-black text-white">-</p>
-      </div>
-      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <p class="text-sm font-semibold text-slate-300">Active</p>
-        <p id="tech-active" class="text-3xl font-black text-emerald-300">-</p>
       </div>
       <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
         <p class="text-sm font-semibold text-slate-300">States covered</p>
         <p id="tech-states" class="text-3xl font-black text-amber-300">-</p>
+      </div>
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <p class="text-sm font-semibold text-slate-300">Companies</p>
+        <p id="tech-companies" class="text-3xl font-black text-emerald-300">-</p>
       </div>
     </section>
 
@@ -74,11 +74,11 @@
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
-          <h3 class="text-lg font-bold text-white">Technician list</h3>
+          <h3 class="text-lg font-bold text-white">Installer list</h3>
         </div>
         <div class="flex flex-wrap gap-2">
-          <input id="search" type="search" placeholder="Search by name, state, or ID" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-          <a href="../assets/technicians.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+          <input id="search" type="search" placeholder="Search by company, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          <a href="../assets/installers.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
             <i data-lucide="download" class="h-4 w-4"></i>
             Download CSV
           </a>
@@ -88,11 +88,13 @@
         <table class="min-w-full divide-y divide-slate-800 text-sm">
           <thead class="bg-slate-950/60 text-slate-300">
             <tr>
-              <th class="px-4 py-3 text-left font-semibold">ID</th>
-              <th class="px-4 py-3 text-left font-semibold">Name</th>
+              <th class="px-4 py-3 text-left font-semibold">Company</th>
               <th class="px-4 py-3 text-left font-semibold">State</th>
+              <th class="px-4 py-3 text-left font-semibold">City</th>
+              <th class="px-4 py-3 text-left font-semibold">Zip</th>
               <th class="px-4 py-3 text-left font-semibold">Phone</th>
-              <th class="px-4 py-3 text-left font-semibold">Status</th>
+              <th class="px-4 py-3 text-left font-semibold">Email</th>
+              <th class="px-4 py-3 text-left font-semibold">Notes</th>
             </tr>
           </thead>
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -103,8 +105,8 @@
 
   <script type="module">
     const DATASET = {
-      key: 'technicians',
-      path: '../assets/technicians.csv',
+      key: 'installers',
+      path: '../assets/installers.csv',
     };
 
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
@@ -137,16 +139,13 @@
         const tr = document.createElement('tr');
         tr.className = 'transition hover:bg-slate-800/40';
         tr.innerHTML = `
-          <td class="px-4 py-3 font-semibold text-white">${row.ID || row.Id || row.id || '-'}</td>
-          <td class="px-4 py-3 text-slate-200">${row.Name || ''}</td>
+          <td class="px-4 py-3 font-semibold text-white">${row['Installation Company'] || row.Company || '-'}</td>
           <td class="px-4 py-3 text-slate-200">${row.State || ''}</td>
+          <td class="px-4 py-3 text-slate-200">${row.City || ''}</td>
+          <td class="px-4 py-3 text-slate-200">${row.Zip || ''}</td>
           <td class="px-4 py-3 text-slate-200">${row.Phone || ''}</td>
-          <td class="px-4 py-3">
-            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${row.Status?.toLowerCase() === 'active' ? 'bg-emerald-600/20 text-emerald-200 border border-emerald-500/40' : 'bg-amber-500/10 text-amber-200 border border-amber-500/40'}">
-              <span class="h-2 w-2 rounded-full ${row.Status?.toLowerCase() === 'active' ? 'bg-emerald-400' : 'bg-amber-300'}"></span>
-              ${row.Status || '—'}
-            </span>
-          </td>
+          <td class="px-4 py-3 text-slate-200">${row.Email || ''}</td>
+          <td class="px-4 py-3 text-slate-200">${row.Notes || ''}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -154,17 +153,17 @@
 
     const updateStats = (rows) => {
       const total = rows.length;
-      const active = rows.filter((r) => (r.Status || '').toLowerCase() === 'active').length;
       const states = new Set(rows.map((r) => (r.State || '').trim()).filter(Boolean)).size;
+      const companies = new Set(rows.map((r) => (r['Installation Company'] || r.Company || '').trim()).filter(Boolean)).size;
       document.getElementById('tech-total').textContent = total;
-      document.getElementById('tech-active').textContent = active;
       document.getElementById('tech-states').textContent = states;
+      document.getElementById('tech-companies').textContent = companies;
     };
 
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const query = term.toLowerCase();
-      return rows.filter((row) => [row.ID, row.Name, row.State]
+      return rows.filter((row) => [row['Installation Company'], row.State, row.City]
         .some((value) => String(value || '').toLowerCase().includes(query)));
     };
 
