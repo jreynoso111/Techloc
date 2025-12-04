@@ -1,199 +1,99 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc Admin • Operations Dashboard</title>
+  <title>TechLoc • Panel de Datos</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./admin.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
-  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50 font-sans">
-  <header class="border-b border-slate-900 bg-slate-950/90 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-      <div class="flex items-center gap-3">
-        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-          <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
-        </div>
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc</p>
-          <h1 class="text-lg font-black leading-tight text-white">Operations Dashboard</h1>
-        </div>
+<body>
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Administración</p>
+      <h1>Panel de control de CSV</h1>
+      <p class="lede">Carga, edita y exporta los datos operativos directamente en el navegador. No se guardan cambios hasta
+        que exportes el nuevo CSV.</p>
+      <div class="breadcrumbs">
+        <span class="crumb active">Dashboard</span>
+        <a class="crumb" href="./vehicles.html">Vehículos</a>
+        <a class="crumb" href="./technicians.html">Técnicos</a>
       </div>
-      <a href="../index.html" class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-inner shadow-slate-900 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">
-        <i data-lucide="arrow-left" class="h-4 w-4 text-blue-200"></i>
-        Back to Site
-      </a>
     </div>
+    <a class="back-link" href="../index.html">Volver al sitio</a>
   </header>
 
-  <main class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
-    <section class="overflow-hidden rounded-3xl border border-slate-900 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-8 shadow-2xl shadow-blue-500/10">
-      <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <div class="space-y-3">
-          <p class="text-xs font-semibold uppercase tracking-wide text-blue-200">Operations Panel</p>
-          <h2 class="text-3xl font-black text-white">Real-time visibility</h2>
-          <p class="max-w-2xl text-sm text-slate-300">Load technician and vehicle rosters from the public CSV files to keep coverage and open cases aligned.</p>
-          <div class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-            <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span>
-            Synced data
-          </div>
+  <main class="grid">
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="eyebrow">Inventario</p>
+          <h2>Vehículos pendientes de reparar</h2>
+          <p class="muted">Fuente: <code>assets/vehicles.csv</code>. Usa "Reemplazar CSV" para cargar una versión local o
+            edita celdas y exporta el archivo actualizado.</p>
         </div>
-        <div class="grid w-full gap-3 sm:grid-cols-2 lg:w-auto">
-          <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-inner shadow-slate-900">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-300">
-              <i data-lucide="shield-check" class="h-5 w-5"></i>
-            </div>
-            <div>
-              <p class="text-xs uppercase tracking-wide text-slate-400">Coverage</p>
-              <p class="text-sm font-semibold text-white">Active network</p>
-            </div>
-          </div>
-          <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 shadow-inner shadow-slate-900">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/20 text-blue-200">
-              <i data-lucide="radar" class="h-5 w-5"></i>
-            </div>
-            <div>
-              <p class="text-xs uppercase tracking-wide text-slate-400">Monitoring</p>
-              <p class="text-sm font-semibold text-white">Live status</p>
-            </div>
-          </div>
+        <div class="actions">
+          <button id="vehicles-refresh" class="ghost">Recargar CSV</button>
+          <button id="vehicles-replace" class="ghost">Reemplazar CSV</button>
+          <button id="vehicles-add" class="ghost">Agregar fila</button>
+          <button id="vehicles-export" class="primary">Exportar vehículos</button>
         </div>
       </div>
-
-      <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-2xl border border-slate-900 bg-slate-950/70 p-5 shadow-inner shadow-slate-900">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Total Technicians</p>
-          <p id="kpi-technicians" class="text-4xl font-black text-white">--</p>
-          <p class="text-sm text-slate-400">Records loaded from technicians.csv</p>
-        </div>
-        <div class="rounded-2xl border border-slate-900 bg-slate-950/70 p-5 shadow-inner shadow-slate-900">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Active Coverage</p>
-          <p id="kpi-active" class="text-4xl font-black text-emerald-300">--%</p>
-          <p class="text-sm text-slate-400">% with status Active</p>
-        </div>
-        <div class="rounded-2xl border border-slate-900 bg-slate-950/70 p-5 shadow-inner shadow-slate-900">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Vehicles with Issues</p>
-          <p id="kpi-issues" class="text-4xl font-black text-amber-200">--</p>
-          <p class="text-sm text-slate-400">Based on vehicles.csv</p>
-        </div>
-        <div class="rounded-2xl border border-slate-900 bg-slate-950/70 p-5 shadow-inner shadow-slate-900">
-          <p class="text-xs uppercase tracking-wide text-slate-400">Pending Repairs</p>
-          <p id="kpi-pending" class="text-4xl font-black text-blue-200">--</p>
-          <p class="text-sm text-slate-400">Vehicles without an assigned technician</p>
-        </div>
+      <div class="status-row">
+        <span id="vehicles-status" class="pill pill--info">Esperando cargar el CSV…</span>
+        <span id="vehicles-count" class="counter"></span>
+      </div>
+      <div class="table-wrapper">
+        <table id="vehicles-table" aria-label="Vehículos pendientes"></table>
       </div>
     </section>
 
-    <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-950/80 p-6 shadow-xl shadow-blue-500/5">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2 text-sm font-semibold text-slate-200">
-          <i data-lucide="layout-dashboard" class="h-4 w-4 text-blue-300"></i>
-          Management sections
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="eyebrow">Red de técnicos</p>
+          <h2>Especialistas certificados</h2>
+          <p class="muted">Fuente: <code>assets/technicians.csv</code>. Edita directamente o reemplaza el CSV y luego exporta la
+            versión nueva.</p>
         </div>
-        <div class="flex gap-2 rounded-full border border-slate-800 bg-slate-900/80 p-1 text-sm font-semibold text-slate-200">
-          <button data-tab="vehicles" class="tab-btn active rounded-full px-4 py-2 text-white transition hover:bg-slate-800">Vehicle Inventory</button>
-          <button data-tab="technicians" class="tab-btn rounded-full px-4 py-2 transition hover:bg-slate-800">Technician Network</button>
-        </div>
-      </div>
-
-      <div id="tab-vehicles" class="tab-panel space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-900 bg-slate-950/60 p-4 shadow-inner shadow-slate-900">
-          <div class="flex items-center gap-2 text-sm text-slate-300">
-            <i data-lucide="truck" class="h-4 w-4 text-amber-300"></i>
-            <span>Reported vehicle inventory</span>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <div class="relative">
-              <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"></i>
-              <input id="vehicle-search" type="search" placeholder="Search vehicle..." class="w-56 rounded-full border border-slate-800 bg-slate-900/70 py-2 pl-10 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-            <button id="vehicle-download" class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-inner shadow-slate-900 transition hover:border-emerald-400 hover:text-white">
-              <i data-lucide="download" class="h-4 w-4 text-emerald-300"></i>
-              Download Updated CSV
-            </button>
-          </div>
-        </div>
-
-        <div class="overflow-hidden rounded-2xl border border-slate-900 bg-slate-950/60 shadow-inner shadow-slate-900">
-          <table class="min-w-full text-sm table-striped" aria-label="Vehicle inventory">
-            <thead class="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th class="px-6 py-3 text-left font-semibold">Short VIN</th>
-                <th class="px-6 py-3 text-left font-semibold">Model</th>
-                <th class="px-6 py-3 text-left font-semibold">Unit Type</th>
-                <th class="px-6 py-3 text-left font-semibold">Deal Status</th>
-                <th class="px-6 py-3 text-left font-semibold">Inventory Prep</th>
-                <th class="px-6 py-3 text-left font-semibold">GPS Fix</th>
-                <th class="px-6 py-3 text-left font-semibold">PT Status</th>
-                <th class="px-6 py-3 text-left font-semibold">State</th>
-                <th class="px-6 py-3 text-left font-semibold">City</th>
-                <th class="px-6 py-3 text-left font-semibold">PT Last Read</th>
-                <th class="px-6 py-3 text-left font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="vehicle-body" class="divide-y divide-slate-900"></tbody>
-          </table>
+        <div class="actions">
+          <button id="technicians-refresh" class="ghost">Recargar CSV</button>
+          <button id="technicians-replace" class="ghost">Reemplazar CSV</button>
+          <button id="technicians-add" class="ghost">Agregar fila</button>
+          <button id="technicians-export" class="primary">Exportar técnicos</button>
         </div>
       </div>
-
-      <div id="tab-technicians" class="tab-panel hidden space-y-4">
-        <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-900 bg-slate-950/60 p-4 shadow-inner shadow-slate-900">
-          <div class="flex items-center gap-2 text-sm text-slate-300">
-            <i data-lucide="users" class="h-4 w-4 text-emerald-300"></i>
-            <span>Technician list and coverage</span>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <div class="relative">
-              <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"></i>
-              <input id="tech-search" type="search" placeholder="Search technician..." class="w-56 rounded-full border border-slate-800 bg-slate-900/70 py-2 pl-10 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-            <button id="tech-download" class="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100 shadow-inner shadow-slate-900 transition hover:border-emerald-400 hover:text-white">
-              <i data-lucide="download" class="h-4 w-4 text-emerald-300"></i>
-              Download Updated CSV
-            </button>
-          </div>
-        </div>
-
-        <div class="overflow-hidden rounded-2xl border border-slate-900 bg-slate-950/60 shadow-inner shadow-slate-900">
-          <table class="min-w-full text-sm table-striped" aria-label="Technician network">
-            <thead class="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th class="px-6 py-3 text-left font-semibold">ID</th>
-                <th class="px-6 py-3 text-left font-semibold">Name</th>
-                <th class="px-6 py-3 text-left font-semibold">Status</th>
-                <th class="px-6 py-3 text-left font-semibold">State</th>
-                <th class="px-6 py-3 text-left font-semibold">Phone</th>
-                <th class="px-6 py-3 text-left font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="tech-body" class="divide-y divide-slate-900"></tbody>
-          </table>
-        </div>
+      <div class="status-row">
+        <span id="technicians-status" class="pill pill--info">Esperando cargar el CSV…</span>
+        <span id="technicians-count" class="counter"></span>
+      </div>
+      <div class="table-wrapper">
+        <table id="technicians-table" aria-label="Listado de técnicos"></table>
       </div>
     </section>
   </main>
 
-  <footer class="border-t border-slate-900 bg-slate-950/80 py-6">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 text-xs uppercase tracking-wide text-slate-500">
-      <span>TechLoc Admin</span>
-      <span>Operations in motion</span>
+  <section class="help">
+    <div class="help__card">
+      <h3>Cómo usar este panel</h3>
+      <ol>
+        <li>Usa <strong>Recargar CSV</strong> para leer los datos publicados en <code>/assets</code>.</li>
+        <li>Haz clic en cualquier celda para editarla o pulsa <strong>Agregar fila</strong> para sumar registros.</li>
+        <li>Con <strong>Reemplazar CSV</strong> puedes cargar un archivo local y continuar editándolo.</li>
+        <li>Cuando termines, pulsa <strong>Exportar</strong> y reemplaza el archivo original con el descargado.</li>
+      </ol>
     </div>
-  </footer>
+    <div class="help__card help__card--secondary">
+      <h3>Próximos pasos</h3>
+      <p>Protege la carpeta <code>/admin</code> en tu hosting y envía estos CSV a la nube cuando migres a backend. Este panel
+        seguirá funcionando sin cambios.</p>
+    </div>
+  </section>
 
-  <script>lucide.createIcons();</script>
+  <footer class="footer">Funcionamiento 100% en el navegador. Próximo paso: proteger <code>/admin</code> en el hosting.</footer>
+
   <script type="module" src="./dashboard.js"></script>
 </body>
 </html>
