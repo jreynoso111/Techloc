@@ -1,19 +1,23 @@
 const currentPage = window.location.pathname.split('/').pop();
 
 async function loadCsv() {
+  const endpoints = {
+    'vehicles.html': { url: '/vehicles/csv', renderer: renderVehicleTable },
+    'technicians.html': { url: '../assets/installers.csv', renderer: renderTechniciansTable },
+  };
+
+  const config = endpoints[currentPage];
+  if (!config) return;
+
   try {
-    const response = await fetch('../assets/vehicles.csv');
+    const response = await fetch(config.url);
     if (!response.ok) throw new Error('No se pudo obtener el CSV');
     const text = await response.text();
     const rows = parseCsv(text);
 
     if (!rows.length) return;
 
-    if (currentPage === 'vehicles.html') {
-      renderVehicleTable(rows);
-    } else if (currentPage === 'technicians.html') {
-      renderTechniciansTable(rows);
-    }
+    config.renderer(rows);
   } catch (error) {
     console.error('Error cargando el CSV:', error);
   }
@@ -94,25 +98,29 @@ function renderTechniciansTable([headers, ...data]) {
   const tbody = document.querySelector('table tbody');
   if (!tbody) return;
 
-  const DEAL_STATUS = headers.indexOf('Deal Status');
-  const UNIT_TYPE = headers.indexOf('Unit Type');
-  const MODEL = headers.indexOf('Model');
-  const PT_CITY = headers.indexOf('PT City');
-  const STATE = headers.indexOf('State Loc');
-  const PT_SERIAL = headers.indexOf('PT Serial ');
+  const COMPANY = headers.indexOf('Installation Company');
+  const NOTES = headers.indexOf('Notes');
+  const STATE = headers.indexOf('State');
+  const CITY = headers.indexOf('City');
+  const ZIP = headers.indexOf('Zip');
+  const EMAIL = headers.indexOf('Email');
+  const PHONE = headers.indexOf('Phone');
 
   const rows = data.slice(0, 20).map((row) => {
-    const status = row[DEAL_STATUS] || '';
+    const name = row[COMPANY] || 'Sin nombre';
+    const specialty = row[NOTES] || 'Instalador certificado';
+    const status = row[STATE] || 'N/A';
     const statusClass = getStatusClass(status);
-    const zone = [row[PT_CITY], row[STATE]].filter(Boolean).join(', ');
+    const zone = [row[CITY], row[ZIP]].filter(Boolean).join(', ');
+    const contact = [row[EMAIL], row[PHONE]].filter(Boolean).join(' • ');
 
     return `
       <tr class="hover:bg-slate-900/50 transition-colors">
-        <td class="px-6 py-3 font-semibold text-white">${row[MODEL] || 'Sin nombre'}</td>
-        <td class="px-6 py-3 text-slate-200">${row[UNIT_TYPE] || 'General'}</td>
-        <td class="px-6 py-3 ${statusClass}">${status || 'N/A'}</td>
+        <td class="px-6 py-3 font-semibold text-white">${name}</td>
+        <td class="px-6 py-3 text-slate-200">${specialty}</td>
+        <td class="px-6 py-3 ${statusClass}">${status}</td>
         <td class="px-6 py-3 text-slate-200">${zone || '—'}</td>
-        <td class="px-6 py-3 text-slate-400">${row[PT_SERIAL] || 'No disponible'}</td>
+        <td class="px-6 py-3 text-slate-400">${contact || 'No disponible'}</td>
       </tr>
     `;
   });
