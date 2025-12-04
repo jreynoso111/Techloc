@@ -4,6 +4,9 @@ const sources = {
     tableId: 'vehicles-table',
     exportId: 'vehicles-export',
     refreshId: 'vehicles-refresh',
+    addRowId: 'vehicles-add',
+    statusId: 'vehicles-status',
+    countId: 'vehicles-count',
     filename: 'vehicles-updated.csv',
   },
   technicians: {
@@ -11,6 +14,9 @@ const sources = {
     tableId: 'technicians-table',
     exportId: 'technicians-export',
     refreshId: 'technicians-refresh',
+    addRowId: 'technicians-add',
+    statusId: 'technicians-status',
+    countId: 'technicians-count',
     filename: 'technicians-updated.csv',
   },
 };
@@ -19,13 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
   Object.values(sources).forEach((source) => {
     attachExportHandler(source);
     attachRefreshHandler(source);
+    attachAddRowHandler(source);
     loadTable(source);
   });
 });
 
-async function loadTable({ path, tableId }) {
+async function loadTable({ path, tableId, statusId, countId }) {
   const table = document.getElementById(tableId);
   if (!table) return;
+
+  setStatus(statusId, 'Cargando CSV…');
 
   try {
     const csvText = await fetchCsv(path);
@@ -33,6 +42,8 @@ async function loadTable({ path, tableId }) {
 
     if (!headers.length) {
       table.innerHTML = `<tbody><tr><td class="empty-state">No se encontraron columnas en ${path}</td></tr></tbody>`;
+      updateCount(countId, 0);
+      setStatus(statusId, 'CSV vacío');
       return;
     }
 
@@ -71,9 +82,12 @@ async function loadTable({ path, tableId }) {
     table.innerHTML = '';
     table.appendChild(thead);
     table.appendChild(tbody);
+    updateCount(countId, rows.length);
+    setStatus(statusId, 'CSV cargado');
   } catch (error) {
     console.error('Error al cargar CSV', error);
     table.innerHTML = `<tbody><tr><td class="empty-state">No se pudo cargar ${path}</td></tr></tbody>`;
+    setStatus(statusId, 'Error al cargar CSV');
   }
 }
 
@@ -98,6 +112,28 @@ function attachRefreshHandler(source) {
   const button = document.getElementById(source.refreshId);
   if (!button) return;
   button.addEventListener('click', () => loadTable(source));
+}
+
+function attachAddRowHandler({ addRowId, tableId, countId }) {
+  const button = document.getElementById(addRowId);
+  if (!button) return;
+  button.addEventListener('click', () => {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent || '');
+    if (!headers.length) return;
+    const tbody = table.querySelector('tbody') || table.appendChild(document.createElement('tbody'));
+    const tr = document.createElement('tr');
+    headers.forEach((header) => {
+      const td = document.createElement('td');
+      td.contentEditable = 'true';
+      td.dataset.header = header;
+      td.textContent = '';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+    updateCount(countId, tbody.querySelectorAll('tr').length);
+  });
 }
 
 function toCsv(headers, rows) {
@@ -167,4 +203,19 @@ function downloadCsv(csv, filename) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function setStatus(statusId, message) {
+  const label = statusId ? document.getElementById(statusId) : null;
+  if (label) label.textContent = message;
+}
+
+function updateCount(countId, total) {
+  const label = countId ? document.getElementById(countId) : null;
+  if (!label) return;
+  if (typeof total === 'number') {
+    label.textContent = `${total} fila${total === 1 ? '' : 's'}`;
+  } else {
+    label.textContent = '';
+  }
 }
