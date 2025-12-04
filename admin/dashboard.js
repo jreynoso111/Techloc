@@ -231,6 +231,7 @@ class CsvEditor {
     if (!this.countEl) return;
     this.countEl.textContent = `${total} fila${total === 1 ? '' : 's'}`;
   }
+  return response.text();
 }
 
 function parseCsv(text) {
