@@ -1,88 +1,50 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc Admin • Technicians</title>
-  <link rel="stylesheet" href="../styles.css" />
+  <title>TechLoc • Técnicos</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./admin.css" />
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50 font-sans">
-  <header class="border-b border-slate-900 bg-slate-950/90 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-      <div class="flex items-center gap-3">
-        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-          <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
+<body>
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Panel privado</p>
+      <h1>Red de técnicos</h1>
+      <p class="lede">Edita el roster que vive en <code>assets/technicians.csv</code>. Modifica celdas, agrega filas y exporta el archivo actualizado.</p>
+    </div>
+    <a class="back-link" href="./index.html">Volver al dashboard</a>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <p class="eyebrow">Operaciones</p>
+          <h2>Especialistas certificados</h2>
+          <p class="muted">Vista en vivo, sin backend. El CSV exportado reemplaza el original.</p>
         </div>
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc</p>
-        <h1 class="text-lg font-black leading-tight text-white">Admin</h1>
+        <div class="actions">
+          <button id="technicians-refresh" class="ghost">Recargar CSV</button>
+          <button id="technicians-add" class="ghost">Agregar fila</button>
+          <button id="technicians-export" class="primary">Exportar técnicos</button>
+        </div>
       </div>
-    </div>
-    <div class="flex items-center gap-2 text-sm font-semibold text-slate-300">
-      <a href="index.html" class="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Dashboard</a>
-      <a href="../index.html" class="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Log out</a>
-    </div>
-  </div>
-</header>
-
-  <main class="mx-auto max-w-6xl px-6 py-10 space-y-8">
-    <div class="flex items-center justify-between gap-4">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-blue-200">Operations</p>
-        <h2 class="text-3xl font-black text-white">Technician management</h2>
-        <p class="text-sm text-slate-300">Structural base to list, assign, and update technicians.</p>
+      <div class="status-row">
+        <span id="technicians-status" class="pill">Esperando cargar el CSV…</span>
+        <span id="technicians-count" class="counter"></span>
       </div>
-      <div class="rounded-full border border-slate-900 bg-slate-950/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-        Under construction
+      <div class="table-wrapper">
+        <table id="technicians-table" aria-label="Listado de técnicos"></table>
       </div>
-    </div>
+    </section>
+  </main>
 
-  <section class="overflow-hidden rounded-2xl border border-slate-900 bg-slate-950/70 shadow-inner shadow-slate-900">
-    <div class="flex items-center justify-between border-b border-slate-900 px-6 py-4">
-      <h3 class="text-lg font-semibold text-white">Technician roster</h3>
-      <span class="text-xs uppercase tracking-wide text-slate-400">Placeholder</span>
-    </div>
-    <div class="overflow-x-auto">
-      <table id="technicians-table" class="min-w-full divide-y divide-slate-900 text-sm">
-        <thead class="bg-slate-950/80 text-slate-300">
-          <tr>
-            <th class="px-6 py-3 text-left font-semibold">ID</th>
-            <th class="px-6 py-3 text-left font-semibold">Name</th>
-            <th class="px-6 py-3 text-left font-semibold">Status</th>
-            <th class="px-6 py-3 text-left font-semibold">State</th>
-            <th class="px-6 py-3 text-left font-semibold">Phone</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-900 text-slate-200">
-          <!-- Technician records render here -->
-        </tbody>
-      </table>
-    </div>
-  </section>
-</main>
+  <footer class="footer">Funcionamiento 100% en el navegador. Próximo paso: proteger la carpeta <code>/admin</code> en el hosting.</footer>
 
-<footer class="border-t border-slate-900 bg-slate-950/80 py-6">
-  <div class="mx-auto flex max-w-6xl items-center justify-between px-6 text-xs uppercase tracking-wide text-slate-500">
-    <span>TechLoc Admin</span>
-    <span>Technician management</span>
-  </div>
-</footer>
-
-  <script>lucide.createIcons();</script>
   <script type="module" src="./dashboard.js"></script>
 </body>
 </html>
