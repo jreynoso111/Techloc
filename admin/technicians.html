@@ -27,48 +27,45 @@
         <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
           <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
         </div>
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc</p>
-        <h1 class="text-lg font-black leading-tight text-white">Admin</h1>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc</p>
+          <h1 class="text-lg font-black leading-tight text-white">Admin</h1>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 text-sm font-semibold text-slate-300">
+        <a href="index.html" class="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Dashboard</a>
+        <a href="../index.html" class="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Log out</a>
       </div>
     </div>
-    <div class="flex items-center gap-2 text-sm font-semibold text-slate-300">
-      <a href="index.html" class="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Dashboard</a>
-      <a href="../index.html" class="rounded-full border border-slate-800 bg-slate-900/80 px-3 py-2 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Log out</a>
-    </div>
-  </div>
-</header>
+  </header>
 
   <main class="mx-auto max-w-6xl px-6 py-10 space-y-8">
     <div class="flex items-center justify-between gap-4">
       <div>
         <p class="text-xs font-semibold uppercase tracking-wide text-blue-200">Operations</p>
         <h2 class="text-3xl font-black text-white">Technician management</h2>
-        <p class="text-sm text-slate-300">Structural base to list, assign, and update technicians.</p>
+        <p class="text-sm text-slate-300">Live view of the network pulled directly from <code>assets/technicians.csv</code>.</p>
       </div>
-      <div class="rounded-full border border-slate-900 bg-slate-950/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-        Under construction
+      <div class="flex items-center gap-2">
+        <button id="refresh-technicians" class="rounded-full border border-slate-800 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:-translate-y-0.5 hover:border-blue-500 hover:text-white">Reload CSV</button>
+        <button id="export-technicians" class="rounded-full border border-blue-500 bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow shadow-blue-500/20 transition hover:-translate-y-0.5 hover:bg-blue-500">Export edited CSV</button>
       </div>
     </div>
 
   <section class="overflow-hidden rounded-2xl border border-slate-900 bg-slate-950/70 shadow-inner shadow-slate-900">
     <div class="flex items-center justify-between border-b border-slate-900 px-6 py-4">
       <h3 class="text-lg font-semibold text-white">Technician roster</h3>
-      <span class="text-xs uppercase tracking-wide text-slate-400">Placeholder</span>
+      <div id="tech-status" class="text-xs uppercase tracking-wide text-slate-400">Loading CSV…</div>
     </div>
     <div class="overflow-x-auto">
       <table id="technicians-table" class="min-w-full divide-y divide-slate-900 text-sm">
         <thead class="bg-slate-950/80 text-slate-300">
-          <tr>
-            <th class="px-6 py-3 text-left font-semibold">ID</th>
-            <th class="px-6 py-3 text-left font-semibold">Name</th>
-            <th class="px-6 py-3 text-left font-semibold">Status</th>
-            <th class="px-6 py-3 text-left font-semibold">State</th>
-            <th class="px-6 py-3 text-left font-semibold">Phone</th>
-          </tr>
+          <tr></tr>
         </thead>
         <tbody class="divide-y divide-slate-900 text-slate-200">
-          <!-- Technician records render here -->
+          <tr>
+            <td class="px-6 py-4 text-slate-400" colspan="5">Waiting for CSV data…</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -83,6 +80,176 @@
 </footer>
 
   <script>lucide.createIcons();</script>
-  <script type="module" src="./dashboard.js"></script>
+  <script>
+    const TECHNICIAN_CSV_PATH = '../assets/technicians.csv';
+
+    const table = document.getElementById('technicians-table');
+    const statusLabel = document.getElementById('tech-status');
+    const refreshButton = document.getElementById('refresh-technicians');
+    const exportButton = document.getElementById('export-technicians');
+
+    refreshButton?.addEventListener('click', loadTechnicians);
+    exportButton?.addEventListener('click', exportTechnicians);
+
+    document.addEventListener('DOMContentLoaded', loadTechnicians);
+
+    async function loadTechnicians() {
+      if (!table) return;
+      setStatus('Loading CSV…');
+
+      try {
+        const csvText = await fetchCsv(TECHNICIAN_CSV_PATH);
+        const { headers, rows } = parseCsv(csvText);
+
+        if (!headers.length) {
+          setEmptyState('No columns found in technicians.csv');
+          return;
+        }
+
+        renderHeaders(headers);
+        renderRows(headers, rows);
+        setStatus(`Loaded ${rows.length} technicians`);
+      } catch (error) {
+        console.error('Unable to load technicians.csv', error);
+        setEmptyState('Unable to load technicians.csv');
+        setStatus('Error loading CSV');
+      }
+    }
+
+    function renderHeaders(headers) {
+      const theadRow = table.querySelector('thead tr');
+      if (!theadRow) return;
+      theadRow.innerHTML = '';
+      headers.forEach((header) => {
+        const th = document.createElement('th');
+        th.className = 'px-6 py-3 text-left font-semibold';
+        th.textContent = header;
+        theadRow.appendChild(th);
+      });
+    }
+
+    function renderRows(headers, rows) {
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        setEmptyState('The CSV is empty.');
+        return;
+      }
+
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        row.forEach((cell, index) => {
+          const td = document.createElement('td');
+          td.className = 'px-6 py-3';
+          td.contentEditable = 'true';
+          td.dataset.header = headers[index];
+          td.textContent = cell ?? '';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function setEmptyState(message) {
+      const tbody = table.querySelector('tbody');
+      const theadRow = table.querySelector('thead tr');
+      if (!tbody || !theadRow) return;
+
+      tbody.innerHTML = '';
+      const emptyRow = document.createElement('tr');
+      const emptyCell = document.createElement('td');
+      emptyCell.colSpan = Math.max(theadRow.children.length, 1);
+      emptyCell.className = 'px-6 py-4 text-slate-400';
+      emptyCell.textContent = message;
+      emptyRow.appendChild(emptyCell);
+      tbody.appendChild(emptyRow);
+    }
+
+    function setStatus(text) {
+      if (statusLabel) statusLabel.textContent = text;
+    }
+
+    function exportTechnicians() {
+      if (!table) return;
+
+      const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent || '');
+      const rows = Array.from(table.querySelectorAll('tbody tr')).map((tr) =>
+        Array.from(tr.querySelectorAll('td')).map((td) => td.textContent ?? '')
+      );
+
+      const csv = toCsv(headers, rows);
+      downloadCsv(csv, 'technicians-updated.csv');
+      setStatus('Exported edited CSV');
+    }
+
+    async function fetchCsv(path) {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Unable to fetch ${path}`);
+      return response.text();
+    }
+
+    function parseCsv(text) {
+      const lines = text.replace(/\r\n?/g, '\n').split('\n').filter((line) => line.trim().length);
+      if (!lines.length) return { headers: [], rows: [] };
+
+      const headers = splitCsvLine(lines[0]);
+      const rows = lines.slice(1).map(splitCsvLine);
+      return { headers, rows };
+    }
+
+    function splitCsvLine(line) {
+      const result = [];
+      let current = '';
+      let insideQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const next = line[i + 1];
+
+        if (char === '"') {
+          if (insideQuotes && next === '"') {
+            current += '"';
+            i++;
+          } else {
+            insideQuotes = !insideQuotes;
+          }
+        } else if (char === ',' && !insideQuotes) {
+          result.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current);
+      return result;
+    }
+
+    function toCsv(headers, rows) {
+      const escapeCell = (cell = '') => {
+        const needsQuotes = [',', '\n', '\r', '"'].some((char) => cell.includes(char));
+        const sanitized = cell.replace(/"/g, '""');
+        return needsQuotes ? `"${sanitized}"` : sanitized;
+      };
+
+      const lines = [headers.map(escapeCell).join(',')];
+      rows.forEach((row) => lines.push(row.map(escapeCell).join(',')));
+      return lines.join('\n');
+    }
+
+    function downloadCsv(csv, filename) {
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
+  </script>
 </body>
 </html>
