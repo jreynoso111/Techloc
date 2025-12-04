@@ -84,6 +84,14 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+    .vehicle-cross div {
+      color: #ef4444;
+      font-size: 16px;
+      font-weight: 800;
+      text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+      line-height: 1;
+    }
   </style>
 </head>
 <body class="h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
@@ -122,13 +130,13 @@
     </div>
 
     <!-- Floating Legend -->
-    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> Vehicle (GPS issue)</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border-2 border-green-400"></span> Vehicle (Fully Working)</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border-2 border-red-500"></span> Vehicle (All)</div>
-      <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
-    </div>
+      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> Vehicle (GPS issue)</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Vehicle (Fully Working)</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> Vehicle (All)</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+      </div>
 
     <!-- Sidebar: Control Panel -->
     <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
@@ -255,6 +263,13 @@
       highlightLayer = L.layerGroup().addTo(map);
 
       map.on('click', (e) => {
+        if (e.originalEvent?.handledByMarker) return;
+
+        if (selectedVehicleId !== null || selectedTechId !== null) {
+          resetSelection();
+          return;
+        }
+
         if (technicians.length === 0) return;
         const lat = parseFloat(e.latlng.lat.toFixed(6));
         const lng = parseFloat(e.latlng.lng.toFixed(6));
@@ -429,6 +444,7 @@
           gpsFix: row['GPS Fix'] || '',
           gpsReason: row['GPS Fix Reason'] || '',
           gpsMoving: row['GPS Moving'] || '',
+          movingCalc: row['Moving (Calc)'] || '',
           ptStatus: row['PT Status'] || '',
           ptSerial: row['PT Serial '] || row['PT Serial'] || '',
           encoreSerial: row['Encore Serial'] || '',
@@ -481,7 +497,8 @@
           </div>
         `);
 
-        marker.on('click', () => {
+        marker.on('click', (e) => {
+          e.originalEvent.handledByMarker = true;
           map.flyTo([tech.lat, tech.lng], 10);
           applySelection(null, tech.id);
         });
@@ -625,7 +642,7 @@
             <div class="pt-2 flex justify-end">
               <button data-view-more class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 <i data-lucide="info" class="h-4 w-4"></i>
-                Ver más
+                See more
               </button>
             </div>
           `;
@@ -634,7 +651,7 @@
           const ring = L.circleMarker([vehicle.lat, vehicle.lng], {
             radius: 9,
             color: ringColor,
-            weight: 3,
+            weight: 1.5,
             opacity: 1,
             fillColor: '#fbbf24',
             fillOpacity: 0.85
@@ -650,12 +667,12 @@
           }).addTo(vehicleLayer);
 
           const focusHandler = () => {
-            applySelection(vehicle.id, nearest?.tech?.id || null);
+            applySelection(vehicle.id, null);
             focusVehicle(vehicle);
           };
 
-          ring.on('click', focusHandler);
-          core.on('click', focusHandler);
+          ring.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+          core.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
           card.addEventListener('click', focusHandler);
 
           const viewMoreBtn = card.querySelector('[data-view-more]');
@@ -664,6 +681,13 @@
               e.stopPropagation();
               openVehicleModal(vehicle);
             });
+          }
+
+          if (vehicle.movingCalc === '-1') {
+            L.marker([vehicle.lat, vehicle.lng], {
+              icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+              interactive: false
+            }).addTo(vehicleLayer);
           }
 
           vehicleMarkers.set(vehicle.id, { marker: ring, nearest });
@@ -680,10 +704,17 @@
 
       const nearest = getNearestTech(vehicle);
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
-      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 2, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
+      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
 
-      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 2, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
+      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
       halo.bringToBack();
+
+      if (vehicle.movingCalc === '-1') {
+        L.marker([vehicle.lat, vehicle.lng], {
+          icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+          interactive: false
+        }).addTo(highlightLayer);
+      }
 
       anchorMarker.bindPopup(vehicleCard(vehicle, nearest), {
         className: 'vehicle-popup',
@@ -699,7 +730,7 @@
         L.polyline([[vehicle.lat, vehicle.lng], [nearest.tech.lat, nearest.tech.lng]], { color: '#22d3ee', weight: 3, dashArray: '6 4', opacity: 0.9 }).addTo(highlightLayer);
       }
 
-      applySelection(vehicle.id, nearest?.tech?.id || null);
+      applySelection(vehicle.id, null);
     }
 
     function vehicleCard(vehicle, nearest) {
@@ -765,7 +796,7 @@
             <div class="pt-2 flex justify-end">
               <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 <i data-lucide="info" class="h-4 w-4"></i>
-                Ver más
+                See more
               </button>
             </div>
           </div>
