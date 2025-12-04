@@ -499,7 +499,7 @@
 
         marker.on('click', (e) => {
           e.originalEvent.handledByMarker = true;
-          map.flyTo([tech.lat, tech.lng], 10);
+          map.panTo([tech.lat, tech.lng]);
           applySelection(null, tech.id);
         });
       });
@@ -536,7 +536,7 @@
         `;
 
         card.addEventListener('click', () => {
-          map.flyTo([tech.lat, tech.lng], 10);
+          map.panTo([tech.lat, tech.lng]);
           const clientPoint = clientLocation || lastClientLocation;
           if (clientPoint) {
             drawConnection(clientPoint, tech);
@@ -699,7 +699,7 @@
 
     function focusVehicle(vehicle) {
       if (!vehicle) return;
-      map.flyTo([vehicle.lat, vehicle.lng], 8);
+      map.panTo([vehicle.lat, vehicle.lng]);
       highlightLayer.clearLayers();
 
       const nearest = getNearestTech(vehicle);
@@ -915,6 +915,8 @@
     function resetSelection() {
       selectedVehicleId = null;
       selectedTechId = null;
+      highlightLayer?.clearLayers();
+      connectionLayer?.clearLayers();
       renderVehicles();
       updateTechUI(technicians);
       toggleSelectionBanner();
