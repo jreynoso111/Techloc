@@ -112,7 +112,7 @@
   </main>
 
   <template id="dataset-card-template">
-    <div class="flex h-full flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/70">
+    <div data-dataset-card class="flex h-full flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/70">
       <div class="flex items-start justify-between gap-3">
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-wide text-blue-200" data-dataset-scope></p>
@@ -177,6 +177,16 @@
         path: '../assets/installers.csv',
       },
     ];
+
+    const clearLegacyTechnicians = () => {
+      const legacyKey = 'techloc:dataset:technicians';
+      localStorage.removeItem(`${legacyKey}:csv`);
+      localStorage.removeItem(`${legacyKey}:meta`);
+      document.querySelectorAll('[data-dataset-card]').forEach((card) => {
+        const title = card.querySelector('[data-dataset-title]')?.textContent?.toLowerCase() || '';
+        if (title.includes('technician')) card.remove();
+      });
+    };
 
     const localKey = (dataset, suffix = 'csv') => `techloc:dataset:${dataset.key}:${suffix}`;
 
@@ -298,6 +308,8 @@
 
     const mount = async () => {
       const container = document.getElementById('datasets');
+      clearLegacyTechnicians();
+      container.innerHTML = '';
       for (const dataset of DATASETS) {
         const card = await renderDatasetCard(dataset);
         container.appendChild(card);
