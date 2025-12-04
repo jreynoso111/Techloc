@@ -2,12 +2,12 @@ const dashboardConfigs = {
   'vehicles.html': {
     csv: '../assets/vehicles.csv',
     tableSelector: '#vehicles-table',
-    emptyMessage: 'No hay vehículos registrados.',
+    emptyMessage: 'No vehicles found.',
   },
   'technicians.html': {
-    csv: '../assets/installers.csv',
+    csv: '../assets/technicians.csv',
     tableSelector: '#technicians-table',
-    emptyMessage: 'No hay técnicos registrados.',
+    emptyMessage: 'No technicians found.',
   },
 };
 
@@ -30,8 +30,18 @@ function getCurrentPage() {
   return window.location.pathname.split('/').pop();
 }
 
-const technicianColumns = ['ID', 'Name', 'estate', 'State', 'Phone'];
-const vehicleColumns = ['VIN', 'Model', 'Issue', 'Assigned_Tech', 'Status'];
+const technicianColumns = ['ID', 'Name', 'Status', 'State', 'Phone'];
+const vehicleColumns = [
+  'ShortVIN',
+  'Model',
+  'Unit Type',
+  'Deal Status',
+  'Inv. Prep. Stat.',
+  'GPS Fix',
+  'PT Status',
+  'State Loc',
+  'PT City',
+];
 
 let techniciansData = [];
 let vehiclesData = [];
@@ -54,11 +64,11 @@ async function initOperationalDashboard() {
     setupSearch('vehicle-search', vehiclesData, renderVehicleTable);
 
     setupDownload('tech-download', techniciansData, 'technicians-updated.csv', technicianColumns);
-    setupDownload('vehicle-download', vehiclesData, 'vehicles-updated.csv', vehicleColumns);
+    setupDownload('vehicle-download', vehiclesData, 'vehicles-updated.csv');
 
     setupTabs();
   } catch (error) {
-    console.error('Error inicializando dashboard:', error);
+    console.error('Error initializing dashboard:', error);
   }
 }
 
@@ -80,14 +90,14 @@ async function loadAndRenderDashboard(config) {
 
     renderTable(config.tableSelector, headers, dataRows);
   } catch (error) {
-    console.error('Error cargando el CSV:', error);
-    renderEmptyState(config.tableSelector, 'No se pudo cargar la tabla.', 1);
+    console.error('Error loading CSV:', error);
+    renderEmptyState(config.tableSelector, 'Unable to load the table.', 1);
   }
 }
 
 async function fetchCsv(url) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`No se pudo obtener el CSV desde ${url}`);
+  if (!response.ok) throw new Error(`CSV could not be retrieved from ${url}`);
   return response.text();
 }
 
@@ -156,8 +166,8 @@ function renderKpis(technicians, vehicles) {
   const activeTechs = technicians.filter((tech) => normalizeStatus(tech) === 'active').length;
   const coverage = totalTechs ? Math.round((activeTechs / totalTechs) * 100) : 0;
 
-  const vehiclesWithIssues = vehicles.filter((vehicle) => (vehicle.Issue || vehicle.issue || '').trim()).length;
-  const pendingRepairs = vehicles.filter((vehicle) => !(vehicle.Assigned_Tech || vehicle.Assigned || '').trim()).length;
+  const vehiclesWithIssues = vehicles.filter(hasVehicleIssue).length;
+  const pendingRepairs = vehicles.filter(needsVehicleRepair).length;
 
   setText('kpi-technicians', totalTechs || '--');
   setText('kpi-active', `${coverage}%`);
@@ -175,7 +185,7 @@ function renderTechnicianTable(technicians = []) {
   if (!tbody) return;
 
   if (!technicians.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-slate-400">No hay técnicos registrados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-slate-400">No technicians available.</td></tr>';
     return;
   }
 
@@ -190,7 +200,7 @@ function renderTechnicianTable(technicians = []) {
         <td class="px-6 py-3 text-slate-100">${tech.State || '—'}</td>
         <td class="px-6 py-3 text-slate-100">${tech.Phone || '—'}</td>
         <td class="px-6 py-3">
-          <button class="action-btn edit-btn">Editar</button>
+          <button class="action-btn edit-btn">Edit</button>
         </td>
       </tr>
     `;
@@ -205,24 +215,30 @@ function renderVehicleTable(vehicles = []) {
   if (!tbody) return;
 
   if (!vehicles.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-slate-400">No hay vehículos registrados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="px-6 py-4 text-slate-400">No vehicles available.</td></tr>';
     return;
   }
 
   const rows = vehicles.map((vehicle) => {
-    const issue = vehicle.Issue || vehicle.issue || '—';
-    const assigned = vehicle.Assigned_Tech || vehicle.Assigned || '—';
-    const status = vehicle.Status || vehicle.status || '';
     const baseIndex = vehiclesData.indexOf(vehicle);
+    const dealStatus = vehicle['Deal Status'] || '';
+    const prepStatus = vehicle['Inv. Prep. Stat.'] || '';
+    const ptStatus = vehicle['PT Status'] || '';
+    const statusBadge = ptStatus || dealStatus || '—';
     return `
-      <tr class="hover:bg-slate-900/50 transition-colors ${getRowStatusClass(status)}" data-index="${baseIndex}" data-type="vehicle">
-        <td class="px-6 py-3 text-slate-100">${vehicle.VIN || '—'}</td>
+      <tr class="hover:bg-slate-900/50 transition-colors ${getVehicleRowClass(dealStatus, prepStatus, ptStatus)}" data-index="${baseIndex}" data-type="vehicle">
+        <td class="px-6 py-3 text-slate-100">${vehicle.ShortVIN || '—'}</td>
         <td class="px-6 py-3 text-slate-100">${vehicle.Model || '—'}</td>
-        <td class="px-6 py-3 text-amber-200">${issue || '—'}</td>
-        <td class="px-6 py-3 text-slate-100">${assigned || '—'}</td>
-        <td class="px-6 py-3 ${getStatusClass(status)}">${status || '—'}</td>
+        <td class="px-6 py-3 text-slate-100">${vehicle['Unit Type'] || '—'}</td>
+        <td class="px-6 py-3 ${getStatusClass(dealStatus)}">${dealStatus || '—'}</td>
+        <td class="px-6 py-3 text-amber-200">${prepStatus || '—'}</td>
+        <td class="px-6 py-3 text-slate-100">${vehicle['GPS Fix'] || '—'}</td>
+        <td class="px-6 py-3 ${getStatusClass(ptStatus)}">${statusBadge}</td>
+        <td class="px-6 py-3 text-slate-100">${vehicle['State Loc'] || '—'}</td>
+        <td class="px-6 py-3 text-slate-100">${vehicle['PT City'] || '—'}</td>
+        <td class="px-6 py-3 text-slate-100">${vehicle['PT Last Read'] || '—'}</td>
         <td class="px-6 py-3">
-          <button class="action-btn edit-btn">Editar</button>
+          <button class="action-btn edit-btn">Edit</button>
         </td>
       </tr>
     `;
@@ -255,7 +271,7 @@ function setupDownload(buttonId, data, filename, headers) {
   if (!button) return;
 
   button.addEventListener('click', () => {
-    // Nota: para persistir cambios en GitHub Pages, sube manualmente el CSV descargado.
+    // Note: to persist changes on GitHub Pages, upload the downloaded CSV manually.
     const csvContent = objectsToCsv(data, headers);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -335,7 +351,7 @@ function renderTable(selector, headers, data) {
     });
 
     if (!rowsHtml.length) {
-      renderEmptyState(selector, 'Sin registros para mostrar.', headers.length);
+      renderEmptyState(selector, 'No records to display.', headers.length);
       return;
     }
 
@@ -355,8 +371,15 @@ function renderEmptyState(selector, message, columns) {
 
 function getStatusClass(status = '') {
   const normalized = status.trim().toLowerCase();
-  if (normalized === 'active' || normalized === 'activo') return 'text-emerald-400 font-semibold';
-  if (normalized === 'inactive' || normalized === 'inactivo' || normalized === 'critical') return 'text-red-400 font-semibold';
+  if (['active', 'activo', 'enabled'].includes(normalized)) return 'text-emerald-400 font-semibold';
+  if (
+    normalized === 'inactive' ||
+    normalized === 'inactivo' ||
+    normalized === 'critical' ||
+    normalized === 'disabled' ||
+    normalized.includes('repo')
+  )
+    return 'text-red-400 font-semibold';
   return 'text-slate-200';
 }
 
@@ -365,6 +388,32 @@ function getRowStatusClass(status = '') {
   if (normalized === 'critical') return 'row-alert row-critical';
   if (normalized === 'inactive' || normalized === 'inactivo') return 'row-alert row-inactive';
   return '';
+}
+
+function getVehicleRowClass(dealStatus = '', prepStatus = '', ptStatus = '') {
+  const status = (ptStatus || dealStatus || '').trim().toLowerCase();
+  const prep = (prepStatus || '').trim().toLowerCase();
+
+  if (status.includes('disabled') || prep.includes('repo')) return 'row-alert row-critical';
+  if (status && status !== 'active' && status !== 'enabled') return 'row-alert row-inactive';
+  return '';
+}
+
+function hasVehicleIssue(vehicle = {}) {
+  const prepStatus = (vehicle['Inv. Prep. Stat.'] || '').trim().toLowerCase();
+  const ptStatus = (vehicle['PT Status'] || '').trim().toLowerCase();
+  const gpsFix = (vehicle['GPS Fix'] || '').trim().toLowerCase();
+
+  const prepProblem = prepStatus && prepStatus !== 'available';
+  const deviceProblem = ptStatus && ptStatus !== 'enabled';
+  const trackingProblem = gpsFix && gpsFix !== 'all';
+  return prepProblem || deviceProblem || trackingProblem;
+}
+
+function needsVehicleRepair(vehicle = {}) {
+  const ptStatus = (vehicle['PT Status'] || '').trim().toLowerCase();
+  const gpsFix = (vehicle['GPS Fix'] || '').trim().toLowerCase();
+  return (ptStatus && ptStatus !== 'enabled') || (gpsFix && gpsFix !== 'all');
 }
 
 function normalizeStatus(tech) {
@@ -384,7 +433,7 @@ function attachRowEditing(tbody, columns, type) {
       }
 
       row.classList.add('editing');
-      button.textContent = 'Guardar';
+      button.textContent = 'Save';
 
       const cells = Array.from(row.querySelectorAll('td')).slice(0, columns.length);
       cells.forEach((cell, index) => {
