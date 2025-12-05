@@ -312,6 +312,7 @@
     let selectedVehicleId = null;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
+    let sidebarStateController = null;
     let lastClientLocation = null;
     const cityCache = new Map();
 
@@ -1010,6 +1011,9 @@
     function applySelection(vehicleId = null, techId = null) {
       selectedVehicleId = vehicleId;
       selectedTechId = techId;
+      if (vehicleId !== null) {
+        sidebarStateController?.setState?.('right', true);
+      }
       renderVehicles();
 
       const techList = selectedVehicleId !== null
@@ -1028,6 +1032,7 @@
       renderVehicles();
       updateTechUI(technicians);
       toggleSelectionBanner();
+      sidebarStateController?.setState?.('right', false);
     }
 
     function findNearestVehicle(point, maxDistanceMeters = 80000) {
@@ -1318,6 +1323,8 @@
         updateTogglePositions();
         syncMap();
       };
+
+      sidebarStateController = { setState, updateTogglePositions };
 
       Object.entries(configs).forEach(([side, config]) => {
         if (config.toggle) config.toggle.addEventListener('click', () => setState(side, true));
