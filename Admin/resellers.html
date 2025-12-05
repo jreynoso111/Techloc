@@ -112,6 +112,20 @@
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
         </table>
       </div>
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
+        <div class="flex items-center gap-2">
+          <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+            <i data-lucide="chevron-left" class="h-4 w-4"></i>
+            Prev
+          </button>
+          <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
+          <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+            Next
+            <i data-lucide="chevron-right" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </div>
     </section>
 
     <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
@@ -278,7 +292,14 @@
       return [headerLine, ...rowLines].join('\n');
     };
 
-    const state = { rows: [], editingIndex: null };
+    const state = {
+      rows: [],
+      editingIndex: null,
+      pagination: {
+        page: 1,
+        pageSize: 20,
+      },
+    };
 
     const els = {
       tableBody: document.getElementById('table-body'),
@@ -296,6 +317,10 @@
       editClose: document.getElementById('edit-close'),
       editCancel: document.getElementById('edit-cancel'),
       editDelete: document.getElementById('edit-delete'),
+      paginationSummary: document.getElementById('pagination-summary'),
+      prevPage: document.getElementById('prev-page'),
+      nextPage: document.getElementById('next-page'),
+      pageIndicator: document.getElementById('page-indicator'),
     };
 
     const setFormValues = (form, row = {}) => {
@@ -323,15 +348,26 @@
     };
 
     const renderTable = () => {
+      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
+      if (state.pagination.page > totalPages) state.pagination.page = totalPages;
+      const start = (state.pagination.page - 1) * state.pagination.pageSize;
+      const end = Math.min(state.rows.length, start + state.pagination.pageSize);
+      els.paginationSummary.textContent = state.rows.length
+        ? `Showing ${start + 1}-${end} of ${state.rows.length}`
+        : 'No entries to display';
+      els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
+      els.prevPage.disabled = state.pagination.page === 1 || state.rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
+
       els.tableBody.innerHTML = '';
-      state.rows.forEach((row, index) => {
+      state.rows.slice(start, end).forEach((row, index) => {
         const tr = document.createElement('tr');
         const actionCell = document.createElement('td');
         actionCell.className = 'px-4 py-3';
         const editBtn = document.createElement('button');
         editBtn.className = 'inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white';
         editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span>';
-        editBtn.addEventListener('click', () => startEdit(index));
+        editBtn.addEventListener('click', () => startEdit(start + index));
         actionCell.appendChild(editBtn);
         tr.appendChild(actionCell);
         HEADERS.forEach((header) => {
@@ -358,6 +394,7 @@
       const { source, text, meta } = await loadDatasetText();
       const parsed = parseCsvText(text);
       state.rows = parsed.rows;
+      state.pagination.page = 1;
       renderTable();
       renderSummary(source, meta);
     };
@@ -410,6 +447,21 @@
         await refresh();
       };
       reader.readAsText(file);
+    });
+
+    els.prevPage.addEventListener('click', () => {
+      if (state.pagination.page > 1) {
+        state.pagination.page -= 1;
+        renderTable();
+      }
+    });
+
+    els.nextPage.addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
+      if (state.pagination.page < totalPages) {
+        state.pagination.page += 1;
+        renderTable();
+      }
     });
 
     els.editForm.addEventListener('submit', async (event) => {

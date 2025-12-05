@@ -130,6 +130,20 @@
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
         </table>
       </div>
+      <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
+        <div class="flex items-center gap-2">
+          <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+            <i data-lucide="chevron-left" class="h-4 w-4"></i>
+            Prev
+          </button>
+          <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
+          <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+            Next
+            <i data-lucide="chevron-right" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </div>
     </section>
 
     <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
@@ -303,6 +317,10 @@
         sortDir: 'asc',
       },
       editingIndex: null,
+      pagination: {
+        page: 1,
+        pageSize: 20,
+      },
     };
 
     const els = {
@@ -324,6 +342,10 @@
       editClose: document.getElementById('edit-close'),
       editCancel: document.getElementById('edit-cancel'),
       editDelete: document.getElementById('edit-delete'),
+      paginationSummary: document.getElementById('pagination-summary'),
+      prevPage: document.getElementById('prev-page'),
+      nextPage: document.getElementById('next-page'),
+      pageIndicator: document.getElementById('page-indicator'),
     };
 
     const setFormValues = (form, row = {}) => {
@@ -432,8 +454,19 @@
 
     const renderTable = () => {
       const rows = applyFiltersAndSort();
+      const totalPages = Math.max(1, Math.ceil(rows.length / state.pagination.pageSize));
+      if (state.pagination.page > totalPages) state.pagination.page = totalPages;
+      const start = (state.pagination.page - 1) * state.pagination.pageSize;
+      const end = Math.min(rows.length, start + state.pagination.pageSize);
+      els.paginationSummary.textContent = rows.length
+        ? `Showing ${start + 1}-${end} of ${rows.length}`
+        : 'No entries to display';
+      els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
+      els.prevPage.disabled = state.pagination.page === 1 || rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
+
       els.tableBody.innerHTML = '';
-      rows.forEach((row) => {
+      rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
         tr.className = 'transition hover:bg-slate-800/40';
         const actionCell = document.createElement('td');
@@ -459,6 +492,7 @@
       updateStats();
       populateSelect(els.companyFilter, state.rows.map((row) => row['Installation Company'] || row.Company), 'All companies');
       populateSelect(els.stateFilter, state.rows.map((row) => row.State), 'All states');
+      state.pagination.page = 1;
       renderTable();
     };
 
@@ -471,16 +505,19 @@
 
     els.companyFilter.addEventListener('change', (event) => {
       state.filters.company = event.target.value;
+      state.pagination.page = 1;
       renderTable();
     });
 
     els.stateFilter.addEventListener('change', (event) => {
       state.filters.state = event.target.value;
+      state.pagination.page = 1;
       renderTable();
     });
 
     els.search.addEventListener('input', (event) => {
       state.filters.search = event.target.value;
+      state.pagination.page = 1;
       renderTable();
     });
 
@@ -503,8 +540,24 @@
           state.filters.sortDir = 'asc';
         }
         updateSortButtons();
+        state.pagination.page = 1;
         renderTable();
       });
+    });
+
+    els.prevPage.addEventListener('click', () => {
+      if (state.pagination.page > 1) {
+        state.pagination.page -= 1;
+        renderTable();
+      }
+    });
+
+    els.nextPage.addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(applyFiltersAndSort().length / state.pagination.pageSize));
+      if (state.pagination.page < totalPages) {
+        state.pagination.page += 1;
+        renderTable();
+      }
     });
 
     els.form.addEventListener('submit', async (event) => {
