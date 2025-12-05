@@ -130,7 +130,32 @@
     };
 
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
-    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+    const parseCsvLine = (line = '') => {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i += 1) {
+        const char = line[i];
+
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+            continue;
+          }
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+
+      values.push(current);
+      return values.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"'));
+    };
     const parseCsvText = (text = '') => {
       const lines = text.trim().split(/\r?\n/).filter(Boolean);
       const headers = parseCsvLine(lines.shift() || '');
