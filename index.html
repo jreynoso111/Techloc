@@ -20,6 +20,7 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+  <canvas id="starfield" class="fixed inset-0 pointer-events-none" aria-hidden="true"></canvas>
   <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <a href="index.html" class="flex items-center gap-3">
@@ -157,6 +158,81 @@
   </footer>
 
   <script type="module">
+    const starCanvas = document.getElementById('starfield');
+    const starCtx = starCanvas?.getContext('2d');
+    let stars = [];
+    let lastStarTick = 0;
+
+    const resizeStarfield = () => {
+      if (!starCanvas) return;
+      starCanvas.width = window.innerWidth;
+      starCanvas.height = window.innerHeight;
+      seedStars();
+    };
+
+    const seedStars = () => {
+      if (!starCanvas) return;
+
+      const area = starCanvas.width * starCanvas.height;
+      const count = Math.min(850, Math.max(300, Math.floor(area / 9000)));
+      const colorBands = [205, 230, 50, 275];
+
+      stars = Array.from({ length: count }, () => {
+        const layer = Math.random();
+        const hueBase = colorBands[Math.floor(Math.random() * colorBands.length)];
+        return {
+          x: Math.random() * starCanvas.width,
+          y: Math.random() * starCanvas.height,
+          size: 0.8 + layer * 1.6,
+          speed: 0.02 + layer * 0.18,
+          drift: (Math.random() - 0.5) * 0.07,
+          hue: hueBase + (Math.random() * 14 - 7),
+          brightness: 58 + Math.random() * 28,
+          alpha: 0.36 + Math.random() * 0.5,
+          twinkle: 0.0015 + Math.random() * 0.0035,
+          twinkleDir: Math.random() > 0.5 ? 1 : -1,
+        };
+      });
+    };
+
+    const drawStarfield = (timestamp = 0) => {
+      if (!starCanvas || !starCtx) return;
+
+      const delta = Math.min((timestamp - lastStarTick) || 16, 40);
+      lastStarTick = timestamp;
+
+      starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+
+      stars.forEach((star) => {
+        star.y += star.speed * delta * 0.18;
+        star.x += star.drift * delta * 0.12;
+
+        if (star.y > starCanvas.height + 2) star.y = -2;
+        if (star.x > starCanvas.width + 2) star.x = -2;
+        if (star.x < -2) star.x = starCanvas.width + 2;
+
+        star.alpha += star.twinkle * star.twinkleDir * delta;
+        if (star.alpha > 1 || star.alpha < 0.3) star.twinkleDir *= -1;
+
+        const color = `hsla(${star.hue}, 85%, ${star.brightness}%, ${Math.max(0.22, Math.min(star.alpha, 1))})`;
+        starCtx.beginPath();
+        starCtx.fillStyle = color;
+        starCtx.shadowBlur = star.size * 3.5;
+        starCtx.shadowColor = color;
+        starCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        starCtx.fill();
+      });
+
+      requestAnimationFrame(drawStarfield);
+    };
+
+    const initStarfield = () => {
+      if (!starCanvas || !starCtx) return;
+      resizeStarfield();
+      window.addEventListener('resize', resizeStarfield);
+      requestAnimationFrame(drawStarfield);
+    };
+
     const STATE_COORDS = {
       AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
       AR: { lat: 34.9697, lng: -92.3731 }, CA: { lat: 36.1162, lng: -119.6816 }, CO: { lat: 39.0598, lng: -105.3111 },
@@ -245,6 +321,7 @@
     };
 
     document.addEventListener('DOMContentLoaded', () => {
+      initStarfield();
       lucide.createIcons();
       init();
     });
