@@ -31,6 +31,7 @@
 
     /* Map */
     #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; position: absolute; inset: 0; }
+    #starfield { position: absolute; inset: 0; z-index: 2; background: transparent; }
     .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
 
     .resizable-sidebar {
@@ -173,6 +174,7 @@
   <main id="map-layout" class="relative flex-1 overflow-hidden bg-slate-950">
 
     <div class="absolute inset-0">
+      <canvas id="starfield" class="absolute inset-0 pointer-events-none z-[2]"></canvas>
       <div id="tech-map"></div>
     </div>
 
@@ -310,6 +312,10 @@
       ? window.lucide
       : { createIcons: () => {} };
 
+    let starCanvas, starCtx;
+    let stars = [];
+    let lastStarframeTime = 0;
+
     // --- 1. Initialize map ---
     function initMap() {
       const defaultBounds = L.latLngBounds(
@@ -360,6 +366,79 @@
 
         processLocation({ lat, lng, name: 'Pinned location' }, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       });
+    }
+
+    function initStarfield() {
+      starCanvas = document.getElementById('starfield');
+      if (!starCanvas) return;
+
+      starCtx = starCanvas.getContext('2d');
+
+      const resize = () => {
+        starCanvas.width = starCanvas.clientWidth;
+        starCanvas.height = starCanvas.clientHeight;
+        seedStars();
+      };
+
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(drawStarfield);
+    }
+
+    function seedStars() {
+      if (!starCanvas) return;
+
+      const area = starCanvas.width * starCanvas.height;
+      const count = Math.min(700, Math.max(240, Math.floor(area / 12000)));
+      const colorBands = [210, 230, 50, 280];
+
+      stars = Array.from({ length: count }, () => {
+        const layer = Math.random();
+        const hueBase = colorBands[Math.floor(Math.random() * colorBands.length)];
+        return {
+          x: Math.random() * starCanvas.width,
+          y: Math.random() * starCanvas.height,
+          size: 0.6 + layer * 1.8,
+          speed: 0.05 + layer * 0.65,
+          drift: (Math.random() - 0.5) * 0.22,
+          hue: hueBase + (Math.random() * 16 - 8),
+          brightness: 58 + Math.random() * 30,
+          alpha: 0.38 + Math.random() * 0.55,
+          twinkle: 0.003 + Math.random() * 0.01,
+          twinkleDir: Math.random() > 0.5 ? 1 : -1
+        };
+      });
+    }
+
+    function drawStarfield(timestamp = 0) {
+      if (!starCanvas || !starCtx) return;
+
+      const delta = Math.min((timestamp - lastStarframeTime) || 16, 34);
+      lastStarframeTime = timestamp;
+
+      starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+
+      stars.forEach((star) => {
+        star.y += star.speed * delta * 0.5;
+        star.x += star.drift * delta * 0.4;
+
+        if (star.y > starCanvas.height + 2) star.y = -2;
+        if (star.x > starCanvas.width + 2) star.x = -2;
+        if (star.x < -2) star.x = starCanvas.width + 2;
+
+        star.alpha += star.twinkle * star.twinkleDir * delta;
+        if (star.alpha > 1 || star.alpha < 0.32) star.twinkleDir *= -1;
+
+        const color = `hsla(${star.hue}, 85%, ${star.brightness}%, ${Math.max(0.22, Math.min(star.alpha, 1))})`;
+        starCtx.beginPath();
+        starCtx.fillStyle = color;
+        starCtx.shadowBlur = star.size * 4;
+        starCtx.shadowColor = color;
+        starCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        starCtx.fill();
+      });
+
+      requestAnimationFrame(drawStarfield);
     }
 
     // --- 2. Load CSVs ---
@@ -1245,6 +1324,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       iconLib.createIcons();
+      initStarfield();
       initMap();
       loadTechnicians();
       loadVehicles();
