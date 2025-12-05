@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Vehicles to Fix</title>
+  <title>TechLoc • Control View</title>
 
   <!-- Styles & Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
@@ -27,6 +27,8 @@
     :root {
       --left-sidebar-width: 360px;
       --right-sidebar-width: 360px;
+      --towing-sidebar-width: 320px;
+      --reseller-sidebar-width: 320px;
     }
 
     /* Map */
@@ -39,7 +41,13 @@
       bottom: 0;
       backdrop-filter: blur(12px);
       background: rgba(15, 23, 42, 0.9);
+      transition: transform 0.3s ease;
     }
+
+    .collapsed-left { transform: translateX(calc(-1 * var(--left-sidebar-width))); }
+    .collapsed-right { transform: translateX(var(--right-sidebar-width)); }
+    .collapsed-towing { transform: translateX(calc(-1 * var(--towing-sidebar-width))); }
+    .collapsed-reseller { transform: translateX(calc(-1 * var(--reseller-sidebar-width))); }
 
     .resize-handle {
       position: absolute;
@@ -92,6 +100,23 @@
       text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
       line-height: 1;
     }
+
+    .sidebar-toggle-btn {
+      position: absolute;
+      z-index: 500;
+      padding: 0.5rem 0.75rem;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 9999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      color: #e2e8f0;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      transition: all 0.2s ease;
+    }
+
+    .sidebar-toggle-btn:hover { border-color: rgba(251, 191, 36, 0.7); color: #fef9c3; }
   </style>
 </head>
 <body class="h-screen bg-slate-950 font-sans text-slate-50 overflow-hidden flex flex-col">
@@ -105,12 +130,12 @@
         </div>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
-          <h1 class="text-lg font-black leading-tight text-white">Vehicles to Fix</h1>
+          <h1 class="text-lg font-black leading-tight text-white">Control View</h1>
         </div>
       </a>
       <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
         <a href="index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-        <a href="vehicles.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Vehicles to Fix</a>
+        <a href="vehicles.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Control View</a>
         <a href="Admin/index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
       </nav>
       <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex">
@@ -126,9 +151,14 @@
     </div>
 
     <div id="selection-banner" class="pointer-events-auto absolute top-4 left-1/2 z-[450] hidden -translate-x-1/2 transform rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
-      <span id="selection-text">Filtrado por selección</span>
-      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Limpiar</button>
+      <span id="selection-text">Filtered by selection</span>
+      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Clear</button>
     </div>
+
+    <button id="open-left-sidebar" class="sidebar-toggle-btn left-3 top-24">GPS Technicians</button>
+    <button id="open-towing-sidebar" class="sidebar-toggle-btn left-3 top-36">Towing Companies</button>
+    <button id="open-reseller-sidebar" class="sidebar-toggle-btn left-3 top-48">Resellers</button>
+    <button id="open-right-sidebar" class="sidebar-toggle-btn right-3 top-24">Show Vehicles</button>
 
     <!-- Floating Legend -->
       <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
@@ -150,9 +180,12 @@
             <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Client starting point</p>
             <h2 class="text-xl font-black text-white leading-tight">Find the nearest installer</h2>
           </div>
-          <div class="text-right">
-            <p class="text-[10px] uppercase text-slate-400 font-bold">Installers</p>
-            <p id="total-count" class="text-2xl font-black text-white leading-none">0</p>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-[10px] uppercase text-slate-400 font-bold">Installers</p>
+              <p id="total-count" class="text-2xl font-black text-white leading-none">0</p>
+            </div>
+            <button id="collapse-left" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize sidebar">-</button>
           </div>
         </div>
         <form id="search-form" class="relative">
@@ -180,18 +213,53 @@
       </div>
     </aside>
 
+    <!-- Towing Sidebar -->
+    <aside id="towing-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--towing-sidebar-width)">
+      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] font-bold uppercase text-blue-300 mb-1">Towing partners</p>
+            <h2 class="text-xl font-black text-white leading-tight">Towing companies nearby</h2>
+          </div>
+          <button id="collapse-towing" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize towing sidebar">-</button>
+        </div>
+      </div>
+      <div id="towing-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
+        <div class="text-center mt-10 text-slate-600 text-xs">Towing companies will appear here.</div>
+      </div>
+    </aside>
+
+    <!-- Reseller Sidebar -->
+    <aside id="reseller-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--reseller-sidebar-width)">
+      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] font-bold uppercase text-emerald-300 mb-1">Reseller network</p>
+            <h2 class="text-xl font-black text-white leading-tight">Nearby resellers</h2>
+          </div>
+          <button id="collapse-reseller" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize reseller sidebar">-</button>
+        </div>
+      </div>
+      <div id="reseller-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
+        <div class="text-center mt-10 text-slate-600 text-xs">Resellers will appear here.</div>
+      </div>
+    </aside>
+
     <!-- Vehicles Sidebar -->
     <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
       <div class="resize-handle left-0"></div>
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-[10px] font-bold uppercase text-amber-300 mb-1">Vehicles to fix</p>
+            <p class="text-[10px] font-bold uppercase text-amber-300 mb-1">Control View</p>
             <h2 class="text-xl font-black text-white leading-tight">GPS issues around the network</h2>
           </div>
-          <div class="text-right">
-            <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-            <p id="vehicles-count" class="text-2xl font-black text-white leading-none">0</p>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
+              <p id="vehicles-count" class="text-2xl font-black text-white leading-none">0</p>
+            </div>
+            <button id="collapse-right" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize vehicles sidebar">-</button>
           </div>
         </div>
         <div class="mt-4 relative">
@@ -210,10 +278,10 @@
     <div class="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Detalles del vehículo</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
           <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
         </div>
-        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cerrar</button>
+        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Close</button>
       </div>
       <div class="max-h-[70vh] overflow-y-auto p-4" id="vehicle-modal-body"></div>
     </div>
@@ -244,6 +312,8 @@
     let selectedVehicleId = null;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
+    let sidebarStateController = null;
+    let techSidebarVisible = false;
     let lastClientLocation = null;
     const cityCache = new Map();
 
@@ -253,9 +323,9 @@
 
     // --- 1. Initialize map ---
     function initMap() {
-      map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 4);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, opacity: 0.95 }).addTo(map);
+      map = L.map('tech-map', { zoomControl: false, minZoom: 3 }).setView([39.8, -98.5], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       techLayer = L.layerGroup().addTo(map);
       vehicleLayer = L.layerGroup().addTo(map);
@@ -338,14 +408,54 @@
     }
 
     // --- 3. Process CSV text ---
+    function parseCSV(csvText) {
+      const rows = [];
+      let currentValue = '';
+      let currentRow = [];
+      let inQuotes = false;
+
+      for (let i = 0; i < csvText.length; i++) {
+        const char = csvText[i];
+
+        if (char === '"') {
+          const next = csvText[i + 1];
+          if (inQuotes && next === '"') {
+            currentValue += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (!inQuotes && (char === ',' || char === '\n' || char === '\r')) {
+          currentRow.push(currentValue);
+          currentValue = '';
+
+          if (char === ',') continue;
+
+          if (char === '\r' && csvText[i + 1] === '\n') i++;
+          if (currentRow.some(cell => cell.trim() !== '')) rows.push(currentRow);
+          currentRow = [];
+          continue;
+        }
+
+        currentValue += char;
+      }
+
+      currentRow.push(currentValue);
+      if (currentRow.some(cell => cell.trim() !== '')) rows.push(currentRow);
+
+      return rows.filter(r => r.length > 0);
+    }
+
     async function parseTechCSV(csvText) {
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return;
+      const rows = parseCSV(csvText);
+      if (rows.length < 2) return;
 
-      const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+      const headers = rows[0].map(h => h.trim().replace(/"/g, '')).map(h => h.toLowerCase());
 
-      const techPromises = lines.slice(1).map(async (line, idx) => {
-        const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      const techPromises = rows.slice(1).map(async (values, idx) => {
         const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
 
         const row = {};
@@ -415,15 +525,14 @@
     }
 
     function parseVehicleCSV(csvText) {
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return [];
-      const headers = (lines[0].match(/(".*?"|[^",]+)(?=,|$)/g) || []).map(h => h.replace(/^"|"$/g, '').trim());
+      const rows = parseCSV(csvText);
+      if (rows.length < 2) return [];
+      const headers = rows[0].map(h => h.replace(/^"|"$/g, '').trim());
 
-      const vehiclesData = lines.slice(1).map((line, idx) => {
-        const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      const vehiclesData = rows.slice(1).map((values, idx) => {
         const clean = values.map(v => v.replace(/^"|"$/g, '').trim());
         const row = {};
-        headers.forEach((h, i) => row[h] = clean[i] || '');
+        headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
 
         const stateCode = (row['State Loc'] || row['State'] || '').trim();
         const base = STATE_CENTERS[stateCode] || [39.8, -98.5];
@@ -478,32 +587,33 @@
         listContainer.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No technicians match this selection.</div>`;
       }
 
-      // Map markers
-      displayList.forEach(tech => {
-        const marker = L.circleMarker([tech.lat, tech.lng], {
-          radius: 5,
-          fillColor: '#3b82f6',
-          color: '#0f172a',
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(techLayer);
+      if (techSidebarVisible) {
+        displayList.forEach(tech => {
+          const marker = L.circleMarker([tech.lat, tech.lng], {
+            radius: 5,
+            fillColor: '#3b82f6',
+            color: '#0f172a',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          }).addTo(techLayer);
 
-        marker.bindPopup(`
-          <div class="text-slate-900 p-1 font-sans">
-            <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
-            <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
-            <a href="tel:${tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
-            <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
-          </div>
-        `);
+          marker.bindPopup(`
+            <div class="text-slate-900 p-1 font-sans">
+              <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
+              <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
+              <a href="tel:${tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
+              <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
+            </div>
+          `);
 
-        marker.on('click', (e) => {
-          e.originalEvent.handledByMarker = true;
-          map.panTo([tech.lat, tech.lng]);
-          applySelection(null, tech.id);
+          marker.on('click', (e) => {
+            e.originalEvent.handledByMarker = true;
+            map.panTo([tech.lat, tech.lng]);
+            applySelection(null, tech.id);
+          });
         });
-      });
+      }
 
       // List cards
       displayList.slice(0, 50).forEach((tech, idx) => {
@@ -896,13 +1006,16 @@
       const parts = [];
       if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
       if (tech) parts.push(`Técnico ${tech.company}`);
-      text.textContent = `Filtrado por ${parts.join(' & ')}`;
+      text.textContent = `Filtered by ${parts.join(' & ')}`;
       banner.classList.remove('hidden');
     }
 
     function applySelection(vehicleId = null, techId = null) {
       selectedVehicleId = vehicleId;
       selectedTechId = techId;
+      if (vehicleId !== null) {
+        sidebarStateController?.setState?.('right', true);
+      }
       renderVehicles();
 
       const techList = selectedVehicleId !== null
@@ -921,6 +1034,7 @@
       renderVehicles();
       updateTechUI(technicians);
       toggleSelectionBanner();
+      sidebarStateController?.setState?.('right', false);
     }
 
     function findNearestVehicle(point, maxDistanceMeters = 80000) {
@@ -1077,6 +1191,7 @@
     }
 
     function drawConnection(client, tech) {
+      if (!techSidebarVisible) return;
       connectionLayer.clearLayers();
       L.polyline(
         [
@@ -1139,12 +1254,108 @@
       rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
     }
 
+    function setupSidebarToggles() {
+      const leftSidebar = document.getElementById('left-sidebar');
+      const rightSidebar = document.getElementById('right-sidebar');
+      const towingSidebar = document.getElementById('towing-sidebar');
+      const resellerSidebar = document.getElementById('reseller-sidebar');
+      const openLeft = document.getElementById('open-left-sidebar');
+      const openRight = document.getElementById('open-right-sidebar');
+      const openTowing = document.getElementById('open-towing-sidebar');
+      const openReseller = document.getElementById('open-reseller-sidebar');
+      const collapseLeft = document.getElementById('collapse-left');
+      const collapseRight = document.getElementById('collapse-right');
+      const collapseTowing = document.getElementById('collapse-towing');
+      const collapseReseller = document.getElementById('collapse-reseller');
+
+      const defaultLeftOffset = 12;
+      const syncTechVisibility = () => {
+        techSidebarVisible = !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
+        if (!techSidebarVisible) {
+          techLayer?.clearLayers();
+          connectionLayer?.clearLayers();
+        } else {
+          updateTechUI(getTechList(technicians));
+        }
+      };
+
+      const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
+
+      const configs = {
+        left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left', group: 'left' },
+        towing: { sidebar: towingSidebar, toggle: openTowing, collapse: collapseTowing, collapsedClass: 'collapsed-towing', group: 'left' },
+        reseller: { sidebar: resellerSidebar, toggle: openReseller, collapse: collapseReseller, collapsedClass: 'collapsed-reseller', group: 'left' },
+        right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right', group: 'right' }
+      };
+
+      const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
+
+      const leftSideKeys = ['left', 'towing', 'reseller'];
+
+      const updateTogglePositions = () => {
+        const expandedEntry = leftSideKeys
+          .map((key) => configs[key])
+          .find(cfg => cfg?.sidebar && !cfg.sidebar.classList.contains(cfg.collapsedClass));
+
+        const anchorLeft = expandedEntry
+          ? getSidebarWidth(expandedEntry.sidebar) + defaultLeftOffset
+          : defaultLeftOffset;
+
+        leftSideKeys.forEach(key => {
+          const toggle = configs[key]?.toggle;
+          if (toggle) toggle.style.left = `${anchorLeft}px`;
+        });
+      };
+
+      const applyState = (side, expanded) => {
+        const config = configs[side];
+        if (!config?.sidebar || !config?.toggle) return false;
+        const wasCollapsed = config.sidebar.classList.contains(config.collapsedClass);
+        const shouldCollapse = !expanded;
+        if (shouldCollapse && !wasCollapsed) {
+          config.sidebar.classList.add(config.collapsedClass);
+          config.toggle.classList.remove('hidden');
+        } else if (!shouldCollapse && wasCollapsed) {
+          config.sidebar.classList.remove(config.collapsedClass);
+          config.toggle.classList.add('hidden');
+        }
+        return wasCollapsed !== shouldCollapse;
+      };
+
+      const setState = (side, expanded) => {
+        const changed = applyState(side, expanded);
+        if (!changed) return;
+
+        if (expanded && configs[side]?.group === 'left') {
+          leftSideKeys.forEach(key => {
+            if (key !== side) applyState(key, false);
+          });
+        }
+
+        updateTogglePositions();
+        syncTechVisibility();
+        syncMap();
+      };
+
+      sidebarStateController = { setState, updateTogglePositions };
+
+      Object.entries(configs).forEach(([side, config]) => {
+        if (config.toggle) config.toggle.addEventListener('click', () => setState(side, true));
+        if (config.collapse) config.collapse.addEventListener('click', () => setState(side, false));
+        setState(side, false);
+      });
+
+      updateTogglePositions();
+      window.addEventListener('resize', updateTogglePositions);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       iconLib.createIcons();
       initMap();
       loadTechnicians();
       loadVehicles();
       setupResizableSidebars();
+      setupSidebarToggles();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
 
       document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
