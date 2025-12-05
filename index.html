@@ -18,6 +18,7 @@
     };
   </script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="assets/scripts/datasets.js"></script>
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
   <div class="pointer-events-none fixed inset-0 z-10 opacity-80 mix-blend-screen">
@@ -244,7 +245,7 @@
   </footer>
 
   <script type="module">
-    import { createConstellationBackground } from './assets/constellation.js';
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     const STATE_COORDS = {
       AL: { lat: 32.8067, lng: -86.7911 }, AK: { lat: 61.3707, lng: -152.4044 }, AZ: { lat: 33.7298, lng: -111.4312 },
@@ -291,7 +292,7 @@
     const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
 
     const parseCsv = async () => {
-      const text = await loadDatasetText('installers', 'assets/installers.csv');
+      const text = await loadDatasetText('installers', getDatasetPath('installers'));
       const lines = text.trim().split(/\r?\n/);
       const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
       return lines.filter((line) => line.trim()).map((line, idx) => {

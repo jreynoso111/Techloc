@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="../assets/scripts/datasets.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -48,6 +49,15 @@
             </a>
             <a href="./resellers.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
               Resellers workspace
+            </a>
+            <a href="./repair.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Repair shops workspace
+            </a>
+            <a href="./locksmiths.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Locksmiths workspace
+            </a>
+            <a href="./dispatchers.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Dispatchers workspace
             </a>
             <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
               Analytics
@@ -116,7 +126,7 @@
               <button data-sort="location" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Location</button>
             </div>
             <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            <a href="../assets/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+            <a id="template-download" href="#" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
               <i data-lucide="download" class="h-4 w-4"></i>
               Download data
             </a>
@@ -147,7 +157,7 @@
   </main>
 
   <script type="module">
-    import { createConstellationBackground } from '../assets/constellation.js';
+    import { createConstellationBackground } from '../assets/scripts/constellation.js';
 
     const setupDashboardDropdown = () => {
       document.querySelectorAll('[data-dropdown]').forEach((dropdown) => {
@@ -185,7 +195,9 @@
       });
     };
 
-    const DATASET = { key: 'vehicles', path: '../assets/vehicles.csv' };
+    const DATASET = { key: 'vehicles', path: getDatasetPath('vehicles') };
+    const templateDownload = document.getElementById('template-download');
+    if (templateDownload) templateDownload.href = DATASET.path;
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
     const parseCsvLine = (line = '') => {
       const values = [];
