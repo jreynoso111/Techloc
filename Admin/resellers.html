@@ -30,17 +30,33 @@
           <h1 class="text-base font-black leading-tight text-white">Resellers</h1>
         </div>
       </a>
-      <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-        <a href="./index.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
-        <a href="./vehicles.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
-        <a href="./technicians.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Installers</a>
-        <a href="./towing.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Towing</a>
-        <a href="./resellers.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/30">Resellers</a>
+      <nav class="hidden items-center gap-3 text-sm font-semibold text-slate-200 md:flex">
+        <div class="relative" data-dropdown>
+          <a href="./index.html" class="inline-flex items-center gap-2 rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white" data-dropdown-trigger>
+            Dashboard
+            <i data-lucide="chevron-down" class="h-4 w-4"></i>
+          </a>
+          <div class="absolute right-0 top-full mt-2 hidden min-w-[220px] flex flex-col rounded-2xl border border-slate-800 bg-slate-900/90 p-2 text-sm shadow-lg shadow-blue-900/30" data-dropdown-menu>
+            <a href="./technicians.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Installers workspace
+            </a>
+            <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Vehicles workspace
+            </a>
+            <a href="./towing.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Towing workspace
+            </a>
+            <a href="./resellers.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 bg-blue-600 text-white shadow shadow-blue-500/30 transition hover:bg-slate-800 hover:text-white">
+              Resellers workspace
+            </a>
+            <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">
+              Analytics
+            </a>
+          </div>
+        </div>
+        <span class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-wide text-slate-200">Resellers</span>
+        <a href="../index.html" class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-wide text-blue-200 transition hover:border-blue-500 hover:text-white">Return to main site</a>
       </nav>
-      <div class="hidden items-center gap-2 rounded-full border border-purple-700 bg-purple-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-purple-200 md:flex">
-        <i data-lucide="store" class="h-4 w-4"></i>
-        Channel Hub
-      </div>
     </div>
   </header>
 
@@ -238,6 +254,42 @@
 
   <script type="module">
     import { createConstellationBackground } from '../assets/constellation.js';
+
+    const setupDashboardDropdown = () => {
+      document.querySelectorAll('[data-dropdown]').forEach((dropdown) => {
+        const trigger = dropdown.querySelector('[data-dropdown-trigger]');
+        const menu = dropdown.querySelector('[data-dropdown-menu]');
+        if (!trigger || !menu) return;
+
+        let hideTimeout;
+
+        const showMenu = () => {
+          clearTimeout(hideTimeout);
+          menu.classList.remove('hidden');
+        };
+
+        const scheduleHide = () => {
+          hideTimeout = setTimeout(() => {
+            menu.classList.add('hidden');
+          }, 500);
+        };
+
+        dropdown.addEventListener('mouseenter', showMenu);
+        dropdown.addEventListener('mouseleave', scheduleHide);
+        trigger.addEventListener('focus', showMenu);
+        trigger.addEventListener('blur', (event) => {
+          if (!dropdown.contains(event.relatedTarget)) {
+            scheduleHide();
+          }
+        });
+        menu.addEventListener('focusin', showMenu);
+        menu.addEventListener('focusout', (event) => {
+          if (!dropdown.contains(event.relatedTarget)) {
+            scheduleHide();
+          }
+        });
+      });
+    };
 
     const DATASET = {
       key: 'resellers',
@@ -487,6 +539,7 @@
 
     createConstellationBackground();
     createConstellationBackground('edit-constellation-canvas');
+    setupDashboardDropdown();
     refresh().then(() => {
       lucide.createIcons();
     });
