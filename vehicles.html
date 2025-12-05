@@ -37,6 +37,7 @@
       position: absolute;
       top: 0;
       bottom: 0;
+      padding-top: 64px;
       backdrop-filter: blur(12px);
       background: rgba(15, 23, 42, 0.9);
       transition: transform 0.25s ease, width 0.25s ease;
@@ -176,8 +177,8 @@
     </div>
 
     <div id="selection-banner" class="pointer-events-auto absolute top-4 left-1/2 z-[450] hidden -translate-x-1/2 transform rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
-      <span id="selection-text">Filtrado por selección</span>
-      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Limpiar</button>
+      <span id="selection-text">Selection filter active</span>
+      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Clear</button>
     </div>
 
     <!-- Floating Legend -->
@@ -194,7 +195,7 @@
       <div class="resize-handle right-0"></div>
       <button id="left-sidebar-toggle" class="sidebar-toggle left" type="button" aria-expanded="false">
         <span class="toggle-icon" aria-hidden="true">›</span>
-        <span class="toggle-text hidden sm:inline">Expandir</span>
+        <span class="toggle-text hidden sm:inline">Expand</span>
       </button>
 
       <!-- Search -->
@@ -239,7 +240,7 @@
       <div class="resize-handle left-0"></div>
       <button id="right-sidebar-toggle" class="sidebar-toggle right" type="button" aria-expanded="false">
         <span class="toggle-icon" aria-hidden="true">‹</span>
-        <span class="toggle-text hidden sm:inline">Expandir</span>
+        <span class="toggle-text hidden sm:inline">Expand</span>
       </button>
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
@@ -268,10 +269,10 @@
     <div class="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Detalles del vehículo</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
           <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
         </div>
-        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cerrar</button>
+        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Close</button>
       </div>
       <div class="max-h-[70vh] overflow-y-auto p-4" id="vehicle-modal-body"></div>
     </div>
@@ -311,7 +312,8 @@
 
     // --- 1. Initialize map ---
     function initMap() {
-      map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 4);
+      // Start at a tighter view (double the previous zoom level for closer detail)
+      map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 8);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -952,9 +954,9 @@
       const vehicle = vehicles.find(v => v.id === selectedVehicleId);
       const tech = technicians.find(t => t.id === selectedTechId);
       const parts = [];
-      if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
-      if (tech) parts.push(`Técnico ${tech.company}`);
-      text.textContent = `Filtrado por ${parts.join(' & ')}`;
+      if (vehicle) parts.push(`Vehicle ${vehicle.vin || vehicle.model}`);
+      if (tech) parts.push(`Technician ${tech.company}`);
+      text.textContent = `Filtered by ${parts.join(' & ')}`;
       banner.classList.remove('hidden');
     }
 
@@ -1081,7 +1083,7 @@
       const body = document.getElementById('vehicle-modal-body');
       if (!modal || !title || !body) return;
 
-      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      title.textContent = `${vehicle.model || 'Vehicle'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
       const detailRows = vehicleHeaders.map(header => {
         const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
         return `<tr class="border-b border-slate-800/80"><th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">${header}</th><td class="text-xs text-slate-100 py-2">${value || '—'}</td></tr>`;
@@ -1210,7 +1212,7 @@
         const collapsed = sidebar.classList.contains('collapsed');
 
         toggle.setAttribute('aria-expanded', (!collapsed).toString());
-        toggle.setAttribute('aria-label', `${collapsed ? 'Expandir' : 'Minimizar'} panel ${side === 'left' ? 'izquierdo' : 'derecho'}`);
+        toggle.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Minimize'} ${side === 'left' ? 'left' : 'right'} panel`);
         toggle.classList.toggle('no-text', !collapsed);
 
         const icon = toggle.querySelector('.toggle-icon');
@@ -1218,7 +1220,7 @@
         if (icon) icon.textContent = collapsed
           ? (side === 'left' ? '›' : '‹')
           : (side === 'left' ? '‹' : '›');
-        if (text) text.textContent = collapsed ? 'Expandir' : '';
+        if (text) text.textContent = collapsed ? 'Expand' : '';
       };
 
       const toggleSidebar = (side) => {
