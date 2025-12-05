@@ -45,7 +45,7 @@
 
     .collapsed-left { transform: translateX(calc(-1 * var(--left-sidebar-width))); }
     .collapsed-right { transform: translateX(var(--right-sidebar-width)); }
-    .collapsed-towing { transform: translateX(calc(-1 * (var(--left-sidebar-width) + var(--towing-sidebar-width)))); }
+    .collapsed-towing { transform: translateX(calc(-1 * var(--towing-sidebar-width))); }
 
     .resize-handle {
       position: absolute;
@@ -211,7 +211,7 @@
     </aside>
 
     <!-- Towing Sidebar -->
-    <aside id="towing-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--towing-sidebar-width); left: var(--left-sidebar-width)">
+    <aside id="towing-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--towing-sidebar-width)">
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -1246,16 +1246,28 @@
 
       const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
 
-      const setState = (side, expanded) => {
+      const applyState = (side, expanded) => {
         const config = configs[side];
-        if (!config?.sidebar || !config?.toggle) return;
-        if (expanded) {
-          config.sidebar.classList.remove(config.collapsedClass);
-          config.toggle.classList.add('hidden');
-        } else {
+        if (!config?.sidebar || !config?.toggle) return false;
+        const wasCollapsed = config.sidebar.classList.contains(config.collapsedClass);
+        const shouldCollapse = !expanded;
+        if (shouldCollapse && !wasCollapsed) {
           config.sidebar.classList.add(config.collapsedClass);
           config.toggle.classList.remove('hidden');
+        } else if (!shouldCollapse && wasCollapsed) {
+          config.sidebar.classList.remove(config.collapsedClass);
+          config.toggle.classList.add('hidden');
         }
+        return wasCollapsed !== shouldCollapse;
+      };
+
+      const setState = (side, expanded) => {
+        const changed = applyState(side, expanded);
+        if (!changed) return;
+
+        if (expanded && side === 'left') applyState('towing', false);
+        if (expanded && side === 'towing') applyState('left', false);
+
         syncMap();
       };
 
