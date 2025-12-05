@@ -203,14 +203,20 @@
             <input name="Notes" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
-        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <button type="button" id="edit-cancel" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white">
-            Cancel
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button type="button" id="edit-delete" class="inline-flex items-center gap-2 rounded-full border border-red-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-200 transition hover:bg-red-600/10 hover:text-white">
+            <i data-lucide="trash-2" class="h-4 w-4"></i>
+            Delete towing partner
           </button>
-          <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow shadow-blue-600/40 transition hover:-translate-y-0.5">
-            <i data-lucide="save" class="h-4 w-4"></i>
-            Save changes
-          </button>
+          <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-2">
+            <button type="button" id="edit-cancel" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white">
+              Cancel
+            </button>
+            <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow shadow-blue-600/40 transition hover:-translate-y-0.5">
+              <i data-lucide="save" class="h-4 w-4"></i>
+              Save changes
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -292,6 +298,7 @@
       editTitle: document.getElementById('edit-title'),
       editClose: document.getElementById('edit-close'),
       editCancel: document.getElementById('edit-cancel'),
+      editDelete: document.getElementById('edit-delete'),
     };
 
     const setFormValues = (form, row = {}) => {
@@ -414,6 +421,13 @@
       const formData = new FormData(els.editForm);
       const entry = Object.fromEntries(HEADERS.map((header) => [header, formData.get(header) || '']));
       state.rows[state.editingIndex] = entry;
+      cancelEdit();
+      await persist();
+    });
+
+    els.editDelete.addEventListener('click', async () => {
+      if (state.editingIndex === null) return;
+      state.rows.splice(state.editingIndex, 1);
       cancelEdit();
       await persist();
     });
