@@ -78,25 +78,36 @@
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Inventory</p>
           <h3 class="text-lg font-bold text-white">Vehicle list</h3>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-          <a href="../assets/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-            <i data-lucide="download" class="h-4 w-4"></i>
-            Download CSV
-          </a>
+        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <div class="flex flex-wrap gap-2">
+            <select id="status-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">All statuses</option>
+            </select>
+            <select id="gps-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">GPS: Any</option>
+            </select>
+            <select id="state-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">All states</option>
+            </select>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+              <span class="text-slate-400">Sort:</span>
+              <button data-sort="status" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Status</button>
+              <button data-sort="model" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Model</button>
+              <button data-sort="location" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Location</button>
+            </div>
+            <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <a href="../assets/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+              <i data-lucide="download" class="h-4 w-4"></i>
+              Download CSV
+            </a>
+          </div>
         </div>
       </div>
-      <div class="overflow-hidden rounded-xl border border-slate-800">
+      <div class="overflow-x-auto rounded-xl border border-slate-800">
         <table class="min-w-full divide-y divide-slate-800 text-sm">
-          <thead class="bg-slate-950/60 text-slate-300">
-            <tr>
-              <th class="px-4 py-3 text-left font-semibold">Status</th>
-              <th class="px-4 py-3 text-left font-semibold">Model</th>
-              <th class="px-4 py-3 text-left font-semibold">Short VIN</th>
-              <th class="px-4 py-3 text-left font-semibold">GPS Fix</th>
-              <th class="px-4 py-3 text-left font-semibold">Location</th>
-            </tr>
-          </thead>
+          <thead id="table-head" class="bg-slate-950/60 text-slate-300"></thead>
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
         </table>
       </div>
@@ -109,15 +120,84 @@
 
     const DATASET = { key: 'vehicles', path: '../assets/vehicles.csv' };
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
-    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+    const parseCsvLine = (line = '') => {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i += 1) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+            continue;
+          }
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+
+      values.push(current);
+      return values.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"'));
+    };
     const parseCsvText = (text = '') => {
-      const lines = text.trim().split(/\r?\n/).filter(Boolean);
-      const headers = parseCsvLine(lines.shift() || '');
-      const rows = lines.map((line) => {
-        const values = parseCsvLine(line);
-        return Object.fromEntries(headers.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
+      const rawLines = text.split(/\r?\n/);
+      const records = [];
+      let buffer = '';
+      let inQuotes = false;
+
+      const flushRecord = () => {
+        if (buffer.length === 0) return;
+        records.push(buffer);
+        buffer = '';
+      };
+
+      rawLines.forEach((line, lineIndex) => {
+        const segment = buffer ? `\n${line}` : line;
+        buffer += segment;
+
+        for (let i = 0; i < line.length; i += 1) {
+          if (line[i] !== '"') continue;
+          const isEscaped = line[i + 1] === '"';
+          if (!isEscaped) {
+            inQuotes = !inQuotes;
+          } else {
+            i += 1; // skip escaped quote
+          }
+        }
+
+        if (!inQuotes) {
+          flushRecord();
+        }
+
+        if (lineIndex === rawLines.length - 1 && buffer) {
+          flushRecord();
+        }
       });
-      return { headers, rows };
+
+      let headerRecord = records.shift() || '';
+      let headerValues = parseCsvLine(headerRecord);
+      const valueRecords = records.map((record) => parseCsvLine(record)).filter((values) => values.length);
+      const targetColumns = Math.max(headerValues.length, ...valueRecords.map((values) => values.length));
+      while (headerValues.length < targetColumns && records.length) {
+        const nextPiece = records.shift();
+        const separator = headerRecord.endsWith(',') ? '' : ',';
+        headerRecord = `${headerRecord}${separator}${nextPiece}`;
+        headerValues = parseCsvLine(headerRecord);
+      }
+
+      const rows = records
+        .filter(Boolean)
+        .map((record) => {
+          const values = parseCsvLine(record);
+          return Object.fromEntries(headerValues.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
+        });
+      return { headers: headerValues, rows };
     };
 
     const loadDataset = async () => {
@@ -131,24 +211,32 @@
       return response.text();
     };
 
-    const renderTable = (rows) => {
+    const renderTable = (headers, rows) => {
       const tbody = document.getElementById('table-body');
       tbody.innerHTML = '';
+      const thead = document.getElementById('table-head');
+      thead.innerHTML = '';
+
+      const headerRow = document.createElement('tr');
+      headers.forEach((header) => {
+        const th = document.createElement('th');
+        th.className = 'px-4 py-3 text-left font-semibold whitespace-nowrap';
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+
       rows.slice(0, 75).forEach((row) => {
         const tr = document.createElement('tr');
         tr.className = 'transition hover:bg-slate-800/40';
-        tr.innerHTML = `
-          <td class="px-4 py-3 font-semibold text-white">${row['Deal Status'] || row.Status || '—'}</td>
-          <td class="px-4 py-3 text-slate-200">${row['Model Year'] || ''} ${row.Model || row['Unit Type'] || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.ShortVIN || row['Short VIN'] || ''}</td>
-          <td class="px-4 py-3">
-            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${String(row['GPS Fix'] || '').toLowerCase() === 'all' ? 'bg-emerald-600/20 text-emerald-200 border border-emerald-500/40' : 'bg-amber-500/10 text-amber-200 border border-amber-500/40'}">
-              <span class="h-2 w-2 rounded-full ${String(row['GPS Fix'] || '').toLowerCase() === 'all' ? 'bg-emerald-400' : 'bg-amber-300'}"></span>
-              ${row['GPS Fix'] || 'Unknown'}
-            </span>
-          </td>
-          <td class="px-4 py-3 text-slate-200">${row['PT City'] || row['PT City '] || ''}, ${row['State Loc'] || ''}</td>
-        `;
+        tr.innerHTML = headers.map((header, idx) => {
+          const value = row[header] ?? '';
+          const baseClass = 'px-4 py-3';
+          if (idx === 0) {
+            return `<td class="${baseClass} font-semibold text-white whitespace-nowrap">${value || ''}</td>`;
+          }
+          return `<td class="${baseClass} text-slate-200 whitespace-nowrap">${value || ''}</td>`;
+        }).join('');
         tbody.appendChild(tr);
       });
     };
@@ -169,15 +257,124 @@
         .some((value) => String(value || '').toLowerCase().includes(query)));
     };
 
+    const getText = (value) => String(value || '').toLowerCase();
+
+    const filters = {
+      search: '',
+      status: 'all',
+      gps: 'all',
+      state: 'all',
+      sortKey: '',
+      sortDir: 'asc',
+    };
+
+    const applyFiltersAndSort = (rows) => {
+      let result = [...rows];
+      result = applySearch(result, filters.search);
+
+      if (filters.status !== 'all') {
+        result = result.filter((row) => getText(row['Deal Status'] || row.Status) === filters.status);
+      }
+
+      if (filters.gps !== 'all') {
+        result = result.filter((row) => getText(row['GPS Fix']) === filters.gps);
+      }
+
+      if (filters.state !== 'all') {
+        result = result.filter((row) => getText(row['State Loc']) === filters.state);
+      }
+
+      const sorters = {
+        status: (a, b) => getText(a['Deal Status'] || a.Status).localeCompare(getText(b['Deal Status'] || b.Status)),
+        model: (a, b) => `${a['Model Year'] || ''} ${a.Model || a['Unit Type'] || ''}`
+          .localeCompare(`${b['Model Year'] || ''} ${b.Model || b['Unit Type'] || ''}`),
+        location: (a, b) => `${a['State Loc'] || ''} ${a['PT City'] || ''}`
+          .localeCompare(`${b['State Loc'] || ''} ${b['PT City'] || ''}`),
+      };
+
+      if (filters.sortKey && sorters[filters.sortKey]) {
+        result = result.sort((a, b) => {
+          const comparison = sorters[filters.sortKey](a, b);
+          return filters.sortDir === 'asc' ? comparison : -comparison;
+        });
+      }
+
+      return result;
+    };
+
+    const populateSelect = (elementId, values, label) => {
+      const select = document.getElementById(elementId);
+      const options = Array.from(new Set(values.filter(Boolean).map((value) => getText(value)))).sort();
+      select.innerHTML = `<option value="all">${label}</option>`;
+      options.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value.toUpperCase();
+        select.appendChild(option);
+      });
+    };
+
+    const refreshTable = (headers, rows) => {
+      const filtered = applyFiltersAndSort(rows);
+      renderTable(headers, filtered);
+    };
+
+    const updateSortButtons = () => {
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        const isActive = button.dataset.sort === filters.sortKey;
+        button.classList.toggle('bg-blue-600/30', isActive);
+        button.classList.toggle('text-white', isActive);
+        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+      });
+    };
+
     const mount = async () => {
       const text = await loadDataset();
-      const { rows } = parseCsvText(text);
+      const { headers, rows } = parseCsvText(text);
       updateStats(rows);
-      renderTable(rows);
-      document.getElementById('search').addEventListener('input', (event) => {
-        const filtered = applySearch(rows, event.target.value);
-        renderTable(filtered);
+
+      populateSelect('status-filter', rows.map((row) => row['Deal Status'] || row.Status), 'All statuses');
+      populateSelect('gps-filter', rows.map((row) => row['GPS Fix']), 'GPS: Any');
+      populateSelect('state-filter', rows.map((row) => row['State Loc']), 'All states');
+
+      const handleFiltersChange = () => refreshTable(headers, rows);
+
+      document.getElementById('status-filter').addEventListener('change', (event) => {
+        filters.status = event.target.value;
+        handleFiltersChange();
       });
+
+      document.getElementById('gps-filter').addEventListener('change', (event) => {
+        filters.gps = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.getElementById('state-filter').addEventListener('change', (event) => {
+        filters.state = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.getElementById('search').addEventListener('input', (event) => {
+        filters.search = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const key = button.dataset.sort;
+          if (filters.sortKey === key) {
+            filters.sortDir = filters.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            filters.sortKey = key;
+            filters.sortDir = 'asc';
+          }
+          updateSortButtons();
+          handleFiltersChange();
+        });
+      });
+
+      updateSortButtons();
+      refreshTable(headers, rows);
       lucide.createIcons();
     };
 
