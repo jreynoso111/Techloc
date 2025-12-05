@@ -302,9 +302,9 @@
 
     // --- 1. Initialize map ---
     function initMap() {
-      map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 4);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, opacity: 0.95 }).addTo(map);
+      map = L.map('tech-map', { zoomControl: false, minZoom: 3 }).setView([39.8, -98.5], 4);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       techLayer = L.layerGroup().addTo(map);
       vehicleLayer = L.layerGroup().addTo(map);
@@ -1238,6 +1238,10 @@
       const collapseRight = document.getElementById('collapse-right');
       const collapseTowing = document.getElementById('collapse-towing');
 
+      const defaultLeftOffset = 12;
+
+      const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
+
       const configs = {
         left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left' },
         towing: { sidebar: towingSidebar, toggle: openTowing, collapse: collapseTowing, collapsedClass: 'collapsed-towing' },
@@ -1245,6 +1249,19 @@
       };
 
       const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
+
+      const updateTogglePositions = () => {
+        const leftExpanded = !leftSidebar?.classList.contains('collapsed-left');
+        const towingExpanded = !towingSidebar?.classList.contains('collapsed-towing');
+
+        if (openTowing) {
+          openTowing.style.left = `${leftExpanded ? getSidebarWidth(leftSidebar) + defaultLeftOffset : defaultLeftOffset}px`;
+        }
+
+        if (openLeft) {
+          openLeft.style.left = `${towingExpanded ? getSidebarWidth(towingSidebar) + defaultLeftOffset : defaultLeftOffset}px`;
+        }
+      };
 
       const applyState = (side, expanded) => {
         const config = configs[side];
@@ -1268,6 +1285,7 @@
         if (expanded && side === 'left') applyState('towing', false);
         if (expanded && side === 'towing') applyState('left', false);
 
+        updateTogglePositions();
         syncMap();
       };
 
@@ -1276,6 +1294,9 @@
         if (config.collapse) config.collapse.addEventListener('click', () => setState(side, false));
         setState(side, false);
       });
+
+      updateTogglePositions();
+      window.addEventListener('resize', updateTogglePositions);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
