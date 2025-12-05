@@ -78,12 +78,31 @@
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Inventory</p>
           <h3 class="text-lg font-bold text-white">Vehicle list</h3>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-          <a href="../assets/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-            <i data-lucide="download" class="h-4 w-4"></i>
-            Download CSV
-          </a>
+        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <div class="flex flex-wrap gap-2">
+            <select id="status-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">All statuses</option>
+            </select>
+            <select id="gps-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">GPS: Any</option>
+            </select>
+            <select id="state-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">All states</option>
+            </select>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+              <span class="text-slate-400">Sort:</span>
+              <button data-sort="status" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Status</button>
+              <button data-sort="model" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Model</button>
+              <button data-sort="location" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Location</button>
+            </div>
+            <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <a href="../assets/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+              <i data-lucide="download" class="h-4 w-4"></i>
+              Download CSV
+            </a>
+          </div>
         </div>
       </div>
       <div class="overflow-hidden rounded-xl border border-slate-800">
@@ -169,15 +188,124 @@
         .some((value) => String(value || '').toLowerCase().includes(query)));
     };
 
+    const getText = (value) => String(value || '').toLowerCase();
+
+    const filters = {
+      search: '',
+      status: 'all',
+      gps: 'all',
+      state: 'all',
+      sortKey: '',
+      sortDir: 'asc',
+    };
+
+    const applyFiltersAndSort = (rows) => {
+      let result = [...rows];
+      result = applySearch(result, filters.search);
+
+      if (filters.status !== 'all') {
+        result = result.filter((row) => getText(row['Deal Status'] || row.Status) === filters.status);
+      }
+
+      if (filters.gps !== 'all') {
+        result = result.filter((row) => getText(row['GPS Fix']) === filters.gps);
+      }
+
+      if (filters.state !== 'all') {
+        result = result.filter((row) => getText(row['State Loc']) === filters.state);
+      }
+
+      const sorters = {
+        status: (a, b) => getText(a['Deal Status'] || a.Status).localeCompare(getText(b['Deal Status'] || b.Status)),
+        model: (a, b) => `${a['Model Year'] || ''} ${a.Model || a['Unit Type'] || ''}`
+          .localeCompare(`${b['Model Year'] || ''} ${b.Model || b['Unit Type'] || ''}`),
+        location: (a, b) => `${a['State Loc'] || ''} ${a['PT City'] || ''}`
+          .localeCompare(`${b['State Loc'] || ''} ${b['PT City'] || ''}`),
+      };
+
+      if (filters.sortKey && sorters[filters.sortKey]) {
+        result = result.sort((a, b) => {
+          const comparison = sorters[filters.sortKey](a, b);
+          return filters.sortDir === 'asc' ? comparison : -comparison;
+        });
+      }
+
+      return result;
+    };
+
+    const populateSelect = (elementId, values, label) => {
+      const select = document.getElementById(elementId);
+      const options = Array.from(new Set(values.filter(Boolean).map((value) => getText(value)))).sort();
+      select.innerHTML = `<option value="all">${label}</option>`;
+      options.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value.toUpperCase();
+        select.appendChild(option);
+      });
+    };
+
+    const refreshTable = (rows) => {
+      const filtered = applyFiltersAndSort(rows);
+      renderTable(filtered);
+    };
+
+    const updateSortButtons = () => {
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        const isActive = button.dataset.sort === filters.sortKey;
+        button.classList.toggle('bg-blue-600/30', isActive);
+        button.classList.toggle('text-white', isActive);
+        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+      });
+    };
+
     const mount = async () => {
       const text = await loadDataset();
       const { rows } = parseCsvText(text);
       updateStats(rows);
-      renderTable(rows);
-      document.getElementById('search').addEventListener('input', (event) => {
-        const filtered = applySearch(rows, event.target.value);
-        renderTable(filtered);
+
+      populateSelect('status-filter', rows.map((row) => row['Deal Status'] || row.Status), 'All statuses');
+      populateSelect('gps-filter', rows.map((row) => row['GPS Fix']), 'GPS: Any');
+      populateSelect('state-filter', rows.map((row) => row['State Loc']), 'All states');
+
+      const handleFiltersChange = () => refreshTable(rows);
+
+      document.getElementById('status-filter').addEventListener('change', (event) => {
+        filters.status = event.target.value;
+        handleFiltersChange();
       });
+
+      document.getElementById('gps-filter').addEventListener('change', (event) => {
+        filters.gps = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.getElementById('state-filter').addEventListener('change', (event) => {
+        filters.state = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.getElementById('search').addEventListener('input', (event) => {
+        filters.search = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const key = button.dataset.sort;
+          if (filters.sortKey === key) {
+            filters.sortDir = filters.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            filters.sortKey = key;
+            filters.sortDir = 'asc';
+          }
+          updateSortButtons();
+          handleFiltersChange();
+        });
+      });
+
+      updateSortButtons();
+      refreshTable(rows);
       lucide.createIcons();
     };
 
