@@ -240,10 +240,65 @@
         </div>
       </div>
     </section>
+
+    <section id="activity-history" class="space-y-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-xl shadow-blue-900/30">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Registry</p>
+          <h3 class="text-xl font-bold text-white">Full dataset activity log</h3>
+          <p class="text-sm text-slate-400">Browse every recorded upload, reset, or bundled fallback with pagination.</p>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-200">
+          <i data-lucide="clock-3" class="h-4 w-4 text-amber-200"></i>
+          History view
+        </div>
+      </div>
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/80 p-4">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-800 text-sm">
+            <thead>
+              <tr class="text-left text-slate-400">
+                <th class="py-2 pr-4 font-semibold">Event</th>
+                <th class="py-2 font-semibold">When</th>
+              </tr>
+            </thead>
+            <tbody id="activity-table-body" class="divide-y divide-slate-800 text-slate-200"></tbody>
+          </table>
+        </div>
+        <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p id="activity-table-summary" class="text-xs font-semibold uppercase tracking-wide text-slate-400"></p>
+          <div class="flex items-center gap-2">
+            <button id="activity-prev" class="inline-flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:border-slate-900 disabled:text-slate-600">
+              <i data-lucide="chevron-left" class="h-4 w-4"></i>
+              Prev
+            </button>
+            <button id="activity-next" class="inline-flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:border-slate-900 disabled:text-slate-600">
+              Next
+              <i data-lucide="chevron-right" class="h-4 w-4"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
+
+    const ACTIVITY_STORAGE_KEY = 'techloc:dataset:activity_log';
+    const DEFAULT_ACTIVITY = [
+      {
+        text: 'Installers data replaced',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+      },
+      {
+        text: 'Towing dataset reverted to bundled',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+      },
+    ];
+
+    const PAGE_SIZE = 20;
+    let currentPage = 1;
 
     const setupDashboardDropdown = () => {
       document.querySelectorAll('[data-dropdown]').forEach((dropdown) => {
@@ -281,10 +336,82 @@
       });
     };
 
+    const loadActivityLog = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem(ACTIVITY_STORAGE_KEY) || '[]');
+        return Array.isArray(stored) && stored.length ? stored : DEFAULT_ACTIVITY;
+      } catch (error) {
+        console.error('Error loading activity log', error);
+        return DEFAULT_ACTIVITY;
+      }
+    };
+
+    const formatDateTime = (timestamp) => {
+      if (!timestamp) return 'Unknown';
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return 'Unknown';
+      return date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    };
+
+    const renderActivityTable = () => {
+      const rows = loadActivityLog();
+      const tableBody = document.getElementById('activity-table-body');
+      const summary = document.getElementById('activity-table-summary');
+      const prevButton = document.getElementById('activity-prev');
+      const nextButton = document.getElementById('activity-next');
+
+      if (!tableBody || !summary || !prevButton || !nextButton) return;
+
+      const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      currentPage = Math.min(Math.max(1, currentPage), totalPages);
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const pageRows = rows.slice(start, start + PAGE_SIZE);
+
+      tableBody.innerHTML = '';
+
+      if (!pageRows.length) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = '<td class="py-3 text-slate-400" colspan="2">No activity recorded yet.</td>';
+        tableBody.appendChild(emptyRow);
+      } else {
+        pageRows.forEach((item) => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-slate-900/60 transition';
+          row.innerHTML = `
+            <td class="py-3 pr-4 font-semibold text-white">${item.text}</td>
+            <td class="py-3 text-slate-300">${formatDateTime(item.timestamp)}</td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
+
+      summary.textContent = `Showing ${pageRows.length ? start + 1 : 0}–${pageRows.length ? start + pageRows.length : 0} of ${rows.length} records (Page ${currentPage} of ${totalPages})`;
+      prevButton.disabled = currentPage === 1;
+      nextButton.disabled = currentPage === totalPages;
+    };
+
+    const bindPaginationControls = () => {
+      const prevButton = document.getElementById('activity-prev');
+      const nextButton = document.getElementById('activity-next');
+      if (!prevButton || !nextButton) return;
+
+      prevButton.addEventListener('click', () => {
+        currentPage = Math.max(1, currentPage - 1);
+        renderActivityTable();
+      });
+
+      nextButton.addEventListener('click', () => {
+        currentPage += 1;
+        renderActivityTable();
+      });
+    };
+
     const main = async () => {
       lucide.createIcons();
       createConstellationBackground(document.getElementById('constellation-canvas'));
       setupDashboardDropdown();
+      bindPaginationControls();
+      renderActivityTable();
     };
 
     main();

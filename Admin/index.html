@@ -169,7 +169,13 @@
         <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
           <div class="flex items-center justify-between">
             <p class="font-semibold text-white">Recent activity</p>
-            <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Last 4 updates</span>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Last 4 updates</span>
+              <a href="./analytics.html#activity-history" class="inline-flex items-center gap-1 rounded-full border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-200 transition hover:border-blue-500 hover:text-white">
+                <i data-lucide="history" class="h-3 w-3"></i>
+                See all
+              </a>
+            </div>
           </div>
           <ul id="activity-log" class="mt-2 space-y-2" aria-live="polite"></ul>
         </div>
@@ -344,7 +350,8 @@
     ];
 
     const ACTIVITY_STORAGE_KEY = 'techloc:dataset:activity_log';
-    const MAX_ACTIVITY_ITEMS = 4;
+    const MAX_ACTIVITY_DISPLAY_ITEMS = 4;
+    const MAX_ACTIVITY_STORED_ITEMS = 200;
     const DEFAULT_ACTIVITY = [
       {
         text: 'Installers data replaced',
@@ -429,7 +436,7 @@
       if (!container) return;
       container.innerHTML = '';
 
-      items.slice(0, MAX_ACTIVITY_ITEMS).forEach((item) => {
+      items.slice(0, MAX_ACTIVITY_DISPLAY_ITEMS).forEach((item) => {
         const row = document.createElement('li');
         row.className = 'flex items-start justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2';
         row.innerHTML = `
@@ -441,7 +448,7 @@
     };
 
     const recordActivity = (text) => {
-      const next = [{ text, timestamp: new Date().toISOString() }, ...loadActivityLog()].slice(0, MAX_ACTIVITY_ITEMS);
+      const next = [{ text, timestamp: new Date().toISOString() }, ...loadActivityLog()].slice(0, MAX_ACTIVITY_STORED_ITEMS);
       saveActivityLog(next);
       renderActivityLog(next);
     };
