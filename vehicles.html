@@ -315,6 +315,7 @@
     let sidebarStateController = null;
     let techSidebarVisible = false;
     let lastClientLocation = null;
+    let renderedTechIds = '';
     const cityCache = new Map();
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
@@ -498,6 +499,7 @@
       });
 
       technicians = await Promise.all(techPromises);
+      renderedTechIds = '';
 
       document.getElementById('total-count').textContent = technicians.length;
       updateTechUI(technicians);
@@ -579,15 +581,20 @@
     function updateTechUI(techList, target = null, clientLocation = null) {
       const listContainer = document.getElementById('tech-list');
       listContainer.innerHTML = '';
-      techLayer.clearLayers();
 
       const displayList = selectedTechId !== null ? techList.filter(t => t.id === selectedTechId) : techList;
+      const displayKey = displayList.map(t => t.id).join('|');
+      const shouldRenderMarkers = techSidebarVisible && displayKey !== renderedTechIds;
+
+      if (shouldRenderMarkers) {
+        techLayer.clearLayers();
+      }
 
       if (displayList.length === 0) {
         listContainer.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No technicians match this selection.</div>`;
       }
 
-      if (techSidebarVisible) {
+      if (shouldRenderMarkers) {
         displayList.forEach(tech => {
           const marker = L.circleMarker([tech.lat, tech.lng], {
             radius: 5,
@@ -613,6 +620,8 @@
             applySelection(null, tech.id);
           });
         });
+
+        renderedTechIds = displayKey;
       }
 
       // List cards
@@ -1272,9 +1281,10 @@
       const syncTechVisibility = () => {
         techSidebarVisible = !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
         if (!techSidebarVisible) {
-          techLayer?.clearLayers();
+          if (map?.hasLayer(techLayer)) map.removeLayer(techLayer);
           connectionLayer?.clearLayers();
         } else {
+          if (techLayer && map && !map.hasLayer(techLayer)) techLayer.addTo(map);
           updateTechUI(getTechList(technicians));
         }
       };
