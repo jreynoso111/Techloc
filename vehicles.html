@@ -31,15 +31,67 @@
 
     /* Map */
     #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; position: absolute; inset: 0; }
+    #starfield { position: absolute; inset: 0; z-index: 2; background: transparent; }
     .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
 
     .resizable-sidebar {
       position: absolute;
       top: 0;
       bottom: 0;
+      padding-top: 64px;
       backdrop-filter: blur(12px);
       background: rgba(15, 23, 42, 0.9);
+      transition: transform 0.25s ease, width 0.25s ease;
     }
+
+    .resizable-sidebar.collapsed.left {
+      transform: translateX(calc(-100% + 48px));
+    }
+
+    .resizable-sidebar.collapsed.right {
+      transform: translateX(calc(100% - 48px));
+    }
+
+    .resizable-sidebar.collapsed.left .sidebar-toggle {
+      right: -12px;
+      transform: translateX(100%);
+    }
+
+    .resizable-sidebar.collapsed.right .sidebar-toggle {
+      left: -12px;
+      transform: translateX(-100%);
+    }
+
+    .sidebar-toggle {
+      position: absolute;
+      top: 12px;
+      z-index: 80;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: rgba(30, 41, 59, 0.9);
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .sidebar-toggle:hover { background: rgba(51, 65, 85, 0.95); border-color: #334155; color: #fff; }
+
+    .sidebar-toggle .toggle-icon { font-size: 16px; font-weight: 900; line-height: 1; }
+
+    .sidebar-toggle.no-text { gap: 0; padding: 8px; }
+    .sidebar-toggle.no-text .toggle-text { display: none; }
+
+    .sidebar-toggle.left { right: 12px; }
+    .sidebar-toggle.right { left: 12px; }
 
     .resize-handle {
       position: absolute;
@@ -122,12 +174,13 @@
   <main id="map-layout" class="relative flex-1 overflow-hidden bg-slate-950">
 
     <div class="absolute inset-0">
+      <canvas id="starfield" class="absolute inset-0 pointer-events-none z-[2]"></canvas>
       <div id="tech-map"></div>
     </div>
 
     <div id="selection-banner" class="pointer-events-auto absolute top-4 left-1/2 z-[450] hidden -translate-x-1/2 transform rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
-      <span id="selection-text">Filtrado por selección</span>
-      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Limpiar</button>
+      <span id="selection-text">Selection filter active</span>
+      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Clear</button>
     </div>
 
     <!-- Floating Legend -->
@@ -140,8 +193,12 @@
       </div>
 
     <!-- Sidebar: Control Panel -->
-    <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
+    <aside id="left-sidebar" class="resizable-sidebar left collapsed left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
       <div class="resize-handle right-0"></div>
+      <button id="left-sidebar-toggle" class="sidebar-toggle left" type="button" aria-expanded="false">
+        <span class="toggle-icon" aria-hidden="true">›</span>
+        <span class="toggle-text hidden sm:inline">Expand</span>
+      </button>
 
       <!-- Search -->
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
@@ -181,8 +238,12 @@
     </aside>
 
     <!-- Vehicles Sidebar -->
-    <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
+    <aside id="right-sidebar" class="resizable-sidebar right collapsed right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
       <div class="resize-handle left-0"></div>
+      <button id="right-sidebar-toggle" class="sidebar-toggle right" type="button" aria-expanded="false">
+        <span class="toggle-icon" aria-hidden="true">‹</span>
+        <span class="toggle-text hidden sm:inline">Expand</span>
+      </button>
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -210,10 +271,10 @@
     <div class="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Detalles del vehículo</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
           <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
         </div>
-        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cerrar</button>
+        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Close</button>
       </div>
       <div class="max-h-[70vh] overflow-y-auto p-4" id="vehicle-modal-body"></div>
     </div>
@@ -251,9 +312,18 @@
       ? window.lucide
       : { createIcons: () => {} };
 
+    let starCanvas, starCtx;
+    let stars = [];
+    let lastStarframeTime = 0;
+
     // --- 1. Initialize map ---
     function initMap() {
-      map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 4);
+      const defaultBounds = L.latLngBounds(
+        [24.396308, -125.0], // Southwest roughly covering the continental U.S.
+        [49.384358, -66.93457] // Northeast corner
+      );
+
+      map = L.map('tech-map', { zoomControl: false });
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -262,6 +332,8 @@
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
       highlightLayer = L.layerGroup().addTo(map);
+
+      map.fitBounds(defaultBounds, { padding: [20, 20] });
 
       map.on('click', (e) => {
         if (e.originalEvent?.handledByMarker) return;
@@ -294,6 +366,79 @@
 
         processLocation({ lat, lng, name: 'Pinned location' }, `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       });
+    }
+
+    function initStarfield() {
+      starCanvas = document.getElementById('starfield');
+      if (!starCanvas) return;
+
+      starCtx = starCanvas.getContext('2d');
+
+      const resize = () => {
+        starCanvas.width = starCanvas.clientWidth;
+        starCanvas.height = starCanvas.clientHeight;
+        seedStars();
+      };
+
+      window.addEventListener('resize', resize);
+      resize();
+      requestAnimationFrame(drawStarfield);
+    }
+
+    function seedStars() {
+      if (!starCanvas) return;
+
+      const area = starCanvas.width * starCanvas.height;
+      const count = Math.min(700, Math.max(240, Math.floor(area / 12000)));
+      const colorBands = [210, 230, 50, 280];
+
+      stars = Array.from({ length: count }, () => {
+        const layer = Math.random();
+        const hueBase = colorBands[Math.floor(Math.random() * colorBands.length)];
+        return {
+          x: Math.random() * starCanvas.width,
+          y: Math.random() * starCanvas.height,
+          size: 0.6 + layer * 1.8,
+          speed: 0.05 + layer * 0.65,
+          drift: (Math.random() - 0.5) * 0.22,
+          hue: hueBase + (Math.random() * 16 - 8),
+          brightness: 58 + Math.random() * 30,
+          alpha: 0.38 + Math.random() * 0.55,
+          twinkle: 0.003 + Math.random() * 0.01,
+          twinkleDir: Math.random() > 0.5 ? 1 : -1
+        };
+      });
+    }
+
+    function drawStarfield(timestamp = 0) {
+      if (!starCanvas || !starCtx) return;
+
+      const delta = Math.min((timestamp - lastStarframeTime) || 16, 34);
+      lastStarframeTime = timestamp;
+
+      starCtx.clearRect(0, 0, starCanvas.width, starCanvas.height);
+
+      stars.forEach((star) => {
+        star.y += star.speed * delta * 0.5;
+        star.x += star.drift * delta * 0.4;
+
+        if (star.y > starCanvas.height + 2) star.y = -2;
+        if (star.x > starCanvas.width + 2) star.x = -2;
+        if (star.x < -2) star.x = starCanvas.width + 2;
+
+        star.alpha += star.twinkle * star.twinkleDir * delta;
+        if (star.alpha > 1 || star.alpha < 0.32) star.twinkleDir *= -1;
+
+        const color = `hsla(${star.hue}, 85%, ${star.brightness}%, ${Math.max(0.22, Math.min(star.alpha, 1))})`;
+        starCtx.beginPath();
+        starCtx.fillStyle = color;
+        starCtx.shadowBlur = star.size * 4;
+        starCtx.shadowColor = color;
+        starCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        starCtx.fill();
+      });
+
+      requestAnimationFrame(drawStarfield);
     }
 
     // --- 2. Load CSVs ---
@@ -894,9 +1039,9 @@
       const vehicle = vehicles.find(v => v.id === selectedVehicleId);
       const tech = technicians.find(t => t.id === selectedTechId);
       const parts = [];
-      if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
-      if (tech) parts.push(`Técnico ${tech.company}`);
-      text.textContent = `Filtrado por ${parts.join(' & ')}`;
+      if (vehicle) parts.push(`Vehicle ${vehicle.vin || vehicle.model}`);
+      if (tech) parts.push(`Technician ${tech.company}`);
+      text.textContent = `Filtered by ${parts.join(' & ')}`;
       banner.classList.remove('hidden');
     }
 
@@ -1023,7 +1168,7 @@
       const body = document.getElementById('vehicle-modal-body');
       if (!modal || !title || !body) return;
 
-      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      title.textContent = `${vehicle.model || 'Vehicle'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
       const detailRows = vehicleHeaders.map(header => {
         const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
         return `<tr class="border-b border-slate-800/80"><th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">${header}</th><td class="text-xs text-slate-100 py-2">${value || '—'}</td></tr>`;
@@ -1139,12 +1284,52 @@
       rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
     }
 
+    function setupSidebarToggles() {
+      const leftSidebar = document.getElementById('left-sidebar');
+      const rightSidebar = document.getElementById('right-sidebar');
+      const leftToggle = document.getElementById('left-sidebar-toggle');
+      const rightToggle = document.getElementById('right-sidebar-toggle');
+      if (!leftSidebar || !rightSidebar || !leftToggle || !rightToggle) return;
+
+      const updateToggle = (side) => {
+        const sidebar = side === 'left' ? leftSidebar : rightSidebar;
+        const toggle = side === 'left' ? leftToggle : rightToggle;
+        const collapsed = sidebar.classList.contains('collapsed');
+
+        toggle.setAttribute('aria-expanded', (!collapsed).toString());
+        toggle.setAttribute('aria-label', `${collapsed ? 'Expand' : 'Minimize'} ${side === 'left' ? 'left' : 'right'} panel`);
+        toggle.classList.toggle('no-text', !collapsed);
+
+        const icon = toggle.querySelector('.toggle-icon');
+        const text = toggle.querySelector('.toggle-text');
+        if (icon) icon.textContent = collapsed
+          ? (side === 'left' ? '›' : '‹')
+          : (side === 'left' ? '‹' : '›');
+        if (text) text.textContent = collapsed ? 'Expand' : '';
+      };
+
+      const toggleSidebar = (side) => {
+        const sidebar = side === 'left' ? leftSidebar : rightSidebar;
+        sidebar.classList.toggle('collapsed');
+        updateToggle(side);
+        if (map) map.invalidateSize();
+      };
+
+      leftToggle.addEventListener('click', () => toggleSidebar('left'));
+      rightToggle.addEventListener('click', () => toggleSidebar('right'));
+
+      updateToggle('left');
+      updateToggle('right');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       iconLib.createIcons();
+      initStarfield();
       initMap();
       loadTechnicians();
       loadVehicles();
       setupResizableSidebars();
+      setupSidebarToggles();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
 
       document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
