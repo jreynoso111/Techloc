@@ -106,6 +106,7 @@
               <th class="px-4 py-3 text-left font-semibold">Contact</th>
               <th class="px-4 py-3 text-left font-semibold">Availability</th>
               <th class="px-4 py-3 text-left font-semibold">Notes</th>
+              <th class="px-4 py-3 text-left font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -114,11 +115,18 @@
     </section>
 
     <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Add partner</p>
-        <h3 class="text-lg font-bold text-white">New towing company</h3>
-        <p class="text-sm text-slate-400">Entries save to your browser storage and export as <code class="text-blue-200">towing_companies.csv</code>.</p>
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Add partner</p>
+          <h3 id="form-title" class="text-lg font-bold text-white">New towing company</h3>
+          <p class="text-sm text-slate-400">Entries save to your browser storage and export as <code class="text-blue-200">towing_companies.csv</code>.</p>
+        </div>
+        <button id="cancel-edit" class="hidden inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white">
+          <i data-lucide="x" class="h-4 w-4"></i>
+          Cancel edit
+        </button>
       </div>
+      <p id="edit-indicator" class="hidden text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Editing existing towing company</p>
       <form id="create-form" class="space-y-3">
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
@@ -150,9 +158,9 @@
             <input name="Notes" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Dedicated rollback in DFW" />
           </div>
         </div>
-        <button type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow shadow-blue-600/40 transition hover:-translate-y-0.5">
-          <i data-lucide="plus" class="h-4 w-4"></i>
-          Add towing company
+        <button type="submit" id="submit-button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow shadow-blue-600/40 transition hover:-translate-y-0.5">
+          <i id="submit-icon" data-lucide="plus" class="h-4 w-4"></i>
+          <span id="submit-label">Add towing company</span>
         </button>
       </form>
     </section>
@@ -216,6 +224,7 @@
 
     const state = {
       rows: [],
+      editingIndex: null,
     };
 
     const els = {
@@ -228,11 +237,46 @@
       reset: document.getElementById('reset-button'),
       download: document.getElementById('download-button'),
       form: document.getElementById('create-form'),
+      formTitle: document.getElementById('form-title'),
+      submitLabel: document.getElementById('submit-label'),
+      submitIcon: document.getElementById('submit-icon'),
+      editIndicator: document.getElementById('edit-indicator'),
+      cancelEdit: document.getElementById('cancel-edit'),
+    };
+
+    const setFormValues = (row = {}) => {
+      HEADERS.forEach((header) => {
+        const input = els.form.elements[header];
+        if (input) input.value = row[header] || '';
+      });
+    };
+
+    const updateFormState = () => {
+      const isEditing = state.editingIndex !== null;
+      els.formTitle.textContent = isEditing ? 'Edit towing company' : 'New towing company';
+      els.submitLabel.textContent = isEditing ? 'Save changes' : 'Add towing company';
+      els.submitIcon.setAttribute('data-lucide', isEditing ? 'save' : 'plus');
+      els.editIndicator.classList.toggle('hidden', !isEditing);
+      els.cancelEdit.classList.toggle('hidden', !isEditing);
+      lucide.createIcons();
+    };
+
+    const startEdit = (index) => {
+      state.editingIndex = index;
+      setFormValues(state.rows[index]);
+      updateFormState();
+      els.form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const cancelEdit = () => {
+      state.editingIndex = null;
+      els.form.reset();
+      updateFormState();
     };
 
     const renderTable = () => {
       els.tableBody.innerHTML = '';
-      state.rows.forEach((row) => {
+      state.rows.forEach((row, index) => {
         const tr = document.createElement('tr');
         HEADERS.forEach((header) => {
           const td = document.createElement('td');
@@ -240,6 +284,14 @@
           td.textContent = row[header] || '—';
           tr.appendChild(td);
         });
+        const td = document.createElement('td');
+        td.className = 'px-4 py-3 text-right';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white';
+        editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span>';
+        editBtn.addEventListener('click', () => startEdit(index));
+        td.appendChild(editBtn);
+        tr.appendChild(td);
         els.tableBody.appendChild(tr);
       });
     };
@@ -273,14 +325,21 @@
       event.preventDefault();
       const formData = new FormData(els.form);
       const entry = Object.fromEntries(HEADERS.map((header) => [header, formData.get(header) || '']));
-      state.rows.unshift(entry);
+      if (state.editingIndex !== null) {
+        state.rows[state.editingIndex] = entry;
+      } else {
+        state.rows.unshift(entry);
+      }
       els.form.reset();
+      state.editingIndex = null;
+      updateFormState();
       await persist();
     });
 
     els.reset.addEventListener('click', async () => {
       localStorage.removeItem(localKey());
       localStorage.removeItem(localKey('meta'));
+      cancelEdit();
       await refresh();
     });
 
@@ -305,13 +364,19 @@
         const content = target?.result?.toString() || '';
         localStorage.setItem(localKey(), content);
         localStorage.setItem(localKey('meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: file.name }));
+        cancelEdit();
         await refresh();
       };
       reader.readAsText(file);
     });
 
+    els.cancelEdit.addEventListener('click', cancelEdit);
+
     createConstellationBackground();
-    refresh().then(() => lucide.createIcons());
+    refresh().then(() => {
+      updateFormState();
+      lucide.createIcons();
+    });
   </script>
 </body>
 </html>
