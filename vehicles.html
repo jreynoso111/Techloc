@@ -27,6 +27,7 @@
     :root {
       --left-sidebar-width: 360px;
       --right-sidebar-width: 360px;
+      --towing-sidebar-width: 320px;
     }
 
     /* Map */
@@ -44,6 +45,7 @@
 
     .collapsed-left { transform: translateX(calc(-1 * var(--left-sidebar-width))); }
     .collapsed-right { transform: translateX(var(--right-sidebar-width)); }
+    .collapsed-towing { transform: translateX(calc(-1 * (var(--left-sidebar-width) + var(--towing-sidebar-width)))); }
 
     .resize-handle {
       position: absolute;
@@ -147,12 +149,13 @@
     </div>
 
     <div id="selection-banner" class="pointer-events-auto absolute top-4 left-1/2 z-[450] hidden -translate-x-1/2 transform rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
-      <span id="selection-text">Filtrado por selección</span>
-      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Limpiar</button>
+      <span id="selection-text">Filtered by selection</span>
+      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Clear</button>
     </div>
 
-    <button id="open-left-sidebar" class="sidebar-toggle-btn left-3 top-24">Technicos GPS</button>
-    <button id="open-right-sidebar" class="sidebar-toggle-btn right-3 top-24">Mostrar vehículos</button>
+    <button id="open-left-sidebar" class="sidebar-toggle-btn left-3 top-24">GPS Technicians</button>
+    <button id="open-towing-sidebar" class="sidebar-toggle-btn left-3 top-36">Towing Companies</button>
+    <button id="open-right-sidebar" class="sidebar-toggle-btn right-3 top-24">Show Vehicles</button>
 
     <!-- Floating Legend -->
       <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
@@ -207,6 +210,22 @@
       </div>
     </aside>
 
+    <!-- Towing Sidebar -->
+    <aside id="towing-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--towing-sidebar-width); left: var(--left-sidebar-width)">
+      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] font-bold uppercase text-blue-300 mb-1">Towing partners</p>
+            <h2 class="text-xl font-black text-white leading-tight">Towing companies nearby</h2>
+          </div>
+          <button id="collapse-towing" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize towing sidebar">-</button>
+        </div>
+      </div>
+      <div id="towing-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
+        <div class="text-center mt-10 text-slate-600 text-xs">Towing companies will appear here.</div>
+      </div>
+    </aside>
+
     <!-- Vehicles Sidebar -->
     <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
       <div class="resize-handle left-0"></div>
@@ -240,10 +259,10 @@
     <div class="w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
         <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Detalles del vehículo</p>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
           <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
         </div>
-        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cerrar</button>
+        <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Close</button>
       </div>
       <div class="max-h-[70vh] overflow-y-auto p-4" id="vehicle-modal-body"></div>
     </div>
@@ -965,7 +984,7 @@
       const parts = [];
       if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
       if (tech) parts.push(`Técnico ${tech.company}`);
-      text.textContent = `Filtrado por ${parts.join(' & ')}`;
+      text.textContent = `Filtered by ${parts.join(' & ')}`;
       banner.classList.remove('hidden');
     }
 
@@ -1211,36 +1230,40 @@
     function setupSidebarToggles() {
       const leftSidebar = document.getElementById('left-sidebar');
       const rightSidebar = document.getElementById('right-sidebar');
+      const towingSidebar = document.getElementById('towing-sidebar');
       const openLeft = document.getElementById('open-left-sidebar');
       const openRight = document.getElementById('open-right-sidebar');
+      const openTowing = document.getElementById('open-towing-sidebar');
       const collapseLeft = document.getElementById('collapse-left');
       const collapseRight = document.getElementById('collapse-right');
+      const collapseTowing = document.getElementById('collapse-towing');
 
-      if (!leftSidebar || !rightSidebar || !openLeft || !openRight) return;
+      const configs = {
+        left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left' },
+        towing: { sidebar: towingSidebar, toggle: openTowing, collapse: collapseTowing, collapsedClass: 'collapsed-towing' },
+        right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right' }
+      };
 
       const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
 
       const setState = (side, expanded) => {
-        const sidebar = side === 'left' ? leftSidebar : rightSidebar;
-        const toggleBtn = side === 'left' ? openLeft : openRight;
-        const collapsedClass = side === 'left' ? 'collapsed-left' : 'collapsed-right';
+        const config = configs[side];
+        if (!config?.sidebar || !config?.toggle) return;
         if (expanded) {
-          sidebar.classList.remove(collapsedClass);
-          toggleBtn.classList.add('hidden');
+          config.sidebar.classList.remove(config.collapsedClass);
+          config.toggle.classList.add('hidden');
         } else {
-          sidebar.classList.add(collapsedClass);
-          toggleBtn.classList.remove('hidden');
+          config.sidebar.classList.add(config.collapsedClass);
+          config.toggle.classList.remove('hidden');
         }
         syncMap();
       };
 
-      openLeft.addEventListener('click', () => setState('left', true));
-      openRight.addEventListener('click', () => setState('right', true));
-      collapseLeft?.addEventListener('click', () => setState('left', false));
-      collapseRight?.addEventListener('click', () => setState('right', false));
-
-      setState('left', false);
-      setState('right', false);
+      Object.entries(configs).forEach(([side, config]) => {
+        if (config.toggle) config.toggle.addEventListener('click', () => setState(side, true));
+        if (config.collapse) config.collapse.addEventListener('click', () => setState(side, false));
+        setState(side, false);
+      });
     }
 
     document.addEventListener('DOMContentLoaded', () => {
