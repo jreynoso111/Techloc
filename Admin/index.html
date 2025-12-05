@@ -166,6 +166,13 @@
             To reset, clear or overwrite a dataset below; the bundled asset will be used when no upload is present.
           </p>
         </div>
+        <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
+          <div class="flex items-center justify-between">
+            <p class="font-semibold text-white">Recent activity</p>
+            <span class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Last 4 updates</span>
+          </div>
+          <ul id="activity-log" class="mt-2 space-y-2" aria-live="polite"></ul>
+        </div>
       </div>
     </section>
 
@@ -336,6 +343,19 @@
       },
     ];
 
+    const ACTIVITY_STORAGE_KEY = 'techloc:dataset:activity_log';
+    const MAX_ACTIVITY_ITEMS = 4;
+    const DEFAULT_ACTIVITY = [
+      {
+        text: 'Installers data replaced',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+      },
+      {
+        text: 'Towing dataset reverted to bundled',
+        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+      },
+    ];
+
     const localKey = (dataset, suffix = 'csv') => `techloc:dataset:${dataset.key}:${suffix}`;
 
     const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
@@ -361,6 +381,69 @@
         hour: '2-digit',
         minute: '2-digit',
       }).format(date);
+    };
+
+    const formatRelativeTime = (dateString) => {
+      if (!dateString) return 'Just now';
+      const date = new Date(dateString);
+      if (Number.isNaN(date.getTime())) return 'Just now';
+
+      const now = new Date();
+      const diffMs = date.getTime() - now.getTime();
+      const diffMinutes = Math.round(diffMs / (1000 * 60));
+      const intervals = [
+        ['year', 60 * 24 * 365],
+        ['month', 60 * 24 * 30],
+        ['week', 60 * 24 * 7],
+        ['day', 60 * 24],
+        ['hour', 60],
+        ['minute', 1],
+      ];
+
+      const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+      for (const [unit, minutesInUnit] of intervals) {
+        const delta = diffMinutes / minutesInUnit;
+        if (Math.abs(delta) >= 1) {
+          return formatter.format(Math.round(delta), unit);
+        }
+      }
+      return 'Just now';
+    };
+
+    const loadActivityLog = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem(ACTIVITY_STORAGE_KEY) || '[]');
+        return Array.isArray(stored) && stored.length ? stored : DEFAULT_ACTIVITY;
+      } catch (error) {
+        console.error('Error loading activity log', error);
+        return DEFAULT_ACTIVITY;
+      }
+    };
+
+    const saveActivityLog = (items) => {
+      localStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(items));
+    };
+
+    const renderActivityLog = (items = loadActivityLog()) => {
+      const container = document.getElementById('activity-log');
+      if (!container) return;
+      container.innerHTML = '';
+
+      items.slice(0, MAX_ACTIVITY_ITEMS).forEach((item) => {
+        const row = document.createElement('li');
+        row.className = 'flex items-start justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2';
+        row.innerHTML = `
+          <span class="font-semibold text-white">${item.text}</span>
+          <span class="text-[11px] uppercase tracking-wide text-slate-400">${formatRelativeTime(item.timestamp)}</span>
+        `;
+        container.appendChild(row);
+      });
+    };
+
+    const recordActivity = (text) => {
+      const next = [{ text, timestamp: new Date().toISOString() }, ...loadActivityLog()].slice(0, MAX_ACTIVITY_ITEMS);
+      saveActivityLog(next);
+      renderActivityLog(next);
     };
 
     const loadDatasetText = async (dataset) => {
@@ -423,6 +506,7 @@
           const content = target?.result?.toString() || '';
           localStorage.setItem(localKey(dataset), content);
           localStorage.setItem(localKey(dataset, 'meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: file.name }));
+          recordActivity(`${dataset.displayName} replaced`);
           await refresh();
           updateDashboardSummary();
         };
@@ -432,6 +516,7 @@
       els.reset.addEventListener('click', async () => {
         localStorage.removeItem(localKey(dataset));
         localStorage.removeItem(localKey(dataset, 'meta'));
+        recordActivity(`${dataset.displayName} reverted to bundled`);
         await refresh();
         updateDashboardSummary();
       });
@@ -460,6 +545,7 @@
         const card = await renderDatasetCard(dataset);
         container.appendChild(card);
       }
+      renderActivityLog();
       updateDashboardSummary();
       lucide.createIcons();
       setupDashboardDropdown();
