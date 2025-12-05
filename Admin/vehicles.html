@@ -146,12 +146,47 @@
       return values.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"'));
     };
     const parseCsvText = (text = '') => {
-      const lines = text.trim().split(/\r?\n/).filter(Boolean);
-      const headers = parseCsvLine(lines.shift() || '');
-      const rows = lines.map((line) => {
-        const values = parseCsvLine(line);
-        return Object.fromEntries(headers.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
+      const rawLines = text.split(/\r?\n/);
+      const records = [];
+      let buffer = '';
+      let inQuotes = false;
+
+      const flushRecord = () => {
+        if (buffer.length === 0) return;
+        records.push(buffer);
+        buffer = '';
+      };
+
+      rawLines.forEach((line, lineIndex) => {
+        const segment = buffer ? `\n${line}` : line;
+        buffer += segment;
+
+        for (let i = 0; i < line.length; i += 1) {
+          if (line[i] !== '"') continue;
+          const isEscaped = line[i + 1] === '"';
+          if (!isEscaped) {
+            inQuotes = !inQuotes;
+          } else {
+            i += 1; // skip escaped quote
+          }
+        }
+
+        if (!inQuotes) {
+          flushRecord();
+        }
+
+        if (lineIndex === rawLines.length - 1 && buffer) {
+          flushRecord();
+        }
       });
+
+      const headers = parseCsvLine(records.shift() || '');
+      const rows = records
+        .filter(Boolean)
+        .map((record) => {
+          const values = parseCsvLine(record);
+          return Object.fromEntries(headers.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
+        });
       return { headers, rows };
     };
 
