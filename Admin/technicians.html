@@ -34,6 +34,8 @@
         <a href="./index.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
         <a href="./vehicles.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
         <a href="./technicians.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/30">Installers</a>
+        <a href="./towing.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Towing</a>
+        <a href="./resellers.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800 hover:text-white">Resellers</a>
       </nav>
       <div class="hidden items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200 md:flex">
         <i data-lucide="shield-check" class="h-4 w-4"></i>
@@ -95,10 +97,19 @@
               <button data-sort="city" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">City</button>
             </div>
             <input id="search" type="search" placeholder="Search by company, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            <a href="../assets/installers.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+            <label class="inline-flex cursor-pointer items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow shadow-emerald-600/30 transition hover:-translate-y-0.5">
+              <input type="file" accept=".csv" class="hidden" id="upload-input" />
+              <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+              Upload CSV
+            </label>
+            <button id="reset-button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white">
+              <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
+              Reset to bundled
+            </button>
+            <button id="download-button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
               <i data-lucide="download" class="h-4 w-4"></i>
-              Download CSV
-            </a>
+              Download current
+            </button>
           </div>
         </div>
       </div>
@@ -113,11 +124,67 @@
               <th class="px-4 py-3 text-left font-semibold">Phone</th>
               <th class="px-4 py-3 text-left font-semibold">Email</th>
               <th class="px-4 py-3 text-left font-semibold">Notes</th>
+              <th class="px-4 py-3 text-left font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
         </table>
       </div>
+    </section>
+
+    <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
+      <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Add partner</p>
+          <h3 id="form-title" class="text-lg font-bold text-white">New installer</h3>
+          <p class="text-sm text-slate-400">Entries save to your browser storage and export as <code class="text-blue-200">installers.csv</code>.</p>
+        </div>
+        <button id="cancel-edit" class="hidden inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white">
+          <i data-lucide="x" class="h-4 w-4"></i>
+          Cancel edit
+        </button>
+      </div>
+      <p id="edit-indicator" class="hidden text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Editing existing installer</p>
+      <form id="create-form" class="space-y-3">
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Installation company</label>
+            <input name="Installation Company" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Precision Auto Installers" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">State</label>
+            <input name="State" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="CA" />
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">City</label>
+            <input name="City" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="San Jose" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">ZIP</label>
+            <input name="Zip" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="95134" />
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Phone</label>
+            <input name="Phone" required type="tel" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="(408) 555-2022" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
+            <input name="Email" required type="email" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="dispatch@precisionauto.com" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
+          <input name="Notes" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="EV certified, mobile installs" />
+        </div>
+        <button type="submit" id="submit-button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow shadow-blue-600/40 transition hover:-translate-y-0.5">
+          <i id="submit-icon" data-lucide="plus" class="h-4 w-4"></i>
+          <span id="submit-label">Add installer</span>
+        </button>
+      </form>
     </section>
   </main>
 
@@ -126,39 +193,20 @@
 
     const DATASET = {
       key: 'installers',
+      fileName: 'installers.csv',
       path: '../assets/installers.csv',
     };
 
+    const HEADERS = ['Installation Company', 'State', 'City', 'Zip', 'Phone', 'Email', 'Notes'];
+
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
-    const parseCsvLine = (line = '') => {
-      const values = [];
-      let current = '';
-      let inQuotes = false;
 
-      for (let i = 0; i < line.length; i += 1) {
-        const char = line[i];
+    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
 
-        if (char === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            current += '"';
-            i += 1;
-            continue;
-          }
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          values.push(current);
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-
-      values.push(current);
-      return values.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"'));
-    };
     const parseCsvText = (text = '') => {
       const lines = text.trim().split(/\r?\n/).filter(Boolean);
-      const headers = parseCsvLine(lines.shift() || '');
+      if (!lines.length) return { headers: [], rows: [] };
+      const headers = parseCsvLine(lines.shift());
       const rows = lines.map((line) => {
         const values = parseCsvLine(line);
         return Object.fromEntries(headers.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
@@ -166,44 +214,118 @@
       return { headers, rows };
     };
 
-    const loadDataset = async () => {
-      const override = localStorage.getItem(localKey());
-      if (override) {
-        document.getElementById('dataset-status').textContent = 'Using uploaded CSV';
-        return override;
-      }
-      const response = await fetch(DATASET.path);
-      document.getElementById('dataset-status').textContent = 'Bundled asset';
-      return response.text();
+    const toCsv = (csvHeaders, csvRows) => {
+      const escape = (value = '') => `"${String(value).replace(/"/g, '""')}"`;
+      const headerLine = csvHeaders.map(escape).join(',');
+      const rowLines = csvRows.map((row) => csvHeaders.map((header) => escape(row[header] || '')).join(','));
+      return [headerLine, ...rowLines].join('\n');
     };
 
-    const renderTable = (rows) => {
-      const tbody = document.getElementById('table-body');
-      tbody.innerHTML = '';
-      rows.forEach((row) => {
-        const tr = document.createElement('tr');
-        tr.className = 'transition hover:bg-slate-800/40';
-        tr.innerHTML = `
-          <td class="px-4 py-3 font-semibold text-white">${row['Installation Company'] || row.Company || '-'}</td>
-          <td class="px-4 py-3 text-slate-200">${row.State || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.City || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.Zip || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.Phone || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.Email || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.Notes || ''}</td>
-        `;
-        tbody.appendChild(tr);
+    const formatDate = (dateString) => {
+      if (!dateString) return 'Default file';
+      const date = new Date(dateString);
+      if (Number.isNaN(date.getTime())) return 'Default file';
+      return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(date);
+    };
+
+    const state = {
+      rows: [],
+      filters: {
+        search: '',
+        company: 'all',
+        state: 'all',
+        sortKey: '',
+        sortDir: 'asc',
+      },
+      editingIndex: null,
+    };
+
+    const els = {
+      tableBody: document.getElementById('table-body'),
+      status: document.getElementById('dataset-status'),
+      total: document.getElementById('tech-total'),
+      states: document.getElementById('tech-states'),
+      companies: document.getElementById('tech-companies'),
+      upload: document.getElementById('upload-input'),
+      reset: document.getElementById('reset-button'),
+      download: document.getElementById('download-button'),
+      companyFilter: document.getElementById('company-filter'),
+      stateFilter: document.getElementById('state-filter'),
+      search: document.getElementById('search'),
+      form: document.getElementById('create-form'),
+      formTitle: document.getElementById('form-title'),
+      submitLabel: document.getElementById('submit-label'),
+      submitIcon: document.getElementById('submit-icon'),
+      editIndicator: document.getElementById('edit-indicator'),
+      cancelEdit: document.getElementById('cancel-edit'),
+    };
+
+    const setFormValues = (row = {}) => {
+      HEADERS.forEach((header) => {
+        const input = els.form.elements[header];
+        if (input) input.value = row[header] || '';
       });
     };
 
-    const updateStats = (rows) => {
-      const total = rows.length;
-      const states = new Set(rows.map((r) => (r.State || '').trim()).filter(Boolean)).size;
-      const companies = new Set(rows.map((r) => (r['Installation Company'] || r.Company || '').trim()).filter(Boolean)).size;
-      document.getElementById('tech-total').textContent = total;
-      document.getElementById('tech-states').textContent = states;
-      document.getElementById('tech-companies').textContent = companies;
+    const updateFormState = () => {
+      const isEditing = state.editingIndex !== null;
+      els.formTitle.textContent = isEditing ? 'Edit installer' : 'New installer';
+      els.submitLabel.textContent = isEditing ? 'Save changes' : 'Add installer';
+      els.submitIcon.setAttribute('data-lucide', isEditing ? 'save' : 'plus');
+      els.editIndicator.classList.toggle('hidden', !isEditing);
+      els.cancelEdit.classList.toggle('hidden', !isEditing);
+      lucide.createIcons();
     };
+
+    const startEdit = (index) => {
+      state.editingIndex = index;
+      setFormValues(state.rows[index]);
+      updateFormState();
+      els.form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const cancelEdit = () => {
+      state.editingIndex = null;
+      els.form.reset();
+      updateFormState();
+    };
+
+    const loadDatasetText = async () => {
+      const override = localStorage.getItem(localKey());
+      if (override) {
+        const meta = JSON.parse(localStorage.getItem(localKey('meta')) || '{}');
+        return { source: 'Uploaded', text: override, meta };
+      }
+      const response = await fetch(DATASET.path);
+      const text = await response.text();
+      return { source: 'Default', text, meta: { updatedAt: null, name: DATASET.fileName } };
+    };
+
+    const loadRows = async () => {
+      const { source, text, meta } = await loadDatasetText();
+      const parsed = parseCsvText(text);
+      state.rows = parsed.rows;
+      els.status.textContent = source === 'Uploaded' ? `Using upload · ${formatDate(meta.updatedAt)}` : 'Bundled asset';
+      els.status.className = source === 'Uploaded'
+        ? 'flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200'
+        : 'flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300';
+    };
+
+    const updateStats = () => {
+      const total = state.rows.length;
+      const states = new Set(state.rows.map((r) => (r.State || '').trim()).filter(Boolean)).size;
+      const companies = new Set(state.rows.map((r) => (r['Installation Company'] || r.Company || '').trim()).filter(Boolean)).size;
+      els.total.textContent = total;
+      els.states.textContent = states;
+      els.companies.textContent = companies;
+    };
+
+    const toFilterableRows = () => state.rows.map((row, index) => ({ ...row, __index: index }));
 
     const applySearch = (rows, term) => {
       if (!term) return rows;
@@ -214,17 +336,9 @@
 
     const getText = (value) => String(value || '').toLowerCase();
 
-    const filters = {
-      search: '',
-      company: 'all',
-      state: 'all',
-      sortKey: '',
-      sortDir: 'asc',
-    };
-
-    const applyFiltersAndSort = (rows) => {
-      let result = [...rows];
-      result = applySearch(result, filters.search);
+    const applyFiltersAndSort = () => {
+      const filters = state.filters;
+      let result = applySearch(toFilterableRows(), filters.search);
 
       if (filters.company !== 'all') {
         result = result.filter((row) => getText(row['Installation Company'] || row.Company) === filters.company);
@@ -250,79 +364,151 @@
       return result;
     };
 
-    const populateSelect = (elementId, values, label) => {
-      const select = document.getElementById(elementId);
+    const populateSelect = (element, values, label) => {
       const options = Array.from(new Set(values.filter(Boolean).map((value) => getText(value)))).sort();
-      select.innerHTML = `<option value="all">${label}</option>`;
+      element.innerHTML = `<option value="all">${label}</option>`;
       options.forEach((value) => {
         const option = document.createElement('option');
         option.value = value;
         option.textContent = value.toUpperCase();
-        select.appendChild(option);
+        element.appendChild(option);
       });
     };
 
-    const refreshTable = (rows) => {
-      const filtered = applyFiltersAndSort(rows);
-      renderTable(filtered);
+    const renderTable = () => {
+      const rows = applyFiltersAndSort();
+      els.tableBody.innerHTML = '';
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.className = 'transition hover:bg-slate-800/40';
+        HEADERS.forEach((header) => {
+          const td = document.createElement('td');
+          td.className = header === 'Installation Company' ? 'px-4 py-3 font-semibold text-white' : 'px-4 py-3 text-slate-200';
+          td.textContent = row[header] || '—';
+          tr.appendChild(td);
+        });
+        const td = document.createElement('td');
+        td.className = 'px-4 py-3 text-right';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white';
+        editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span>';
+        editBtn.addEventListener('click', () => startEdit(row.__index));
+        td.appendChild(editBtn);
+        tr.appendChild(td);
+        els.tableBody.appendChild(tr);
+      });
     };
+
+    const refresh = async () => {
+      await loadRows();
+      updateStats();
+      populateSelect(els.companyFilter, state.rows.map((row) => row['Installation Company'] || row.Company), 'All companies');
+      populateSelect(els.stateFilter, state.rows.map((row) => row.State), 'All states');
+      renderTable();
+    };
+
+    const persist = async () => {
+      const csvText = toCsv(HEADERS, state.rows);
+      localStorage.setItem(localKey(), csvText);
+      localStorage.setItem(localKey('meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: DATASET.fileName }));
+      await refresh();
+    };
+
+    els.companyFilter.addEventListener('change', (event) => {
+      state.filters.company = event.target.value;
+      renderTable();
+    });
+
+    els.stateFilter.addEventListener('change', (event) => {
+      state.filters.state = event.target.value;
+      renderTable();
+    });
+
+    els.search.addEventListener('input', (event) => {
+      state.filters.search = event.target.value;
+      renderTable();
+    });
 
     const updateSortButtons = () => {
       document.querySelectorAll('[data-sort]').forEach((button) => {
-        const isActive = button.dataset.sort === filters.sortKey;
+        const isActive = button.dataset.sort === state.filters.sortKey;
         button.classList.toggle('bg-blue-600/30', isActive);
         button.classList.toggle('text-white', isActive);
-        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (state.filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
       });
     };
 
-    const mount = async () => {
-      const text = await loadDataset();
-      const { rows } = parseCsvText(text);
-      updateStats(rows);
-
-      populateSelect('company-filter', rows.map((row) => row['Installation Company'] || row.Company), 'All companies');
-      populateSelect('state-filter', rows.map((row) => row.State), 'All states');
-
-      const handleFiltersChange = () => refreshTable(rows);
-
-      document.getElementById('company-filter').addEventListener('change', (event) => {
-        filters.company = event.target.value;
-        handleFiltersChange();
+    document.querySelectorAll('[data-sort]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.sort;
+        if (state.filters.sortKey === key) {
+          state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.filters.sortKey = key;
+          state.filters.sortDir = 'asc';
+        }
+        updateSortButtons();
+        renderTable();
       });
+    });
 
-      document.getElementById('state-filter').addEventListener('change', (event) => {
-        filters.state = event.target.value;
-        handleFiltersChange();
-      });
+    els.form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const formData = new FormData(els.form);
+      const entry = Object.fromEntries(HEADERS.map((header) => [header, formData.get(header) || '']));
+      if (state.editingIndex !== null) {
+        state.rows[state.editingIndex] = entry;
+      } else {
+        state.rows.unshift(entry);
+      }
+      els.form.reset();
+      state.editingIndex = null;
+      updateFormState();
+      await persist();
+    });
 
-      const searchInput = document.getElementById('search');
-      searchInput.addEventListener('input', (event) => {
-        filters.search = event.target.value;
-        handleFiltersChange();
-      });
+    els.reset.addEventListener('click', async () => {
+      localStorage.removeItem(localKey());
+      localStorage.removeItem(localKey('meta'));
+      cancelEdit();
+      await refresh();
+    });
 
-      document.querySelectorAll('[data-sort]').forEach((button) => {
-        button.addEventListener('click', () => {
-          const key = button.dataset.sort;
-          if (filters.sortKey === key) {
-            filters.sortDir = filters.sortDir === 'asc' ? 'desc' : 'asc';
-          } else {
-            filters.sortKey = key;
-            filters.sortDir = 'asc';
-          }
-          updateSortButtons();
-          handleFiltersChange();
-        });
-      });
+    els.download.addEventListener('click', () => {
+      const csvText = toCsv(HEADERS, state.rows);
+      const blob = new Blob([csvText], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = DATASET.fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
 
-      updateSortButtons();
-      refreshTable(rows);
-      lucide.createIcons();
-    };
+    els.upload.addEventListener('change', (event) => {
+      const [file] = event.target.files || [];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async ({ target }) => {
+        const content = target?.result?.toString() || '';
+        localStorage.setItem(localKey(), content);
+        localStorage.setItem(localKey('meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: file.name }));
+        cancelEdit();
+        await refresh();
+      };
+      reader.readAsText(file);
+    });
+
+    els.cancelEdit.addEventListener('click', cancelEdit);
 
     createConstellationBackground();
-    mount();
+    refresh().then(() => {
+      updateSortButtons();
+      updateFormState();
+      lucide.createIcons();
+    });
   </script>
 </body>
 </html>
