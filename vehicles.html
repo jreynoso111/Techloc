@@ -313,6 +313,7 @@
     let selectedTechId = null;
     const vehicleMarkers = new Map();
     let sidebarStateController = null;
+    let techSidebarVisible = false;
     let lastClientLocation = null;
     const cityCache = new Map();
 
@@ -586,32 +587,33 @@
         listContainer.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No technicians match this selection.</div>`;
       }
 
-      // Map markers
-      displayList.forEach(tech => {
-        const marker = L.circleMarker([tech.lat, tech.lng], {
-          radius: 5,
-          fillColor: '#3b82f6',
-          color: '#0f172a',
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(techLayer);
+      if (techSidebarVisible) {
+        displayList.forEach(tech => {
+          const marker = L.circleMarker([tech.lat, tech.lng], {
+            radius: 5,
+            fillColor: '#3b82f6',
+            color: '#0f172a',
+            weight: 1,
+            opacity: 1,
+            fillOpacity: 0.8
+          }).addTo(techLayer);
 
-        marker.bindPopup(`
-          <div class="text-slate-900 p-1 font-sans">
-            <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
-            <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
-            <a href="tel:${tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
-            <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
-          </div>
-        `);
+          marker.bindPopup(`
+            <div class="text-slate-900 p-1 font-sans">
+              <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
+              <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
+              <a href="tel:${tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
+              <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
+            </div>
+          `);
 
-        marker.on('click', (e) => {
-          e.originalEvent.handledByMarker = true;
-          map.panTo([tech.lat, tech.lng]);
-          applySelection(null, tech.id);
+          marker.on('click', (e) => {
+            e.originalEvent.handledByMarker = true;
+            map.panTo([tech.lat, tech.lng]);
+            applySelection(null, tech.id);
+          });
         });
-      });
+      }
 
       // List cards
       displayList.slice(0, 50).forEach((tech, idx) => {
@@ -1189,6 +1191,7 @@
     }
 
     function drawConnection(client, tech) {
+      if (!techSidebarVisible) return;
       connectionLayer.clearLayers();
       L.polyline(
         [
@@ -1266,6 +1269,15 @@
       const collapseReseller = document.getElementById('collapse-reseller');
 
       const defaultLeftOffset = 12;
+      const syncTechVisibility = () => {
+        techSidebarVisible = !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
+        if (!techSidebarVisible) {
+          techLayer?.clearLayers();
+          connectionLayer?.clearLayers();
+        } else {
+          updateTechUI(getTechList(technicians));
+        }
+      };
 
       const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
 
@@ -1321,6 +1333,7 @@
         }
 
         updateTogglePositions();
+        syncTechVisibility();
         syncMap();
       };
 
