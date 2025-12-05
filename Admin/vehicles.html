@@ -105,17 +105,9 @@
           </div>
         </div>
       </div>
-      <div class="overflow-hidden rounded-xl border border-slate-800">
+      <div class="overflow-x-auto rounded-xl border border-slate-800">
         <table class="min-w-full divide-y divide-slate-800 text-sm">
-          <thead class="bg-slate-950/60 text-slate-300">
-            <tr>
-              <th class="px-4 py-3 text-left font-semibold">Status</th>
-              <th class="px-4 py-3 text-left font-semibold">Model</th>
-              <th class="px-4 py-3 text-left font-semibold">Short VIN</th>
-              <th class="px-4 py-3 text-left font-semibold">GPS Fix</th>
-              <th class="px-4 py-3 text-left font-semibold">Location</th>
-            </tr>
-          </thead>
+          <thead id="table-head" class="bg-slate-950/60 text-slate-300"></thead>
           <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
         </table>
       </div>
@@ -128,7 +120,31 @@
 
     const DATASET = { key: 'vehicles', path: '../assets/vehicles.csv' };
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
-    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+    const parseCsvLine = (line = '') => {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i += 1) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+            continue;
+          }
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+
+      values.push(current);
+      return values.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"'));
+    };
     const parseCsvText = (text = '') => {
       const lines = text.trim().split(/\r?\n/).filter(Boolean);
       const headers = parseCsvLine(lines.shift() || '');
@@ -150,24 +166,32 @@
       return response.text();
     };
 
-    const renderTable = (rows) => {
+    const renderTable = (headers, rows) => {
       const tbody = document.getElementById('table-body');
       tbody.innerHTML = '';
+      const thead = document.getElementById('table-head');
+      thead.innerHTML = '';
+
+      const headerRow = document.createElement('tr');
+      headers.forEach((header) => {
+        const th = document.createElement('th');
+        th.className = 'px-4 py-3 text-left font-semibold whitespace-nowrap';
+        th.textContent = header;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+
       rows.slice(0, 75).forEach((row) => {
         const tr = document.createElement('tr');
         tr.className = 'transition hover:bg-slate-800/40';
-        tr.innerHTML = `
-          <td class="px-4 py-3 font-semibold text-white">${row['Deal Status'] || row.Status || '—'}</td>
-          <td class="px-4 py-3 text-slate-200">${row['Model Year'] || ''} ${row.Model || row['Unit Type'] || ''}</td>
-          <td class="px-4 py-3 text-slate-200">${row.ShortVIN || row['Short VIN'] || ''}</td>
-          <td class="px-4 py-3">
-            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${String(row['GPS Fix'] || '').toLowerCase() === 'all' ? 'bg-emerald-600/20 text-emerald-200 border border-emerald-500/40' : 'bg-amber-500/10 text-amber-200 border border-amber-500/40'}">
-              <span class="h-2 w-2 rounded-full ${String(row['GPS Fix'] || '').toLowerCase() === 'all' ? 'bg-emerald-400' : 'bg-amber-300'}"></span>
-              ${row['GPS Fix'] || 'Unknown'}
-            </span>
-          </td>
-          <td class="px-4 py-3 text-slate-200">${row['PT City'] || row['PT City '] || ''}, ${row['State Loc'] || ''}</td>
-        `;
+        tr.innerHTML = headers.map((header, idx) => {
+          const value = row[header] ?? '';
+          const baseClass = 'px-4 py-3';
+          if (idx === 0) {
+            return `<td class="${baseClass} font-semibold text-white whitespace-nowrap">${value || ''}</td>`;
+          }
+          return `<td class="${baseClass} text-slate-200 whitespace-nowrap">${value || ''}</td>`;
+        }).join('');
         tbody.appendChild(tr);
       });
     };
@@ -245,9 +269,9 @@
       });
     };
 
-    const refreshTable = (rows) => {
+    const refreshTable = (headers, rows) => {
       const filtered = applyFiltersAndSort(rows);
-      renderTable(filtered);
+      renderTable(headers, filtered);
     };
 
     const updateSortButtons = () => {
@@ -261,14 +285,14 @@
 
     const mount = async () => {
       const text = await loadDataset();
-      const { rows } = parseCsvText(text);
+      const { headers, rows } = parseCsvText(text);
       updateStats(rows);
 
       populateSelect('status-filter', rows.map((row) => row['Deal Status'] || row.Status), 'All statuses');
       populateSelect('gps-filter', rows.map((row) => row['GPS Fix']), 'GPS: Any');
       populateSelect('state-filter', rows.map((row) => row['State Loc']), 'All states');
 
-      const handleFiltersChange = () => refreshTable(rows);
+      const handleFiltersChange = () => refreshTable(headers, rows);
 
       document.getElementById('status-filter').addEventListener('change', (event) => {
         filters.status = event.target.value;
@@ -305,7 +329,7 @@
       });
 
       updateSortButtons();
-      refreshTable(rows);
+      refreshTable(headers, rows);
       lucide.createIcons();
     };
 
