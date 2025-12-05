@@ -180,14 +180,24 @@
         }
       });
 
-      const headers = parseCsvLine(records.shift() || '');
+      let headerRecord = records.shift() || '';
+      let headerValues = parseCsvLine(headerRecord);
+      const valueRecords = records.map((record) => parseCsvLine(record)).filter((values) => values.length);
+      const targetColumns = Math.max(headerValues.length, ...valueRecords.map((values) => values.length));
+      while (headerValues.length < targetColumns && records.length) {
+        const nextPiece = records.shift();
+        const separator = headerRecord.endsWith(',') ? '' : ',';
+        headerRecord = `${headerRecord}${separator}${nextPiece}`;
+        headerValues = parseCsvLine(headerRecord);
+      }
+
       const rows = records
         .filter(Boolean)
         .map((record) => {
           const values = parseCsvLine(record);
-          return Object.fromEntries(headers.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
+          return Object.fromEntries(headerValues.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
         });
-      return { headers, rows };
+      return { headers: headerValues, rows };
     };
 
     const loadDataset = async () => {
