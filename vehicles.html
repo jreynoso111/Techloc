@@ -338,14 +338,54 @@
     }
 
     // --- 3. Process CSV text ---
+    function parseCSV(csvText) {
+      const rows = [];
+      let currentValue = '';
+      let currentRow = [];
+      let inQuotes = false;
+
+      for (let i = 0; i < csvText.length; i++) {
+        const char = csvText[i];
+
+        if (char === '"') {
+          const next = csvText[i + 1];
+          if (inQuotes && next === '"') {
+            currentValue += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (!inQuotes && (char === ',' || char === '\n' || char === '\r')) {
+          currentRow.push(currentValue);
+          currentValue = '';
+
+          if (char === ',') continue;
+
+          if (char === '\r' && csvText[i + 1] === '\n') i++;
+          if (currentRow.some(cell => cell.trim() !== '')) rows.push(currentRow);
+          currentRow = [];
+          continue;
+        }
+
+        currentValue += char;
+      }
+
+      currentRow.push(currentValue);
+      if (currentRow.some(cell => cell.trim() !== '')) rows.push(currentRow);
+
+      return rows.filter(r => r.length > 0);
+    }
+
     async function parseTechCSV(csvText) {
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return;
+      const rows = parseCSV(csvText);
+      if (rows.length < 2) return;
 
-      const headers = lines[0].toLowerCase().split(',').map(h => h.trim().replace(/"/g, ''));
+      const headers = rows[0].map(h => h.trim().replace(/"/g, '')).map(h => h.toLowerCase());
 
-      const techPromises = lines.slice(1).map(async (line, idx) => {
-        const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      const techPromises = rows.slice(1).map(async (values, idx) => {
         const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
 
         const row = {};
@@ -415,15 +455,14 @@
     }
 
     function parseVehicleCSV(csvText) {
-      const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-      if (lines.length < 2) return [];
-      const headers = (lines[0].match(/(".*?"|[^",]+)(?=,|$)/g) || []).map(h => h.replace(/^"|"$/g, '').trim());
+      const rows = parseCSV(csvText);
+      if (rows.length < 2) return [];
+      const headers = rows[0].map(h => h.replace(/^"|"$/g, '').trim());
 
-      const vehiclesData = lines.slice(1).map((line, idx) => {
-        const values = line.match(/(".*?"|[^",]+)(?=,|$)/g) || [];
+      const vehiclesData = rows.slice(1).map((values, idx) => {
         const clean = values.map(v => v.replace(/^"|"$/g, '').trim());
         const row = {};
-        headers.forEach((h, i) => row[h] = clean[i] || '');
+        headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
 
         const stateCode = (row['State Loc'] || row['State'] || '').trim();
         const base = STATE_CENTERS[stateCode] || [39.8, -98.5];
