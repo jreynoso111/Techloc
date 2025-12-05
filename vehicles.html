@@ -39,7 +39,44 @@
       bottom: 0;
       backdrop-filter: blur(12px);
       background: rgba(15, 23, 42, 0.9);
+      transition: transform 0.25s ease, width 0.25s ease;
     }
+
+    .resizable-sidebar.collapsed.left {
+      transform: translateX(calc(-100% + 48px));
+    }
+
+    .resizable-sidebar.collapsed.right {
+      transform: translateX(calc(100% - 48px));
+    }
+
+    .sidebar-toggle {
+      position: absolute;
+      top: 12px;
+      z-index: 80;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid #1f2937;
+      background: rgba(30, 41, 59, 0.9);
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .sidebar-toggle:hover { background: rgba(51, 65, 85, 0.95); border-color: #334155; color: #fff; }
+
+    .sidebar-toggle .toggle-icon { font-size: 16px; font-weight: 900; line-height: 1; }
+
+    .sidebar-toggle.left { right: 12px; }
+    .sidebar-toggle.right { left: 12px; }
 
     .resize-handle {
       position: absolute;
@@ -140,8 +177,12 @@
       </div>
 
     <!-- Sidebar: Control Panel -->
-    <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
+    <aside id="left-sidebar" class="resizable-sidebar left collapsed left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
       <div class="resize-handle right-0"></div>
+      <button id="left-sidebar-toggle" class="sidebar-toggle left" type="button" aria-expanded="false">
+        <span class="toggle-icon" aria-hidden="true">›</span>
+        <span class="toggle-text hidden sm:inline">Expandir</span>
+      </button>
 
       <!-- Search -->
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
@@ -181,8 +222,12 @@
     </aside>
 
     <!-- Vehicles Sidebar -->
-    <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
+    <aside id="right-sidebar" class="resizable-sidebar right collapsed right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
       <div class="resize-handle left-0"></div>
+      <button id="right-sidebar-toggle" class="sidebar-toggle right" type="button" aria-expanded="false">
+        <span class="toggle-icon" aria-hidden="true">‹</span>
+        <span class="toggle-text hidden sm:inline">Expandir</span>
+      </button>
       <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
         <div class="flex items-center justify-between gap-3">
           <div>
@@ -1139,12 +1184,50 @@
       rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
     }
 
+    function setupSidebarToggles() {
+      const leftSidebar = document.getElementById('left-sidebar');
+      const rightSidebar = document.getElementById('right-sidebar');
+      const leftToggle = document.getElementById('left-sidebar-toggle');
+      const rightToggle = document.getElementById('right-sidebar-toggle');
+      if (!leftSidebar || !rightSidebar || !leftToggle || !rightToggle) return;
+
+      const updateToggle = (side) => {
+        const sidebar = side === 'left' ? leftSidebar : rightSidebar;
+        const toggle = side === 'left' ? leftToggle : rightToggle;
+        const collapsed = sidebar.classList.contains('collapsed');
+
+        toggle.setAttribute('aria-expanded', (!collapsed).toString());
+        toggle.setAttribute('aria-label', `${collapsed ? 'Expandir' : 'Minimizar'} panel ${side === 'left' ? 'izquierdo' : 'derecho'}`);
+
+        const icon = toggle.querySelector('.toggle-icon');
+        const text = toggle.querySelector('.toggle-text');
+        if (icon) icon.textContent = collapsed
+          ? (side === 'left' ? '›' : '‹')
+          : (side === 'left' ? '‹' : '›');
+        if (text) text.textContent = collapsed ? 'Expandir' : 'Minimizar';
+      };
+
+      const toggleSidebar = (side) => {
+        const sidebar = side === 'left' ? leftSidebar : rightSidebar;
+        sidebar.classList.toggle('collapsed');
+        updateToggle(side);
+        if (map) map.invalidateSize();
+      };
+
+      leftToggle.addEventListener('click', () => toggleSidebar('left'));
+      rightToggle.addEventListener('click', () => toggleSidebar('right'));
+
+      updateToggle('left');
+      updateToggle('right');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       iconLib.createIcons();
       initMap();
       loadTechnicians();
       loadVehicles();
       setupResizableSidebars();
+      setupSidebarToggles();
       document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
 
       document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
