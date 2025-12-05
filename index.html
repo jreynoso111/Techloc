@@ -20,6 +20,9 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+  <div class="pointer-events-none fixed inset-0 z-10 opacity-80 mix-blend-screen">
+    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
+  </div>
   <header class="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <a href="index.html" class="flex items-center gap-3">
@@ -28,7 +31,7 @@
         </div>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
-          <h1 class="text-lg font-black leading-tight text-white">GPS Installer Hub</h1>
+          <h1 class="text-lg font-black leading-tight text-white">Network &amp; Dispatch Hub</h1>
         </div>
       </a>
       <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
@@ -42,18 +45,45 @@
     </div>
   </header>
 
-  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
-
   <main class="space-y-16">
     <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 py-16">
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_35%)]"></div>
-      <div class="mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-2">
+      <div class="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.12),_transparent_35%)]"></div>
+      <div class="relative z-20 mx-auto grid max-w-7xl items-center gap-12 px-6 lg:grid-cols-2">
         <div class="space-y-6">
           <div class="inline-flex items-center gap-2 rounded-full border border-slate-800/60 bg-slate-900/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-200">
-            <i data-lucide="shield" class="h-3 w-3"></i> Nationwide coverage • SLA in minutes
+            <i data-lucide="shield" class="h-3 w-3"></i> Commercial Vehicle Support Network
           </div>
-          <h2 class="text-4xl font-black leading-tight text-white sm:text-5xl">Welcome to TechLoc</h2>
-          <p class="text-lg text-slate-300">Manage your GPS inventory with a verified network of installers. Start by assigning the nearest tech or checking which vehicles with broken GPS units already have nearby support.</p>
+          <h2 class="text-4xl font-black leading-tight text-white sm:text-5xl">TechLoc • Commercial Vehicle Support Network</h2>
+          <p class="text-lg text-slate-300">Nationwide network of GPS installers, towing companies, mechanics, locksmiths and resellers for commercial fleets.</p>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900">
+            <h3 class="mb-3 text-sm font-bold text-white">What we cover</h3>
+            <ul class="space-y-2 text-sm text-slate-200">
+              <li class="flex items-start gap-2">
+                <i data-lucide="satellite-dish" class="mt-0.5 h-4 w-4 text-blue-300"></i>
+                <span>GPS installations &amp; diagnostics</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="life-buoy" class="mt-0.5 h-4 w-4 text-emerald-300"></i>
+                <span>Towing &amp; recovery from yards and roadsides</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="wrench" class="mt-0.5 h-4 w-4 text-amber-300"></i>
+                <span>Mechanics &amp; repair shops</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="key-round" class="mt-0.5 h-4 w-4 text-purple-300"></i>
+                <span>Locksmiths (keys, immobilizers, ignition)</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="store" class="mt-0.5 h-4 w-4 text-sky-300"></i>
+                <span>Resellers &amp; auctions</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <i data-lucide="headset" class="mt-0.5 h-4 w-4 text-emerald-200"></i>
+                <span>Dispatch &amp; coordination</span>
+              </li>
+            </ul>
+          </div>
           <div class="grid gap-4">
             <a href="vehicles.html" class="flex items-center justify-between rounded-2xl border border-emerald-700/50 bg-emerald-600/10 p-4 text-left shadow-lg shadow-emerald-600/10 transition hover:-translate-y-0.5 hover:border-emerald-400 hover:bg-emerald-600/20">
               <div>
@@ -93,7 +123,7 @@
             </div>
             <div class="rounded-2xl bg-slate-950/30 p-5 ring-1 ring-slate-800/70 backdrop-blur-lg">
               <h3 class="mb-2 text-sm font-bold text-white">Available workflows</h3>
-              <p class="text-sm text-slate-400">Open “Vehicles to Fix” to see vehicles with damaged GPS units, check coverage, and assign the best technician nearby.</p>
+              <p class="text-sm text-slate-400">Open “Vehicles to Fix” to see every active incident, confirm coverage across service types, and dispatch the best technician nearby.</p>
             </div>
             <div class="grid grid-cols-2 gap-3 text-xs text-slate-300">
               <div class="flex items-center gap-2 rounded-xl border border-slate-800/70 bg-slate-900/40 px-3 py-2 backdrop-blur">
@@ -115,29 +145,94 @@
     </section>
 
     <section class="mx-auto max-w-7xl px-6">
-      <div class="grid gap-4 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900 sm:grid-cols-2">
+      <div class="grid gap-10 rounded-3xl border border-slate-900 bg-slate-950/60 p-6 shadow-inner shadow-slate-900">
         <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">Home</p>
-          <h3 class="text-2xl font-black text-white">Choose where to start</h3>
-          <p class="text-sm text-slate-400">Head straight into the vehicles map to validate coverage and assign nearby installers.</p>
+          <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">Service Types</p>
+          <h3 class="text-2xl font-black text-white">Specialists you can dispatch in minutes</h3>
+          <p class="text-sm text-slate-400">TechLoc connects fleet teams with vetted partners across every commercial vehicle emergency or installation scenario.</p>
         </div>
-        <div class="grid gap-3">
-          <a href="vehicles.html" class="group rounded-2xl border border-slate-800 bg-slate-900/70 p-4 transition hover:-translate-y-0.5 hover:border-emerald-400">
-            <div class="mb-2 flex items-center justify-between">
-              <span class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Validate</span>
-              <i data-lucide="compass" class="h-4 w-4 text-emerald-200"></i>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="satellite-dish" class="mt-0.5 h-5 w-5 text-blue-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">GPS Installer</p>
+              <p class="text-xs text-slate-400">Certified installers with device-specific SOPs and verified background checks.</p>
             </div>
-            <p class="text-sm font-semibold text-white">Map of vehicles with issues</p>
-            <p class="text-xs text-slate-400">Confirm which customers are near active installers.</p>
-          </a>
-          <a href="Admin/index.html" class="group rounded-2xl border border-slate-800 bg-slate-900/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-400">
-            <div class="mb-2 flex items-center justify-between">
-              <span class="text-xs font-semibold uppercase tracking-wide text-blue-200">Secure</span>
-              <i data-lucide="shield" class="h-4 w-4 text-blue-200"></i>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="life-buoy" class="mt-0.5 h-5 w-5 text-emerald-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Towing / Recovery</p>
+              <p class="text-xs text-slate-400">Heavy-duty recovery partners with clear ETAs and direct dispatcher contact.</p>
             </div>
-            <p class="text-sm font-semibold text-white">Admin dashboard</p>
-            <p class="text-xs text-slate-400">Manage CSV data, technicians, and vehicles from a protected workspace.</p>
-          </a>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="wrench" class="mt-0.5 h-5 w-5 text-amber-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Mechanic / Repair Shop</p>
+              <p class="text-xs text-slate-400">ASE-aligned technicians for drivability issues, diagnostics, and in-shop repairs.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="key-round" class="mt-0.5 h-5 w-5 text-purple-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Locksmith</p>
+              <p class="text-xs text-slate-400">Vehicle access, rekeys, and immobilizer support for stranded drivers.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="paintbrush" class="mt-0.5 h-5 w-5 text-pink-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Body Shop / Paint</p>
+              <p class="text-xs text-slate-400">Collision and cosmetic specialists with estimates that keep fleets moving.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="truck" class="mt-0.5 h-5 w-5 text-orange-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Tire / Roadside Service</p>
+              <p class="text-xs text-slate-400">Mobile tire, jump-start, fuel, and roadside repairs with live status updates.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="store" class="mt-0.5 h-5 w-5 text-sky-300"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Reseller / Auction / Dealer</p>
+              <p class="text-xs text-slate-400">Partners who prep and deliver vehicles with the configurations your fleet expects.</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <i data-lucide="headset" class="mt-0.5 h-5 w-5 text-emerald-200"></i>
+            <div>
+              <p class="text-sm font-semibold text-white">Dispatcher / Broker Support</p>
+              <p class="text-xs text-slate-400">Coverage confirmation, ETA management, and escalations handled in one channel.</p>
+            </div>
+          </div>
+        </div>
+        <div class="grid gap-4 rounded-2xl border border-slate-900 bg-slate-950/70 p-4 sm:grid-cols-2">
+          <div class="space-y-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-blue-300">Home</p>
+            <h4 class="text-xl font-black text-white">Choose where to start</h4>
+            <p class="text-sm text-slate-400">Move directly into dispatch tools or admin controls without losing context.</p>
+          </div>
+          <div class="grid gap-3">
+            <a href="vehicles.html" class="group rounded-2xl border border-slate-800 bg-slate-900/70 p-4 transition hover:-translate-y-0.5 hover:border-emerald-400">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wide text-emerald-200">Validate</span>
+                <i data-lucide="compass" class="h-4 w-4 text-emerald-200"></i>
+              </div>
+              <p class="text-sm font-semibold text-white">Map of vehicles and incidents</p>
+              <p class="text-xs text-slate-400">Confirm coverage, view nearby partners, and dispatch the right service type.</p>
+            </a>
+            <a href="Admin/index.html" class="group rounded-2xl border border-slate-800 bg-slate-900/70 p-4 transition hover:-translate-y-0.5 hover:border-blue-400">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wide text-blue-200">Secure</span>
+                <i data-lucide="shield" class="h-4 w-4 text-blue-200"></i>
+              </div>
+              <p class="text-sm font-semibold text-white">Admin dashboard</p>
+              <p class="text-xs text-slate-400">Manage partner data, rosters, and vehicle records from a protected workspace.</p>
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -148,7 +243,7 @@
       <div class="flex items-center gap-2 text-slate-300">
         <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
         <span class="font-semibold text-white">TechLoc</span>
-        <span class="text-slate-500">• GPS installer network across the USA</span>
+        <span class="text-slate-500">• Commercial vehicle service network across the USA</span>
       </div>
       <div class="flex items-center gap-4 text-xs uppercase tracking-wide text-slate-500">
         <span>24/7 Support</span>
@@ -253,7 +348,7 @@
         const techs = await parseCsv();
         renderStats(techs);
       } catch (err) {
-        console.warn('Error loading installer CSV', err);
+      console.warn('Error loading installer dataset', err);
       }
     };
 
