@@ -78,12 +78,28 @@
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
           <h3 class="text-lg font-bold text-white">Installer list</h3>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <input id="search" type="search" placeholder="Search by company, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-          <a href="../assets/installers.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-            <i data-lucide="download" class="h-4 w-4"></i>
-            Download CSV
-          </a>
+        <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <div class="flex flex-wrap gap-2">
+            <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">All companies</option>
+            </select>
+            <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+              <option value="all">All states</option>
+            </select>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+              <span class="text-slate-400">Sort:</span>
+              <button data-sort="company" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Company</button>
+              <button data-sort="state" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">State</button>
+              <button data-sort="city" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">City</button>
+            </div>
+            <input id="search" type="search" placeholder="Search by company, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <a href="../assets/installers.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+              <i data-lucide="download" class="h-4 w-4"></i>
+              Download CSV
+            </a>
+          </div>
         </div>
       </div>
       <div class="overflow-hidden rounded-xl border border-slate-800">
@@ -114,7 +130,32 @@
     };
 
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
-    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
+    const parseCsvLine = (line = '') => {
+      const values = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i += 1) {
+        const char = line[i];
+
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i += 1;
+            continue;
+          }
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current);
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+
+      values.push(current);
+      return values.map((value) => value.replace(/^"|"$/g, '').replace(/""/g, '"'));
+    };
     const parseCsvText = (text = '') => {
       const lines = text.trim().split(/\r?\n/).filter(Boolean);
       const headers = parseCsvLine(lines.shift() || '');
@@ -171,16 +212,112 @@
         .some((value) => String(value || '').toLowerCase().includes(query)));
     };
 
+    const getText = (value) => String(value || '').toLowerCase();
+
+    const filters = {
+      search: '',
+      company: 'all',
+      state: 'all',
+      sortKey: '',
+      sortDir: 'asc',
+    };
+
+    const applyFiltersAndSort = (rows) => {
+      let result = [...rows];
+      result = applySearch(result, filters.search);
+
+      if (filters.company !== 'all') {
+        result = result.filter((row) => getText(row['Installation Company'] || row.Company) === filters.company);
+      }
+
+      if (filters.state !== 'all') {
+        result = result.filter((row) => getText(row.State) === filters.state);
+      }
+
+      const sorters = {
+        company: (a, b) => getText(a['Installation Company'] || a.Company).localeCompare(getText(b['Installation Company'] || b.Company)),
+        state: (a, b) => getText(a.State).localeCompare(getText(b.State)),
+        city: (a, b) => getText(a.City).localeCompare(getText(b.City)),
+      };
+
+      if (filters.sortKey && sorters[filters.sortKey]) {
+        result = result.sort((a, b) => {
+          const comparison = sorters[filters.sortKey](a, b);
+          return filters.sortDir === 'asc' ? comparison : -comparison;
+        });
+      }
+
+      return result;
+    };
+
+    const populateSelect = (elementId, values, label) => {
+      const select = document.getElementById(elementId);
+      const options = Array.from(new Set(values.filter(Boolean).map((value) => getText(value)))).sort();
+      select.innerHTML = `<option value="all">${label}</option>`;
+      options.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value.toUpperCase();
+        select.appendChild(option);
+      });
+    };
+
+    const refreshTable = (rows) => {
+      const filtered = applyFiltersAndSort(rows);
+      renderTable(filtered);
+    };
+
+    const updateSortButtons = () => {
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        const isActive = button.dataset.sort === filters.sortKey;
+        button.classList.toggle('bg-blue-600/30', isActive);
+        button.classList.toggle('text-white', isActive);
+        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+      });
+    };
+
     const mount = async () => {
       const text = await loadDataset();
       const { rows } = parseCsvText(text);
       updateStats(rows);
-      renderTable(rows);
+
+      populateSelect('company-filter', rows.map((row) => row['Installation Company'] || row.Company), 'All companies');
+      populateSelect('state-filter', rows.map((row) => row.State), 'All states');
+
+      const handleFiltersChange = () => refreshTable(rows);
+
+      document.getElementById('company-filter').addEventListener('change', (event) => {
+        filters.company = event.target.value;
+        handleFiltersChange();
+      });
+
+      document.getElementById('state-filter').addEventListener('change', (event) => {
+        filters.state = event.target.value;
+        handleFiltersChange();
+      });
+
       const searchInput = document.getElementById('search');
       searchInput.addEventListener('input', (event) => {
-        const filtered = applySearch(rows, event.target.value);
-        renderTable(filtered);
+        filters.search = event.target.value;
+        handleFiltersChange();
       });
+
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const key = button.dataset.sort;
+          if (filters.sortKey === key) {
+            filters.sortDir = filters.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            filters.sortKey = key;
+            filters.sortDir = 'asc';
+          }
+          updateSortButtons();
+          handleFiltersChange();
+        });
+      });
+
+      updateSortButtons();
+      refreshTable(rows);
       lucide.createIcons();
     };
 
