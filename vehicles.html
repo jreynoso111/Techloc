@@ -312,8 +312,12 @@
 
     // --- 1. Initialize map ---
     function initMap() {
-      // Start at a tighter view (double the previous zoom level for closer detail)
-      map = L.map('tech-map', { zoomControl: false }).setView([39.8, -98.5], 8);
+      const defaultBounds = L.latLngBounds(
+        [24.396308, -125.0], // Southwest roughly covering the continental U.S.
+        [49.384358, -66.93457] // Northeast corner
+      );
+
+      map = L.map('tech-map', { zoomControl: false });
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -322,6 +326,8 @@
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
       highlightLayer = L.layerGroup().addTo(map);
+
+      map.fitBounds(defaultBounds, { padding: [20, 20] });
 
       map.on('click', (e) => {
         if (e.originalEvent?.handledByMarker) return;
