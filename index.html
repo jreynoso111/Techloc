@@ -193,11 +193,20 @@
       return { lat: base.lat + jitter.lat, lng: base.lng + jitter.lng };
     };
 
+    const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
+
+    const loadDatasetText = async (key, path) => {
+      const override = localStorage.getItem(localDatasetKey(key));
+      if (override) return override;
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
+      return response.text();
+    };
+
     const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
 
     const parseCsv = async () => {
-      const response = await fetch('assets/installers.csv');
-      const text = await response.text();
+      const text = await loadDatasetText('installers', 'assets/installers.csv');
       const lines = text.trim().split(/\r?\n/);
       const headers = parseCsvLine(lines.shift() || '').map((h) => h.trim());
       return lines.filter((line) => line.trim()).map((line, idx) => {

@@ -327,6 +327,16 @@
       ? window.lucide
       : { createIcons: () => {} };
 
+    const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
+
+    async function loadDatasetText({ key, path }) {
+      const override = localStorage.getItem(localDatasetKey(key));
+      if (override) return override;
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
+      return response.text();
+    }
+
     // --- 1. Initialize map ---
     function initMap() {
       map = L.map('tech-map', { zoomControl: false, minZoom: 3 }).setView([39.8, -98.5], 5);
@@ -377,9 +387,7 @@
     // --- 2. Load CSVs ---
     async function loadTechnicians() {
       try {
-        const response = await fetch('assets/installers.csv');
-        if (!response.ok) throw new Error("Unable to read data file (Status " + response.status + ")");
-        const text = await response.text();
+        const text = await loadDatasetText({ key: 'installers', path: 'assets/installers.csv' });
         await parseTechCSV(text);
       } catch (err) {
         console.warn("System warning: " + err.message);
@@ -396,9 +404,7 @@
 
     async function loadVehicles() {
       try {
-        const response = await fetch('assets/vehicles.csv');
-        if (!response.ok) throw new Error("Unable to read vehicle data (Status " + response.status + ")");
-        const text = await response.text();
+        const text = await loadDatasetText({ key: 'vehicles', path: 'assets/vehicles.csv' });
         const parsed = parseVehicleCSV(text);
         vehicles = parsed.rows;
         vehicleHeaders = parsed.headers;
@@ -417,9 +423,7 @@
 
     async function loadTowingCompanies() {
       try {
-        const response = await fetch('assets/towing_companies.csv');
-        if (!response.ok) throw new Error("Unable to read towing data (Status " + response.status + ")");
-        const text = await response.text();
+        const text = await loadDatasetText({ key: 'towing_companies', path: 'assets/towing_companies.csv' });
         towingCompanies = parsePartnerCSV(text, 'towing');
         updateTowingUI(towingCompanies);
       } catch (err) {
@@ -429,9 +433,7 @@
 
     async function loadResellers() {
       try {
-        const response = await fetch('assets/resellers.csv');
-        if (!response.ok) throw new Error("Unable to read reseller data (Status " + response.status + ")");
-        const text = await response.text();
+        const text = await loadDatasetText({ key: 'resellers', path: 'assets/resellers.csv' });
         resellers = parsePartnerCSV(text, 'reseller');
         updateResellerUI(resellers);
       } catch (err) {
