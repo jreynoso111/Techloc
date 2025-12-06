@@ -190,6 +190,11 @@
     <!-- Floating Legend -->
       <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-purple-300"></span> Towing</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Reseller</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-orange-400"></span> Repair</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-yellow-400"></span> Locksmith</div>
+        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-sky-400"></span> Dispatcher</div>
         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> Vehicle (GPS issue)</div>
         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Vehicle (Fully Working)</div>
         <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> Vehicle (All)</div>
@@ -470,7 +475,7 @@
       'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
     };
 
-    let map, techLayer, targetLayer, connectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer;
+    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer;
     let technicians = [];
     let towingCompanies = [];
     let resellers = [];
@@ -498,6 +503,24 @@
       ? window.lucide
       : { createIcons: () => {} };
 
+    const SERVICE_TYPES = ['tech', 'towing', 'reseller', 'repair', 'locksmith', 'dispatcher'];
+    const SERVICE_COLORS = {
+      tech: '#3b82f6',
+      towing: '#c084fc',
+      reseller: '#34d399',
+      repair: '#fb923c',
+      locksmith: '#facc15',
+      dispatcher: '#38bdf8'
+    };
+    const SERVICE_SIDEBAR_KEYS = {
+      tech: 'left',
+      towing: 'towing',
+      reseller: 'reseller',
+      repair: 'repair',
+      locksmith: 'locksmith',
+      dispatcher: 'dispatcher'
+    };
+
     const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
 
     async function loadDatasetText({ key, path }) {
@@ -518,6 +541,8 @@
       vehicleLayer = L.layerGroup().addTo(map);
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
+      serviceLayer = L.layerGroup().addTo(map);
+      serviceConnectionLayer = L.layerGroup().addTo(map);
       highlightLayer = L.layerGroup().addTo(map);
       towingLayer = L.layerGroup().addTo(map);
       resellerLayer = L.layerGroup().addTo(map);
@@ -1215,11 +1240,7 @@
 
       setTimeout(attachPopupHandlers, 50);
 
-      if (nearest?.entry) {
-        const color = nearest.type === 'towing' ? '#c084fc' : nearest.type === 'reseller' ? '#34d399' : '#3b82f6';
-        L.circleMarker([nearest.entry.lat, nearest.entry.lng], { radius: 9, color, weight: 2, fillColor: color, fillOpacity: 0.9 }).addTo(highlightLayer);
-        L.polyline([[vehicle.lat, vehicle.lng], [nearest.entry.lat, nearest.entry.lng]], { color, weight: 3, dashArray: '6 4', opacity: 0.9 }).addTo(highlightLayer);
-      }
+      showServicesAroundVehicle(vehicle);
 
       applySelection(vehicle.id, null);
     }
@@ -1406,6 +1427,8 @@
       selectedTechId = null;
       highlightLayer?.clearLayers();
       connectionLayer?.clearLayers();
+      serviceLayer?.clearLayers();
+      serviceConnectionLayer?.clearLayers();
       renderVehicles();
       renderVisibleSidebars();
       toggleSelectionBanner();
@@ -1452,6 +1475,8 @@
 
       targetLayer.clearLayers();
       connectionLayer.clearLayers();
+      serviceLayer?.clearLayers();
+      serviceConnectionLayer?.clearLayers();
       const targetIcon = L.divIcon({
         className: '',
         html: `<div class="w-4 h-4 bg-red-600 rounded-full border-2 border-white animate-ping"></div>`
@@ -1674,6 +1699,58 @@
       const type = getActivePartnerType();
       const list = getPartnerListByType(type);
       return getNearestFromList(vehicle, list, type);
+    }
+
+    function showServicesAroundVehicle(vehicle) {
+      serviceLayer?.clearLayers();
+      serviceConnectionLayer?.clearLayers();
+      if (!vehicle) return;
+
+      SERVICE_TYPES.forEach((type) => {
+        const partners = getPartnerListByType(type);
+        if (!partners.length) return;
+
+        const nearby = partners
+          .map(entry => ({ entry, distance: getDistance(vehicle.lat, vehicle.lng, entry.lat, entry.lng) }))
+          .filter(item => item.distance <= 300)
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, 5);
+
+        nearby.forEach(({ entry, distance }) => {
+          const color = SERVICE_COLORS[type] || '#38bdf8';
+          const marker = L.circleMarker([entry.lat, entry.lng], {
+            radius: 7,
+            color,
+            fillColor: color,
+            fillOpacity: 0.92,
+            weight: 2,
+            opacity: 1
+          }).addTo(serviceLayer);
+
+          marker.bindPopup(`
+            <div class="text-slate-900 p-1 font-sans space-y-1">
+              <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">${getPartnerLabel(type)}</p>
+              <strong class="block text-sm font-bold">${entry.company}</strong>
+              <div class="text-xs text-slate-500">${Math.round(distance)} miles away</div>
+            </div>
+          `);
+
+          marker.on('click', (e) => {
+            e.originalEvent.handledByMarker = true;
+            sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+            applySelection(vehicle.id, type === 'tech' ? entry.id : null);
+            map.panTo([entry.lat, entry.lng]);
+          });
+
+          L.polyline(
+            [
+              [vehicle.lat, vehicle.lng],
+              [entry.lat, entry.lng]
+            ],
+            { color, weight: 3, opacity: 0.85, dashArray: '6 4' }
+          ).addTo(serviceConnectionLayer);
+        });
+      });
     }
 
     function drawConnection(origin, partnerInfo) {
