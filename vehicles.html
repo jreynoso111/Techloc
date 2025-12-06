@@ -100,12 +100,40 @@
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 
-    .vehicle-cross div {
-      color: #ef4444;
-      font-size: 16px;
-      font-weight: 800;
-      text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+    .vehicle-cross-badge {
+      color: #fca5a5;
+      font-size: 12px;
+      font-weight: 900;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
       line-height: 1;
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+    }
+
+    .vehicle-dot {
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .distance-label-wrapper { pointer-events: none; }
+
+    .distance-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--line-color, #e2e8f0);
+      background: rgba(10, 14, 26, 0.95);
+      border: 1px solid color-mix(in srgb, var(--line-color, #e2e8f0) 70%, transparent);
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     }
 
     .sidebar-toggle-btn {
@@ -201,9 +229,9 @@
           </div>
           <div class="space-y-1 border-l border-slate-700/70 pl-4">
             <p class="text-[11px] font-bold text-slate-100">Vehicles</p>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> GPS issue</div>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Fully working</div>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> All vehicles</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-amber-200"></span> GPS issue / Other</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 border border-emerald-200"></span> Fully working</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-red-200"></span> All vehicles</div>
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
           </div>
         </div>
@@ -504,7 +532,54 @@
     let activeLeftPanel = null;
     let lastClientLocation = null;
     let renderedTechIds = '';
-    const cityCache = new Map();
+    const locationCache = new Map();
+
+    const toStateCode = (value = '') => {
+      if (!value) return '';
+      const match = `${value}`.match(/([A-Z]{2})/i);
+      return match ? match[1].toUpperCase() : '';
+    };
+
+    const deriveCoords = ({ zip = '', city = '', stateCode = '', fallbackLatLng = null, seed = 0 }) => {
+      if (fallbackLatLng && Number.isFinite(fallbackLatLng.lat) && Number.isFinite(fallbackLatLng.lng)) {
+        return { lat: fallbackLatLng.lat, lng: fallbackLatLng.lng };
+      }
+
+      const base = (() => {
+        if (STATE_CENTERS[stateCode]) return STATE_CENTERS[stateCode];
+        return STATE_CENTERS.DEFAULT || [39.8, -98.5];
+      })();
+
+      const cleanZip = `${zip}`.trim();
+      if (cleanZip) {
+        const zipKey = `${cleanZip}-${stateCode}`.toLowerCase();
+        if (locationCache.has(zipKey)) return locationCache.get(zipKey);
+
+        const zipNumber = parseInt(cleanZip.replace(/\D/g, ''), 10);
+        if (Number.isFinite(zipNumber)) {
+          const angle = (zipNumber % 360) * (Math.PI / 180);
+          const radius = 0.15 + ((zipNumber % 700) / 1200);
+          const coords = { lat: base[0] + (radius * Math.cos(angle)), lng: base[1] + (radius * Math.sin(angle) * 1.3) };
+          locationCache.set(zipKey, coords);
+          return coords;
+        }
+      }
+
+      const cleanCity = `${city}`.trim().toLowerCase();
+      if (cleanCity) {
+        const cityKey = `${cleanCity}-${stateCode}`;
+        if (locationCache.has(cityKey)) return locationCache.get(cityKey);
+
+        const cityHash = cleanCity.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), seed || 1);
+        const angle = (cityHash % 360) * (Math.PI / 180);
+        const radius = 0.18 + ((cityHash % 500) / 1400);
+        const coords = { lat: base[0] + (radius * Math.cos(angle)), lng: base[1] + (radius * Math.sin(angle) * 1.25) };
+        locationCache.set(cityKey, coords);
+        return coords;
+      }
+
+      return { lat: base[0], lng: base[1] };
+    };
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
@@ -740,26 +815,13 @@
         headers.forEach((h, i) => row[h] = cleanValues[i] || '');
 
         const companyName = row['installation company'] || row['company'] || 'Installer';
-
-        let stateRaw = row['state'] || '';
-        let stateCode = stateRaw.match(/\(([A-Z]{2})\)/)?.[1] || (stateRaw.length === 2 ? stateRaw : 'US');
-
-        let base = STATE_CENTERS[stateCode] || [39.8, -98.5];
-        let zipSeed = parseInt((row['zip'] || '0').replace(/\D/g, '')) || idx;
-
-        // Cloud-style dispersion
-        let angle = (zipSeed * 137.5) * (Math.PI / 180);
-        let radius = 0.1 + ((zipSeed % 50) / 100);
-        let lat = base[0] + (radius * Math.cos(angle));
-        let lng = base[1] + (radius * Math.sin(angle) * 1.3);
-
-        if (!row['zip'] && row['city']) {
-          const cityCoords = await geocodeCity(row['city'], stateCode);
-          if (cityCoords) {
-            lat = cityCoords.lat;
-            lng = cityCoords.lng;
-          }
-        }
+        const stateCode = toStateCode(row['state']) || 'US';
+        const coords = deriveCoords({
+          zip: row['zip'],
+          city: row['city'],
+          stateCode,
+          seed: idx
+        });
 
         return {
           id: idx,
@@ -770,8 +832,8 @@
           city: row['city'] || '',
           state: stateCode,
           zip: row['zip'] || '',
-          lat: lat,
-          lng: lng
+          lat: coords.lat,
+          lng: coords.lng
         };
       });
 
@@ -781,26 +843,6 @@
       document.getElementById('total-count').textContent = technicians.length;
       updateTechUI(technicians);
       renderVehicles();
-    }
-
-    async function geocodeCity(city, stateCode) {
-      const key = `${city},${stateCode}`.toLowerCase();
-      if (cityCache.has(key)) return cityCache.get(key);
-
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(`${city}, ${stateCode}, USA`)}`);
-        const data = await response.json();
-        if (data && data.length > 0) {
-          const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-          cityCache.set(key, coords);
-          return coords;
-        }
-      } catch (e) {
-        console.warn('City geocode failed', city, stateCode, e);
-      }
-
-      cityCache.set(key, null);
-      return null;
     }
 
     function parseVehicleCSV(csvText) {
@@ -813,19 +855,27 @@
         const row = {};
         headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
 
-        const stateCode = (row['State Loc'] || row['State'] || '').trim();
-        const base = STATE_CENTERS[stateCode] || [39.8, -98.5];
+        const stateCode = toStateCode(row['State Loc'] || row['State']);
         const numericLat = parseFloat(row['Lat']);
         const numericLng = parseFloat(row['Long'] || row['Lng']);
-        const coords = Number.isFinite(numericLat) && Number.isFinite(numericLng)
+        const fallbackLatLng = Number.isFinite(numericLat) && Number.isFinite(numericLng)
           ? { lat: numericLat, lng: numericLng }
-          : { lat: base[0], lng: base[1] };
+          : null;
+        const coords = deriveCoords({
+          zip: row['PT ZipCode'] || row['Zip'] || '',
+          city: row['PT City'] || row['City'] || '',
+          stateCode,
+          fallbackLatLng,
+          seed: idx
+        });
+
+        const dealCompletion = row['Deal Completion'] || row['Deal completion'] || row['Deal completition'] || row['Remaining'] || '';
 
         return {
           id: idx,
           status: row['Deal Status'] || 'ACTIVE',
           invPrepStatus: row['INV Prep Stat'] || row['Inv. Prep. Stat.'] || row['Inv Prep Stat'] || '',
-          remaining: row['Remaining'] || '',
+          dealCompletion,
           type: row['Unit Type'] || 'Vehicle',
           year: row['Model Year'] || '',
           model: row['Model'] || 'Vehicle',
@@ -833,6 +883,7 @@
           gpsFix: row['GPS Fix'] || '',
           gpsReason: row['GPS Fix Reason'] || '',
           gpsMoving: row['GPS Moving'] || '',
+          moving: row['Moving'] || '',
           movingCalc: row['Moving (Calc)'] || '',
           ptStatus: row['PT Status'] || '',
           ptSerial: row['PT Serial '] || row['PT Serial'] || '',
@@ -843,8 +894,9 @@
           zipcode: row['PT ZipCode'] || row['Zip'] || '',
           lat: coords.lat,
           lng: coords.lng,
+          customerId: row['Customer ID'] || row['Customer'] || '',
           customer: row['PT City'] ? `${row['PT City']}, ${stateCode}` : stateCode || 'Unknown area',
-          lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}`.trim(),
+          lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}${row['PT ZipCode'] ? ' ' + row['PT ZipCode'] : ''}`.trim(),
           payment: row['Payment Schedule'] || '',
           details: row
         };
@@ -863,24 +915,28 @@
         const row = {};
         headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
 
-        const stateCode = (row['region'] || '').substring(0, 2).toUpperCase();
-        const base = STATE_CENTERS[stateCode] || STATE_CENTERS.DEFAULT || [39.8, -98.5];
-        const angle = ((idx + 3) * 54) * (Math.PI / 180);
-        const radius = 0.35 + ((idx % 6) * 0.08);
-        const lat = base[0] + (radius * Math.cos(angle));
-        const lng = base[1] + (radius * Math.sin(angle) * 1.2);
+        const stateCode = toStateCode(row['state']) || toStateCode(row['region']) || 'US';
+        const coords = deriveCoords({
+          zip: row['zip'],
+          city: row['city'],
+          stateCode,
+          seed: idx
+        });
 
         return {
           id: `${type}-${idx}`,
           type,
           company: row['company'] || row['name'] || 'Partner',
-          region: stateCode,
+          region: row['region'] || stateCode,
           phone: row['phone'] || '',
           contact: row['contact'] || '',
           availability: row['availability'] || row['tier'] || '',
           notes: row['notes'] || '',
-          lat,
-          lng
+          city: row['city'] || '',
+          state: stateCode,
+          zip: row['zip'] || '',
+          lat: coords.lat,
+          lng: coords.lng
         };
       });
     }
@@ -1088,102 +1144,85 @@
       }
 
       filtered.forEach((vehicle) => {
-        const nearest = getNearestPartner(vehicle);
+        const movingMeta = getMovingMeta(vehicle);
 
           const card = document.createElement('div');
-          card.className = 'p-4 rounded-xl border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur';
+          card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
           card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
-              <div>
+              <div class="space-y-1">
                 <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model}</p>
-                <h3 class="font-extrabold text-white text-base leading-tight">${vehicle.year || '—'} • ${vehicle.vin || 'VIN N/A'}</h3>
-                <p class="text-xs text-slate-400 mt-1 flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${vehicle.lastLocation || 'No location provided'}</p>
-                <p class="text-[11px] text-slate-400 mt-1">${vehicle.customer || 'Unknown customer'}</p>
+                <h3 class="font-extrabold text-white text-sm leading-tight flex items-center gap-2">${vehicle.year || '—'} <span class="text-slate-600">•</span> ${vehicle.vin || 'VIN N/A'}</h3>
+                <p class="text-[11px] text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${vehicle.lastLocation || 'No location provided'}</p>
+                <p class="text-[11px] text-blue-200 font-semibold">Customer ID: <span class="text-slate-100">${vehicle.customerId || '—'}</span></p>
               </div>
-              <div class="text-right">
-                <span class="text-[10px] uppercase font-bold text-slate-400">Status</span>
-                <div class="mt-1 text-[11px] px-2 py-1 rounded-full border border-amber-400/40 bg-amber-500/10 text-amber-200 font-semibold">${vehicle.status}</div>
-                ${nearest ? `<p class="text-xs text-slate-400 mt-1">${Math.round(nearest.distance)} mi</p>` : ''}
+              <div class="flex flex-col items-end gap-1 text-right">
+                <div class="inline-flex items-center gap-2 text-[10px] font-bold text-slate-300">
+                  <span class="px-2 py-1 rounded-full border border-amber-400/40 bg-amber-500/10 text-amber-100">${vehicle.status}</span>
+                </div>
+                <div class="inline-flex items-center gap-2 text-[10px] font-semibold ${movingMeta.text} px-2 py-1 rounded-full border border-slate-800 ${movingMeta.bg}">
+                  <span class="w-2 h-2 rounded-full ${movingMeta.dot}"></span>
+                  <span>${movingMeta.label}</span>
+                </div>
               </div>
             </div>
-            <div class="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
                 <i data-lucide="wifi-off" class="h-3 w-3 text-amber-300"></i>
-                <div class="text-left">
-                  <p class="font-semibold leading-tight">${vehicle.gpsFix || 'GPS issue'}</p>
+                <div class="text-left leading-tight">
+                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
                   <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
                 </div>
               </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
                 <i data-lucide="hash" class="h-3 w-3 text-blue-400"></i>
-                <div class="text-left">
-                  <p class="font-semibold leading-tight">VIN</p>
+                <div class="text-left leading-tight">
+                  <p class="font-semibold">VIN</p>
                   <p class="text-[10px] text-slate-400">${vehicle.vin || 'Not available'}</p>
                 </div>
               </div>
             </div>
-            <div class="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
-              <p class="uppercase tracking-wide text-slate-500 font-bold">Ops snapshot</p>
-              <div class="grid grid-cols-2 gap-2">
-                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+            <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
+              <div class="grid grid-cols-4 gap-2">
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
                 </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
                 </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Remaining</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.remaining || '—'}</p>
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal completition</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
                 </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5">
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-2 text-[11px] text-slate-400">
-                <i data-lucide="clock-3" class="h-3 w-3"></i>
-                <span class="font-semibold text-slate-200">Last read:</span>
-                <span class="truncate">${vehicle.lastRead || '—'}</span>
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-2 font-semibold text-slate-200"><i data-lucide="clock-3" class="h-3 w-3"></i> ${vehicle.lastRead || '—'}</span>
+                <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
-            ${nearest ? `<div class="mt-3 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[11px] text-slate-200 flex items-center justify-between">
-              <div>
-                <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Nearest ${getPartnerLabel(nearest.type)}</p>
-                <p class="font-semibold leading-tight">${nearest.entry.company}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-xs text-slate-400">${Math.round(nearest.distance)} mi</p>
-                <p class="text-[10px] text-slate-500">${nearest.entry.region || nearest.entry.state || ''}</p>
-              </div>
-            </div>` : ''}
-
-            <div class="pt-2 flex justify-end">
-              <button data-view-more class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
-                <i data-lucide="info" class="h-4 w-4"></i>
+            <div class="pt-1 flex justify-end">
+              <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                <i data-lucide="info" class="h-3.5 w-3.5"></i>
                 See more
               </button>
             </div>
           `;
 
-          const ringColor = getVehicleRingColor(vehicle);
-          const ring = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 9,
-            color: ringColor,
-            weight: 1.5,
-            opacity: 1,
-            fillColor: '#fbbf24',
-            fillOpacity: 0.85
-          }).addTo(vehicleLayer);
-
-          const core = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 4,
-            color: '#7c2d12',
-            weight: 2,
-            opacity: 1,
-            fillColor: '#fb923c',
-            fillOpacity: 0.95
+          const markerColor = getVehicleMarkerColor(vehicle);
+          const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
+            radius: 8,
+            color: '#0b1220',
+            weight: 2.6,
+            opacity: 0.95,
+            fillColor: markerColor,
+            fillOpacity: 0.92,
+            className: 'vehicle-dot'
           }).addTo(vehicleLayer);
 
           const focusHandler = () => {
@@ -1191,8 +1230,7 @@
             focusVehicle(vehicle);
           };
 
-          ring.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
-          core.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
           card.addEventListener('click', focusHandler);
 
           const viewMoreBtn = card.querySelector('[data-view-more]');
@@ -1203,14 +1241,15 @@
             });
           }
 
-          if (vehicle.movingCalc === '-1') {
+          if (isVehicleNotMoving(vehicle)) {
             L.marker([vehicle.lat, vehicle.lng], {
-              icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
-              interactive: false
+              icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+              interactive: false,
+              zIndexOffset: 500
             }).addTo(vehicleLayer);
           }
 
-          vehicleMarkers.set(vehicle.id, { marker: ring, nearest });
+          vehicleMarkers.set(vehicle.id, { marker });
           container.appendChild(card);
         });
 
@@ -1222,21 +1261,30 @@
       map.panTo([vehicle.lat, vehicle.lng]);
       highlightLayer.clearLayers();
 
-      const nearest = getNearestPartner(vehicle);
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
-      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
+      const markerColor = getVehicleMarkerColor(vehicle);
+      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], {
+        radius: 9,
+        color: '#0b1220',
+        weight: 2.8,
+        fillColor: markerColor,
+        fillOpacity: 0.95,
+        opacity: 0.98,
+        className: 'vehicle-dot'
+      }).addTo(highlightLayer);
 
-      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
+      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 12, color: markerColor, weight: 1.2, fillColor: markerColor, fillOpacity: 0.18 }).addTo(highlightLayer);
       halo.bringToBack();
 
-      if (vehicle.movingCalc === '-1') {
+      if (isVehicleNotMoving(vehicle)) {
         L.marker([vehicle.lat, vehicle.lng], {
-          icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
-          interactive: false
+          icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+          interactive: false,
+          zIndexOffset: 500
         }).addTo(highlightLayer);
       }
 
-      anchorMarker.bindPopup(vehicleCard(vehicle, nearest), {
+      anchorMarker.bindPopup(vehicleCard(vehicle), {
         className: 'vehicle-popup',
         autoPan: true,
         keepInView: true,
@@ -1250,7 +1298,7 @@
       applySelection(vehicle.id, null);
     }
 
-    function vehicleCard(vehicle, nearest) {
+    function vehicleCard(vehicle) {
       return `
         <div class="w-[300px] bg-slate-950/90 text-white">
           <div class="p-4 space-y-3">
@@ -1287,8 +1335,8 @@
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Remaining</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.remaining || '—'}</p>
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal completition</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
                 </div>
                 <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
@@ -1301,14 +1349,6 @@
                 <span class="truncate">${vehicle.lastRead || '—'}</span>
               </div>
             </div>
-
-            ${nearest ? `
-              <div class="rounded-xl border border-sky-300/40 bg-sky-500/10 p-3 text-sm text-sky-50 space-y-1">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-sky-200">Nearest ${getPartnerLabel(nearest.type)}</p>
-                <p class="text-base font-extrabold text-sky-100 leading-tight">${nearest.entry.company}</p>
-                <p class="text-[13px] text-sky-200">${Math.round(nearest.distance)} miles away</p>
-              </div>
-            ` : '<p class="mt-3 text-xs text-red-200">No partner nearby.</p>'}
 
             <div class="pt-2 flex justify-end">
               <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
@@ -1390,11 +1430,27 @@
       return closestDistance <= maxDistanceMeters ? closest : null;
     }
 
-    function getVehicleRingColor(vehicle) {
+    function getVehicleMarkerColor(vehicle) {
       const fix = (vehicle.gpsFix || '').trim().toLowerCase();
       if (fix === 'all') return '#ef4444';
       if (fix === 'fully working') return '#22c55e';
-      return '#facc15';
+      return '#f59e0b';
+    }
+
+    function getMovingMeta(vehicle) {
+      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
+      if (movingValue === 1) {
+        return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
+      }
+      if (movingValue === -1) {
+        return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
+      }
+      return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
+    }
+
+    function isVehicleNotMoving(vehicle) {
+      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
+      return movingValue === -1;
     }
 
     function toggleSelectionBanner() {
@@ -1706,6 +1762,34 @@
       return getNearestFromList(vehicle, list, type);
     }
 
+    function addLabeledConnection(layer, start, end, distance, color, options = {}) {
+      if (!layer || !start || !end) return null;
+      const { dashArray = '6 4', weight = 3, opacity = 0.85 } = options;
+
+      L.polyline(
+        [
+          [start.lat, start.lng],
+          [end.lat, end.lng]
+        ],
+        { color, weight, opacity, dashArray }
+      ).addTo(layer);
+
+      const midLat = (start.lat + end.lat) / 2;
+      const midLng = (start.lng + end.lng) / 2;
+      const label = L.marker([midLat, midLng], {
+        icon: L.divIcon({
+          className: 'distance-label-wrapper',
+          html: `<div class="distance-label" style="--line-color:${color}">${distance.toFixed(1)} mi</div>`,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0]
+        }),
+        interactive: false
+      });
+
+      label.addTo(layer);
+      return label;
+    }
+
     function showServicesAroundVehicle(vehicle) {
       serviceLayer?.clearLayers();
       serviceConnectionLayer?.clearLayers();
@@ -1742,13 +1826,14 @@
             map.panTo([entry.lat, entry.lng]);
           });
 
-          L.polyline(
-            [
-              [vehicle.lat, vehicle.lng],
-              [entry.lat, entry.lng]
-            ],
-            { color, weight: 3, opacity: 0.85, dashArray: '6 4' }
-          ).addTo(serviceConnectionLayer);
+          addLabeledConnection(
+            serviceConnectionLayer,
+            vehicle,
+            entry,
+            Math.max(distance, 0),
+            color,
+            { dashArray: '6 4', weight: 3, opacity: 0.85 }
+          );
         });
       });
     }
@@ -1770,13 +1855,15 @@
         ? '#38bdf8'
         : '#38bdf8';
       connectionLayer.clearLayers();
-      L.polyline(
-        [
-          [origin.lat, origin.lng],
-          [target.lat, target.lng]
-        ],
-        { color, weight: 3, opacity: 0.8, dashArray: '6 6' }
-      ).addTo(connectionLayer);
+      const miles = getDistance(origin.lat, origin.lng, target.lat, target.lng);
+      addLabeledConnection(
+        connectionLayer,
+        origin,
+        target,
+        miles,
+        color,
+        { dashArray: '6 6', weight: 3, opacity: 0.8 }
+      );
     }
 
     function setupResizableSidebars() {
