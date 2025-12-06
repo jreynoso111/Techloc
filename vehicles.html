@@ -513,10 +513,11 @@
     };
 
     const deriveCoords = ({ zip = '', city = '', stateCode = '', fallbackLatLng = null, seed = 0 }) => {
+      if (fallbackLatLng && Number.isFinite(fallbackLatLng.lat) && Number.isFinite(fallbackLatLng.lng)) {
+        return { lat: fallbackLatLng.lat, lng: fallbackLatLng.lng };
+      }
+
       const base = (() => {
-        if (fallbackLatLng && Number.isFinite(fallbackLatLng.lat) && Number.isFinite(fallbackLatLng.lng)) {
-          return [fallbackLatLng.lat, fallbackLatLng.lng];
-        }
         if (STATE_CENTERS[stateCode]) return STATE_CENTERS[stateCode];
         return STATE_CENTERS.DEFAULT || [39.8, -98.5];
       })();
