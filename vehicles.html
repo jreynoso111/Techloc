@@ -188,19 +188,26 @@
     </div>
 
     <!-- Floating Legend -->
-      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300 space-y-1">
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Technician</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-purple-300"></span> Towing</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Reseller</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-orange-400"></span> Repair</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-yellow-400"></span> Locksmith</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-sky-400"></span> Dispatcher</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> Vehicle (GPS issue)</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Vehicle (Fully Working)</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> Vehicle (All)</div>
-        <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+      <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-lg text-[10px] text-slate-300">
+        <div class="grid grid-cols-2 gap-5">
+          <div class="space-y-1">
+            <p class="text-[11px] font-bold text-slate-100">Services</p>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#3b82f6" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span> Technician</div>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#c084fc" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span> Towing</div>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#34d399" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span> Reseller</div>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#fb923c" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span> Repair</div>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#facc15" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span> Locksmith</div>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#38bdf8" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span> Dispatcher</div>
+          </div>
+          <div class="space-y-1 border-l border-slate-700/70 pl-4">
+            <p class="text-[11px] font-bold text-slate-100">Vehicles</p>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> GPS issue</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Fully working</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> All vehicles</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+          </div>
+        </div>
       </div>
-
     <!-- Sidebar: Control Panel -->
     <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
       <div class="resize-handle right-0"></div>
@@ -520,6 +527,14 @@
       locksmith: 'locksmith',
       dispatcher: 'dispatcher'
     };
+
+    const createServiceIcon = (color) => L.divIcon({
+      className: 'service-triangle-icon',
+      html: `<svg width="18" height="16" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg"><path d="M9 1.1L17 14.8H1L9 1.1Z"/></svg>`,
+      iconSize: [18, 16],
+      iconAnchor: [9, 14],
+      popupAnchor: [0, -10]
+    });
 
     const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
 
@@ -893,13 +908,8 @@
 
       if (shouldRenderMarkers) {
         displayList.forEach(tech => {
-          const marker = L.circleMarker([tech.lat, tech.lng], {
-            radius: 5,
-            fillColor: '#3b82f6',
-            color: '#0f172a',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8
+          const marker = L.marker([tech.lat, tech.lng], {
+            icon: createServiceIcon(SERVICE_COLORS.tech)
           }).addTo(techLayer);
 
           marker.bindPopup(`
@@ -983,13 +993,8 @@
       }
 
       sorted.slice(0, 75).forEach((partner, idx) => {
-        const marker = L.circleMarker([partner.lat, partner.lng], {
-          radius: 6,
-          color: accentColor,
-          fillColor: accentColor,
-          fillOpacity: 0.85,
-          weight: 1.5,
-          opacity: 1
+        const marker = L.marker([partner.lat, partner.lng], {
+          icon: createServiceIcon(accentColor)
         }).addTo(layer);
 
         marker.bindPopup(`
@@ -1718,13 +1723,8 @@
 
         nearby.forEach(({ entry, distance }) => {
           const color = SERVICE_COLORS[type] || '#38bdf8';
-          const marker = L.circleMarker([entry.lat, entry.lng], {
-            radius: 7,
-            color,
-            fillColor: color,
-            fillOpacity: 0.92,
-            weight: 2,
-            opacity: 1
+          const marker = L.marker([entry.lat, entry.lng], {
+            icon: createServiceIcon(color)
           }).addTo(serviceLayer);
 
           marker.bindPopup(`
