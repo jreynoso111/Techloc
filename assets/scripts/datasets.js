@@ -12,6 +12,7 @@
     locksmiths: csvPath('locksmiths'),
     dispatchers: csvPath('dispatchers'),
     technicians: csvPath('technicians'),
+    inspectors: csvPath('inspectors'),
   };
 
   window.TL_DATASETS = paths;
