@@ -103,23 +103,37 @@
     .vehicle-cross-badge {
       color: #fca5a5;
       font-size: 12px;
-      font-weight: 800;
-      text-shadow: 0 3px 8px rgba(0, 0, 0, 0.55);
+      font-weight: 900;
+      text-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
       line-height: 1;
       width: 16px;
       height: 16px;
       display: grid;
       place-items: center;
-      background: radial-gradient(circle at 35% 35%, rgba(248, 113, 113, 0.35), rgba(15, 23, 42, 0.9));
-      border: 1px solid rgba(248, 113, 113, 0.55);
-      border-radius: 9999px;
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.45);
     }
 
     .vehicle-dot {
       filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .distance-label-wrapper { pointer-events: none; }
+
+    .distance-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--line-color, #e2e8f0);
+      background: rgba(10, 14, 26, 0.95);
+      border: 1px solid color-mix(in srgb, var(--line-color, #e2e8f0) 70%, transparent);
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     }
 
     .sidebar-toggle-btn {
@@ -1748,6 +1762,34 @@
       return getNearestFromList(vehicle, list, type);
     }
 
+    function addLabeledConnection(layer, start, end, distance, color, options = {}) {
+      if (!layer || !start || !end) return null;
+      const { dashArray = '6 4', weight = 3, opacity = 0.85 } = options;
+
+      L.polyline(
+        [
+          [start.lat, start.lng],
+          [end.lat, end.lng]
+        ],
+        { color, weight, opacity, dashArray }
+      ).addTo(layer);
+
+      const midLat = (start.lat + end.lat) / 2;
+      const midLng = (start.lng + end.lng) / 2;
+      const label = L.marker([midLat, midLng], {
+        icon: L.divIcon({
+          className: 'distance-label-wrapper',
+          html: `<div class="distance-label" style="--line-color:${color}">${distance.toFixed(1)} mi</div>`,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0]
+        }),
+        interactive: false
+      });
+
+      label.addTo(layer);
+      return label;
+    }
+
     function showServicesAroundVehicle(vehicle) {
       serviceLayer?.clearLayers();
       serviceConnectionLayer?.clearLayers();
@@ -1784,13 +1826,14 @@
             map.panTo([entry.lat, entry.lng]);
           });
 
-          L.polyline(
-            [
-              [vehicle.lat, vehicle.lng],
-              [entry.lat, entry.lng]
-            ],
-            { color, weight: 3, opacity: 0.85, dashArray: '6 4' }
-          ).addTo(serviceConnectionLayer);
+          addLabeledConnection(
+            serviceConnectionLayer,
+            vehicle,
+            entry,
+            Math.max(distance, 0),
+            color,
+            { dashArray: '6 4', weight: 3, opacity: 0.85 }
+          );
         });
       });
     }
@@ -1812,13 +1855,15 @@
         ? '#38bdf8'
         : '#38bdf8';
       connectionLayer.clearLayers();
-      L.polyline(
-        [
-          [origin.lat, origin.lng],
-          [target.lat, target.lng]
-        ],
-        { color, weight: 3, opacity: 0.8, dashArray: '6 6' }
-      ).addTo(connectionLayer);
+      const miles = getDistance(origin.lat, origin.lng, target.lat, target.lng);
+      addLabeledConnection(
+        connectionLayer,
+        origin,
+        target,
+        miles,
+        color,
+        { dashArray: '6 6', weight: 3, opacity: 0.8 }
+      );
     }
 
     function setupResizableSidebars() {
