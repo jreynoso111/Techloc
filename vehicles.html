@@ -1113,7 +1113,6 @@
       }
 
       filtered.forEach((vehicle) => {
-        const nearest = getNearestPartner(vehicle);
         const movingMeta = getMovingMeta(vehicle);
 
           const card = document.createElement('div');
@@ -1134,7 +1133,6 @@
                   <span class="w-2 h-2 rounded-full ${movingMeta.dot}"></span>
                   <span>${movingMeta.label}</span>
                 </div>
-                ${nearest ? `<p class="text-[10px] text-slate-400">${Math.round(nearest.distance)} mi</p>` : ''}
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -1177,17 +1175,6 @@
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
-            ${nearest ? `<div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[11px] text-slate-200 flex items-center justify-between">
-              <div class="leading-tight">
-                <p class="text-[10px] uppercase tracking-wide text-slate-400 font-bold">Nearest ${getPartnerLabel(nearest.type)}</p>
-                <p class="font-semibold leading-tight">${nearest.entry.company}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-[11px] text-slate-200 font-semibold">${Math.round(nearest.distance)} mi</p>
-                <p class="text-[10px] text-slate-500">${nearest.entry.region || nearest.entry.state || ''}</p>
-              </div>
-            </div>` : ''}
-
             <div class="pt-1 flex justify-end">
               <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 <i data-lucide="info" class="h-3.5 w-3.5"></i>
@@ -1232,14 +1219,15 @@
             });
           }
 
-          if (vehicle.movingCalc === '-1') {
+          if (isVehicleNotMoving(vehicle)) {
             L.marker([vehicle.lat, vehicle.lng], {
               icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
-              interactive: false
+              interactive: false,
+              zIndexOffset: 500
             }).addTo(vehicleLayer);
           }
 
-          vehicleMarkers.set(vehicle.id, { marker: ring, nearest });
+          vehicleMarkers.set(vehicle.id, { marker: ring });
           container.appendChild(card);
         });
 
@@ -1251,21 +1239,21 @@
       map.panTo([vehicle.lat, vehicle.lng]);
       highlightLayer.clearLayers();
 
-      const nearest = getNearestPartner(vehicle);
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
       const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
 
       const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
       halo.bringToBack();
 
-      if (vehicle.movingCalc === '-1') {
+      if (isVehicleNotMoving(vehicle)) {
         L.marker([vehicle.lat, vehicle.lng], {
           icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
-          interactive: false
+          interactive: false,
+          zIndexOffset: 500
         }).addTo(highlightLayer);
       }
 
-      anchorMarker.bindPopup(vehicleCard(vehicle, nearest), {
+      anchorMarker.bindPopup(vehicleCard(vehicle), {
         className: 'vehicle-popup',
         autoPan: true,
         keepInView: true,
@@ -1279,7 +1267,7 @@
       applySelection(vehicle.id, null);
     }
 
-    function vehicleCard(vehicle, nearest) {
+    function vehicleCard(vehicle) {
       return `
         <div class="w-[300px] bg-slate-950/90 text-white">
           <div class="p-4 space-y-3">
@@ -1330,14 +1318,6 @@
                 <span class="truncate">${vehicle.lastRead || '—'}</span>
               </div>
             </div>
-
-            ${nearest ? `
-              <div class="rounded-xl border border-sky-300/40 bg-sky-500/10 p-3 text-sm text-sky-50 space-y-1">
-                <p class="text-[11px] font-bold uppercase tracking-wide text-sky-200">Nearest ${getPartnerLabel(nearest.type)}</p>
-                <p class="text-base font-extrabold text-sky-100 leading-tight">${nearest.entry.company}</p>
-                <p class="text-[13px] text-sky-200">${Math.round(nearest.distance)} miles away</p>
-              </div>
-            ` : '<p class="mt-3 text-xs text-red-200">No partner nearby.</p>'}
 
             <div class="pt-2 flex justify-end">
               <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
@@ -1435,6 +1415,11 @@
         return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
       }
       return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
+    }
+
+    function isVehicleNotMoving(vehicle) {
+      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
+      return movingValue === -1;
     }
 
     function toggleSelectionBanner() {
