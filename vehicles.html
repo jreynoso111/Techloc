@@ -100,12 +100,26 @@
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 
-    .vehicle-cross div {
-      color: #ef4444;
-      font-size: 16px;
+    .vehicle-cross-badge {
+      color: #fca5a5;
+      font-size: 12px;
       font-weight: 800;
-      text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+      text-shadow: 0 3px 8px rgba(0, 0, 0, 0.55);
       line-height: 1;
+      width: 16px;
+      height: 16px;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 35% 35%, rgba(248, 113, 113, 0.35), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(248, 113, 113, 0.55);
+      border-radius: 9999px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.45);
+    }
+
+    .vehicle-dot {
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .sidebar-toggle-btn {
@@ -1188,12 +1202,13 @@
 
           const markerColor = getVehicleMarkerColor(vehicle);
           const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 8,
-            color: markerColor,
-            weight: 2,
-            opacity: 1,
+            radius: 6,
+            color: '#0b1220',
+            weight: 2.4,
+            opacity: 0.95,
             fillColor: markerColor,
-            fillOpacity: 0.9
+            fillOpacity: 0.92,
+            className: 'vehicle-dot'
           }).addTo(vehicleLayer);
 
           const focusHandler = () => {
@@ -1214,7 +1229,7 @@
 
           if (isVehicleNotMoving(vehicle)) {
             L.marker([vehicle.lat, vehicle.lng], {
-              icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+              icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
               interactive: false,
               zIndexOffset: 500
             }).addTo(vehicleLayer);
@@ -1234,14 +1249,22 @@
 
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
       const markerColor = getVehicleMarkerColor(vehicle);
-      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 8, color: markerColor, weight: 2, fillColor: markerColor, fillOpacity: 0.9 }).addTo(highlightLayer);
+      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], {
+        radius: 7,
+        color: '#0b1220',
+        weight: 2.6,
+        fillColor: markerColor,
+        fillOpacity: 0.95,
+        opacity: 0.98,
+        className: 'vehicle-dot'
+      }).addTo(highlightLayer);
 
-      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 12, color: markerColor, weight: 1.5, fillColor: markerColor, fillOpacity: 0.12 }).addTo(highlightLayer);
+      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 10, color: markerColor, weight: 1.2, fillColor: markerColor, fillOpacity: 0.18 }).addTo(highlightLayer);
       halo.bringToBack();
 
       if (isVehicleNotMoving(vehicle)) {
         L.marker([vehicle.lat, vehicle.lng], {
-          icon: L.divIcon({ className: 'vehicle-cross', html: '<div>✕</div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+          icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
           interactive: false,
           zIndexOffset: 500
         }).addTo(highlightLayer);
@@ -1398,22 +1421,6 @@
       if (fix === 'all') return '#ef4444';
       if (fix === 'fully working') return '#22c55e';
       return '#f59e0b';
-    }
-
-    function getMovingMeta(vehicle) {
-      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
-      if (movingValue === 1) {
-        return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
-      }
-      if (movingValue === -1) {
-        return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
-      }
-      return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
-    }
-
-    function isVehicleNotMoving(vehicle) {
-      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
-      return movingValue === -1;
     }
 
     function getMovingMeta(vehicle) {
