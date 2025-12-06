@@ -201,9 +201,9 @@
           </div>
           <div class="space-y-1 border-l border-slate-700/70 pl-4">
             <p class="text-[11px] font-bold text-slate-100">Vehicles</p>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-yellow-300"></span> GPS issue</div>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-green-400"></span> Fully working</div>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-red-500"></span> All vehicles</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-amber-200"></span> GPS issue / Other</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 border border-emerald-200"></span> Fully working</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-red-200"></span> All vehicles</div>
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
           </div>
         </div>
@@ -1186,23 +1186,14 @@
             </div>
           `;
 
-          const ringColor = getVehicleRingColor(vehicle);
-          const ring = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 9,
-            color: ringColor,
-            weight: 1.5,
-            opacity: 1,
-            fillColor: '#fbbf24',
-            fillOpacity: 0.85
-          }).addTo(vehicleLayer);
-
-          const core = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 4,
-            color: '#7c2d12',
+          const markerColor = getVehicleMarkerColor(vehicle);
+          const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
+            radius: 8,
+            color: markerColor,
             weight: 2,
             opacity: 1,
-            fillColor: '#fb923c',
-            fillOpacity: 0.95
+            fillColor: markerColor,
+            fillOpacity: 0.9
           }).addTo(vehicleLayer);
 
           const focusHandler = () => {
@@ -1210,8 +1201,7 @@
             focusVehicle(vehicle);
           };
 
-          ring.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
-          core.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
           card.addEventListener('click', focusHandler);
 
           const viewMoreBtn = card.querySelector('[data-view-more]');
@@ -1230,7 +1220,7 @@
             }).addTo(vehicleLayer);
           }
 
-          vehicleMarkers.set(vehicle.id, { marker: ring });
+          vehicleMarkers.set(vehicle.id, { marker });
           container.appendChild(card);
         });
 
@@ -1243,9 +1233,10 @@
       highlightLayer.clearLayers();
 
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
-      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 7, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.95 }).addTo(highlightLayer);
+      const markerColor = getVehicleMarkerColor(vehicle);
+      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], { radius: 8, color: markerColor, weight: 2, fillColor: markerColor, fillOpacity: 0.9 }).addTo(highlightLayer);
 
-      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 11, color: '#f59e0b', weight: 1.5, fillColor: '#fbbf24', fillOpacity: 0.15 }).addTo(highlightLayer);
+      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 12, color: markerColor, weight: 1.5, fillColor: markerColor, fillOpacity: 0.12 }).addTo(highlightLayer);
       halo.bringToBack();
 
       if (isVehicleNotMoving(vehicle)) {
@@ -1402,11 +1393,27 @@
       return closestDistance <= maxDistanceMeters ? closest : null;
     }
 
-    function getVehicleRingColor(vehicle) {
+    function getVehicleMarkerColor(vehicle) {
       const fix = (vehicle.gpsFix || '').trim().toLowerCase();
       if (fix === 'all') return '#ef4444';
       if (fix === 'fully working') return '#22c55e';
-      return '#facc15';
+      return '#f59e0b';
+    }
+
+    function getMovingMeta(vehicle) {
+      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
+      if (movingValue === 1) {
+        return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
+      }
+      if (movingValue === -1) {
+        return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
+      }
+      return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
+    }
+
+    function isVehicleNotMoving(vehicle) {
+      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
+      return movingValue === -1;
     }
 
     function getMovingMeta(vehicle) {
