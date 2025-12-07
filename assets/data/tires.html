@@ -33,13 +33,16 @@
                 <tr>
                     <th>ID</th>
                     <th>Company</th>
-                    <th>State</th>
-                    <th>City</th>
-                    <th>Zip Code</th>
                     <th>Phone</th>
-                    <th>Web / Email</th>
-                    <th>Ratings</th>
+                    <th>Email</th>
+                    <th>Website</th>
+                    <th>City</th>
+                    <th>State</th>
+                    <th>Zip</th>
                     <th>Notes</th>
+                    <th>Google rating</th>
+                    <th>Yelp rating</th>
+                    <th>Types</th>
                 </tr>
             </thead>
             <tbody id="tiresTableBody">
@@ -51,21 +54,23 @@
         // ----------------------------------------------------
         // 1. YOUR CREDENTIALS (PASTE THEM HERE CAREFULLY)
         // ----------------------------------------------------
-        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co'; 
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';  
+        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+        const TABLE_NAME = 'Tires Services';
 
         // Initialize client
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // Main Function
         async function fetchTireServices() {
             console.log("Attempting to connect to Supabase...");
 
-            // Fetching from 'Tire Services' (Exact casing matters!)
-            const { data, error } = await supabase
-                .from('Tire Services')  
+            // Fetching from 'Tires Services' (Exact casing matters!)
+                const { data, error } = await supabaseClient
+                .from(TABLE_NAME)
                 .select('*')
-                .order('state', { ascending: true });
+                .order('state', { ascending: true })
+                .order('city', { ascending: true });
 
             const msgElement = document.getElementById('statusMsg');
 
@@ -77,7 +82,7 @@
 
             if (!data || data.length === 0) {
                 console.warn('Data is empty');
-                msgElement.innerText = '⚠️ Connected successfully, but the table "Tire Services" has 0 rows.';
+                msgElement.innerText = '⚠️ Connected successfully, but the table "Tires Services" has 0 rows.';
                 return;
             }
 
@@ -93,27 +98,29 @@
 
             services.forEach(service => {
                 // Generate safe links
-                const websiteLink = service.website 
-                    ? `<a href="${service.website}" target="_blank">🌐 Web</a>` 
-                    : '<span style="color:#ccc">No Web</span>';
-                
-                const emailLink = service.email 
-                    ? `<a href="mailto:${service.email}">✉️ Email</a>` 
-                    : '';
+                const websiteLink = service.website
+                    ? `<a href="${service.website}" target="_blank">${service.website}</a>`
+                    : '<span style="color:#ccc">—</span>';
+
+                const emailLink = service.email
+                    ? `<a href="mailto:${service.email}">${service.email}</a>`
+                    : '—';
 
                 // Create HTML row with ALL columns
                 const row = `
                     <tr>
-                        <td class="id-col">${service.id}</td> <td><strong>${service.company_name}</strong></td>
-                        <td>${service.state}</td>
-                        <td>${service.city}</td>
-                        <td>${service.zip_code || '-'}</td> <td><a href="tel:${service.phone}">${service.phone}</a></td>
-                        <td>${websiteLink} <br> ${emailLink}</td>
-                        <td>
-                            Google: <span class="rating">${service.google_rating || '-'}</span><br>
-                            Yelp: <span class="rating">${service.yelp_rating || '-'}</span>
-                        </td>
+                        <td class="id-col">${service.id}</td>
+                        <td><strong>${service.company_name || ''}</strong></td>
+                        <td><a href="tel:${service.phone || ''}">${service.phone || '—'}</a></td>
+                        <td>${emailLink}</td>
+                        <td>${websiteLink}</td>
+                        <td>${service.city || '—'}</td>
+                        <td>${service.state || '—'}</td>
+                        <td>${service.zip || service.zip_code || '-'}</td>
                         <td><small>${service.notes || ''}</small></td>
+                        <td><span class="rating">${service.google_rating ?? '—'}</span></td>
+                        <td><span class="rating">${service.yelp_rating ?? '—'}</span></td>
+                        <td>${service.types || '—'}</td>
                     </tr>
                 `;
                 tableBody.innerHTML += row;

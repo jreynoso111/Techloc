@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc • Tire Services Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="../assets/scripts/constellation.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { slate: { 950: '#020617' } },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-50">
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="flex items-center justify-between px-6 py-4 lg:px-10">
+      <a href="../index.html" class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+          <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
+          <h1 class="text-base font-black leading-tight text-white">Tire Services</h1>
+        </div>
+      </a>
+      <div class="hidden items-center gap-3 text-sm font-semibold text-slate-200 md:flex">
+        <span class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-wide text-slate-200">Tire Services</span>
+        <a href="../index.html" class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-wide text-blue-200 transition hover:border-blue-500 hover:text-white">Return to main site</a>
+      </div>
+    </div>
+  </header>
+
+  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
+
+  <main class="px-6 py-8 lg:px-10">
+    <div class="flex flex-col gap-8 lg:flex-row">
+      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
+          <h2 class="text-lg font-black text-white">Admin workspace</h2>
+        </div>
+        <nav class="flex flex-col gap-2 text-sm font-semibold">
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Dashboard
+            <span class="text-xs font-medium text-slate-400">Overview</span>
+          </a>
+          <a href="./technicians.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Installers
+            <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
+          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Vehicles
+            <span class="text-xs font-medium text-slate-400">Fleet</span>
+          </a>
+          <a href="./towing.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Towing
+            <span class="text-xs font-medium text-slate-400">Roadside</span>
+          </a>
+          <a href="./resellers.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Resellers
+            <span class="text-xs font-medium text-slate-400">Channel</span>
+          </a>
+          <a href="./repair.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Repair shops
+            <span class="text-xs font-medium text-slate-400">Service</span>
+          </a>
+          <a href="./locksmiths.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Locksmiths
+            <span class="text-xs font-medium text-slate-400">Access</span>
+          </a>
+          <a href="./inspectors.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Inspectors
+            <span class="text-xs font-medium text-slate-400">Quality</span>
+          </a>
+          <a href="./dispatchers.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Dispatchers
+            <span class="text-xs font-medium text-slate-400">Coordination</span>
+          </a>
+          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Analytics
+            <span class="text-xs font-medium text-slate-400">Insights</span>
+          </a>
+          <a href="./tires.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
+            Tire services
+            <span class="text-xs font-medium text-blue-100">Commercial tires</span>
+          </a>
+        </nav>
+      </aside>
+
+      <section class="flex-1 space-y-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Partner network</p>
+            <h2 class="text-2xl font-black text-white">Tire vendors and roadside coverage</h2>
+            <p class="text-sm text-slate-400">Live view powered by Supabase. Monitor coverage, contact channels, and notes.</p>
+          </div>
+          <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
+            <i data-lucide="database" class="h-4 w-4"></i>
+            <span id="dataset-status">Checking connection…</span>
+          </div>
+        </div>
+
+        <section class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">Total providers</p>
+            <p id="stat-total" class="text-3xl font-black text-white">-</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">States covered</p>
+            <p id="stat-states" class="text-3xl font-black text-amber-300">-</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">Avg. Google rating</p>
+            <p id="stat-rating" class="text-3xl font-black text-emerald-300">-</p>
+          </div>
+        </section>
+
+        <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
+            <h3 class="text-lg font-bold text-white">Commercial tire list</h3>
+            <p id="status-text" class="text-sm text-slate-400">Connecting to Supabase…</p>
+          </div>
+          <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <div class="flex flex-wrap gap-2">
+              <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                <option value="all">All states</option>
+              </select>
+              <select id="type-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                <option value="all">All types</option>
+              </select>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                <span class="text-slate-400">Sort:</span>
+                <button data-sort="company" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Company</button>
+                <button data-sort="state" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">State</button>
+                <button data-sort="city" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">City</button>
+                <button data-sort="rating" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Rating</button>
+              </div>
+              <input id="search" type="search" placeholder="Search by company, city, or state" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+              <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                <button id="refresh-button" class="underline-offset-2 hover:underline">Refresh data</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-800">
+          <table class="min-w-full divide-y divide-slate-800 text-sm">
+            <thead class="bg-slate-950/60 text-slate-300">
+              <tr>
+                  <th class="px-4 py-3 text-left font-semibold">Company</th>
+                  <th class="px-4 py-3 text-left font-semibold">Phone</th>
+                  <th class="px-4 py-3 text-left font-semibold">Email</th>
+                  <th class="px-4 py-3 text-left font-semibold">Website</th>
+                  <th class="px-4 py-3 text-left font-semibold">City</th>
+                  <th class="px-4 py-3 text-left font-semibold">State</th>
+                  <th class="px-4 py-3 text-left font-semibold">Zip</th>
+                  <th class="px-4 py-3 text-left font-semibold">Notes</th>
+                  <th class="px-4 py-3 text-left font-semibold">Google rating</th>
+                  <th class="px-4 py-3 text-left font-semibold">Yelp rating</th>
+                  <th class="px-4 py-3 text-left font-semibold">Types</th>
+                </tr>
+              </thead>
+              <tbody id="tires-table" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+    const TABLE_NAME = 'Tires Services';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const els = {
+      status: document.getElementById('status-text'),
+      datasetStatus: document.getElementById('dataset-status'),
+      tableBody: document.getElementById('tires-table'),
+      statTotal: document.getElementById('stat-total'),
+      statStates: document.getElementById('stat-states'),
+      statRating: document.getElementById('stat-rating'),
+      refresh: document.getElementById('refresh-button'),
+      stateFilter: document.getElementById('state-filter'),
+      typeFilter: document.getElementById('type-filter'),
+      search: document.getElementById('search'),
+    };
+
+    const state = {
+      rows: [],
+      filters: {
+        search: '',
+        state: 'all',
+        type: 'all',
+        sortKey: 'state',
+        sortDir: 'asc',
+      },
+    };
+
+    const formatRating = (value) => (value ? Number(value).toFixed(1) : '—');
+
+    const getText = (value) => String(value || '').toLowerCase();
+
+    const toFilterableRows = () => state.rows.map((row) => ({ ...row }));
+
+    const applyFiltersAndSort = () => {
+      const filters = state.filters;
+      let result = toFilterableRows();
+
+      if (filters.search) {
+        const query = filters.search.toLowerCase();
+        result = result.filter((row) => [row.company_name, row.city, row.state]
+          .some((value) => String(value || '').toLowerCase().includes(query)));
+      }
+
+      if (filters.state !== 'all') {
+        result = result.filter((row) => getText(row.state) === filters.state);
+      }
+
+      if (filters.type !== 'all') {
+        result = result.filter((row) => getText(row.types || row.type || '')
+          .includes(filters.type));
+      }
+
+      const sorters = {
+        company: (a, b) => getText(a.company_name).localeCompare(getText(b.company_name)),
+        state: (a, b) => getText(a.state).localeCompare(getText(b.state)),
+        city: (a, b) => getText(a.city).localeCompare(getText(b.city)),
+        rating: (a, b) => (Number(b.google_rating) || 0) - (Number(a.google_rating) || 0),
+      };
+
+      if (filters.sortKey && sorters[filters.sortKey]) {
+        result = result.sort((a, b) => {
+          const comparison = sorters[filters.sortKey](a, b);
+          return filters.sortDir === 'asc' ? comparison : -comparison;
+        });
+      }
+
+      return result;
+    };
+
+    function renderRows() {
+      const rows = applyFiltersAndSort();
+      els.tableBody.innerHTML = '';
+
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-semibold text-white">${row.company_name}</td>
+          <td class="px-4 py-3 text-blue-200"><a href="tel:${row.phone || ''}">${row.phone || '—'}</a></td>
+          <td class="px-4 py-3 text-blue-200">${row.email ? `<a href="mailto:${row.email}" class="underline">${row.email}</a>` : '—'}</td>
+          <td class="px-4 py-3 text-blue-200">${row.website ? `<a href="${row.website}" target="_blank" class="underline">${row.website}</a>` : '—'}</td>
+          <td class="px-4 py-3 text-slate-200">${row.city || '—'}</td>
+          <td class="px-4 py-3 text-slate-200">${row.state || '—'}</td>
+          <td class="px-4 py-3 text-slate-200">${row.zip || row.zip_code || '—'}</td>
+          <td class="px-4 py-3 text-slate-300">${row.notes ? row.notes : ''}</td>
+          <td class="px-4 py-3 text-emerald-200 font-semibold">${formatRating(row.google_rating)}</td>
+          <td class="px-4 py-3 text-amber-200 font-semibold">${formatRating(row.yelp_rating)}</td>
+          <td class="px-4 py-3 text-slate-200">${row.types || '—'}</td>
+        `;
+        els.tableBody.appendChild(tr);
+      });
+    }
+
+    function updateStats(rows) {
+      els.statTotal.textContent = rows.length;
+      const states = new Set(rows.map((r) => r.state).filter(Boolean));
+      els.statStates.textContent = states.size || '—';
+
+      const googleRatings = rows
+        .map((r) => Number(r.google_rating))
+        .filter((n) => Number.isFinite(n));
+      const average = googleRatings.length
+        ? (googleRatings.reduce((sum, n) => sum + n, 0) / googleRatings.length).toFixed(1)
+        : '—';
+      els.statRating.textContent = average;
+    }
+
+    const populateSelect = (element, values, label) => {
+      const options = Array.from(new Set(values.filter(Boolean).map((value) => getText(value)))).sort();
+      element.innerHTML = `<option value="all">${label}</option>`;
+      options.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value.toUpperCase();
+        element.appendChild(option);
+      });
+    };
+
+    const updateSortButtons = () => {
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        const isActive = button.dataset.sort === state.filters.sortKey;
+        button.classList.toggle('bg-blue-600/30', isActive);
+        button.classList.toggle('text-white', isActive);
+        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (state.filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+      });
+    };
+
+    async function loadData() {
+      els.datasetStatus.textContent = 'Connecting…';
+      els.status.textContent = 'Fetching rows from Supabase…';
+
+      const { data, error } = await supabaseClient
+        .from(TABLE_NAME)
+        .select('*')
+        .order('state', { ascending: true })
+        .order('city', { ascending: true });
+
+      if (error) {
+        console.error('Supabase error', error);
+        state.rows = [];
+        populateSelect(els.stateFilter, [], 'All states');
+        populateSelect(els.typeFilter, [], 'All types');
+        updateSortButtons();
+        renderRows();
+        els.datasetStatus.textContent = 'Connection failed';
+        els.status.textContent = `❌ ${error.message}`;
+        els.tableBody.innerHTML = '';
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        state.rows = [];
+        populateSelect(els.stateFilter, [], 'All states');
+        populateSelect(els.typeFilter, [], 'All types');
+        updateSortButtons();
+        renderRows();
+        els.datasetStatus.textContent = 'Connected (0 rows)';
+        els.status.textContent = '⚠️ Connected successfully, but no tire providers were returned.';
+        els.tableBody.innerHTML = '';
+        updateStats([]);
+        return;
+      }
+
+      state.rows = data;
+      state.filters.state = 'all';
+      state.filters.type = 'all';
+      state.filters.search = '';
+      populateSelect(els.stateFilter, data.map((row) => row.state), 'All states');
+      populateSelect(els.typeFilter, data.map((row) => row.types || row.type), 'All types');
+      els.stateFilter.value = 'all';
+      els.typeFilter.value = 'all';
+      els.search.value = '';
+      els.datasetStatus.textContent = `Connected • ${data.length} rows`;
+      els.status.textContent = '✅ Live data loaded from Supabase.';
+      updateSortButtons();
+      renderRows();
+      updateStats(data);
+    }
+
+    els.refresh.addEventListener('click', () => {
+      loadData().then(() => lucide.createIcons());
+    });
+
+    els.stateFilter.addEventListener('change', (event) => {
+      state.filters.state = event.target.value;
+      renderRows();
+    });
+
+    els.typeFilter.addEventListener('change', (event) => {
+      state.filters.type = event.target.value;
+      renderRows();
+    });
+
+    els.search.addEventListener('input', (event) => {
+      state.filters.search = event.target.value;
+      renderRows();
+    });
+
+    document.querySelectorAll('[data-sort]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.sort;
+        if (state.filters.sortKey === key) {
+          state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.filters.sortKey = key;
+          state.filters.sortDir = 'asc';
+        }
+        updateSortButtons();
+        renderRows();
+      });
+    });
+
+    createConstellationBackground();
+    loadData().then(() => {
+      updateSortButtons();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>
