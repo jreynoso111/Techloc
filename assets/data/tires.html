@@ -1,35 +1,39 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Directorio de Llantas - Techloc</title>
+    <title>Commercial Tire Directory - Techloc</title>
     
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .rating { color: #f39c12; font-weight: bold; }
+        body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
+        h1 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #2c3e50; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        .rating { font-weight: bold; color: #d35400; }
+        a { color: #2980b9; text-decoration: none; }
+        a:hover { text-decoration: underline; }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-    <h1>Directorio de Llantas Comerciales (USA)</h1>
-    <p>Cargando datos en tiempo real desde Supabase...</p>
+    <h1>🚚 Commercial Tire Directory (USA)</h1>
+    <p id="statusMsg">Loading real-time data...</p>
 
     <table>
         <thead>
             <tr>
-                <th>Compañía</th>
-                <th>Estado</th>
-                <th>Ciudad</th>
-                <th>Teléfono</th>
-                <th>Contacto</th>
-                <th>Ratings (G/Y)</th>
-                <th>Notas</th>
+                <th>Company</th>
+                <th>State</th>
+                <th>City</th>
+                <th>Phone</th>
+                <th>Web / Email</th>
+                <th>Ratings</th>
+                <th>Notes</th>
             </tr>
         </thead>
         <tbody id="tiresTableBody">
@@ -37,56 +41,66 @@
     </table>
 
     <script>
-        // 2. CONFIGURACIÓN: Reemplaza con TUS datos de Supabase
-        // Ve a Settings -> API en tu dashboard para copiarlos
-        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co'; // Ej: https://xyzxyz.supabase.co
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';    // Ej: eyJhbGciOiJIUzI1NiIsInR5cCI...
+        // ----------------------------------------------------
+        // 1. YOUR CREDENTIALS (Paste them below)
+        // ----------------------------------------------------
+        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co'; 
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';  
 
-        // Inicializar el cliente
+        // Initialize client
         const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // 3. FUNCIÓN: Obtener datos
+        // Main Function
         async function fetchTireServices() {
-            // Consulta a la tabla 'tire_services'
+            // Fetching from 'Tire Services' table
             const { data, error } = await supabase
-                .from('tire_services')
+                .from('Tire Services')  
                 .select('*')
-                .order('state', { ascending: true }); // Ordenar por Estado
+                .order('state', { ascending: true });
+
+            const msgElement = document.getElementById('statusMsg');
 
             if (error) {
-                console.error('Error cargando datos:', error);
-                alert('Error al cargar la base de datos. Revisa la consola.');
+                console.error('Error:', error);
+                msgElement.innerText = '❌ Error loading data. Check console (F12).';
                 return;
             }
 
+            if (!data || data.length === 0) {
+                msgElement.innerText = '⚠️ Table exists but is empty.';
+                return;
+            }
+
+            msgElement.innerText = `✅ Found ${data.length} providers.`;
             renderTable(data);
         }
 
-        // 4. FUNCIÓN: Mostrar en HTML
+        // Render Function
         function renderTable(services) {
             const tableBody = document.getElementById('tiresTableBody');
-            tableBody.innerHTML = ''; // Limpiar tabla
+            tableBody.innerHTML = ''; 
 
             services.forEach(service => {
-                // Manejo de valores vacíos (Null Safety)
+                // Generate safe links
                 const websiteLink = service.website 
-                    ? `<a href="${service.website}" target="_blank">Web</a>` 
-                    : '-';
+                    ? `<a href="${service.website}" target="_blank">🌐 Web</a>` 
+                    : '<span style="color:#ccc">No Web</span>';
                 
                 const emailLink = service.email 
-                    ? `<a href="mailto:${service.email}">✉️</a>` 
+                    ? `<a href="mailto:${service.email}">✉️ Email</a>` 
                     : '';
 
+                // Create HTML row
                 const row = `
                     <tr>
                         <td><strong>${service.company_name}</strong></td>
                         <td>${service.state}</td>
                         <td>${service.city}</td>
                         <td><a href="tel:${service.phone}">${service.phone}</a></td>
-                        <td>${websiteLink} ${emailLink}</td>
+                        <td>${websiteLink} <br> ${emailLink}</td>
                         <td>
-                            <span class="rating">G: ${service.google_rating || '-'}</span> / 
-                            <span class="rating">Y: ${service.yelp_rating || '-'}</span>
+                            Google: <span class="rating">${service.google_rating || '-'}</span><br>
+                            Yelp: <span class="rating">${service.yelp_rating || '-'}</span>
                         </td>
                         <td><small>${service.notes || ''}</small></td>
                     </tr>
@@ -95,7 +109,7 @@
             });
         }
 
-        // Ejecutar al cargar la página
+        // Execute
         fetchTireServices();
     </script>
 </body>
