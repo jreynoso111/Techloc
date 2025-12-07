@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Directorio de Llantas - Techloc</title>
+    
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .rating { color: #f39c12; font-weight: bold; }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <h1>Directorio de Llantas Comerciales (USA)</h1>
+    <p>Cargando datos en tiempo real desde Supabase...</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Compañía</th>
+                <th>Estado</th>
+                <th>Ciudad</th>
+                <th>Teléfono</th>
+                <th>Contacto</th>
+                <th>Ratings (G/Y)</th>
+                <th>Notas</th>
+            </tr>
+        </thead>
+        <tbody id="tiresTableBody">
+            </tbody>
+    </table>
+
+    <script>
+        // 2. CONFIGURACIÓN: Reemplaza con TUS datos de Supabase
+        // Ve a Settings -> API en tu dashboard para copiarlos
+        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co'; // Ej: https://xyzxyz.supabase.co
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';    // Ej: eyJhbGciOiJIUzI1NiIsInR5cCI...
+
+        // Inicializar el cliente
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // 3. FUNCIÓN: Obtener datos
+        async function fetchTireServices() {
+            // Consulta a la tabla 'tire_services'
+            const { data, error } = await supabase
+                .from('tire_services')
+                .select('*')
+                .order('state', { ascending: true }); // Ordenar por Estado
+
+            if (error) {
+                console.error('Error cargando datos:', error);
+                alert('Error al cargar la base de datos. Revisa la consola.');
+                return;
+            }
+
+            renderTable(data);
+        }
+
+        // 4. FUNCIÓN: Mostrar en HTML
+        function renderTable(services) {
+            const tableBody = document.getElementById('tiresTableBody');
+            tableBody.innerHTML = ''; // Limpiar tabla
+
+            services.forEach(service => {
+                // Manejo de valores vacíos (Null Safety)
+                const websiteLink = service.website 
+                    ? `<a href="${service.website}" target="_blank">Web</a>` 
+                    : '-';
+                
+                const emailLink = service.email 
+                    ? `<a href="mailto:${service.email}">✉️</a>` 
+                    : '';
+
+                const row = `
+                    <tr>
+                        <td><strong>${service.company_name}</strong></td>
+                        <td>${service.state}</td>
+                        <td>${service.city}</td>
+                        <td><a href="tel:${service.phone}">${service.phone}</a></td>
+                        <td>${websiteLink} ${emailLink}</td>
+                        <td>
+                            <span class="rating">G: ${service.google_rating || '-'}</span> / 
+                            <span class="rating">Y: ${service.yelp_rating || '-'}</span>
+                        </td>
+                        <td><small>${service.notes || ''}</small></td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            });
+        }
+
+        // Ejecutar al cargar la página
+        fetchTireServices();
+    </script>
+</body>
+</html>
