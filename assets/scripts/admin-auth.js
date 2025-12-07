@@ -91,6 +91,49 @@ const initializeAuthState = () => {
   return initializationPromise;
 };
 
+const routeInfo = (() => {
+  const path = window.location.pathname.toLowerCase();
+  return {
+    isAdminRoute: path.includes('/admin/'),
+    isControlView: path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
+    isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
+  };
+})();
+
+const getCurrentSession = async () => {
+  await initializeAuthState();
+  return currentSession;
+};
+
+const initializeAuthState = () => {
+  if (initializationPromise) return initializationPromise;
+
+  initializationPromise = (async () => {
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      setSession(data?.session ?? null);
+    } catch (error) {
+      console.error('Session prefetch error', error);
+      setSession(null);
+    } finally {
+      initialSessionResolved = true;
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+
+      if (event === 'SIGNED_OUT') {
+        const isProtectedRoute = routeInfo.isAdminRoute || routeInfo.isControlView;
+        if (isProtectedRoute && !routeInfo.isLoginPage) {
+          redirectToLogin();
+        }
+      }
+    });
+  })();
+
+  return initializationPromise;
+};
+
 const waitForAuthorizedSession = () =>
   new Promise((resolve, reject) => {
     let cleanedUp = false;
