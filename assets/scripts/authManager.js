@@ -31,7 +31,7 @@
     const normalizedPage = page.startsWith('/') ? page.slice(1) : page;
     const path = window.location.pathname;
     const repoSegment = '/Techloc/';
-    const repoIndex = path.indexOf(repoSegment);
+    const repoIndex = path.toLowerCase().indexOf(repoSegment.toLowerCase());
 
     if (repoIndex !== -1) {
       const base = path.slice(0, repoIndex + repoSegment.length);
@@ -50,12 +50,16 @@
 
       if (hasSession) {
         controlLink?.classList.remove('hidden');
+        controlLink?.classList.add('md:inline-flex');
         dashboardLink?.classList.remove('hidden');
+        dashboardLink?.classList.add('md:inline-flex');
         logoutButton?.classList.remove('hidden');
         loginLink?.classList.add('hidden');
       } else {
         controlLink?.classList.add('hidden');
+        controlLink?.classList.remove('md:inline-flex');
         dashboardLink?.classList.add('hidden');
+        dashboardLink?.classList.remove('md:inline-flex');
         logoutButton?.classList.add('hidden');
         loginLink?.classList.remove('hidden');
       }
@@ -106,7 +110,6 @@
         } catch (error) {
           console.error('Error during Supabase sign out', error);
         }
-        window.location.href = mapsTo('index.html');
       });
     });
   };
@@ -119,6 +122,17 @@
       toggleProtectedBlocks(hasSession);
       enforceRouteProtection(hasSession);
       bindLogout();
+
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        const sessionExists = Boolean(session);
+        updateNav(sessionExists);
+        toggleProtectedBlocks(sessionExists);
+        enforceRouteProtection(sessionExists);
+
+        if (event === 'SIGNED_OUT') {
+          window.location.replace(mapsTo('index.html'));
+        }
+      });
     } catch (error) {
       console.error('Failed to verify Supabase session', error);
       enforceRouteProtection(false);
