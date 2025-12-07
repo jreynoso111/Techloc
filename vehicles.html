@@ -840,6 +840,14 @@
       locksmithLayer = L.layerGroup().addTo(map);
       dispatcherLayer = L.layerGroup().addTo(map);
 
+      const mapContainer = document.getElementById('tech-map');
+      if (typeof ResizeObserver !== 'undefined' && mapContainer) {
+        const resizeObserver = new ResizeObserver(() => {
+          map && map.invalidateSize();
+        });
+        resizeObserver.observe(mapContainer);
+      }
+
       map.on('click', (e) => {
         if (e.originalEvent?.handledByMarker) return;
 
