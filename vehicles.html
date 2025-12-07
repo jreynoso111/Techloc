@@ -90,8 +90,8 @@
       border-radius: 14px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.45);
       overflow: hidden;
-      width: min(360px, calc(100vw - 80px));
-      max-width: min(360px, calc(100vw - 80px));
+      width: min(260px, calc(100vw - 80px));
+      max-width: min(260px, calc(100vw - 80px));
     }
     .vehicle-popup .leaflet-popup-content { margin: 0; width: 100%; }
     .vehicle-popup .leaflet-popup-tip { background: #0b1120; border: 1px solid #1f2937; }
@@ -1438,9 +1438,8 @@
           resolveVehicleLocation(vehicle).then((coords) => {
             if (renderStamp !== renderVersion || !coords) return;
 
-            const isApproximate = coords.accuracy === 'zip';
-            const markerColor = isApproximate ? '#facc15' : '#ef4444';
-            const borderColor = isApproximate ? '#92400e' : '#991b1b';
+            const markerColor = getVehicleMarkerColor(vehicle);
+            const borderColor = getVehicleMarkerBorderColor(markerColor);
 
             const marker = L.circleMarker([coords.lat, coords.lng], {
               radius: 8,
@@ -1474,7 +1473,6 @@
     function focusVehicle(vehicle) {
       if (!vehicle) return;
       if (!hasValidCoords(vehicle)) return;
-      map.panTo([vehicle.lat, vehicle.lng]);
       highlightLayer.clearLayers();
 
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
@@ -1502,9 +1500,8 @@
 
       anchorMarker.bindPopup(vehicleCard(vehicle), {
         className: 'vehicle-popup',
-        autoPan: true,
-        keepInView: true,
-        autoPanPadding: [40, 40]
+        autoPan: false,
+        keepInView: false,
       }).openPopup();
 
       setTimeout(attachPopupHandlers, 50);
@@ -1515,63 +1512,39 @@
     }
 
     function vehicleCard(vehicle) {
+      const accuracyDot = vehicle.locationAccuracy === 'zip' ? 'bg-amber-300' : 'bg-emerald-300';
+      const modelYear = [vehicle.model || 'Vehicle', vehicle.year].filter(Boolean).join(' · ');
       return `
-        <div class="w-[300px] bg-slate-950/90 text-white">
-          <div class="p-4 space-y-3">
+        <div class="w-[240px] bg-slate-950/90 text-white">
+          <div class="p-3 space-y-2">
             <div class="flex items-start justify-between gap-2">
-              <div>
+              <div class="space-y-1">
                 <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">Vehicle</p>
-                <h3 class="text-lg font-extrabold leading-tight text-white">${vehicle.model} ${vehicle.year || ''}</h3>
-                <p class="text-[13px] text-slate-200 mt-1">VIN: <span class="font-semibold text-white">${vehicle.vin || 'N/A'}</span></p>
-                <p class="text-sm text-slate-300">${vehicle.customer || 'Customer pending'}</p>
+                <h3 class="text-base font-extrabold leading-tight text-white">${modelYear}</h3>
+                <p class="text-[11px] text-slate-300">VIN ${vehicle.vin || 'N/A'}</p>
               </div>
-              <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status}</span>
-            </div>
-
-            <div class="flex items-center gap-2 text-sm text-slate-200">
-              <span class="inline-flex h-2 w-2 rounded-full bg-amber-400"></span>
-              <span>${vehicle.lastLocation || 'No location provided'}</span>
+              <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status || 'ACTIVE'}</span>
             </div>
             ${vehicle.locationNote ? `<p class="text-xs text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
 
-            <div class="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 text-sm text-amber-50 space-y-1">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-amber-200">GPS</p>
-              <p class="text-base font-extrabold text-amber-100 leading-tight">${vehicle.gpsFix || 'Issue detected'}</p>
-              <p class="text-[13px] text-amber-200">${vehicle.gpsReason || 'Pending review'}</p>
+            <div class="text-[12px] text-slate-200 space-y-1">
+              <p class="font-semibold">${vehicle.customer || 'Customer pending'}</p>
+              <p class="flex items-center gap-2">
+                <span class="inline-flex h-2 w-2 rounded-full ${accuracyDot}"></span>
+                <span>${vehicle.lastLocation || 'No location provided'}</span>
+              </p>
+              ${vehicle.locationNote ? `<p class="text-[11px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
             </div>
 
-            <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3 text-[11px] text-slate-200 space-y-2">
-              <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Ops snapshot</p>
-              <div class="grid grid-cols-2 gap-2">
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
-                </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
-                </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
-                </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
-                </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-2 py-2">
+                <p class="text-[9px] uppercase text-slate-500 font-bold">GPS</p>
+                <p class="font-semibold text-slate-50">${vehicle.gpsFix || 'Unknown'}</p>
               </div>
-              <div class="flex items-center gap-2 text-[11px] text-slate-400">
-                <i data-lucide="clock-3" class="h-3 w-3"></i>
-                <span class="font-semibold text-slate-200">Last read:</span>
-                <span class="truncate">${vehicle.lastRead || '—'}</span>
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-2 py-2">
+                <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
+                <p class="font-semibold text-slate-50">${vehicle.dealCompletion || '—'}</p>
               </div>
-            </div>
-
-            <div class="pt-2 flex justify-end">
-              <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
-                <i data-lucide="info" class="h-4 w-4"></i>
-                See more
-              </button>
             </div>
           </div>
         </div>
@@ -1651,9 +1624,16 @@
 
     function getVehicleMarkerColor(vehicle) {
       const fix = (vehicle.gpsFix || '').trim().toLowerCase();
-      if (fix === 'all') return '#ef4444';
-      if (fix === 'fully working') return '#22c55e';
-      return '#f59e0b';
+      if (fix.includes('fully working')) return '#22c55e';
+      if (fix.includes('gps issue') || fix.includes('issue') || fix.includes('other')) return '#facc15';
+      return '#ef4444';
+    }
+
+    function getVehicleMarkerBorderColor(fillColor) {
+      const color = (fillColor || '').toLowerCase();
+      if (color === '#22c55e') return '#166534';
+      if (color === '#facc15') return '#92400e';
+      return '#991b1b';
     }
 
     function getMovingMeta(vehicle) {
