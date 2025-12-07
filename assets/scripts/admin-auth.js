@@ -29,22 +29,77 @@ const redirectToHome = () => {
   window.location.href = HOME_PAGE;
 };
 
+const isAuthorizedUser = (session) => {
+  const email = session?.user?.email?.toLowerCase();
+  return Boolean(email && AUTHORIZED_EMAILS.includes(email));
+};
+
+const waitForAuthorizedSession = () =>
+  new Promise((resolve, reject) => {
+    let settled = false;
+
+    const cleanup = (subscription) => {
+      settled = true;
+      subscription?.unsubscribe();
+    };
+
+    const handleAuthorized = (session, subscription) => {
+      cleanup(subscription);
+      resolve(session);
+    };
+
+    const handleUnauthorized = async (subscription, reason) => {
+      cleanup(subscription);
+      await supabaseClient.auth.signOut();
+      redirectToLogin();
+      reject(new Error(reason));
+    };
+
+    const { data } = supabaseClient.auth.onAuthStateChange((event, session) => {
+      const authorized = isAuthorizedUser(session);
+
+      if (event === 'INITIAL_SESSION') {
+        if (session && authorized) {
+          handleAuthorized(session, data.subscription);
+        } else if (!settled) {
+          handleUnauthorized(data.subscription, 'No active Supabase session');
+        }
+        return;
+      }
+
+      if (event === 'SIGNED_IN') {
+        if (session && authorized) {
+          handleAuthorized(session, data.subscription);
+        } else {
+          handleUnauthorized(data.subscription, 'Unauthorized account');
+        }
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        if (!settled) {
+          cleanup(data.subscription);
+          redirectToLogin();
+          reject(new Error('Signed out'));
+        }
+      }
+    });
+
+    supabaseClient.auth
+      .getSession()
+      .then(({ data: sessionData }) => {
+        if (settled || !sessionData?.session) return;
+        const authorized = isAuthorizedUser(sessionData.session);
+        if (authorized) {
+          handleAuthorized(sessionData.session, data.subscription);
+        }
+      })
+      .catch((error) => console.error('Session prefetch error', error));
+  });
+
 const requireSession = async () => {
-  const { data, error } = await supabaseClient.auth.getSession();
-  if (error || !data?.session) {
-    redirectToLogin();
-    throw new Error('No active Supabase session');
-  }
-  const email = data.session.user?.email?.toLowerCase();
-  const isAuthorized = email && AUTHORIZED_EMAILS.includes(email);
-
-  if (!isAuthorized) {
-    await supabaseClient.auth.signOut();
-    redirectToLogin();
-    throw new Error('Unauthorized account');
-  }
-
-  return data.session;
+  const session = await waitForAuthorizedSession();
+  return session;
 };
 
 const ensureLogoutButton = () => {
@@ -122,15 +177,14 @@ const revealAuthorizedUi = () => {
   gatedItems.forEach((item) => item.classList.remove('hidden'));
 };
 
-const syncNavigationVisibility = async () => {
+const syncNavigationVisibility = async (sessionFromEvent = null) => {
   await waitForDom();
   const navItems = document.querySelectorAll('[data-auth-visible]');
   const guestItems = document.querySelectorAll('[data-auth-guest]');
   if (!navItems.length && !guestItems.length) return;
 
-  const { data } = await supabaseClient.auth.getSession();
-  const email = data?.session?.user?.email?.toLowerCase();
-  const isAuthorized = email && AUTHORIZED_EMAILS.includes(email);
+  const session = sessionFromEvent ?? (await supabaseClient.auth.getSession()).data?.session;
+  const isAuthorized = isAuthorizedUser(session);
 
   if (isAuthorized) {
     navItems.forEach((item) => item.classList.remove('hidden'));
@@ -161,8 +215,15 @@ const autoStart = () => {
   }
 
   syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
-  supabaseClient.auth.onAuthStateChange(() => {
-    syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    syncNavigationVisibility(session).catch((error) => console.error('Navigation auth sync failed', error));
+
+    if (event === 'SIGNED_OUT') {
+      const isProtectedRoute = isAdminRoute || isControlView;
+      if (isProtectedRoute && !isLoginPage) {
+        redirectToLogin();
+      }
+    }
   });
 };
 
