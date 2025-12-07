@@ -6,7 +6,6 @@ const LOGIN_PAGE = new URL('../../login.html', import.meta.url).toString();
 const ADMIN_HOME = new URL('../../Admin/index.html', import.meta.url).toString();
 const CONTROL_VIEW = new URL('../../vehicles.html', import.meta.url).toString();
 
-const AUTHORIZED_EMAILS = ['admin@techloc.com', 'ops@techloc.com'];
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
@@ -47,9 +46,49 @@ const setSession = (session) => {
   notifySessionListeners(session);
 };
 
-const isAuthorizedUser = (session) => {
-  const email = session?.user?.email?.toLowerCase();
-  return Boolean(email && AUTHORIZED_EMAILS.includes(email));
+const isAuthorizedUser = (session) => Boolean(session);
+
+const routeInfo = (() => {
+  const path = window.location.pathname.toLowerCase();
+  return {
+    isAdminRoute: path.includes('/admin/'),
+    isControlView: path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
+    isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
+  };
+})();
+
+const getCurrentSession = async () => {
+  await initializeAuthState();
+  return currentSession;
+};
+
+const initializeAuthState = () => {
+  if (initializationPromise) return initializationPromise;
+
+  initializationPromise = (async () => {
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      setSession(data?.session ?? null);
+    } catch (error) {
+      console.error('Session prefetch error', error);
+      setSession(null);
+    } finally {
+      initialSessionResolved = true;
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+
+      if (event === 'SIGNED_OUT') {
+        const isProtectedRoute = routeInfo.isAdminRoute || routeInfo.isControlView;
+        if (isProtectedRoute && !routeInfo.isLoginPage) {
+          redirectToLogin();
+        }
+      }
+    });
+  })();
+
+  return initializationPromise;
 };
 
 const routeInfo = (() => {
