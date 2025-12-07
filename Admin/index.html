@@ -33,7 +33,7 @@
 
   <div data-auth-protected class="hidden">
     <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-    <div class="flex flex-col gap-3 px-6 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-10">
+    <div class="flex items-center justify-between px-6 py-4 lg:px-10">
       <a href="../index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
           <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
@@ -209,22 +209,22 @@
               <div class="grid grid-cols-3 gap-3">
                 <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
                   <p id="dataset-count" class="text-2xl font-black text-white">-</p>
-                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Managed files</p>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Data scopes</p>
                 </div>
                 <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
                   <p id="uploaded-count" class="text-2xl font-black text-emerald-300">-</p>
-                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Replaced</p>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Supabase files</p>
                 </div>
                 <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
                   <p id="records-count" class="text-2xl font-black text-amber-300">-</p>
-                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Rows tracked</p>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Rows analyzed</p>
                 </div>
               </div>
               <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
-                <p class="font-semibold text-white">Upload guidance</p>
+                <p class="font-semibold text-white">Supabase analytics</p>
                 <p class="mt-1 leading-relaxed text-slate-400">
-                  Replacement datasets are stored locally for this device so the Admin area always uses the latest file you provide.
-                  To reset, clear or overwrite a dataset below; the bundled asset will be used when no upload is present.
+                  Dataset cards now pull live file inventories from Supabase Storage, summarizing the latest uploads per scope.
+                  Records and column counts come from the newest file stored for each category.
                 </p>
               </div>
               <div class="rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs text-slate-300">
@@ -247,9 +247,9 @@
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Data room</p>
-                <h3 class="text-xl font-bold text-white">Manage protected datasets</h3>
+                <h3 class="text-xl font-bold text-white">Supabase-backed datasets</h3>
               </div>
-              <div class="text-sm font-semibold text-slate-300">Bundled datasets are listed below</div>
+              <div class="text-sm font-semibold text-slate-300">Live storage analytics per category</div>
             </div>
             <div id="datasets" class="grid gap-4 md:grid-cols-2"></div>
           </section>
@@ -289,21 +289,11 @@
         <p class="font-semibold text-white">File details</p>
         <p class="mt-1" data-dataset-file></p>
         <p class="mt-1 text-[11px] text-slate-400" data-dataset-columns-list></p>
+        <p class="mt-1 text-[11px] text-slate-400" data-dataset-volume></p>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <label class="inline-flex cursor-pointer items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow shadow-emerald-600/30 transition hover:-translate-y-0.5">
-          <input type="file" accept=".csv" class="hidden" data-upload-input />
-          <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-          Upload data
-        </label>
-        <button class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white" data-reset-button>
-          <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
-          Reset to bundled
-        </button>
-        <a class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" data-download-link>
-          <i data-lucide="download" class="h-4 w-4"></i>
-          Download current
-        </a>
+      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
+        <p class="font-semibold text-white">Supabase signal</p>
+        <p class="mt-1 leading-relaxed" data-dataset-signal>Fetching storage analytics…</p>
       </div>
     </div>
   </template>
@@ -422,21 +412,18 @@
       },
     ];
 
-    const ACTIVITY_STORAGE_KEY = 'techloc:dataset:activity_log';
+    const SUPABASE_BUCKET = 'datasets';
     const MAX_ACTIVITY_DISPLAY_ITEMS = 4;
-    const MAX_ACTIVITY_STORED_ITEMS = 200;
     const DEFAULT_ACTIVITY = [
       {
-        text: 'Installers data replaced',
+        text: 'Installers dataset refreshed in Supabase',
         timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
       },
       {
-        text: 'Towing dataset reverted to bundled',
+        text: 'Towing data synced to storage',
         timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
       },
     ];
-
-    const localKey = (dataset, suffix = 'csv') => `techloc:dataset:${dataset.key}:${suffix}`;
 
     const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
 
@@ -461,6 +448,14 @@
         hour: '2-digit',
         minute: '2-digit',
       }).format(date);
+    };
+
+    const formatBytes = (bytes = 0) => {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      const value = bytes / 1024 ** index;
+      return `${value.toFixed(1)} ${units[index]}`;
     };
 
     const formatRelativeTime = (dateString) => {
@@ -490,21 +485,73 @@
       return 'Just now';
     };
 
-    const loadActivityLog = () => {
-      try {
-        const stored = JSON.parse(localStorage.getItem(ACTIVITY_STORAGE_KEY) || '[]');
-        return Array.isArray(stored) && stored.length ? stored : DEFAULT_ACTIVITY;
-      } catch (error) {
-        console.error('Error loading activity log', error);
-        return DEFAULT_ACTIVITY;
+    const fetchSupabaseFiles = async (dataset) => {
+      const client = window.supabaseClient;
+      if (!client) throw new Error('Supabase client unavailable');
+      const { data, error } = await client.storage
+        .from(SUPABASE_BUCKET)
+        .list(dataset.key, { limit: 100, sortBy: { column: 'updated_at', order: 'desc' } });
+      if (error) throw error;
+      return data || [];
+    };
+
+    const downloadSupabaseFile = async (dataset, name) => {
+      const client = window.supabaseClient;
+      if (!client) throw new Error('Supabase client unavailable');
+      const { data, error } = await client.storage.from(SUPABASE_BUCKET).download(`${dataset.key}/${name}`);
+      if (error) throw error;
+      const text = await data.text();
+      return text;
+    };
+
+    const getSupabaseDatasetStats = async (dataset) => {
+      const files = await fetchSupabaseFiles(dataset);
+      const totalSize = files.reduce(
+        (sum, file) => sum + (file.metadata?.size || file.metadata?.ContentLength || 0),
+        0
+      );
+      const latest = [...files].sort(
+        (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+      )[0];
+
+      let headers = [];
+      let rows = [];
+      if (latest) {
+        try {
+          const text = await downloadSupabaseFile(dataset, latest.name);
+          const parsed = parseCsvText(text);
+          headers = parsed.headers;
+          rows = parsed.rows;
+        } catch (error) {
+          console.error('Error parsing Supabase file', error);
+        }
       }
+
+      return { files, totalSize, latest, headers, rows };
     };
 
-    const saveActivityLog = (items) => {
-      localStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(items));
+    const buildActivityFromSupabase = async () => {
+      const entries = [];
+      for (const dataset of DATASETS) {
+        try {
+          const { latest } = await getSupabaseDatasetStats(dataset);
+          if (latest) {
+            entries.push({
+              text: `${dataset.displayName}: ${latest.name}`,
+              timestamp: latest.updated_at || latest.created_at,
+            });
+          }
+        } catch (error) {
+          console.warn('Activity fetch failed', error);
+        }
+      }
+      return entries
+        .filter((item) => Boolean(item.timestamp))
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, MAX_ACTIVITY_DISPLAY_ITEMS);
     };
 
-    const renderActivityLog = (items = loadActivityLog()) => {
+    const renderActivityLog = (items = DEFAULT_ACTIVITY) => {
       const container = document.getElementById('activity-log');
       if (!container) return;
       container.innerHTML = '';
@@ -520,23 +567,6 @@
       });
     };
 
-    const recordActivity = (text) => {
-      const next = [{ text, timestamp: new Date().toISOString() }, ...loadActivityLog()].slice(0, MAX_ACTIVITY_STORED_ITEMS);
-      saveActivityLog(next);
-      renderActivityLog(next);
-    };
-
-    const loadDatasetText = async (dataset) => {
-      const override = localStorage.getItem(localKey(dataset));
-      if (override) {
-        const meta = JSON.parse(localStorage.getItem(localKey(dataset, 'meta')) || '{}');
-        return { source: 'Uploaded', text: override, meta };
-      }
-      const response = await fetch(dataset.path);
-      const text = await response.text();
-      return { source: 'Default', text, meta: { updatedAt: null, name: dataset.fileName } };
-    };
-
     const renderDatasetCard = async (dataset) => {
       const template = document.getElementById('dataset-card-template');
       const clone = template.content.firstElementChild.cloneNode(true);
@@ -550,72 +580,75 @@
         updated: clone.querySelector('[data-dataset-updated]'),
         file: clone.querySelector('[data-dataset-file]'),
         columnsList: clone.querySelector('[data-dataset-columns-list]'),
-        upload: clone.querySelector('[data-upload-input]'),
-        reset: clone.querySelector('[data-reset-button]'),
-        download: clone.querySelector('[data-download-link]'),
+        volume: clone.querySelector('[data-dataset-volume]'),
+        signal: clone.querySelector('[data-dataset-signal]'),
       };
 
       els.scope.textContent = dataset.scope;
       els.title.textContent = dataset.title;
       els.description.textContent = dataset.description;
       els.file.textContent = `Dataset: ${dataset.displayName}`;
-      els.download.href = dataset.path;
-      els.download.download = dataset.fileName;
 
       const refresh = async () => {
-        const { source, text, meta } = await loadDatasetText(dataset);
-        const { headers, rows } = parseCsvText(text);
-        els.status.textContent = source === 'Uploaded' ? 'Using upload' : 'Bundled asset';
-        els.status.className = source === 'Uploaded'
-          ? 'rounded-full border border-emerald-600 bg-emerald-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200'
-          : 'rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300';
-        els.rows.textContent = rows.length || '0';
-        els.columns.textContent = headers.length || '0';
-        els.updated.textContent = source === 'Uploaded' ? formatDate(meta.updatedAt) : 'Default file';
-        els.columnsList.textContent = headers.length ? `Columns: ${headers.join(', ')}` : 'Columns: —';
-        els.download.href = source === 'Uploaded'
-          ? URL.createObjectURL(new Blob([text], { type: 'text/csv' }))
-          : dataset.path;
+        els.status.textContent = 'Checking Supabase…';
+        els.status.className = 'rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300';
+        els.signal.textContent = 'Fetching storage analytics…';
+
+        try {
+          const { files, totalSize, latest, headers, rows } = await getSupabaseDatasetStats(dataset);
+          const fileCount = files.length;
+          els.status.textContent = fileCount
+            ? `${fileCount} file${fileCount === 1 ? '' : 's'} in Supabase`
+            : 'No files found in Supabase';
+          els.status.className = fileCount
+            ? 'rounded-full border border-emerald-600 bg-emerald-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200'
+            : 'rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300';
+
+          els.volume.textContent = `Storage: ${formatBytes(totalSize)} across ${fileCount} file${fileCount === 1 ? '' : 's'}`;
+
+          if (latest) {
+            els.file.textContent = `Latest file: ${latest.name}`;
+            els.updated.textContent = formatDate(latest.updated_at || latest.created_at);
+            els.rows.textContent = rows.length ? rows.length.toLocaleString() : '0';
+            els.columns.textContent = headers.length || '0';
+            els.columnsList.textContent = headers.length ? `Columns: ${headers.join(', ')}` : 'Columns: —';
+            els.signal.textContent = `Most recent change ${formatRelativeTime(latest.updated_at || latest.created_at)}.`;
+          } else {
+            els.updated.textContent = 'No Supabase uploads yet';
+            els.rows.textContent = '0';
+            els.columns.textContent = '0';
+            els.columnsList.textContent = 'Columns: —';
+            els.signal.textContent = 'Awaiting the first file for this scope in Supabase Storage.';
+          }
+        } catch (error) {
+          console.error('Supabase dataset fetch failed', error);
+          els.status.textContent = 'Supabase unavailable';
+          els.status.className = 'rounded-full border border-red-700 bg-red-900/30 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-red-200';
+          els.volume.textContent = 'Storage: unavailable';
+          els.updated.textContent = 'Error fetching data';
+          els.columnsList.textContent = 'Columns: —';
+          els.signal.textContent = 'Check Supabase credentials or connectivity.';
+        }
       };
-
-      els.upload.addEventListener('change', (event) => {
-        const [file] = event.target.files || [];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async ({ target }) => {
-          const content = target?.result?.toString() || '';
-          localStorage.setItem(localKey(dataset), content);
-          localStorage.setItem(localKey(dataset, 'meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: file.name }));
-          recordActivity(`${dataset.displayName} replaced`);
-          await refresh();
-          updateDashboardSummary();
-        };
-        reader.readAsText(file);
-      });
-
-      els.reset.addEventListener('click', async () => {
-        localStorage.removeItem(localKey(dataset));
-        localStorage.removeItem(localKey(dataset, 'meta'));
-        recordActivity(`${dataset.displayName} reverted to bundled`);
-        await refresh();
-        updateDashboardSummary();
-      });
 
       await refresh();
       return clone;
     };
 
     const updateDashboardSummary = async () => {
-      let uploaded = 0;
+      let supabaseFiles = 0;
       let totalRows = 0;
       for (const dataset of DATASETS) {
-        const { source, text } = await loadDatasetText(dataset);
-        if (source === 'Uploaded') uploaded += 1;
-        const { rows } = parseCsvText(text);
-        totalRows += rows.length;
+        try {
+          const { files, rows } = await getSupabaseDatasetStats(dataset);
+          supabaseFiles += files.length;
+          totalRows += rows.length;
+        } catch (error) {
+          console.warn('Summary refresh failed', error);
+        }
       }
       document.getElementById('dataset-count').textContent = DATASETS.length;
-      document.getElementById('uploaded-count').textContent = uploaded;
+      document.getElementById('uploaded-count').textContent = supabaseFiles;
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
     };
 
@@ -625,7 +658,8 @@
         const card = await renderDatasetCard(dataset);
         container.appendChild(card);
       }
-      renderActivityLog();
+      const activity = await buildActivityFromSupabase();
+      renderActivityLog(activity.length ? activity : DEFAULT_ACTIVITY);
       updateDashboardSummary();
       lucide.createIcons();
       setupDashboardDropdown();
