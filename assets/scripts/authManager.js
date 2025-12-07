@@ -130,17 +130,19 @@
 
       supabaseClient.auth.onAuthStateChange((event, session) => {
         const sessionExists = Boolean(session);
+        const onLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
+
         updateNav(sessionExists);
         toggleProtectedBlocks(sessionExists);
         enforceRouteProtection(sessionExists);
 
-        if (event === 'SIGNED_IN') {
+        if (event === 'SIGNED_IN' && onLoginPage) {
           window.location.replace(mapsTo('index.html'));
           return;
         }
 
-        if (event === 'SIGNED_OUT') {
-          window.location.replace(mapsTo('index.html'));
+        if (event === 'SIGNED_OUT' && isProtectedRoute()) {
+          window.location.replace(mapsTo('login.html'));
         }
       });
     } catch (error) {
