@@ -840,12 +840,24 @@
       locksmithLayer = L.layerGroup().addTo(map);
       dispatcherLayer = L.layerGroup().addTo(map);
 
+      const invalidateMapSize = () => map?.invalidateSize();
+
       const mapContainer = document.getElementById('tech-map');
-      if (typeof ResizeObserver !== 'undefined' && mapContainer) {
+      if (mapContainer && typeof ResizeObserver !== 'undefined') {
         const resizeObserver = new ResizeObserver(() => {
-          map && map.invalidateSize();
+          invalidateMapSize();
         });
         resizeObserver.observe(mapContainer);
+      }
+
+      const authBlock = document.querySelector('[data-auth-protected]');
+      if (authBlock && typeof MutationObserver !== 'undefined') {
+        const authObserver = new MutationObserver(() => {
+          if (!authBlock.classList.contains('hidden')) {
+            requestAnimationFrame(() => invalidateMapSize());
+          }
+        });
+        authObserver.observe(authBlock, { attributes: true, attributeFilter: ['class'] });
       }
 
       map.on('click', (e) => {
