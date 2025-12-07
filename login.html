@@ -68,19 +68,30 @@
     const loginForm = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
+    const submitButton = loginForm.querySelector('button[type="submit"]');
+    const submitLabel = submitButton.querySelector('span');
 
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
 
+      submitButton.disabled = true;
+      const originalText = submitLabel.textContent;
+      submitLabel.textContent = 'Verifying...';
+
       const email = emailInput.value.trim();
       const password = passwordInput.value;
 
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
 
       if (error) {
         alert(error.message);
+        submitButton.disabled = false;
+        submitLabel.textContent = originalText;
+        return;
       }
-      // Successful sign-ins are handled by authManager.js via the SIGNED_IN event.
+
+      const basePath = window.location.hostname.includes('github.io') ? '/Techloc' : '';
+      window.location.replace(basePath + '/index.html');
     });
 
     document.addEventListener('DOMContentLoaded', () => {
