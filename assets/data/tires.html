@@ -8,11 +8,14 @@
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f9f9f9; }
         h1 { color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-        th { background-color: #2c3e50; color: white; }
+        /* Tabla con scroll horizontal por si hay muchas columnas */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; }
+        th { background-color: #2c3e50; color: white; white-space: nowrap; }
         tr:nth-child(even) { background-color: #f2f2f2; }
         .rating { font-weight: bold; color: #d35400; }
+        .id-col { font-family: monospace; font-size: 11px; color: #666; }
         a { color: #2980b9; text-decoration: none; }
         a:hover { text-decoration: underline; }
     </style>
@@ -24,25 +27,29 @@
     <h1>🚚 Commercial Tire Directory (USA)</h1>
     <p id="statusMsg">Loading real-time data...</p>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Company</th>
-                <th>State</th>
-                <th>City</th>
-                <th>Phone</th>
-                <th>Web / Email</th>
-                <th>Ratings</th>
-                <th>Notes</th>
-            </tr>
-        </thead>
-        <tbody id="tiresTableBody">
-            </tbody>
-    </table>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Company</th>
+                    <th>State</th>
+                    <th>City</th>
+                    <th>Zip Code</th>
+                    <th>Phone</th>
+                    <th>Web / Email</th>
+                    <th>Ratings</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody id="tiresTableBody">
+                </tbody>
+        </table>
+    </div>
 
     <script>
         // ----------------------------------------------------
-        // 1. YOUR CREDENTIALS (Paste them below)
+        // 1. YOUR CREDENTIALS (PASTE THEM HERE CAREFULLY)
         // ----------------------------------------------------
         const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co'; 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';  
@@ -52,7 +59,9 @@
 
         // Main Function
         async function fetchTireServices() {
-            // Fetching from 'Tire Services' table
+            console.log("Attempting to connect to Supabase...");
+
+            // Fetching from 'Tire Services' (Exact casing matters!)
             const { data, error } = await supabase
                 .from('Tire Services')  
                 .select('*')
@@ -61,16 +70,18 @@
             const msgElement = document.getElementById('statusMsg');
 
             if (error) {
-                console.error('Error:', error);
-                msgElement.innerText = '❌ Error loading data. Check console (F12).';
+                console.error('SUPABASE ERROR:', error); // Check Console F12
+                msgElement.innerText = '❌ Error: ' + error.message + ' (Check Console F12)';
                 return;
             }
 
             if (!data || data.length === 0) {
-                msgElement.innerText = '⚠️ Table exists but is empty.';
+                console.warn('Data is empty');
+                msgElement.innerText = '⚠️ Connected successfully, but the table "Tire Services" has 0 rows.';
                 return;
             }
 
+            console.log("Data received:", data);
             msgElement.innerText = `✅ Found ${data.length} providers.`;
             renderTable(data);
         }
@@ -90,13 +101,13 @@
                     ? `<a href="mailto:${service.email}">✉️ Email</a>` 
                     : '';
 
-                // Create HTML row
+                // Create HTML row with ALL columns
                 const row = `
                     <tr>
-                        <td><strong>${service.company_name}</strong></td>
+                        <td class="id-col">${service.id}</td> <td><strong>${service.company_name}</strong></td>
                         <td>${service.state}</td>
                         <td>${service.city}</td>
-                        <td><a href="tel:${service.phone}">${service.phone}</a></td>
+                        <td>${service.zip_code || '-'}</td> <td><a href="tel:${service.phone}">${service.phone}</a></td>
                         <td>${websiteLink} <br> ${emailLink}</td>
                         <td>
                             Google: <span class="rating">${service.google_rating || '-'}</span><br>
