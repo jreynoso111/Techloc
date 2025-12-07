@@ -237,10 +237,10 @@
           </div>
           <div class="space-y-1 border-l border-slate-700/70 pl-4">
             <p class="text-[11px] font-bold text-slate-100">Vehicles</p>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-amber-200"></span> GPS issue / Other</div>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 border border-emerald-200"></span> Fully working</div>
-            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-red-200"></span> All vehicles</div>
-            <div class="flex items-center gap-2"><span class="vehicle-cross-badge">✕</span> Not moving</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-red-200"></span> GPS Fix: All</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 border border-emerald-200"></span> Fully Working</div>
+            <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-500 border border-amber-300"></span> Other GPS states</div>
+            <div class="flex items-center gap-2"><span class="vehicle-cross-badge">✕</span> Not moving (moving = -1)</div>
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
           </div>
         </div>
@@ -1525,7 +1525,6 @@
               </div>
               <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status || 'ACTIVE'}</span>
             </div>
-            ${vehicle.locationNote ? `<p class="text-xs text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
 
             <div class="text-[12px] text-slate-200 space-y-1">
               <p class="font-semibold">${vehicle.customer || 'Customer pending'}</p>
@@ -1625,14 +1624,14 @@
     function getVehicleMarkerColor(vehicle) {
       const fix = (vehicle.gpsFix || '').trim().toLowerCase();
       if (fix.includes('fully working')) return '#22c55e';
-      if (fix.includes('gps issue') || fix.includes('issue') || fix.includes('other')) return '#facc15';
-      return '#ef4444';
+      if (fix === 'all' || fix.includes('all')) return '#ef4444';
+      return '#f59e0b';
     }
 
     function getVehicleMarkerBorderColor(fillColor) {
       const color = (fillColor || '').toLowerCase();
       if (color === '#22c55e') return '#166534';
-      if (color === '#facc15') return '#92400e';
+      if (color === '#f59e0b') return '#92400e';
       return '#991b1b';
     }
 
