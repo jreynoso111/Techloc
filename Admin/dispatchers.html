@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="../assets/scripts/admin-auth.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -31,10 +32,9 @@
           <h1 class="text-base font-black leading-tight text-white">Dispatchers</h1>
         </div>
       </a>
-      <div class="flex items-center gap-3 text-sm font-semibold text-slate-200">
+      <div class="flex items-center gap-3 text-sm font-semibold text-slate-200" data-admin-actions>
         <span class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-wide text-slate-200">Dispatchers</span>
         <a href="../index.html" class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs uppercase tracking-wide text-blue-200 transition hover:border-blue-500 hover:text-white">Return to main site</a>
-        <button id="sign-out" class="rounded-full border border-red-700 bg-red-700/10 px-3 py-1 text-xs uppercase tracking-wide text-red-200 transition hover:bg-red-700/20 hover:text-white">Sign Out</button>
       </div>
     </div>
   </header>
@@ -413,24 +413,6 @@
     });
 
     els.refresh.addEventListener('click', fetchData);
-
-    const signOutButton = document.getElementById('sign-out');
-    if (signOutButton) {
-      signOutButton.addEventListener('click', async () => {
-        signOutButton.disabled = true;
-        signOutButton.textContent = 'Signing out…';
-
-        const { error } = await supabaseClient.auth.signOut();
-        if (error) {
-          console.error('Error signing out:', error);
-          signOutButton.disabled = false;
-          signOutButton.textContent = 'Sign Out';
-          return;
-        }
-
-        redirectToLogin();
-      });
-    }
 
     const initialize = async () => {
       createConstellationBackground();
