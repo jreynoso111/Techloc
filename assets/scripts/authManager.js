@@ -24,21 +24,19 @@
 
   const protectedRoutes = [
     (path) => path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
-    (path) => path.includes('/admin/index.html'),
+    (path) => path.includes('/admin/'),
   ];
 
   const mapsTo = (page) => {
     const normalizedPage = page.startsWith('/') ? page.slice(1) : page;
-    const path = window.location.pathname;
-    const repoSegment = '/Techloc/';
-    const repoIndex = path.toLowerCase().indexOf(repoSegment.toLowerCase());
+    const currentPath = window.location.pathname;
+    const normalizedPath = currentPath.toLowerCase();
+    const repoSegment = '/techloc/';
+    const repoIndex = normalizedPath.indexOf(repoSegment);
 
-    if (repoIndex !== -1) {
-      const base = path.slice(0, repoIndex + repoSegment.length);
-      return `${base}${normalizedPage}`;
-    }
+    const basePath = repoIndex !== -1 ? currentPath.slice(0, repoIndex + repoSegment.length) : '/';
 
-    return `/${normalizedPage}`;
+    return `${basePath}${normalizedPage}`;
   };
 
   const updateNav = (hasSession) =>
@@ -132,17 +130,19 @@
 
       supabaseClient.auth.onAuthStateChange((event, session) => {
         const sessionExists = Boolean(session);
+        const onLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
+
         updateNav(sessionExists);
         toggleProtectedBlocks(sessionExists);
         enforceRouteProtection(sessionExists);
 
-        if (event === 'SIGNED_IN') {
+        if (event === 'SIGNED_IN' && onLoginPage) {
           window.location.replace(mapsTo('index.html'));
           return;
         }
 
-        if (event === 'SIGNED_OUT') {
-          window.location.replace(mapsTo('index.html'));
+        if (event === 'SIGNED_OUT' && isProtectedRoute()) {
+          window.location.replace(mapsTo('login.html'));
         }
       });
     } catch (error) {
