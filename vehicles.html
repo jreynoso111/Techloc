@@ -564,7 +564,11 @@
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabaseClient =
+      window.supabaseClient ||
+      (window.supabase?.createClient
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+        : null);
     const TABLES = {
       technicians: 'gps_installers',
       towing: 'towing_companies',
@@ -836,6 +840,14 @@
       locksmithLayer = L.layerGroup().addTo(map);
       dispatcherLayer = L.layerGroup().addTo(map);
 
+      const mapContainer = document.getElementById('tech-map');
+      if (typeof ResizeObserver !== 'undefined' && mapContainer) {
+        const resizeObserver = new ResizeObserver(() => {
+          map && map.invalidateSize();
+        });
+        resizeObserver.observe(mapContainer);
+      }
+
       map.on('click', (e) => {
         if (e.originalEvent?.handledByMarker) return;
 
@@ -871,6 +883,17 @@
 
     // --- 2. Load data from Supabase ---
     async function loadTechnicians() {
+      if (!supabaseClient) {
+        console.warn('Supabase unavailable: showing local installer placeholders.');
+        document.getElementById('tech-list').innerHTML = `
+          <div class="text-center mt-10 px-6">
+            <i data-lucide="alert-circle" class="mx-auto h-8 w-8 text-slate-600 mb-2"></i>
+            <p class="text-slate-500 text-xs">Supabase is offline. Unable to load installers.</p>
+          </div>
+        `;
+        iconLib.createIcons();
+        return;
+      }
       try {
         const { data, error } = await supabaseClient.from(TABLES.technicians).select('*');
         if (error) throw error;
@@ -893,6 +916,10 @@
     }
 
     async function loadVehicles() {
+      if (!supabaseClient) {
+        console.warn('Supabase unavailable: skipping vehicle load.');
+        return;
+      }
       try {
         const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
         if (error) throw error;
@@ -912,6 +939,7 @@
     }
 
     async function loadTowingCompanies() {
+      if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient.from(TABLES.towing).select('*');
         if (error) throw error;
@@ -923,6 +951,7 @@
     }
 
     async function loadResellers() {
+      if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient.from(TABLES.resellers).select('*');
         if (error) throw error;
@@ -934,6 +963,7 @@
     }
 
     async function loadRepairShops() {
+      if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient.from(TABLES.repair).select('*');
         if (error) throw error;
@@ -945,6 +975,7 @@
     }
 
     async function loadLocksmiths() {
+      if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient.from(TABLES.locksmiths).select('*');
         if (error) throw error;
@@ -956,6 +987,7 @@
     }
 
     async function loadDispatchers() {
+      if (!supabaseClient) return;
       try {
         const { data, error } = await supabaseClient.from(TABLES.dispatchers).select('*');
         if (error) throw error;
