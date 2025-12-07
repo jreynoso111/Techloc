@@ -15,6 +15,11 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, 
   },
 });
 
+let currentSession = null;
+let initialSessionResolved = false;
+let initializationPromise = null;
+const sessionListeners = new Set();
+
 const HOME_PAGE = new URL('../../index.html', import.meta.url).toString();
 
 const redirectToLogin = () => {
@@ -33,72 +38,109 @@ const redirectToHome = () => {
   window.location.href = HOME_PAGE;
 };
 
+const notifySessionListeners = (session) => {
+  sessionListeners.forEach((listener) => listener(session));
+};
+
+const setSession = (session) => {
+  currentSession = session;
+  notifySessionListeners(session);
+};
+
 const isAuthorizedUser = (session) => {
   const email = session?.user?.email?.toLowerCase();
   return Boolean(email && AUTHORIZED_EMAILS.includes(email));
 };
 
+const routeInfo = (() => {
+  const path = window.location.pathname.toLowerCase();
+  return {
+    isAdminRoute: path.includes('/admin/'),
+    isControlView: path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
+    isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
+  };
+})();
+
+const getCurrentSession = async () => {
+  await initializeAuthState();
+  return currentSession;
+};
+
+const initializeAuthState = () => {
+  if (initializationPromise) return initializationPromise;
+
+  initializationPromise = (async () => {
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      setSession(data?.session ?? null);
+    } catch (error) {
+      console.error('Session prefetch error', error);
+      setSession(null);
+    } finally {
+      initialSessionResolved = true;
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+
+      if (event === 'SIGNED_OUT') {
+        const isProtectedRoute = routeInfo.isAdminRoute || routeInfo.isControlView;
+        if (isProtectedRoute && !routeInfo.isLoginPage) {
+          redirectToLogin();
+        }
+      }
+    });
+  })();
+
+  return initializationPromise;
+};
+
 const waitForAuthorizedSession = () =>
   new Promise((resolve, reject) => {
-    let settled = false;
+    let cleanedUp = false;
 
-    const cleanup = (subscription) => {
-      settled = true;
-      subscription?.unsubscribe();
+    const cleanup = () => {
+      cleanedUp = true;
+      sessionListeners.delete(checkSession);
     };
 
-    const handleAuthorized = (session, subscription) => {
-      cleanup(subscription);
+    const handleAuthorized = (session) => {
+      cleanup();
       resolve(session);
     };
 
-    const handleUnauthorized = async (subscription, reason) => {
-      cleanup(subscription);
+    const handleUnauthorized = async (reason) => {
+      cleanup();
       await supabaseClient.auth.signOut();
       redirectToLogin();
       reject(new Error(reason));
     };
 
-    const { data } = supabaseClient.auth.onAuthStateChange((event, session) => {
+    const checkSession = (session) => {
       const authorized = isAuthorizedUser(session);
-
-      if (event === 'INITIAL_SESSION') {
-        if (session && authorized) {
-          handleAuthorized(session, data.subscription);
-        } else if (!settled) {
-          handleUnauthorized(data.subscription, 'No active Supabase session');
-        }
+      if (authorized) {
+        handleAuthorized(session);
         return;
       }
 
-      if (event === 'SIGNED_IN') {
-        if (session && authorized) {
-          handleAuthorized(session, data.subscription);
-        } else {
-          handleUnauthorized(data.subscription, 'Unauthorized account');
-        }
-        return;
+      if (session === null && initialSessionResolved && !cleanedUp) {
+        handleUnauthorized('No active Supabase session');
       }
+    };
 
-      if (event === 'SIGNED_OUT') {
-        if (!settled) {
-          cleanup(data.subscription);
-          redirectToLogin();
-          reject(new Error('Signed out'));
+    initializeAuthState()
+      .then(() => {
+        if (isAuthorizedUser(currentSession)) {
+          handleAuthorized(currentSession);
+          return;
         }
-      }
-    });
-
-    supabaseClient.auth
-      .getSession()
-      .then(({ data: sessionData }) => {
-        if (settled || !sessionData?.session) return;
-        const authorized = isAuthorizedUser(sessionData.session);
-        if (authorized) {
-          handleAuthorized(sessionData.session, data.subscription);
-        }
+        sessionListeners.add(checkSession);
+        checkSession(currentSession);
       })
-      .catch((error) => console.error('Session prefetch error', error));
+      .catch((error) => {
+        console.error('Authentication initialization failed', error);
+        handleUnauthorized('Initialization failed');
+      });
   });
 
 const requireSession = async () => {
@@ -186,14 +228,16 @@ const revealAuthorizedUi = () => {
 
 const syncNavigationVisibility = async (sessionFromEvent = null) => {
   await waitForDom();
+  await initializeAuthState();
+
   const navItems = document.querySelectorAll('[data-auth-visible]');
   const guestItems = document.querySelectorAll('[data-auth-guest]');
   if (!navItems.length && !guestItems.length) return;
 
-  const session = sessionFromEvent ?? (await supabaseClient.auth.getSession()).data?.session;
-  const isAuthorized = isAuthorizedUser(session);
+  const session = sessionFromEvent ?? currentSession;
+  const authorized = isAuthorizedUser(session);
 
-  if (isAuthorized) {
+  if (authorized) {
     navItems.forEach((item) => item.classList.remove('hidden'));
     guestItems.forEach((item) => item.classList.add('hidden'));
     setupLogoutButton();
@@ -216,27 +260,24 @@ const enforceAdminGuard = async () => {
   return session;
 };
 
-const autoStart = () => {
-  const path = window.location.pathname.toLowerCase();
-  const isAdminRoute = path.includes('/admin/');
-  const isControlView = path.endsWith('/vehicles.html') || path.endsWith('vehicles.html');
-  const isLoginPage = path.endsWith('/login.html') || path.endsWith('login.html');
+const startNavigationSync = () => {
+  const handleNavigationSync = (session) =>
+    syncNavigationVisibility(session).catch((error) => console.error('Navigation auth sync failed', error));
 
-  if ((isAdminRoute || isControlView) && !isLoginPage) {
+  sessionListeners.add(handleNavigationSync);
+  initializeAuthState()
+    .then(() => handleNavigationSync(currentSession))
+    .catch((error) => console.error('Navigation initialization failed', error));
+};
+
+const autoStart = () => {
+  initializeAuthState();
+
+  if ((routeInfo.isAdminRoute || routeInfo.isControlView) && !routeInfo.isLoginPage) {
     enforceAdminGuard().catch((error) => console.error('Authentication guard failed', error));
   }
 
-  syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
-  supabaseClient.auth.onAuthStateChange((event, session) => {
-    syncNavigationVisibility(session).catch((error) => console.error('Navigation auth sync failed', error));
-
-    if (event === 'SIGNED_OUT') {
-      const isProtectedRoute = isAdminRoute || isControlView;
-      if (isProtectedRoute && !isLoginPage) {
-        redirectToLogin();
-      }
-    }
-  });
+  startNavigationSync();
 };
 
 autoStart();
