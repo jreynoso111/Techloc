@@ -118,6 +118,13 @@
     try {
       const { data } = await supabaseClient.auth.getSession();
       const hasSession = Boolean(data?.session);
+
+      const isLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
+      if (hasSession && isLoginPage) {
+        window.location.replace(mapsTo('index.html'));
+        return;
+      }
+
       updateNav(hasSession);
       toggleProtectedBlocks(hasSession);
       enforceRouteProtection(hasSession);
@@ -128,6 +135,11 @@
         updateNav(sessionExists);
         toggleProtectedBlocks(sessionExists);
         enforceRouteProtection(sessionExists);
+
+        if (event === 'SIGNED_IN') {
+          window.location.replace(mapsTo('index.html'));
+          return;
+        }
 
         if (event === 'SIGNED_OUT') {
           window.location.replace(mapsTo('index.html'));
