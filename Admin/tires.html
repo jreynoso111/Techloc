@@ -131,9 +131,25 @@
               <h3 class="text-lg font-bold text-white">Commercial tire list</h3>
               <p id="status-text" class="text-sm text-slate-400">Connecting to Supabase…</p>
             </div>
-            <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
-              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-              <button id="refresh-button" class="underline-offset-2 hover:underline">Refresh data</button>
+            <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              <div class="flex flex-wrap gap-2">
+                <select id="state-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                  <option value="all">All states</option>
+                </select>
+                <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                  <span class="text-slate-400">Sort:</span>
+                  <button data-sort="company" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Company</button>
+                  <button data-sort="state" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">State</button>
+                  <button data-sort="rating" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Rating</button>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <input id="search" type="search" placeholder="Search by company, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+                <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                  <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                  <button id="refresh-button" class="underline-offset-2 hover:underline">Refresh data</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="overflow-x-auto rounded-xl border border-slate-800">
@@ -160,8 +176,18 @@
   <script>
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
-    const TABLE_NAME = 'Tires Services';
+    const TABLE_NAME = 'tire_services';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const state = {
+      rows: [],
+      filters: {
+        search: '',
+        state: 'all',
+        sortKey: 'state',
+        sortDir: 'asc',
+      },
+    };
 
     const els = {
       status: document.getElementById('status-text'),
@@ -171,11 +197,87 @@
       statStates: document.getElementById('stat-states'),
       statRating: document.getElementById('stat-rating'),
       refresh: document.getElementById('refresh-button'),
+      stateFilter: document.getElementById('state-filter'),
+      search: document.getElementById('search'),
     };
 
     const formatRating = (value) => (value ? Number(value).toFixed(1) : '—');
+    const getText = (value) => String(value || '').toLowerCase();
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          return value;
+        }
+      }
+      return '';
+    };
 
-    function renderRows(rows) {
+    const normalizeRow = (row) => ({
+      company: getField(row, 'company_name', 'company', 'name'),
+      state: getField(row, 'state', 'province', 'region'),
+      city: getField(row, 'city', 'town'),
+      phone: getField(row, 'phone', 'phone_number', 'telephone'),
+      website: getField(row, 'website', 'web', 'url'),
+      email: getField(row, 'email'),
+      google_rating: getField(row, 'google_rating', 'google'),
+      yelp_rating: getField(row, 'yelp_rating', 'yelp'),
+      notes: getField(row, 'notes', 'note', 'comments'),
+    });
+
+    function populateStateFilter(rows) {
+      const options = Array.from(new Set(rows.map((row) => getText(row.state)).filter(Boolean))).sort();
+      els.stateFilter.innerHTML = '<option value="all">All states</option>';
+      options.forEach((value) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = value.toUpperCase();
+        els.stateFilter.appendChild(option);
+      });
+    }
+
+    function applySearch(rows, term) {
+      if (!term) return rows;
+      const query = term.toLowerCase();
+      return rows.filter((row) => [row.company, row.state, row.city]
+        .some((value) => getText(value).includes(query)));
+    }
+
+    function applyFiltersAndSort() {
+      const filters = state.filters;
+      let result = applySearch(state.rows, filters.search);
+
+      if (filters.state !== 'all') {
+        result = result.filter((row) => getText(row.state) === filters.state);
+      }
+
+      const sorters = {
+        company: (a, b) => getText(a.company).localeCompare(getText(b.company)),
+        state: (a, b) => getText(a.state).localeCompare(getText(b.state)),
+        rating: (a, b) => Number(a.google_rating || 0) - Number(b.google_rating || 0),
+      };
+
+      if (filters.sortKey && sorters[filters.sortKey]) {
+        result = result.sort((a, b) => {
+          const comparison = sorters[filters.sortKey](a, b);
+          return filters.sortDir === 'asc' ? comparison : -comparison;
+        });
+      }
+
+      return result;
+    }
+
+    function updateSortButtons() {
+      document.querySelectorAll('[data-sort]').forEach((button) => {
+        const isActive = button.dataset.sort === state.filters.sortKey;
+        button.classList.toggle('bg-blue-600/30', isActive);
+        button.classList.toggle('text-white', isActive);
+        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (state.filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
+      });
+    }
+
+    function renderTable() {
+      const rows = applyFiltersAndSort();
       els.tableBody.innerHTML = '';
 
       rows.forEach((row) => {
@@ -189,7 +291,7 @@
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="px-4 py-3 font-semibold text-white">${row.company_name}</td>
+          <td class="px-4 py-3 font-semibold text-white">${row.company || '—'}</td>
           <td class="px-4 py-3 text-slate-200">${row.state || '—'}</td>
           <td class="px-4 py-3 text-slate-200">${row.city || '—'}</td>
           <td class="px-4 py-3 text-blue-200"><a href="tel:${row.phone || ''}">${row.phone || '—'}</a></td>
@@ -220,7 +322,7 @@
       els.status.textContent = 'Fetching rows from Supabase…';
 
       const { data, error } = await supabaseClient
-        .from('tire_services')
+        .from(TABLE_NAME)
         .select('*')
         .order('state', { ascending: true })
         .order('city', { ascending: true });
@@ -233,7 +335,11 @@
         return;
       }
 
-      if (!data || data.length === 0) {
+      const normalizedRows = (data || []).map(normalizeRow).filter((row) =>
+        row.company || row.state || row.city || row.phone || row.website || row.email,
+      );
+
+      if (normalizedRows.length === 0) {
         els.datasetStatus.textContent = 'Connected (0 rows)';
         els.status.textContent = '⚠️ Connected successfully, but no tire providers were returned.';
         els.tableBody.innerHTML = '';
@@ -241,18 +347,52 @@
         return;
       }
 
-      els.datasetStatus.textContent = `Connected • ${data.length} rows`;
+      state.rows = normalizedRows;
+      els.datasetStatus.textContent = `Connected • ${normalizedRows.length} rows`;
       els.status.textContent = '✅ Live data loaded from Supabase.';
-      renderRows(data);
-      updateStats(data);
+      populateStateFilter(state.rows);
+      renderTable();
+      updateStats(state.rows);
+      updateSortButtons();
+    }
+
+    async function initDirectory() {
+      await loadData();
+      lucide.createIcons();
     }
 
     els.refresh.addEventListener('click', () => {
-      loadData().then(() => lucide.createIcons());
+      initDirectory();
+    });
+
+    els.stateFilter.addEventListener('change', (event) => {
+      state.filters.state = event.target.value;
+      renderTable();
+    });
+
+    els.search.addEventListener('input', (event) => {
+      state.filters.search = event.target.value;
+      renderTable();
+    });
+
+    document.querySelectorAll('[data-sort]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.sort;
+        if (state.filters.sortKey === key) {
+          state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          state.filters.sortKey = key;
+          state.filters.sortDir = 'asc';
+        }
+        updateSortButtons();
+        renderTable();
+      });
     });
 
     createConstellationBackground();
-    loadData().then(() => lucide.createIcons());
+    document.addEventListener('DOMContentLoaded', () => {
+      initDirectory();
+    });
   </script>
 </body>
 </html>
