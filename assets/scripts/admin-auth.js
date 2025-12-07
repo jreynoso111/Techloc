@@ -7,12 +7,16 @@ const ADMIN_HOME = new URL('../../Admin/index.html', import.meta.url).toString()
 const CONTROL_VIEW = new URL('../../vehicles.html', import.meta.url).toString();
 
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+const supabaseClient =
+  window.supabaseClient ||
+  window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
+
+window.supabaseClient = supabaseClient;
 
 let currentSession = null;
 let initialSessionResolved = false;
