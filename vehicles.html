@@ -90,8 +90,8 @@
       border-radius: 14px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.45);
       overflow: hidden;
-      width: min(360px, calc(100vw - 80px));
-      max-width: min(360px, calc(100vw - 80px));
+      width: min(260px, calc(100vw - 80px));
+      max-width: min(260px, calc(100vw - 80px));
     }
     .vehicle-popup .leaflet-popup-content { margin: 0; width: 100%; }
     .vehicle-popup .leaflet-popup-tip { background: #0b1120; border: 1px solid #1f2937; }
@@ -562,10 +562,20 @@
       return match ? match[1].toUpperCase() : '';
     };
 
+    const normalizeKey = (key = '') => `${key}`.trim().toLowerCase().replace(/\s+/g, '_');
+
     const getField = (row, ...keys) => {
       for (const key of keys) {
-        const value = row?.[key];
-        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+        const rawValue = row?.[key];
+        if (rawValue !== undefined && rawValue !== null && String(rawValue).trim() !== '') return rawValue;
+
+        const lowerKey = typeof key === 'string' ? key.toLowerCase() : key;
+        const lowerValue = row?.[lowerKey];
+        if (lowerValue !== undefined && lowerValue !== null && String(lowerValue).trim() !== '') return lowerValue;
+
+        const snakeKey = normalizeKey(key);
+        const snakeValue = row?.[snakeKey];
+        if (snakeValue !== undefined && snakeValue !== null && String(snakeValue).trim() !== '') return snakeValue;
       }
       return '';
     };
@@ -657,10 +667,10 @@
       const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state', 'state_code'));
       const rawLat = parseFloat(getField(row, 'Lat', 'lat'));
       const rawLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
-      const fallbackLatLng = Number.isFinite(rawLat) && Number.isFinite(rawLng) ? { lat: rawLat, lng: rawLng } : null;
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
       const zip = getField(row, 'PT ZipCode', 'Zip', 'zip');
       const city = getField(row, 'PT City', 'City', 'city');
-      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng, seed: idx });
+      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null, seed: idx });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
       return {
         id: row?.id ?? idx,
@@ -683,8 +693,9 @@
         state: stateCode,
         city: city || '',
         zipcode: zip || '',
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: hasExactCoords ? coords.lat : null,
+        lng: hasExactCoords ? coords.lng : null,
+        locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
         customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
         customer: getField(row, 'PT City', 'City', 'city')
           ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
@@ -694,6 +705,58 @@
         details: row,
       };
     };
+
+    let googleGeocoder = null;
+    let renderVersion = 0;
+
+    const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
+
+    const getGoogleGeocoder = () => {
+      if (!window.google?.maps?.Geocoder) return null;
+      if (!googleGeocoder) googleGeocoder = new window.google.maps.Geocoder();
+      return googleGeocoder;
+    };
+
+    async function resolveVehicleLocation(vehicle) {
+      if (hasValidCoords(vehicle)) {
+        vehicle.locationAccuracy = vehicle.locationAccuracy || 'exact';
+        vehicle.locationNote = vehicle.locationAccuracy === 'zip' ? 'Ubicación aproximada (Basada en Zip Code)' : '';
+        return { lat: vehicle.lat, lng: vehicle.lng, accuracy: vehicle.locationAccuracy };
+      }
+
+      const zip = `${vehicle.zipcode || ''}`.trim();
+      if (!zip) {
+        console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+        return null;
+      }
+
+      const geocoder = getGoogleGeocoder();
+      if (!geocoder) {
+        console.warn(`Geocoder unavailable for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+        return null;
+      }
+
+      return new Promise((resolve) => {
+        geocoder.geocode({ address: zip }, (results, status) => {
+          if (status === 'OK' && results?.length) {
+            const location = results[0].geometry?.location;
+            if (location?.lat && location?.lng) {
+              const lat = location.lat();
+              const lng = location.lng();
+              vehicle.lat = lat;
+              vehicle.lng = lng;
+              vehicle.locationAccuracy = 'zip';
+              vehicle.locationNote = 'Ubicación aproximada (Basada en Zip Code)';
+              resolve({ lat, lng, accuracy: 'zip' });
+              return;
+            }
+          }
+
+          console.warn(`Geocoding failed for vehicle ${vehicle.vin || vehicle.id || 'unknown'} with status ${status}`);
+          resolve(null);
+        });
+      });
+    }
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
@@ -814,10 +877,7 @@
       try {
         const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
         if (error) throw error;
-        const normalized = (data || [])
-          .map((row, idx) => normalizeVehicle(row, idx))
-          .filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lng));
-        vehicles = normalized;
+        vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx));
         vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
         renderVehicles();
       } catch (err) {
@@ -980,51 +1040,60 @@
       const vehiclesData = rows.slice(1).map((values, idx) => {
         const clean = values.map(v => v.replace(/^"|"$/g, '').trim());
         const row = {};
-        headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
+        headers.forEach((h, i) => {
+          const value = (clean[i] ?? '').trim();
+          row[h] = value;
+          const normalized = normalizeKey(h);
+          if (!(normalized in row)) row[normalized] = value;
+        });
 
-        const stateCode = toStateCode(row['State Loc'] || row['State']);
-        const numericLat = parseFloat(row['Lat']);
-        const numericLng = parseFloat(row['Long'] || row['Lng']);
-        const fallbackLatLng = Number.isFinite(numericLat) && Number.isFinite(numericLng)
+        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc')); 
+        const numericLat = parseFloat(getField(row, 'Lat', 'lat'));
+        const numericLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
+        const hasExactCoords = Number.isFinite(numericLat) && Number.isFinite(numericLng) && numericLat !== 0 && numericLng !== 0;
+        const fallbackLatLng = hasExactCoords
           ? { lat: numericLat, lng: numericLng }
           : null;
         const coords = deriveCoords({
-          zip: row['PT ZipCode'] || row['Zip'] || '',
-          city: row['PT City'] || row['City'] || '',
+          zip: getField(row, 'PT ZipCode', 'Zip', 'zip'),
+          city: getField(row, 'PT City', 'City', 'city'),
           stateCode,
           fallbackLatLng,
           seed: idx
         });
 
-        const dealCompletion = row['Deal Completion'] || row['Deal completion'] || row['Deal completition'] || row['Remaining'] || '';
+        const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
 
         return {
           id: idx,
-          status: row['Deal Status'] || 'ACTIVE',
-          invPrepStatus: row['INV Prep Stat'] || row['Inv. Prep. Stat.'] || row['Inv Prep Stat'] || '',
+          status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
+          invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat', 'inv_prep_stat'),
           dealCompletion,
-          type: row['Unit Type'] || 'Vehicle',
-          year: row['Model Year'] || '',
-          model: row['Model'] || 'Vehicle',
-          vin: row['ShortVIN'] || row['VIN'] || 'N/A',
-          gpsFix: row['GPS Fix'] || '',
-          gpsReason: row['GPS Fix Reason'] || '',
-          gpsMoving: row['GPS Moving'] || '',
-          moving: row['Moving'] || '',
-          movingCalc: row['Moving (Calc)'] || '',
-          ptStatus: row['PT Status'] || '',
-          ptSerial: row['PT Serial '] || row['PT Serial'] || '',
-          encoreSerial: row['Encore Serial'] || '',
-          lastRead: row['PT Last Read'] || '',
+          type: getField(row, 'Unit Type', 'type') || 'Vehicle',
+          year: getField(row, 'Model Year', 'year'),
+          model: getField(row, 'Model', 'model') || 'Vehicle',
+          vin: getField(row, 'ShortVIN', 'VIN', 'vin') || 'N/A',
+          gpsFix: getField(row, 'GPS Fix', 'gps_fix'),
+          gpsReason: getField(row, 'GPS Fix Reason', 'gps_fix_reason'),
+          gpsMoving: getField(row, 'GPS Moving', 'gps_moving'),
+          moving: getField(row, 'Moving', 'moving'),
+          movingCalc: getField(row, 'Moving (Calc)', 'moving_calc'),
+          ptStatus: getField(row, 'PT Status', 'pt_status'),
+          ptSerial: getField(row, 'PT Serial ', 'PT Serial', 'pt_serial'),
+          encoreSerial: getField(row, 'Encore Serial', 'encore_serial'),
+          lastRead: getField(row, 'PT Last Read', 'pt_last_read'),
           state: stateCode,
-          city: row['PT City'] || row['City'] || '',
-          zipcode: row['PT ZipCode'] || row['Zip'] || '',
-          lat: coords.lat,
-          lng: coords.lng,
-          customerId: row['Customer ID'] || row['Customer'] || '',
-          customer: row['PT City'] ? `${row['PT City']}, ${stateCode}` : stateCode || 'Unknown area',
-          lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}${row['PT ZipCode'] ? ' ' + row['PT ZipCode'] : ''}`.trim(),
-          payment: row['Payment Schedule'] || '',
+          city: getField(row, 'PT City', 'City', 'city') || '',
+          zipcode: getField(row, 'PT ZipCode', 'Zip', 'zip') || '',
+          lat: hasExactCoords ? coords.lat : null,
+          lng: hasExactCoords ? coords.lng : null,
+          locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
+          customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
+          customer: getField(row, 'PT City', 'City', 'city')
+            ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
+            : stateCode || 'Unknown area',
+          lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${getField(row, 'PT ZipCode', 'Zip', 'zip') ? ' ' + getField(row, 'PT ZipCode', 'Zip', 'zip') : ''}`.trim(),
+          payment: getField(row, 'Payment Schedule', 'payment'),
           details: row
         };
       });
@@ -1262,6 +1331,7 @@
       container.innerHTML = '';
       vehicleLayer.clearLayers();
       vehicleMarkers.clear();
+      renderVersion += 1;
 
       const searchBox = document.getElementById('vehicle-search');
       const filtered = getVehicleList(searchBox?.value || '');
@@ -1283,6 +1353,7 @@
                 <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model}</p>
                 <h3 class="font-extrabold text-white text-sm leading-tight flex items-center gap-2">${vehicle.year || '—'} <span class="text-slate-600">•</span> ${vehicle.vin || 'VIN N/A'}</h3>
                 <p class="text-[11px] text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${vehicle.lastLocation || 'No location provided'}</p>
+                ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
                 <p class="text-[11px] text-blue-200 font-semibold">Customer ID: <span class="text-slate-100">${vehicle.customerId || '—'}</span></p>
               </div>
               <div class="flex flex-col items-end gap-1 text-right">
@@ -1322,7 +1393,7 @@
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal completition</p>
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
@@ -1343,23 +1414,15 @@
             </div>
           `;
 
-          const markerColor = getVehicleMarkerColor(vehicle);
-          const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 8,
-            color: '#0b1220',
-            weight: 2.6,
-            opacity: 0.95,
-            fillColor: markerColor,
-            fillOpacity: 0.92,
-            className: 'vehicle-dot'
-          }).addTo(vehicleLayer);
-
           const focusHandler = () => {
+            if (!hasValidCoords(vehicle)) {
+              console.warn(`No coordinates available for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+              return;
+            }
             applySelection(vehicle.id, null);
             focusVehicle(vehicle);
           };
 
-          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
           card.addEventListener('click', focusHandler);
 
           const viewMoreBtn = card.querySelector('[data-view-more]');
@@ -1370,15 +1433,37 @@
             });
           }
 
-          if (isVehicleNotMoving(vehicle)) {
-            L.marker([vehicle.lat, vehicle.lng], {
-              icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
-              interactive: false,
-              zIndexOffset: 500
-            }).addTo(vehicleLayer);
-          }
+          const renderStamp = renderVersion;
 
-          vehicleMarkers.set(vehicle.id, { marker });
+          resolveVehicleLocation(vehicle).then((coords) => {
+            if (renderStamp !== renderVersion || !coords) return;
+
+            const markerColor = getVehicleMarkerColor(vehicle);
+            const borderColor = getVehicleMarkerBorderColor(markerColor);
+
+            const marker = L.circleMarker([coords.lat, coords.lng], {
+              radius: 8,
+              color: borderColor,
+              weight: 2.6,
+              opacity: 0.95,
+              fillColor: markerColor,
+              fillOpacity: 0.92,
+              className: 'vehicle-dot'
+            }).addTo(vehicleLayer);
+
+            marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+
+            if (isVehicleNotMoving(vehicle)) {
+              L.marker([coords.lat, coords.lng], {
+                icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+                interactive: false,
+                zIndexOffset: 500
+              }).addTo(vehicleLayer);
+            }
+
+            vehicleMarkers.set(vehicle.id, { marker });
+          });
+
           container.appendChild(card);
         });
 
@@ -1387,7 +1472,7 @@
 
     function focusVehicle(vehicle) {
       if (!vehicle) return;
-      map.panTo([vehicle.lat, vehicle.lng]);
+      if (!hasValidCoords(vehicle)) return;
       highlightLayer.clearLayers();
 
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
@@ -1415,9 +1500,8 @@
 
       anchorMarker.bindPopup(vehicleCard(vehicle), {
         className: 'vehicle-popup',
-        autoPan: true,
-        keepInView: true,
-        autoPanPadding: [40, 40]
+        autoPan: false,
+        keepInView: false,
       }).openPopup();
 
       setTimeout(attachPopupHandlers, 50);
@@ -1428,62 +1512,38 @@
     }
 
     function vehicleCard(vehicle) {
+      const accuracyDot = vehicle.locationAccuracy === 'zip' ? 'bg-amber-300' : 'bg-emerald-300';
+      const modelYear = [vehicle.model || 'Vehicle', vehicle.year].filter(Boolean).join(' · ');
       return `
-        <div class="w-[300px] bg-slate-950/90 text-white">
-          <div class="p-4 space-y-3">
+        <div class="w-[240px] bg-slate-950/90 text-white">
+          <div class="p-3 space-y-2">
             <div class="flex items-start justify-between gap-2">
-              <div>
+              <div class="space-y-1">
                 <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">Vehicle</p>
-                <h3 class="text-lg font-extrabold leading-tight text-white">${vehicle.model} ${vehicle.year || ''}</h3>
-                <p class="text-[13px] text-slate-200 mt-1">VIN: <span class="font-semibold text-white">${vehicle.vin || 'N/A'}</span></p>
-                <p class="text-sm text-slate-300">${vehicle.customer || 'Customer pending'}</p>
+                <h3 class="text-base font-extrabold leading-tight text-white">${modelYear}</h3>
+                <p class="text-[11px] text-slate-300">VIN ${vehicle.vin || 'N/A'}</p>
               </div>
-              <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[11px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status}</span>
+              <span class="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-1 text-[10px] font-semibold text-amber-200 border border-amber-400/40">${vehicle.status || 'ACTIVE'}</span>
             </div>
 
-            <div class="flex items-center gap-2 text-sm text-slate-200">
-              <span class="inline-flex h-2 w-2 rounded-full bg-amber-400"></span>
-              <span>${vehicle.lastLocation || 'No location provided'}</span>
+            <div class="text-[12px] text-slate-200 space-y-1">
+              <p class="font-semibold">${vehicle.customer || 'Customer pending'}</p>
+              <p class="flex items-center gap-2">
+                <span class="inline-flex h-2 w-2 rounded-full ${accuracyDot}"></span>
+                <span>${vehicle.lastLocation || 'No location provided'}</span>
+              </p>
+              ${vehicle.locationNote ? `<p class="text-[11px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
             </div>
 
-            <div class="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 text-sm text-amber-50 space-y-1">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-amber-200">GPS</p>
-              <p class="text-base font-extrabold text-amber-100 leading-tight">${vehicle.gpsFix || 'Issue detected'}</p>
-              <p class="text-[13px] text-amber-200">${vehicle.gpsReason || 'Pending review'}</p>
-            </div>
-
-            <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-3 text-[11px] text-slate-200 space-y-2">
-              <p class="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Ops snapshot</p>
-              <div class="grid grid-cols-2 gap-2">
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
-                </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
-                </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal completition</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
-                </div>
-                <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
-                </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-2 py-2">
+                <p class="text-[9px] uppercase text-slate-500 font-bold">GPS</p>
+                <p class="font-semibold text-slate-50">${vehicle.gpsFix || 'Unknown'}</p>
               </div>
-              <div class="flex items-center gap-2 text-[11px] text-slate-400">
-                <i data-lucide="clock-3" class="h-3 w-3"></i>
-                <span class="font-semibold text-slate-200">Last read:</span>
-                <span class="truncate">${vehicle.lastRead || '—'}</span>
+              <div class="rounded-lg border border-slate-800 bg-slate-900/80 px-2 py-2">
+                <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
+                <p class="font-semibold text-slate-50">${vehicle.dealCompletion || '—'}</p>
               </div>
-            </div>
-
-            <div class="pt-2 flex justify-end">
-              <button data-view-more-popup class="inline-flex items-center gap-2 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1.5 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
-                <i data-lucide="info" class="h-4 w-4"></i>
-                See more
-              </button>
             </div>
           </div>
         </div>
@@ -1503,10 +1563,12 @@
 
     function getVehiclesForTech(tech) {
       if (!tech || !map) return [];
-      const withDistance = vehicles.map(v => ({
-        vehicle: v,
-        distance: getDistance(v.lat, v.lng, tech.lat, tech.lng)
-      }));
+      const withDistance = vehicles
+        .filter(hasValidCoords)
+        .map(v => ({
+          vehicle: v,
+          distance: getDistance(v.lat, v.lng, tech.lat, tech.lng)
+        }));
       return withDistance
         .filter(item => item.distance <= 180)
         .sort((a, b) => a.distance - b.distance)
@@ -1561,9 +1623,16 @@
 
     function getVehicleMarkerColor(vehicle) {
       const fix = (vehicle.gpsFix || '').trim().toLowerCase();
-      if (fix === 'all') return '#ef4444';
-      if (fix === 'fully working') return '#22c55e';
-      return '#f59e0b';
+      if (fix.includes('fully working')) return '#22c55e';
+      if (fix.includes('gps issue') || fix.includes('issue') || fix.includes('other')) return '#facc15';
+      return '#ef4444';
+    }
+
+    function getVehicleMarkerBorderColor(fillColor) {
+      const color = (fillColor || '').toLowerCase();
+      if (color === '#22c55e') return '#166534';
+      if (color === '#facc15') return '#92400e';
+      return '#991b1b';
     }
 
     function getMovingMeta(vehicle) {
@@ -1631,6 +1700,7 @@
       let closestDistance = Infinity;
 
       vehicles.forEach((vehicle) => {
+        if (!hasValidCoords(vehicle)) return;
         const dist = map.distance([point.lat, point.lng], [vehicle.lat, vehicle.lng]);
         if (dist < closestDistance) {
           closestDistance = dist;
