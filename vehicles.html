@@ -657,10 +657,10 @@
       const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state', 'state_code'));
       const rawLat = parseFloat(getField(row, 'Lat', 'lat'));
       const rawLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
-      const fallbackLatLng = Number.isFinite(rawLat) && Number.isFinite(rawLng) ? { lat: rawLat, lng: rawLng } : null;
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
       const zip = getField(row, 'PT ZipCode', 'Zip', 'zip');
       const city = getField(row, 'PT City', 'City', 'city');
-      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng, seed: idx });
+      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null, seed: idx });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
       return {
         id: row?.id ?? idx,
@@ -683,8 +683,9 @@
         state: stateCode,
         city: city || '',
         zipcode: zip || '',
-        lat: coords.lat,
-        lng: coords.lng,
+        lat: hasExactCoords ? coords.lat : null,
+        lng: hasExactCoords ? coords.lng : null,
+        locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
         customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
         customer: getField(row, 'PT City', 'City', 'city')
           ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
@@ -694,6 +695,58 @@
         details: row,
       };
     };
+
+    let googleGeocoder = null;
+    let renderVersion = 0;
+
+    const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
+
+    const getGoogleGeocoder = () => {
+      if (!window.google?.maps?.Geocoder) return null;
+      if (!googleGeocoder) googleGeocoder = new window.google.maps.Geocoder();
+      return googleGeocoder;
+    };
+
+    async function resolveVehicleLocation(vehicle) {
+      if (hasValidCoords(vehicle)) {
+        vehicle.locationAccuracy = vehicle.locationAccuracy || 'exact';
+        vehicle.locationNote = vehicle.locationAccuracy === 'zip' ? 'Ubicación aproximada (Basada en Zip Code)' : '';
+        return { lat: vehicle.lat, lng: vehicle.lng, accuracy: vehicle.locationAccuracy };
+      }
+
+      const zip = `${vehicle.zipcode || ''}`.trim();
+      if (!zip) {
+        console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+        return null;
+      }
+
+      const geocoder = getGoogleGeocoder();
+      if (!geocoder) {
+        console.warn(`Geocoder unavailable for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+        return null;
+      }
+
+      return new Promise((resolve) => {
+        geocoder.geocode({ address: zip }, (results, status) => {
+          if (status === 'OK' && results?.length) {
+            const location = results[0].geometry?.location;
+            if (location?.lat && location?.lng) {
+              const lat = location.lat();
+              const lng = location.lng();
+              vehicle.lat = lat;
+              vehicle.lng = lng;
+              vehicle.locationAccuracy = 'zip';
+              vehicle.locationNote = 'Ubicación aproximada (Basada en Zip Code)';
+              resolve({ lat, lng, accuracy: 'zip' });
+              return;
+            }
+          }
+
+          console.warn(`Geocoding failed for vehicle ${vehicle.vin || vehicle.id || 'unknown'} with status ${status}`);
+          resolve(null);
+        });
+      });
+    }
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
@@ -814,10 +867,7 @@
       try {
         const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
         if (error) throw error;
-        const normalized = (data || [])
-          .map((row, idx) => normalizeVehicle(row, idx))
-          .filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lng));
-        vehicles = normalized;
+        vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx));
         vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
         renderVehicles();
       } catch (err) {
@@ -985,7 +1035,8 @@
         const stateCode = toStateCode(row['State Loc'] || row['State']);
         const numericLat = parseFloat(row['Lat']);
         const numericLng = parseFloat(row['Long'] || row['Lng']);
-        const fallbackLatLng = Number.isFinite(numericLat) && Number.isFinite(numericLng)
+        const hasExactCoords = Number.isFinite(numericLat) && Number.isFinite(numericLng) && numericLat !== 0 && numericLng !== 0;
+        const fallbackLatLng = hasExactCoords
           ? { lat: numericLat, lng: numericLng }
           : null;
         const coords = deriveCoords({
@@ -1019,8 +1070,9 @@
           state: stateCode,
           city: row['PT City'] || row['City'] || '',
           zipcode: row['PT ZipCode'] || row['Zip'] || '',
-          lat: coords.lat,
-          lng: coords.lng,
+          lat: hasExactCoords ? coords.lat : null,
+          lng: hasExactCoords ? coords.lng : null,
+          locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
           customerId: row['Customer ID'] || row['Customer'] || '',
           customer: row['PT City'] ? `${row['PT City']}, ${stateCode}` : stateCode || 'Unknown area',
           lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}${row['PT ZipCode'] ? ' ' + row['PT ZipCode'] : ''}`.trim(),
@@ -1262,6 +1314,7 @@
       container.innerHTML = '';
       vehicleLayer.clearLayers();
       vehicleMarkers.clear();
+      renderVersion += 1;
 
       const searchBox = document.getElementById('vehicle-search');
       const filtered = getVehicleList(searchBox?.value || '');
@@ -1283,6 +1336,7 @@
                 <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model}</p>
                 <h3 class="font-extrabold text-white text-sm leading-tight flex items-center gap-2">${vehicle.year || '—'} <span class="text-slate-600">•</span> ${vehicle.vin || 'VIN N/A'}</h3>
                 <p class="text-[11px] text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${vehicle.lastLocation || 'No location provided'}</p>
+                ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
                 <p class="text-[11px] text-blue-200 font-semibold">Customer ID: <span class="text-slate-100">${vehicle.customerId || '—'}</span></p>
               </div>
               <div class="flex flex-col items-end gap-1 text-right">
@@ -1343,23 +1397,15 @@
             </div>
           `;
 
-          const markerColor = getVehicleMarkerColor(vehicle);
-          const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
-            radius: 8,
-            color: '#0b1220',
-            weight: 2.6,
-            opacity: 0.95,
-            fillColor: markerColor,
-            fillOpacity: 0.92,
-            className: 'vehicle-dot'
-          }).addTo(vehicleLayer);
-
           const focusHandler = () => {
+            if (!hasValidCoords(vehicle)) {
+              console.warn(`No coordinates available for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+              return;
+            }
             applySelection(vehicle.id, null);
             focusVehicle(vehicle);
           };
 
-          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
           card.addEventListener('click', focusHandler);
 
           const viewMoreBtn = card.querySelector('[data-view-more]');
@@ -1370,15 +1416,38 @@
             });
           }
 
-          if (isVehicleNotMoving(vehicle)) {
-            L.marker([vehicle.lat, vehicle.lng], {
-              icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
-              interactive: false,
-              zIndexOffset: 500
-            }).addTo(vehicleLayer);
-          }
+          const renderStamp = renderVersion;
 
-          vehicleMarkers.set(vehicle.id, { marker });
+          resolveVehicleLocation(vehicle).then((coords) => {
+            if (renderStamp !== renderVersion || !coords) return;
+
+            const isApproximate = coords.accuracy === 'zip';
+            const markerColor = isApproximate ? '#facc15' : '#ef4444';
+            const borderColor = isApproximate ? '#92400e' : '#991b1b';
+
+            const marker = L.circleMarker([coords.lat, coords.lng], {
+              radius: 8,
+              color: borderColor,
+              weight: 2.6,
+              opacity: 0.95,
+              fillColor: markerColor,
+              fillOpacity: 0.92,
+              className: 'vehicle-dot'
+            }).addTo(vehicleLayer);
+
+            marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+
+            if (isVehicleNotMoving(vehicle)) {
+              L.marker([coords.lat, coords.lng], {
+                icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+                interactive: false,
+                zIndexOffset: 500
+              }).addTo(vehicleLayer);
+            }
+
+            vehicleMarkers.set(vehicle.id, { marker });
+          });
+
           container.appendChild(card);
         });
 
@@ -1387,6 +1456,7 @@
 
     function focusVehicle(vehicle) {
       if (!vehicle) return;
+      if (!hasValidCoords(vehicle)) return;
       map.panTo([vehicle.lat, vehicle.lng]);
       highlightLayer.clearLayers();
 
@@ -1445,6 +1515,7 @@
               <span class="inline-flex h-2 w-2 rounded-full bg-amber-400"></span>
               <span>${vehicle.lastLocation || 'No location provided'}</span>
             </div>
+            ${vehicle.locationNote ? `<p class="text-xs text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
 
             <div class="rounded-xl border border-amber-300/40 bg-amber-500/15 p-3 text-sm text-amber-50 space-y-1">
               <p class="text-[11px] font-bold uppercase tracking-wide text-amber-200">GPS</p>
@@ -1503,10 +1574,12 @@
 
     function getVehiclesForTech(tech) {
       if (!tech || !map) return [];
-      const withDistance = vehicles.map(v => ({
-        vehicle: v,
-        distance: getDistance(v.lat, v.lng, tech.lat, tech.lng)
-      }));
+      const withDistance = vehicles
+        .filter(hasValidCoords)
+        .map(v => ({
+          vehicle: v,
+          distance: getDistance(v.lat, v.lng, tech.lat, tech.lng)
+        }));
       return withDistance
         .filter(item => item.distance <= 180)
         .sort((a, b) => a.distance - b.distance)
@@ -1631,6 +1704,7 @@
       let closestDistance = Infinity;
 
       vehicles.forEach((vehicle) => {
+        if (!hasValidCoords(vehicle)) return;
         const dist = map.distance([point.lat, point.lng], [vehicle.lat, vehicle.lng]);
         if (dist < closestDistance) {
           closestDistance = dist;
