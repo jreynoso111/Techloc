@@ -11,6 +11,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/scripts/datasets.js"></script>
 
   <script>
@@ -238,6 +239,7 @@
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-400 border border-amber-200"></span> GPS issue / Other</div>
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 border border-emerald-200"></span> Fully working</div>
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-red-200"></span> All vehicles</div>
+            <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center rounded-full border border-amber-200/80 bg-amber-500/20 px-1 py-[2px]"><span class="vehicle-cross-badge">✕</span></span> Not moving</div>
             <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
           </div>
         </div>
@@ -540,10 +542,31 @@
     let renderedTechIds = '';
     const locationCache = new Map();
 
+    const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const TABLES = {
+      technicians: 'gps_installers',
+      towing: 'towing_companies',
+      resellers: 'resellers',
+      repair: 'repair_shops',
+      locksmiths: 'locksmiths',
+      dispatchers: 'dispatchers',
+      vehicles: 'vehicles'
+    };
+
     const toStateCode = (value = '') => {
       if (!value) return '';
       const match = `${value}`.match(/([A-Z]{2})/i);
       return match ? match[1].toUpperCase() : '';
+    };
+
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row?.[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+      }
+      return '';
     };
 
     const deriveCoords = ({ zip = '', city = '', stateCode = '', fallbackLatLng = null, seed = 0 }) => {
@@ -585,6 +608,90 @@
       }
 
       return { lat: base[0], lng: base[1] };
+    };
+
+    const normalizeInstaller = (row, idx = 0) => {
+      const company = getField(row, 'Installation Company', 'Company', 'company', 'name');
+      const stateCode = toStateCode(getField(row, 'State', 'state', 'state_code')) || 'US';
+      const city = getField(row, 'City', 'city');
+      const zip = getField(row, 'Zip', 'zip');
+      const coords = deriveCoords({ zip, city, stateCode, seed: idx });
+      return {
+        id: row?.id ?? idx,
+        name: company || 'Installer',
+        company: company || 'Installer',
+        email: getField(row, 'Email', 'email') || '-',
+        phone: getField(row, 'Phone', 'phone') || '-',
+        city: city || '',
+        state: stateCode,
+        zip: zip || '',
+        lat: coords.lat,
+        lng: coords.lng,
+      };
+    };
+
+    const normalizePartner = (row, type = 'towing', idx = 0) => {
+      const stateCode = toStateCode(getField(row, 'state', 'region', 'State', 'Region', 'state_code')) || 'US';
+      const city = getField(row, 'city', 'City');
+      const zip = getField(row, 'zip', 'Zip', 'zipcode', 'postal_code');
+      const coords = deriveCoords({ zip, city, stateCode, seed: idx });
+      return {
+        id: row?.id ?? `${type}-${idx}`,
+        type,
+        company: getField(row, 'company', 'Company', 'name') || 'Partner',
+        region: getField(row, 'region', 'Region', 'state') || stateCode,
+        phone: getField(row, 'phone', 'Phone'),
+        contact: getField(row, 'contact', 'Contact', 'contact_name'),
+        availability: getField(row, 'availability', 'tier', 'Availability'),
+        notes: getField(row, 'notes', 'Notes'),
+        city: city || '',
+        state: stateCode,
+        zip: zip || '',
+        lat: coords.lat,
+        lng: coords.lng,
+      };
+    };
+
+    const normalizeVehicle = (row, idx = 0) => {
+      const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state', 'state_code'));
+      const rawLat = parseFloat(getField(row, 'Lat', 'lat'));
+      const rawLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
+      const fallbackLatLng = Number.isFinite(rawLat) && Number.isFinite(rawLng) ? { lat: rawLat, lng: rawLng } : null;
+      const zip = getField(row, 'PT ZipCode', 'Zip', 'zip');
+      const city = getField(row, 'PT City', 'City', 'city');
+      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng, seed: idx });
+      const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
+      return {
+        id: row?.id ?? idx,
+        status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
+        invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat'),
+        dealCompletion,
+        type: getField(row, 'Unit Type', 'type') || 'Vehicle',
+        year: getField(row, 'Model Year', 'year'),
+        model: getField(row, 'Model', 'model') || 'Vehicle',
+        vin: getField(row, 'ShortVIN', 'VIN', 'vin') || 'N/A',
+        gpsFix: getField(row, 'GPS Fix', 'gps_fix'),
+        gpsReason: getField(row, 'GPS Fix Reason', 'gps_fix_reason'),
+        gpsMoving: getField(row, 'GPS Moving', 'gps_moving'),
+        moving: getField(row, 'Moving', 'moving'),
+        movingCalc: getField(row, 'Moving (Calc)', 'moving_calc'),
+        ptStatus: getField(row, 'PT Status', 'pt_status'),
+        ptSerial: getField(row, 'PT Serial ', 'PT Serial', 'pt_serial'),
+        encoreSerial: getField(row, 'Encore Serial', 'encore_serial'),
+        lastRead: getField(row, 'PT Last Read', 'pt_last_read'),
+        state: stateCode,
+        city: city || '',
+        zipcode: zip || '',
+        lat: coords.lat,
+        lng: coords.lng,
+        customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
+        customer: getField(row, 'PT City', 'City', 'city')
+          ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
+          : stateCode || 'Unknown area',
+        lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${zip ? ' ' + zip : ''}`.trim(),
+        payment: getField(row, 'Payment Schedule', 'payment'),
+        details: row,
+      };
     };
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
@@ -679,11 +786,16 @@
       });
     }
 
-    // --- 2. Load CSVs ---
+    // --- 2. Load data from Supabase ---
     async function loadTechnicians() {
       try {
-        const text = await loadDatasetText({ key: 'installers', path: getDatasetPath('installers') });
-        await parseTechCSV(text);
+        const { data, error } = await supabaseClient.from(TABLES.technicians).select('*');
+        if (error) throw error;
+        technicians = (data || []).map((row, idx) => normalizeInstaller(row, idx)).filter(t => t.company || t.city || t.state);
+        renderedTechIds = '';
+        document.getElementById('total-count').textContent = technicians.length;
+        updateTechUI(technicians);
+        renderVehicles();
       } catch (err) {
         console.warn("System warning: " + err.message);
         document.getElementById('file-error').classList.remove('hidden');
@@ -699,10 +811,13 @@
 
     async function loadVehicles() {
       try {
-        const text = await loadDatasetText({ key: 'vehicles', path: getDatasetPath('vehicles') });
-        const parsed = parseVehicleCSV(text);
-        vehicles = parsed.rows;
-        vehicleHeaders = parsed.headers;
+        const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
+        if (error) throw error;
+        const normalized = (data || [])
+          .map((row, idx) => normalizeVehicle(row, idx))
+          .filter(v => Number.isFinite(v.lat) && Number.isFinite(v.lng));
+        vehicles = normalized;
+        vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
         renderVehicles();
       } catch (err) {
         console.warn("Vehicle load warning: " + err.message);
@@ -718,8 +833,9 @@
 
     async function loadTowingCompanies() {
       try {
-        const text = await loadDatasetText({ key: 'towing_companies', path: getDatasetPath('towing_companies') });
-        towingCompanies = parsePartnerCSV(text, 'towing');
+        const { data, error } = await supabaseClient.from(TABLES.towing).select('*');
+        if (error) throw error;
+        towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
       } catch (err) {
         console.warn("Towing load warning: " + err.message);
@@ -728,8 +844,9 @@
 
     async function loadResellers() {
       try {
-        const text = await loadDatasetText({ key: 'resellers', path: getDatasetPath('resellers') });
-        resellers = parsePartnerCSV(text, 'reseller');
+        const { data, error } = await supabaseClient.from(TABLES.resellers).select('*');
+        if (error) throw error;
+        resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
       } catch (err) {
         console.warn("Reseller load warning: " + err.message);
@@ -738,8 +855,9 @@
 
     async function loadRepairShops() {
       try {
-        const text = await loadDatasetText({ key: 'repair_shops', path: getDatasetPath('repair_shops') });
-        repairShops = parsePartnerCSV(text, 'repair');
+        const { data, error } = await supabaseClient.from(TABLES.repair).select('*');
+        if (error) throw error;
+        repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
       } catch (err) {
         console.warn("Repair shop load warning: " + err.message);
@@ -748,8 +866,9 @@
 
     async function loadLocksmiths() {
       try {
-        const text = await loadDatasetText({ key: 'locksmiths', path: getDatasetPath('locksmiths') });
-        locksmiths = parsePartnerCSV(text, 'locksmith');
+        const { data, error } = await supabaseClient.from(TABLES.locksmiths).select('*');
+        if (error) throw error;
+        locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
       } catch (err) {
         console.warn("Locksmith load warning: " + err.message);
@@ -758,8 +877,9 @@
 
     async function loadDispatchers() {
       try {
-        const text = await loadDatasetText({ key: 'dispatchers', path: getDatasetPath('dispatchers') });
-        dispatchers = parsePartnerCSV(text, 'dispatcher');
+        const { data, error } = await supabaseClient.from(TABLES.dispatchers).select('*');
+        if (error) throw error;
+        dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
       } catch (err) {
         console.warn("Dispatcher load warning: " + err.message);
