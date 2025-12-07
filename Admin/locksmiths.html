@@ -101,7 +101,7 @@
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Emergency access</p>
             <h2 class="text-2xl font-black text-white">Locksmith roster and coverage</h2>
-            <p class="text-sm text-slate-400">Live Supabase view. Refresh to stay in sync with the authoritative locksmith dataset.</p>
+            <p class="text-sm text-slate-400">Live Supabase view that loads automatically. Refresh only if you need the very latest sync.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="database" class="h-4 w-4"></i>
@@ -197,7 +197,8 @@
     </div>
   </main>
 
-  <script>
+  <script type="module">
+    import { createConstellationBackground } from '../assets/scripts/constellation.js';
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     const TABLE_NAME = 'locksmiths';
@@ -399,6 +400,15 @@
       }
     });
 
+    const runInitialLoad = async () => {
+      els.refresh.disabled = true;
+      els.refresh.textContent = 'Loading…';
+      createConstellationBackground();
+      await loadData();
+      els.refresh.disabled = false;
+      els.refresh.textContent = 'Refresh data';
+    };
+
     els.refresh.addEventListener('click', () => loadData());
 
     els.search.addEventListener('input', (event) => {
@@ -407,8 +417,7 @@
       renderTable();
     });
 
-    createConstellationBackground();
-    loadData();
+    runInitialLoad();
   </script>
 </body>
 </html>
