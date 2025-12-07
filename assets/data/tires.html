@@ -51,19 +51,20 @@
         // ----------------------------------------------------
         // 1. YOUR CREDENTIALS (PASTE THEM HERE CAREFULLY)
         // ----------------------------------------------------
-        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co'; 
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';  
+        const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+        const TABLE_NAME = 'Tires Services';
 
         // Initialize client
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // Main Function
         async function fetchTireServices() {
             console.log("Attempting to connect to Supabase...");
 
-            // Fetching from 'Tire Services' (Exact casing matters!)
-            const { data, error } = await supabase
-                .from('Tire Services')  
+            // Fetching from 'Tires Services' (Exact casing matters!)
+            const { data, error } = await supabaseClient
+                .from(TABLE_NAME)
                 .select('*')
                 .order('state', { ascending: true });
 
@@ -77,7 +78,7 @@
 
             if (!data || data.length === 0) {
                 console.warn('Data is empty');
-                msgElement.innerText = '⚠️ Connected successfully, but the table "Tire Services" has 0 rows.';
+                msgElement.innerText = '⚠️ Connected successfully, but the table "Tires Services" has 0 rows.';
                 return;
             }
 
