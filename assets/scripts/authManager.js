@@ -27,8 +27,19 @@
     (path) => path.includes('/admin/index.html'),
   ];
 
-  const loginUrl = new URL('/login.html', window.location.origin).toString();
-  const homeUrl = new URL('/index.html', window.location.origin).toString();
+  const mapsTo = (page) => {
+    const normalizedPage = page.startsWith('/') ? page.slice(1) : page;
+    const path = window.location.pathname;
+    const repoSegment = '/Techloc/';
+    const repoIndex = path.indexOf(repoSegment);
+
+    if (repoIndex !== -1) {
+      const base = path.slice(0, repoIndex + repoSegment.length);
+      return `${base}${normalizedPage}`;
+    }
+
+    return `/${normalizedPage}`;
+  };
 
   const updateNav = (hasSession) =>
     whenDomReady.then(() => {
@@ -78,7 +89,7 @@
 
   const enforceRouteProtection = (hasSession) => {
     if (!hasSession && isProtectedRoute()) {
-      window.location.replace(loginUrl);
+      window.location.replace(mapsTo('login.html'));
     }
   };
 
@@ -95,7 +106,7 @@
         } catch (error) {
           console.error('Error during Supabase sign out', error);
         }
-        window.location.href = homeUrl;
+        window.location.href = mapsTo('index.html');
       });
     });
   };
