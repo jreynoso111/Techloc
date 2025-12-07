@@ -7,7 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="../assets/scripts/datasets.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -102,9 +102,9 @@
               <h2 class="text-2xl font-black text-white">Reseller roster and commitments</h2>
               <p class="text-sm text-slate-400">Track partner locations, contacts, and service tiers that resell TechLoc.</p>
             </div>
-            <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
-              <i data-lucide="file-up" class="h-4 w-4"></i>
-              <span id="dataset-status">Bundled asset</span>
+            <div class="flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
+              <i data-lucide="cloud" class="h-4 w-4"></i>
+              <span id="dataset-status">Connecting…</span>
             </div>
           </div>
 
@@ -129,21 +129,10 @@
                 <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
                 <h3 class="text-lg font-bold text-white">Reseller list</h3>
               </div>
-              <div class="flex flex-wrap gap-2">
-                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow shadow-emerald-600/30 transition hover:-translate-y-0.5">
-                  <input type="file" accept=".csv" class="hidden" id="upload-input" />
-                  <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                  Upload data
-                </label>
-                <button id="reset-button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-red-500 hover:text-white">
-                  <i data-lucide="rotate-ccw" class="h-4 w-4"></i>
-                  Reset to bundled
-                </button>
-                <button id="download-button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-                  <i data-lucide="download" class="h-4 w-4"></i>
-                  Download current
-                </button>
-              </div>
+              <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
+                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                Refresh data
+              </button>
             </div>
             <div class="overflow-x-auto rounded-xl border border-slate-800">
               <table class="min-w-full divide-y divide-slate-800 text-sm whitespace-nowrap">
@@ -181,68 +170,9 @@
             </div>
           </section>
 
-          <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Add partner</p>
-              <h3 class="text-lg font-bold text-white">New reseller</h3>
-              <p class="text-sm text-slate-400">Entries save to your browser storage and export as a resellers dataset.</p>
-            </div>
-            <form id="create-form" class="space-y-3">
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Company name</label>
-                  <input name="Company" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="BluePeak Systems" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Region / state</label>
-                  <input name="Region" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="CO" />
-                </div>
-              </div>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Sales phone</label>
-                  <input name="Phone" required type="tel" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="(303) 555-2109" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Primary contact</label>
-                  <input name="Contact" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Jordan Kim" />
-                </div>
-              </div>
-              <div class="grid gap-3 sm:grid-cols-3">
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Contact email</label>
-                  <input name="Email" required type="email" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="team@example.com" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">City</label>
-                  <input name="City" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Denver" />
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">State</label>
-                    <input name="State" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="CO" />
-                  </div>
-                  <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Zip</label>
-                    <input name="Zip" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="80202" />
-                  </div>
-                </div>
-              </div>
-              <div class="grid gap-3 sm:grid-cols-[1.2fr_1fr]">
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Tier</label>
-                  <input name="Tier" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Premier" />
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
-                  <input name="Notes" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="Bundles installation + monitoring" />
-                </div>
-              </div>
-              <button type="submit" id="submit-button" class="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow shadow-blue-600/40 transition hover:-translate-y-0.5">
-                <i id="submit-icon" data-lucide="plus" class="h-4 w-4"></i>
-                <span id="submit-label">Add reseller</span>
-              </button>
-            </form>
+                    <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-300 shadow-inner shadow-slate-900/60 lg:mx-auto lg:max-w-5xl">
+            <p class="font-semibold text-white">Read-only directory</p>
+            <p class="mt-2 leading-relaxed text-slate-400">Reseller records now load directly from Supabase. Uploading, editing, or deleting entries from this dashboard has been disabled to keep data aligned with the shared source.</p>
           </section>
   
       </section>
@@ -332,105 +262,17 @@
     </div>
   </section>
 
-  <script type="module">
+    <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
 
-    const setupDashboardDropdown = () => {
-      document.querySelectorAll('[data-dropdown]').forEach((dropdown) => {
-        const trigger = dropdown.querySelector('[data-dropdown-trigger]');
-        const menu = dropdown.querySelector('[data-dropdown-menu]');
-        if (!trigger || !menu) return;
-
-        let hideTimeout;
-
-        const showMenu = () => {
-          clearTimeout(hideTimeout);
-          menu.classList.remove('hidden');
-        };
-
-        const scheduleHide = () => {
-          hideTimeout = setTimeout(() => {
-            menu.classList.add('hidden');
-          }, 500);
-        };
-
-        dropdown.addEventListener('mouseenter', showMenu);
-        dropdown.addEventListener('mouseleave', scheduleHide);
-        trigger.addEventListener('focus', showMenu);
-        trigger.addEventListener('blur', (event) => {
-          if (!dropdown.contains(event.relatedTarget)) {
-            scheduleHide();
-          }
-        });
-        menu.addEventListener('focusin', showMenu);
-        menu.addEventListener('focusout', (event) => {
-          if (!dropdown.contains(event.relatedTarget)) {
-            scheduleHide();
-          }
-        });
-      });
-    };
-
-      const DATASET = {
-        key: 'resellers',
-        fileName: 'resellers.csv',
-        path: getDatasetPath('resellers'),
-      };
-
-    const HEADERS = ['Company', 'Region', 'Phone', 'Contact', 'Email', 'Tier', 'Notes', 'City', 'State', 'Zip'];
-
-    const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
-
-    const parseCsvLine = (line = '') => (line.match(/(".*?"|[^",]+)(?=,|$)/g) || []).map((value) => value.replace(/^"|"$/g, ''));
-
-    const parseCsvText = (text = '') => {
-      const lines = text.trim().split(/\r?\n/).filter(Boolean);
-      if (!lines.length) return { headers: [], rows: [] };
-      const headers = parseCsvLine(lines.shift());
-      const rows = lines.map((line) => {
-        const values = parseCsvLine(line);
-        return Object.fromEntries(headers.map((header, idx) => [header.trim(), (values[idx] || '').trim()]));
-      });
-      return { headers, rows };
-    };
-
-    const formatDate = (dateString) => {
-      if (!dateString) return 'Default file';
-      const date = new Date(dateString);
-      if (Number.isNaN(date.getTime())) return 'Default file';
-      return new Intl.DateTimeFormat('en', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(date);
-    };
-
-    const loadDatasetText = async () => {
-      const override = localStorage.getItem(localKey());
-      if (override) {
-        const meta = JSON.parse(localStorage.getItem(localKey('meta')) || '{}');
-        return { source: 'Uploaded', text: override, meta };
-      }
-      const response = await fetch(DATASET.path);
-      const text = await response.text();
-      return { source: 'Default', text, meta: { updatedAt: null, name: DATASET.fileName } };
-    };
-
-    const toCsv = (csvHeaders, csvRows) => {
-      const escape = (value = '') => `"${String(value).replace(/"/g, '""')}"`;
-      const headerLine = csvHeaders.map(escape).join(',');
-      const rowLines = csvRows.map((row) => csvHeaders.map((header) => escape(row[header] || '')).join(','));
-      return [headerLine, ...rowLines].join('\n');
-    };
+    const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+    const TABLE_NAME = 'resellers';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const state = {
       rows: [],
-      editingIndex: null,
-      pagination: {
-        page: 1,
-        pageSize: 20,
-      },
+      pagination: { page: 1, pageSize: 20 },
     };
 
     const els = {
@@ -439,45 +281,35 @@
       regions: document.getElementById('reseller-regions'),
       premier: document.getElementById('reseller-premier'),
       status: document.getElementById('dataset-status'),
-      upload: document.getElementById('upload-input'),
-      reset: document.getElementById('reset-button'),
-      download: document.getElementById('download-button'),
-      form: document.getElementById('create-form'),
-      editModal: document.getElementById('edit-modal'),
-      editForm: document.getElementById('edit-form'),
-      editTitle: document.getElementById('edit-title'),
-      editClose: document.getElementById('edit-close'),
-      editCancel: document.getElementById('edit-cancel'),
-      editDelete: document.getElementById('edit-delete'),
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
+      refresh: document.getElementById('refresh-button'),
     };
 
-    const setFormValues = (form, row = {}) => {
-      HEADERS.forEach((header) => {
-        const input = form.elements[header];
-        if (input) input.value = row[header] || '';
-      });
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          return value;
+        }
+      }
+      return '';
     };
 
-    const startEdit = (index) => {
-      state.editingIndex = index;
-      const row = state.rows[index] || {};
-      setFormValues(els.editForm, row);
-      els.editTitle.textContent = `Edit ${row.Company || 'reseller'}`;
-      els.editModal.classList.remove('hidden');
-      document.body.classList.add('overflow-hidden');
-      lucide.createIcons();
-    };
-
-    const cancelEdit = () => {
-      state.editingIndex = null;
-      els.editForm.reset();
-      els.editModal.classList.add('hidden');
-      document.body.classList.remove('overflow-hidden');
-    };
+    const normalizeRow = (row) => ({
+      company: getField(row, 'Company', 'company', 'name'),
+      region: getField(row, 'Region', 'state', 'region'),
+      phone: getField(row, 'Phone', 'phone'),
+      contact: getField(row, 'Contact', 'contact_name', 'contact'),
+      email: getField(row, 'Email', 'email'),
+      tier: getField(row, 'Tier', 'tier'),
+      notes: getField(row, 'Notes', 'notes'),
+      city: getField(row, 'City', 'city'),
+      state: getField(row, 'State', 'state_code'),
+      zip: getField(row, 'Zip', 'zip'),
+    });
 
     const renderTable = () => {
       const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
@@ -492,95 +324,62 @@
       els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
 
       els.tableBody.innerHTML = '';
-      state.rows.slice(start, end).forEach((row, index) => {
+      state.rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
-        const actionCell = document.createElement('td');
-        actionCell.className = 'px-4 py-3';
-        const editBtn = document.createElement('button');
-        editBtn.className = 'inline-flex items-center gap-1 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white';
-        editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span>';
-        editBtn.addEventListener('click', () => startEdit(start + index));
-        actionCell.appendChild(editBtn);
-        tr.appendChild(actionCell);
-        HEADERS.forEach((header) => {
+        const columns = [
+          ['Actions', '—'],
+          ['Company', row.company],
+          ['Region', row.region],
+          ['Phone', row.phone],
+          ['Contact', row.contact],
+          ['Email', row.email],
+          ['Tier', row.tier],
+          ['Notes', row.notes],
+          ['City', row.city],
+          ['State', row.state],
+          ['Zip', row.zip],
+        ];
+
+        columns.forEach(([label, value]) => {
           const td = document.createElement('td');
-          td.className = 'px-4 py-3 text-slate-200';
-          td.textContent = row[header] || '—';
+          td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm';
+          if (label === 'Notes') {
+            td.classList.add('max-w-xs', 'leading-snug');
+            td.style.display = '-webkit-box';
+            td.style.WebkitLineClamp = '2';
+            td.style.WebkitBoxOrient = 'vertical';
+            td.style.overflow = 'hidden';
+          }
+          td.textContent = value || '—';
           tr.appendChild(td);
         });
+
         els.tableBody.appendChild(tr);
       });
     };
 
-    const renderSummary = (source, meta) => {
+    const renderSummary = () => {
       els.total.textContent = state.rows.length;
-      els.regions.textContent = new Set(state.rows.map((row) => row.Region || row.region || '').filter(Boolean)).size;
-      els.premier.textContent = state.rows.filter((row) => ((row.Tier || row.tier || '')).toLowerCase().includes('premier')).length;
-      els.status.textContent = source === 'Uploaded' ? `Using upload · ${formatDate(meta.updatedAt)}` : 'Bundled asset';
-      els.status.className = source === 'Uploaded'
-        ? 'flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200'
-        : 'flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300';
+      els.regions.textContent = new Set(state.rows.map((row) => row.region || '').filter(Boolean)).size;
+      els.premier.textContent = state.rows.filter((row) => (row.tier || '').toLowerCase().includes('premier')).length;
+      els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
     };
 
-    const refresh = async () => {
-      const { source, text, meta } = await loadDatasetText();
-      const parsed = parseCsvText(text);
-      state.rows = parsed.rows;
+    const fetchData = async () => {
+      els.status.textContent = 'Loading from Supabase…';
+      const { data, error } = await supabaseClient.from(TABLE_NAME).select('*');
+      if (error) {
+        els.status.textContent = 'Error loading data';
+        console.error('Error fetching resellers:', error);
+        return;
+      }
+
+      state.rows = (data || []).map(normalizeRow);
       state.pagination.page = 1;
-      state.pagination.pageSize = Math.max(1, state.rows.length);
       renderTable();
-      renderSummary(source, meta);
+      renderSummary();
+      lucide.createIcons();
     };
-
-    const persist = async () => {
-      const csvText = toCsv(HEADERS, state.rows);
-      localStorage.setItem(localKey(), csvText);
-      localStorage.setItem(localKey('meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: DATASET.fileName }));
-      await refresh();
-    };
-
-    els.form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      const formData = new FormData(els.form);
-      const entry = Object.fromEntries(HEADERS.map((header) => [header, formData.get(header) || '']));
-      state.rows.unshift(entry);
-      els.form.reset();
-      await persist();
-    });
-
-    els.reset.addEventListener('click', async () => {
-      localStorage.removeItem(localKey());
-      localStorage.removeItem(localKey('meta'));
-      cancelEdit();
-      await refresh();
-    });
-
-    els.download.addEventListener('click', () => {
-      const csvText = toCsv(HEADERS, state.rows);
-      const blob = new Blob([csvText], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = DATASET.fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    });
-
-    els.upload.addEventListener('change', (event) => {
-      const [file] = event.target.files || [];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async ({ target }) => {
-        const content = target?.result?.toString() || '';
-        localStorage.setItem(localKey(), content);
-        localStorage.setItem(localKey('meta'), JSON.stringify({ updatedAt: new Date().toISOString(), name: file.name }));
-        cancelEdit();
-        await refresh();
-      };
-      reader.readAsText(file);
-    });
 
     els.prevPage.addEventListener('click', () => {
       if (state.pagination.page > 1) {
@@ -597,33 +396,10 @@
       }
     });
 
-    els.editForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (state.editingIndex === null) return;
-      const formData = new FormData(els.editForm);
-      const entry = Object.fromEntries(HEADERS.map((header) => [header, formData.get(header) || '']));
-      state.rows[state.editingIndex] = entry;
-      cancelEdit();
-      await persist();
-    });
-
-    els.editDelete.addEventListener('click', async () => {
-      if (state.editingIndex === null) return;
-      state.rows.splice(state.editingIndex, 1);
-      cancelEdit();
-      await persist();
-    });
-
-    const closeModal = () => cancelEdit();
-    els.editClose.addEventListener('click', closeModal);
-    els.editCancel.addEventListener('click', closeModal);
+    els.refresh.addEventListener('click', fetchData);
 
     createConstellationBackground();
-    createConstellationBackground('edit-constellation-canvas');
-    setupDashboardDropdown();
-    refresh().then(() => {
-      lucide.createIcons();
-    });
+    fetchData();
   </script>
 </body>
 </html>
