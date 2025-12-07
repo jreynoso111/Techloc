@@ -25,6 +25,10 @@ const redirectToAdminHome = () => {
   window.location.href = ADMIN_HOME;
 };
 
+const redirectToControlView = () => {
+  window.location.href = CONTROL_VIEW;
+};
+
 const redirectToHome = () => {
   window.location.href = HOME_PAGE;
 };
@@ -129,6 +133,9 @@ const setupLogoutButton = () => {
   if (!logoutButton) return;
 
   logoutButton.classList.remove('hidden');
+  if (logoutButton.dataset.bound === 'true') return;
+
+  logoutButton.dataset.bound = 'true';
   logoutButton.addEventListener('click', async () => {
     const { error } = await supabaseClient.auth.signOut();
     if (error) {
@@ -189,9 +196,14 @@ const syncNavigationVisibility = async (sessionFromEvent = null) => {
   if (isAuthorized) {
     navItems.forEach((item) => item.classList.remove('hidden'));
     guestItems.forEach((item) => item.classList.add('hidden'));
+    setupLogoutButton();
   } else {
     navItems.forEach((item) => item.classList.add('hidden'));
     guestItems.forEach((item) => item.classList.remove('hidden'));
+    const logoutButton = ensureLogoutButton();
+    if (logoutButton) {
+      logoutButton.classList.add('hidden');
+    }
   }
 };
 
@@ -236,6 +248,7 @@ export {
   redirectToLogin,
   redirectToAdminHome,
   redirectToHome,
+  redirectToControlView,
   setupLogoutButton,
   LOGIN_PAGE,
   ADMIN_HOME,
