@@ -82,10 +82,57 @@ const waitForDom = () =>
     document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
   });
 
-const enforceAdminGuard = async () => {
-  const session = await requireSession();
+const applyLoadingState = () => {
+  const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
+  protectedBlocks.forEach((block) => {
+    block.classList.add('hidden');
+    block.setAttribute('aria-hidden', 'true');
+  });
+
+  const loading = document.querySelector('[data-auth-loading]');
+  if (loading) {
+    loading.classList.remove('hidden');
+  }
+};
+
+const revealAuthorizedUi = () => {
+  const loading = document.querySelector('[data-auth-loading]');
+  if (loading) {
+    loading.remove();
+  }
+
+  const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
+  protectedBlocks.forEach((block) => {
+    block.classList.remove('hidden');
+    block.removeAttribute('aria-hidden');
+  });
+
+  const gatedItems = document.querySelectorAll('[data-auth-visible]');
+  gatedItems.forEach((item) => item.classList.remove('hidden'));
+};
+
+const syncNavigationVisibility = async () => {
   await waitForDom();
+  const navItems = document.querySelectorAll('[data-auth-visible]');
+  if (!navItems.length) return;
+
+  const { data } = await supabaseClient.auth.getSession();
+  const email = data?.session?.user?.email?.toLowerCase();
+  const isAuthorized = email && AUTHORIZED_EMAILS.includes(email);
+
+  if (isAuthorized) {
+    navItems.forEach((item) => item.classList.remove('hidden'));
+  } else {
+    navItems.forEach((item) => item.classList.add('hidden'));
+  }
+};
+
+const enforceAdminGuard = async () => {
+  await waitForDom();
+  applyLoadingState();
+  const session = await requireSession();
   setupLogoutButton();
+  revealAuthorizedUi();
   return session;
 };
 
@@ -98,6 +145,8 @@ const autoStart = () => {
   if ((isAdminRoute || isControlView) && !isLoginPage) {
     enforceAdminGuard().catch((error) => console.error('Authentication guard failed', error));
   }
+
+  syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
 };
 
 autoStart();
