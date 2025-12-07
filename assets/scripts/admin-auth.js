@@ -4,8 +4,18 @@ const SUPABASE_KEY =
 
 const LOGIN_PAGE = new URL('../../login.html', import.meta.url).toString();
 const ADMIN_HOME = new URL('../../Admin/index.html', import.meta.url).toString();
+const CONTROL_VIEW = new URL('../../vehicles.html', import.meta.url).toString();
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const AUTHORIZED_EMAILS = ['admin@techloc.com', 'ops@techloc.com'];
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
+
+const HOME_PAGE = new URL('../../index.html', import.meta.url).toString();
 
 const redirectToLogin = () => {
   window.location.href = LOGIN_PAGE;
@@ -15,12 +25,25 @@ const redirectToAdminHome = () => {
   window.location.href = ADMIN_HOME;
 };
 
+const redirectToHome = () => {
+  window.location.href = HOME_PAGE;
+};
+
 const requireSession = async () => {
   const { data, error } = await supabaseClient.auth.getSession();
   if (error || !data?.session) {
     redirectToLogin();
     throw new Error('No active Supabase session');
   }
+  const email = data.session.user?.email?.toLowerCase();
+  const isAuthorized = email && AUTHORIZED_EMAILS.includes(email);
+
+  if (!isAuthorized) {
+    await supabaseClient.auth.signOut();
+    redirectToLogin();
+    throw new Error('Unauthorized account');
+  }
+
   return data.session;
 };
 
@@ -70,21 +93,77 @@ const waitForDom = () =>
     document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
   });
 
-const enforceAdminGuard = async () => {
-  const session = await requireSession();
+const applyLoadingState = () => {
+  const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
+  protectedBlocks.forEach((block) => {
+    block.classList.add('hidden');
+    block.setAttribute('aria-hidden', 'true');
+  });
+
+  const loading = document.querySelector('[data-auth-loading]');
+  if (loading) {
+    loading.classList.remove('hidden');
+  }
+};
+
+const revealAuthorizedUi = () => {
+  const loading = document.querySelector('[data-auth-loading]');
+  if (loading) {
+    loading.remove();
+  }
+
+  const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
+  protectedBlocks.forEach((block) => {
+    block.classList.remove('hidden');
+    block.removeAttribute('aria-hidden');
+  });
+
+  const gatedItems = document.querySelectorAll('[data-auth-visible]');
+  gatedItems.forEach((item) => item.classList.remove('hidden'));
+};
+
+const syncNavigationVisibility = async () => {
   await waitForDom();
+  const navItems = document.querySelectorAll('[data-auth-visible]');
+  const guestItems = document.querySelectorAll('[data-auth-guest]');
+  if (!navItems.length && !guestItems.length) return;
+
+  const { data } = await supabaseClient.auth.getSession();
+  const email = data?.session?.user?.email?.toLowerCase();
+  const isAuthorized = email && AUTHORIZED_EMAILS.includes(email);
+
+  if (isAuthorized) {
+    navItems.forEach((item) => item.classList.remove('hidden'));
+    guestItems.forEach((item) => item.classList.add('hidden'));
+  } else {
+    navItems.forEach((item) => item.classList.add('hidden'));
+    guestItems.forEach((item) => item.classList.remove('hidden'));
+  }
+};
+
+const enforceAdminGuard = async () => {
+  await waitForDom();
+  applyLoadingState();
+  const session = await requireSession();
   setupLogoutButton();
+  revealAuthorizedUi();
   return session;
 };
 
 const autoStart = () => {
   const path = window.location.pathname.toLowerCase();
   const isAdminRoute = path.includes('/admin/');
+  const isControlView = path.endsWith('/vehicles.html') || path.endsWith('vehicles.html');
   const isLoginPage = path.endsWith('/login.html') || path.endsWith('login.html');
 
-  if (isAdminRoute && !isLoginPage) {
+  if ((isAdminRoute || isControlView) && !isLoginPage) {
     enforceAdminGuard().catch((error) => console.error('Authentication guard failed', error));
   }
+
+  syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
+  supabaseClient.auth.onAuthStateChange(() => {
+    syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
+  });
 };
 
 autoStart();
@@ -95,7 +174,9 @@ export {
   requireSession,
   redirectToLogin,
   redirectToAdminHome,
+  redirectToHome,
   setupLogoutButton,
   LOGIN_PAGE,
   ADMIN_HOME,
+  HOME_PAGE,
 };
