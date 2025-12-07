@@ -1040,53 +1040,60 @@
       const vehiclesData = rows.slice(1).map((values, idx) => {
         const clean = values.map(v => v.replace(/^"|"$/g, '').trim());
         const row = {};
-        headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
+        headers.forEach((h, i) => {
+          const value = (clean[i] ?? '').trim();
+          row[h] = value;
+          const normalized = normalizeKey(h);
+          if (!(normalized in row)) row[normalized] = value;
+        });
 
-        const stateCode = toStateCode(row['State Loc'] || row['State']);
-        const numericLat = parseFloat(row['Lat']);
-        const numericLng = parseFloat(row['Long'] || row['Lng']);
+        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc')); 
+        const numericLat = parseFloat(getField(row, 'Lat', 'lat'));
+        const numericLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
         const hasExactCoords = Number.isFinite(numericLat) && Number.isFinite(numericLng) && numericLat !== 0 && numericLng !== 0;
         const fallbackLatLng = hasExactCoords
           ? { lat: numericLat, lng: numericLng }
           : null;
         const coords = deriveCoords({
-          zip: row['PT ZipCode'] || row['Zip'] || '',
-          city: row['PT City'] || row['City'] || '',
+          zip: getField(row, 'PT ZipCode', 'Zip', 'zip'),
+          city: getField(row, 'PT City', 'City', 'city'),
           stateCode,
           fallbackLatLng,
           seed: idx
         });
 
-        const dealCompletion = row['Deal Completion'] || row['Deal completion'] || row['Deal completition'] || row['Remaining'] || '';
+        const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
 
         return {
           id: idx,
-          status: row['Deal Status'] || 'ACTIVE',
-          invPrepStatus: row['INV Prep Stat'] || row['Inv. Prep. Stat.'] || row['Inv Prep Stat'] || '',
+          status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
+          invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat', 'inv_prep_stat'),
           dealCompletion,
-          type: row['Unit Type'] || 'Vehicle',
-          year: row['Model Year'] || '',
-          model: row['Model'] || 'Vehicle',
-          vin: row['ShortVIN'] || row['VIN'] || 'N/A',
-          gpsFix: row['GPS Fix'] || '',
-          gpsReason: row['GPS Fix Reason'] || '',
-          gpsMoving: row['GPS Moving'] || '',
-          moving: row['Moving'] || '',
-          movingCalc: row['Moving (Calc)'] || '',
-          ptStatus: row['PT Status'] || '',
-          ptSerial: row['PT Serial '] || row['PT Serial'] || '',
-          encoreSerial: row['Encore Serial'] || '',
-          lastRead: row['PT Last Read'] || '',
+          type: getField(row, 'Unit Type', 'type') || 'Vehicle',
+          year: getField(row, 'Model Year', 'year'),
+          model: getField(row, 'Model', 'model') || 'Vehicle',
+          vin: getField(row, 'ShortVIN', 'VIN', 'vin') || 'N/A',
+          gpsFix: getField(row, 'GPS Fix', 'gps_fix'),
+          gpsReason: getField(row, 'GPS Fix Reason', 'gps_fix_reason'),
+          gpsMoving: getField(row, 'GPS Moving', 'gps_moving'),
+          moving: getField(row, 'Moving', 'moving'),
+          movingCalc: getField(row, 'Moving (Calc)', 'moving_calc'),
+          ptStatus: getField(row, 'PT Status', 'pt_status'),
+          ptSerial: getField(row, 'PT Serial ', 'PT Serial', 'pt_serial'),
+          encoreSerial: getField(row, 'Encore Serial', 'encore_serial'),
+          lastRead: getField(row, 'PT Last Read', 'pt_last_read'),
           state: stateCode,
-          city: row['PT City'] || row['City'] || '',
-          zipcode: row['PT ZipCode'] || row['Zip'] || '',
+          city: getField(row, 'PT City', 'City', 'city') || '',
+          zipcode: getField(row, 'PT ZipCode', 'Zip', 'zip') || '',
           lat: hasExactCoords ? coords.lat : null,
           lng: hasExactCoords ? coords.lng : null,
           locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
-          customerId: row['Customer ID'] || row['Customer'] || '',
-          customer: row['PT City'] ? `${row['PT City']}, ${stateCode}` : stateCode || 'Unknown area',
-          lastLocation: `${row['PT City'] || 'Unknown'}, ${stateCode || 'USA'}${row['PT ZipCode'] ? ' ' + row['PT ZipCode'] : ''}`.trim(),
-          payment: row['Payment Schedule'] || '',
+          customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
+          customer: getField(row, 'PT City', 'City', 'city')
+            ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
+            : stateCode || 'Unknown area',
+          lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${getField(row, 'PT ZipCode', 'Zip', 'zip') ? ' ' + getField(row, 'PT ZipCode', 'Zip', 'zip') : ''}`.trim(),
+          payment: getField(row, 'Payment Schedule', 'payment'),
           details: row
         };
       });
@@ -1386,7 +1393,7 @@
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal completition</p>
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
@@ -1545,7 +1552,7 @@
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal completition</p>
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
                 </div>
                 <div class="rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5">
