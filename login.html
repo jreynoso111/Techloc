@@ -39,7 +39,7 @@
 
       <div class="space-y-2">
         <h2 class="text-2xl font-bold text-white">Access your dashboard</h2>
-        <p class="text-sm text-slate-300">Use your administrator credentials to authenticate. You will be redirected to the admin dashboard after signing in.</p>
+        <p class="text-sm text-slate-300">Use your administrator credentials to authenticate. After signing in you'll return to the homepage with secure access to admin tools.</p>
       </div>
 
       <form id="login-form" class="space-y-4">
@@ -61,7 +61,7 @@
   </main>
 
   <script type="module">
-    import { supabaseClient, redirectToAdminHome } from './assets/scripts/admin-auth.js';
+    import { supabaseClient, redirectToHome } from './assets/scripts/admin-auth.js';
     import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     const statusEl = document.getElementById('status');
@@ -76,8 +76,8 @@
     const checkExistingSession = async () => {
       const { data } = await supabaseClient.auth.getSession();
       if (data?.session) {
-        updateStatus('Redirecting to dashboard…');
-        redirectToAdminHome();
+        updateStatus('Session found. Redirecting to home…');
+        redirectToHome();
         return true;
       }
       return false;
@@ -95,8 +95,8 @@
         return;
       }
 
-      updateStatus('Login successful. Redirecting…');
-      redirectToAdminHome();
+      updateStatus('Login successful. Redirecting to home…');
+      redirectToHome();
     });
 
     document.addEventListener('DOMContentLoaded', () => {

@@ -8,7 +8,14 @@ const CONTROL_VIEW = new URL('../../vehicles.html', import.meta.url).toString();
 
 const AUTHORIZED_EMAILS = ['admin@techloc.com', 'ops@techloc.com'];
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
+
+const HOME_PAGE = new URL('../../index.html', import.meta.url).toString();
 
 const redirectToLogin = () => {
   window.location.href = LOGIN_PAGE;
@@ -16,6 +23,10 @@ const redirectToLogin = () => {
 
 const redirectToAdminHome = () => {
   window.location.href = ADMIN_HOME;
+};
+
+const redirectToHome = () => {
+  window.location.href = HOME_PAGE;
 };
 
 const requireSession = async () => {
@@ -114,7 +125,8 @@ const revealAuthorizedUi = () => {
 const syncNavigationVisibility = async () => {
   await waitForDom();
   const navItems = document.querySelectorAll('[data-auth-visible]');
-  if (!navItems.length) return;
+  const guestItems = document.querySelectorAll('[data-auth-guest]');
+  if (!navItems.length && !guestItems.length) return;
 
   const { data } = await supabaseClient.auth.getSession();
   const email = data?.session?.user?.email?.toLowerCase();
@@ -122,8 +134,10 @@ const syncNavigationVisibility = async () => {
 
   if (isAuthorized) {
     navItems.forEach((item) => item.classList.remove('hidden'));
+    guestItems.forEach((item) => item.classList.add('hidden'));
   } else {
     navItems.forEach((item) => item.classList.add('hidden'));
+    guestItems.forEach((item) => item.classList.remove('hidden'));
   }
 };
 
@@ -147,6 +161,9 @@ const autoStart = () => {
   }
 
   syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
+  supabaseClient.auth.onAuthStateChange(() => {
+    syncNavigationVisibility().catch((error) => console.error('Navigation auth sync failed', error));
+  });
 };
 
 autoStart();
@@ -157,7 +174,9 @@ export {
   requireSession,
   redirectToLogin,
   redirectToAdminHome,
+  redirectToHome,
   setupLogoutButton,
   LOGIN_PAGE,
   ADMIN_HOME,
+  HOME_PAGE,
 };
