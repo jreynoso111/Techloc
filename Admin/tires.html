@@ -203,6 +203,27 @@
 
     const formatRating = (value) => (value ? Number(value).toFixed(1) : '—');
     const getText = (value) => String(value || '').toLowerCase();
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          return value;
+        }
+      }
+      return '';
+    };
+
+    const normalizeRow = (row) => ({
+      company: getField(row, 'company_name', 'company', 'name'),
+      state: getField(row, 'state', 'province', 'region'),
+      city: getField(row, 'city', 'town'),
+      phone: getField(row, 'phone', 'phone_number', 'telephone'),
+      website: getField(row, 'website', 'web', 'url'),
+      email: getField(row, 'email'),
+      google_rating: getField(row, 'google_rating', 'google'),
+      yelp_rating: getField(row, 'yelp_rating', 'yelp'),
+      notes: getField(row, 'notes', 'note', 'comments'),
+    });
 
     function populateStateFilter(rows) {
       const options = Array.from(new Set(rows.map((row) => getText(row.state)).filter(Boolean))).sort();
@@ -218,7 +239,7 @@
     function applySearch(rows, term) {
       if (!term) return rows;
       const query = term.toLowerCase();
-      return rows.filter((row) => [row.company_name, row.state, row.city]
+      return rows.filter((row) => [row.company, row.state, row.city]
         .some((value) => getText(value).includes(query)));
     }
 
@@ -231,7 +252,7 @@
       }
 
       const sorters = {
-        company: (a, b) => getText(a.company_name).localeCompare(getText(b.company_name)),
+        company: (a, b) => getText(a.company).localeCompare(getText(b.company)),
         state: (a, b) => getText(a.state).localeCompare(getText(b.state)),
         rating: (a, b) => Number(a.google_rating || 0) - Number(b.google_rating || 0),
       };
@@ -270,7 +291,7 @@
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td class="px-4 py-3 font-semibold text-white">${row.company_name}</td>
+          <td class="px-4 py-3 font-semibold text-white">${row.company || '—'}</td>
           <td class="px-4 py-3 text-slate-200">${row.state || '—'}</td>
           <td class="px-4 py-3 text-slate-200">${row.city || '—'}</td>
           <td class="px-4 py-3 text-blue-200"><a href="tel:${row.phone || ''}">${row.phone || '—'}</a></td>
@@ -314,7 +335,11 @@
         return;
       }
 
-      if (!data || data.length === 0) {
+      const normalizedRows = (data || []).map(normalizeRow).filter((row) =>
+        row.company || row.state || row.city || row.phone || row.website || row.email,
+      );
+
+      if (normalizedRows.length === 0) {
         els.datasetStatus.textContent = 'Connected (0 rows)';
         els.status.textContent = '⚠️ Connected successfully, but no tire providers were returned.';
         els.tableBody.innerHTML = '';
@@ -322,8 +347,8 @@
         return;
       }
 
-      state.rows = data;
-      els.datasetStatus.textContent = `Connected • ${data.length} rows`;
+      state.rows = normalizedRows;
+      els.datasetStatus.textContent = `Connected • ${normalizedRows.length} rows`;
       els.status.textContent = '✅ Live data loaded from Supabase.';
       populateStateFilter(state.rows);
       renderTable();
