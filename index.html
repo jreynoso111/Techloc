@@ -15,7 +15,6 @@
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
           animation: {
             'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'spin-slow': 'spin 3s linear infinite',
           }
         },
       },
@@ -27,8 +26,6 @@
   <script src="assets/scripts/authManager.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="assets/scripts/datasets.js"></script>
-  <!-- Markdown Parser for Gemini Response -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50 selection:bg-blue-500/30">
   
@@ -100,10 +97,6 @@
                 <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
                 <span>Access Dashboard</span>
             </a>
-            <button onclick="document.getElementById('ai-modal').showModal()" class="group relative inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-all hover:shadow-indigo-600/40 hover:-translate-y-0.5 border border-indigo-400/30">
-                <i data-lucide="sparkles" class="h-4 w-4"></i>
-                <span>AI Dispatch Advisor</span>
-            </button>
             <a href="vehicles.html" class="group inline-flex items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-800/50 px-8 py-3 text-sm font-bold text-slate-300 transition-all hover:bg-slate-800 hover:text-white hover:border-slate-600 hover:-translate-y-0.5">
                 <i data-lucide="map" class="h-4 w-4 text-emerald-400"></i>
                 <span>Live Map View</span>
@@ -150,193 +143,8 @@
     </div>
   </main>
 
-  <!-- AI Modal -->
-  <dialog id="ai-modal" class="backdrop:bg-slate-950/80 backdrop:backdrop-blur-sm bg-transparent p-0 w-full max-w-2xl rounded-3xl shadow-2xl">
-    <div class="flex flex-col border border-slate-700 bg-slate-900 rounded-3xl overflow-hidden shadow-2xl shadow-indigo-500/10">
-      
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between border-b border-slate-800 bg-slate-950 p-6">
-        <div class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400">
-            <i data-lucide="sparkles" class="h-5 w-5"></i>
-          </div>
-          <div>
-            <h3 class="text-lg font-bold text-white">AI Dispatch Advisor</h3>
-            <p class="text-xs text-slate-400">Powered by Gemini 2.5 Flash</p>
-          </div>
-        </div>
-        <button onclick="document.getElementById('ai-modal').close()" class="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-          <i data-lucide="x" class="h-5 w-5"></i>
-        </button>
-      </div>
-
-      <!-- Modal Body -->
-      <div class="p-6 space-y-6">
-        <div class="space-y-2">
-          <label for="incident-input" class="text-sm font-semibold text-slate-300">Describe the fleet incident:</label>
-          <textarea id="incident-input" rows="3" class="w-full rounded-xl border border-slate-700 bg-slate-950 p-4 text-sm text-slate-200 placeholder:text-slate-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" placeholder="e.g., Truck 402 is stuck in mud near Dallas with a flat tire..."></textarea>
-        </div>
-
-        <div id="ai-result" class="hidden">
-           <div class="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
-              <div class="flex items-center gap-2 mb-3">
-                 <div class="h-2 w-2 rounded-full bg-indigo-400 animate-pulse"></div>
-                 <span class="text-xs font-bold uppercase tracking-wide text-indigo-300">Analysis Result</span>
-              </div>
-              <div id="ai-content" class="prose prose-invert prose-sm max-w-none text-slate-300">
-                <!-- Content injected here -->
-              </div>
-           </div>
-        </div>
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="flex items-center justify-end gap-3 border-t border-slate-800 bg-slate-950 p-4">
-        <button onclick="document.getElementById('ai-modal').close()" class="rounded-xl px-4 py-2 text-sm font-semibold text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">Cancel</button>
-        <button id="analyze-btn" class="flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500 transition-all">
-          <span>Analyze Incident</span>
-          <i data-lucide="arrow-right" class="h-4 w-4"></i>
-        </button>
-      </div>
-    </div>
-  </dialog>
-
   <script type="module">
-    // --- Solución de Error: Lógica de Constelación Integrada ---
-    // En lugar de importar desde un archivo externo, definimos la función aquí
-    // para evitar errores de CORS o resolución de módulos en vistas previas.
-    
-    function createConstellationBackground() {
-      const canvas = document.getElementById('constellation-canvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      let width, height, stars;
-
-      const initStars = () => {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
-        stars = [];
-        const numStars = Math.floor((width * height) / 15000); 
-        for (let i = 0; i < numStars; i++) {
-          stars.push({
-            x: Math.random() * width,
-            y: Math.random() * height,
-            vx: (Math.random() - 0.5) * 0.5,
-            vy: (Math.random() - 0.5) * 0.5,
-            radius: Math.random() * 1.5 + 0.5
-          });
-        }
-      };
-
-      const draw = () => {
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'; 
-
-        stars.forEach(star => {
-          ctx.beginPath();
-          ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-          ctx.fill();
-
-          star.x += star.vx;
-          star.y += star.vy;
-
-          if (star.x < 0) star.x = width;
-          else if (star.x > width) star.x = 0;
-          if (star.y < 0) star.y = height;
-          else if (star.y > height) star.y = 0;
-        });
-
-        for (let i = 0; i < stars.length; i++) {
-          for (let j = i + 1; j < stars.length; j++) {
-            const dx = stars[i].x - stars[j].x;
-            const dy = stars[i].y - stars[j].y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist < 100) {
-              ctx.lineWidth = 1 - dist / 100;
-              ctx.beginPath();
-              ctx.moveTo(stars[i].x, stars[i].y);
-              ctx.lineTo(stars[j].x, stars[j].y);
-              ctx.stroke();
-            }
-          }
-        }
-        requestAnimationFrame(draw);
-      };
-
-      window.addEventListener('resize', initStars);
-      initStars();
-      draw();
-    }
-
-    // --- Gemini API Logic ---
-    const analyzeBtn = document.getElementById('analyze-btn');
-    const incidentInput = document.getElementById('incident-input');
-    const resultContainer = document.getElementById('ai-result');
-    const resultContent = document.getElementById('ai-content');
-
-    const callGemini = async (prompt) => {
-      const apiKey = ""; // Injected by environment
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-      
-      const systemPrompt = `You are the TechLoc AI Dispatch Assistant for M&T Equipment Funding. 
-      Your goal is to analyze fleet maintenance incidents and recommend the correct service workflow.
-      
-      Analyze the user's input and provide a response in this specific format:
-      1. **Service Type:** (e.g., Towing, Mobile Mechanic, Locksmith, Tire Service)
-      2. **Urgency:** (Low, Medium, High, Critical)
-      3. **Safety Protocol:** One brief safety warning or check based on the incident.
-      4. **Recommended Action:** A concise instruction for the dispatcher.
-      
-      Keep the tone professional, technical, and concise.`;
-
-      const payload = {
-        contents: [{ parts: [{ text: prompt }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] }
-      };
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!response.ok) throw new Error(`Gemini API Error: ${response.statusText}`);
-
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "No analysis generated.";
-      } catch (error) {
-        console.error(error);
-        return "System Error: Unable to connect to AI Dispatch Service. Please try again.";
-      }
-    };
-
-    analyzeBtn.addEventListener('click', async () => {
-      const text = incidentInput.value.trim();
-      if (!text) return;
-
-      // UI Loading State
-      const originalBtnText = analyzeBtn.innerHTML;
-      analyzeBtn.innerHTML = `<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i> Analyzing...`;
-      analyzeBtn.disabled = true;
-      resultContainer.classList.add('hidden');
-
-      // API Call
-      const analysis = await callGemini(text);
-
-      // Render Result
-      resultContent.innerHTML = marked.parse(analysis);
-      resultContainer.classList.remove('hidden');
-
-      // Restore Button
-      analyzeBtn.innerHTML = originalBtnText;
-      analyzeBtn.disabled = false;
-      lucide.createIcons(); // Refresh icons if button rebuilt
-    });
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     // --- Original Logic ---
     const STATE_COORDS = {
@@ -419,7 +227,6 @@
     document.addEventListener('DOMContentLoaded', () => {
       lucide.createIcons();
       init();
-      // Ahora llamamos a la función local
       createConstellationBackground();
     });
   </script>
