@@ -288,9 +288,9 @@
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     
-    // NOTE: Reading from view (to avoid 403), Writing to table (requires admin)
-    const READ_TABLE = 'view_locksmiths_public'; 
-    const WRITE_TABLE = 'locksmiths';
+    // --- DISPATCHER LOGIC APPLIED TO LOCKSMITHS ---
+    const READ_TABLE = 'view_locksmiths_public'; // Read fast (no 403)
+    const WRITE_TABLE = 'locksmiths'; // Write secure (Auth required)
     
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -305,6 +305,7 @@
         page: 1,
         pageSize: 10,
       },
+      currentUserRole: 'user', // Default role
     };
 
     const els = {
@@ -325,6 +326,26 @@
       closeModal: document.getElementById('close-modal'),
       cancelEdit: document.getElementById('cancel-edit'),
       editForm: document.getElementById('edit-form'),
+    };
+
+    // --- AUTH LOGIC (From Dispatcher) ---
+    const requireSession = async () => {
+      const { data, error } = await supabaseClient.auth.getSession();
+      
+      if (data?.session) {
+          if (window.currentUserRole) {
+            state.currentUserRole = window.currentUserRole;
+          } else {
+            const { data: profile } = await supabaseClient
+              .from('profiles')
+              .select('role')
+              .eq('id', data.session.user.id)
+              .single();
+            state.currentUserRole = profile?.role || 'user';
+          }
+      } else {
+          state.currentUserRole = 'anon';
+      }
     };
 
     const getField = (row, ...keys) => {
@@ -386,6 +407,10 @@
       els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
 
       els.tableBody.innerHTML = '';
+      
+      // Check Roles (Dispatcher Logic)
+      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
+
       rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
         // Define columns
@@ -402,16 +427,21 @@
           tr.appendChild(td);
         });
 
-        // Add Action Column (Edit Button)
+        // Add Action Column (Dynamic based on Role)
         const actionTd = document.createElement('td');
         actionTd.className = 'px-4 py-3 text-center align-top';
-        const editBtn = document.createElement('button');
-        editBtn.className = 'text-blue-400 transition hover:text-blue-300 hover:scale-110';
-        editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i>';
-        editBtn.onclick = () => openEditModal(row);
-        actionTd.appendChild(editBtn);
+        
+        if (canEdit) {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-blue-400 transition hover:text-blue-300 hover:scale-110';
+            editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i>';
+            editBtn.onclick = () => openEditModal(row);
+            actionTd.appendChild(editBtn);
+        } else {
+            actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
+        }
+        
         tr.appendChild(actionTd);
-
         els.tableBody.appendChild(tr);
       });
       lucide.createIcons(); // Refresh icons for new rows
@@ -442,6 +472,7 @@
     els.closeModal.addEventListener('click', closeEditModal);
     els.cancelEdit.addEventListener('click', closeEditModal);
 
+    // Save Changes (Write to Table)
     els.editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = document.getElementById('edit-id').value;
@@ -500,7 +531,7 @@
       els.datasetStatus.textContent = 'Connecting…';
       els.status.textContent = 'Fetching rows from Supabase…';
 
-      // Read from VIEW to ensure data loads even if RLS blocks table select
+      // Read from VIEW (Public Read)
       const { data, error } = await supabaseClient
         .from(READ_TABLE) 
         .select('*')
@@ -567,6 +598,7 @@
       els.refresh.disabled = true;
       els.refresh.textContent = 'Loading…';
       createConstellationBackground();
+      await requireSession(); // Determine role BEFORE loading data
       await loadData();
       els.refresh.disabled = false;
       els.refresh.textContent = 'Refresh data';
