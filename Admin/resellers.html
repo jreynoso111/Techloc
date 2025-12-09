@@ -79,8 +79,8 @@
         </div>
 
         <div class="space-y-1">
-          <label class="text-xs font-semibold uppercase text-slate-400">Partner Tier</label>
-          <input type="text" id="edit-tier" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" placeholder="e.g. Premier, Gold, Standard" />
+          <label class="text-xs font-semibold uppercase text-slate-400">Partner Tier (Type)</label>
+          <input type="text" id="edit-tier" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" placeholder="e.g. Authorized, Dealer" />
         </div>
 
         <div class="space-y-1">
@@ -232,4 +232,286 @@
                   <th class="px-4 py-3 text-left font-semibold">Contact</th>
                   <th class="px-4 py-3 text-left font-semibold">Email</th>
                   <th class="px-4 py-3 text-left font-semibold">Tier</th>
-                  <th class="px-4 py-3 text-left font-
+                  <th class="px-4 py-3 text-left font-semibold">Notes</th>
+                  <th class="px-4 py-3 text-left font-semibold">City</th>
+                  <th class="px-4 py-3 text-left font-semibold">State</th>
+                  <th class="px-4 py-3 text-left font-semibold">Zip</th>
+                </tr>
+              </thead>
+              <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
+            </table>
+          </div>
+          
+          <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
+            <div class="flex items-center gap-2">
+              <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                Prev
+              </button>
+              <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
+              <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                Next
+                <i data-lucide="chevron-right" class="h-4 w-4"></i>
+              </button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+
+    const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+    
+    // LOGICA DOBLE: Leer de Vista Pública (rápido), Escribir en Tabla Real (seguro)
+    const READ_TABLE = 'view_resellers_public';
+    const WRITE_TABLE = 'resellers';
+    
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const state = {
+      rows: [],
+      pagination: { page: 1, pageSize: 20 },
+      currentUserRole: 'user', 
+    };
+
+    const els = {
+      tableBody: document.getElementById('table-body'),
+      total: document.getElementById('reseller-total'),
+      regions: document.getElementById('reseller-regions'),
+      premier: document.getElementById('reseller-premier'),
+      status: document.getElementById('dataset-status'),
+      paginationSummary: document.getElementById('pagination-summary'),
+      prevPage: document.getElementById('prev-page'),
+      nextPage: document.getElementById('next-page'),
+      pageIndicator: document.getElementById('page-indicator'),
+      refresh: document.getElementById('refresh-button'),
+      // Modal Els
+      modal: document.getElementById('edit-modal'),
+      closeModal: document.getElementById('close-modal'),
+      cancelEdit: document.getElementById('cancel-edit'),
+      editForm: document.getElementById('edit-form'),
+    };
+
+    // --- AUTH LOGIC ---
+    const requireSession = async () => {
+      const { data, error } = await supabaseClient.auth.getSession();
+      
+      if (data?.session) {
+          if (window.currentUserRole) {
+            state.currentUserRole = window.currentUserRole;
+          } else {
+            const { data: profile } = await supabaseClient
+              .from('profiles')
+              .select('role')
+              .eq('id', data.session.user.id)
+              .single();
+            state.currentUserRole = profile?.role || 'user';
+          }
+      } else {
+          state.currentUserRole = 'anon';
+      }
+    };
+
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+          return value;
+        }
+      }
+      return '';
+    };
+
+    const normalizeRow = (row) => ({
+      id: row.id,
+      company: getField(row, 'Company', 'company', 'name', 'company_name'),
+      region: getField(row, 'Region', 'state', 'region'),
+      phone: getField(row, 'Phone', 'phone'),
+      contact: getField(row, 'Contact', 'contact', 'contact_name'),
+      email: getField(row, 'Email', 'email'),
+      tier: getField(row, 'Tier', 'tier', 'type'), // MAPS 'type' to 'tier'
+      notes: getField(row, 'Notes', 'notes'),
+      city: getField(row, 'City', 'city'),
+      state: getField(row, 'State', 'state', 'state_code'),
+      zip: getField(row, 'Zip', 'zip'),
+    });
+
+    const renderTable = () => {
+      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
+      if (state.pagination.page > totalPages) state.pagination.page = totalPages;
+      const start = (state.pagination.page - 1) * state.pagination.pageSize;
+      const end = Math.min(state.rows.length, start + state.pagination.pageSize);
+      
+      els.paginationSummary.textContent = state.rows.length
+        ? `Showing ${start + 1}-${end} of ${state.rows.length}`
+        : 'No entries to display';
+      els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
+      els.prevPage.disabled = state.pagination.page === 1 || state.rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
+
+      els.tableBody.innerHTML = '';
+      
+      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
+
+      state.rows.slice(start, end).forEach((row) => {
+        const tr = document.createElement('tr');
+        
+        // --- 1. ACTION COLUMN (LEFT) ---
+        const actionTd = document.createElement('td');
+        actionTd.className = 'px-4 py-3 text-center align-top';
+        if (canEdit) {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-blue-400 transition hover:text-blue-300 hover:scale-110';
+            editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i>';
+            editBtn.onclick = () => openEditModal(row);
+            actionTd.appendChild(editBtn);
+        } else {
+            actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
+        }
+        tr.appendChild(actionTd);
+
+        // --- 2. DATA COLUMNS ---
+        const columns = [
+          row.company, row.region, row.phone, row.contact, row.email,
+          row.tier, row.notes, row.city, row.state, row.zip
+        ];
+
+        columns.forEach((value, index) => {
+          const td = document.createElement('td');
+          td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm';
+          if (index === 6) { // Notes
+            td.classList.add('max-w-xs', 'leading-snug');
+            td.style.display = '-webkit-box';
+            td.style.WebkitLineClamp = '2';
+            td.style.WebkitBoxOrient = 'vertical';
+            td.style.overflow = 'hidden';
+          }
+          td.textContent = value || '—';
+          tr.appendChild(td);
+        });
+
+        els.tableBody.appendChild(tr);
+      });
+      lucide.createIcons();
+    };
+
+    const renderSummary = () => {
+      els.total.textContent = state.rows.length;
+      els.regions.textContent = new Set(state.rows.map((row) => row.region || '').filter(Boolean)).size;
+      els.premier.textContent = state.rows.filter((row) => (row.tier || '').toLowerCase().includes('premier')).length;
+      els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
+    };
+
+    const fetchData = async () => {
+      els.status.textContent = 'Loading from Supabase…';
+      // READ FROM VIEW
+      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+      if (error) {
+        els.status.textContent = 'Error loading data';
+        console.error('Error fetching resellers:', error);
+        return;
+      }
+
+      state.rows = (data || []).map(normalizeRow);
+      renderTable();
+      renderSummary();
+    };
+
+    // --- MODAL FUNCTIONS ---
+    function openEditModal(row) {
+      document.getElementById('edit-id').value = row.id;
+      document.getElementById('edit-company').value = row.company || '';
+      document.getElementById('edit-region').value = row.region || '';
+      document.getElementById('edit-phone').value = row.phone || '';
+      document.getElementById('edit-contact').value = row.contact || '';
+      document.getElementById('edit-email').value = row.email || '';
+      document.getElementById('edit-city').value = row.city || '';
+      document.getElementById('edit-state').value = row.state || '';
+      document.getElementById('edit-zip').value = row.zip || '';
+      document.getElementById('edit-tier').value = row.tier || '';
+      document.getElementById('edit-notes').value = row.notes || '';
+      
+      els.modal.classList.remove('hidden');
+      els.modal.classList.add('flex');
+    }
+
+    function closeEditModal() {
+      els.modal.classList.add('hidden');
+      els.modal.classList.remove('flex');
+    }
+
+    els.closeModal.addEventListener('click', closeEditModal);
+    els.cancelEdit.addEventListener('click', closeEditModal);
+
+    // SAVE CHANGES
+    els.editForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      if (!id) return;
+
+      const updates = {
+        company_name: document.getElementById('edit-company').value,
+        region: document.getElementById('edit-region').value,
+        phone: document.getElementById('edit-phone').value,
+        contact: document.getElementById('edit-contact').value, 
+        email: document.getElementById('edit-email').value,
+        city: document.getElementById('edit-city').value,
+        state: document.getElementById('edit-state').value, 
+        zip: document.getElementById('edit-zip').value,
+        type: document.getElementById('edit-tier').value, // SAVES to 'type' column
+        notes: document.getElementById('edit-notes').value
+      };
+
+      const btn = els.editForm.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      btn.textContent = 'Saving...';
+      btn.disabled = true;
+
+      const { error } = await supabaseClient
+        .from(WRITE_TABLE) // Write to REAL table
+        .update(updates)
+        .eq('id', id);
+
+      btn.textContent = originalText;
+      btn.disabled = false;
+
+      if (error) {
+        alert('Error saving: ' + error.message);
+      } else {
+        closeEditModal();
+        fetchData(); 
+      }
+    });
+
+    els.prevPage.addEventListener('click', () => {
+      if (state.pagination.page > 1) {
+        state.pagination.page -= 1;
+        renderTable();
+      }
+    });
+
+    els.nextPage.addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
+      if (state.pagination.page < totalPages) {
+        state.pagination.page += 1;
+        renderTable();
+      }
+    });
+
+    els.refresh.addEventListener('click', fetchData);
+
+    const init = async () => {
+        createConstellationBackground();
+        createConstellationBackground('edit-constellation-canvas'); // If you have a second canvas in modal
+        await requireSession();
+        fetchData();
+    }
+    init();
+  </script>
+</body>
+</html>
