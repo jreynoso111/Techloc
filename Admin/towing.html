@@ -11,7 +11,8 @@
   <script src="../assets/scripts/supabaseClient.js"></script>
   <script src="../assets/scripts/authManager.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
-  <script>
+  <script type="module">
+    import { createConstellationBackground } from '../assets/scripts/constellation.js';
     tailwind.config = {
       theme: {
         extend: {
@@ -22,8 +23,80 @@
     };
   </script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50">
-    <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+<body class="min-h-screen bg-slate-950 text-slate-50 relative">
+
+  <div id="edit-modal" class="fixed inset-0 z-50 hidden flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black">
+      <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+        <h3 class="text-lg font-bold text-white">Edit Towing Company</h3>
+        <button id="close-modal" class="rounded-full p-1 text-slate-400 hover:bg-slate-800 hover:text-white">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+      <form id="edit-form" class="flex flex-col gap-4 p-6">
+        <input type="hidden" id="edit-id" />
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Company Name</label>
+            <input type="text" id="edit-company" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Region</label>
+            <input type="text" id="edit-region" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Phone</label>
+            <input type="text" id="edit-phone" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Contact Person</label>
+            <input type="text" id="edit-contact" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs font-semibold uppercase text-slate-400">Email</label>
+          <input type="email" id="edit-email" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+
+        <div class="grid grid-cols-3 gap-4">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">City</label>
+            <input type="text" id="edit-city" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">State</label>
+            <input type="text" id="edit-state" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Zip</label>
+            <input type="text" id="edit-zip" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs font-semibold uppercase text-slate-400">Availability</label>
+          <input type="text" id="edit-availability" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs font-semibold uppercase text-slate-400">Notes</label>
+          <textarea id="edit-notes" rows="3" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-2">
+          <button type="button" id="cancel-edit" class="rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 hover:text-white">Cancel</button>
+          <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-500">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="flex items-center justify-between px-6 py-4 lg:px-10">
       <a href="../index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
@@ -31,7 +104,7 @@
         </div>
         <div>
           <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
-          <h1 class="text-base font-black leading-tight text-white">Inspectors</h1>
+          <h1 class="text-base font-black leading-tight text-white">Towing</h1>
         </div>
       </a>
       <div class="flex flex-wrap items-center justify-end gap-3">
@@ -53,8 +126,8 @@
 
   <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
-    <main class="px-6 py-8 lg:px-10">
-    <div class="flex flex-col gap-8 lg:flex-row lg:items-start">
+  <main class="px-6 py-8 lg:px-10">
+    <div class="flex flex-col gap-8 lg:flex-row">
       <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
@@ -109,84 +182,79 @@
       </aside>
 
       <section class="flex-1 space-y-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Roadside network</p>
+            <h2 class="text-2xl font-black text-white">Towing roster and coverage</h2>
+            <p class="text-sm text-slate-400">View towing partners and coverage pulled live from Supabase.</p>
+          </div>
+          <div class="flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
+            <i data-lucide="cloud" class="h-4 w-4"></i>
+            <span id="dataset-status">Connecting…</span>
+          </div>
+        </div>
+
+        <section class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">Companies tracked</p>
+            <p id="towing-total" class="text-3xl font-black text-white">-</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">States / regions</p>
+            <p id="towing-regions" class="text-3xl font-black text-amber-300">-</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">24/7 coverage</p>
+            <p id="towing-247" class="text-3xl font-black text-emerald-300">-</p>
+          </div>
+        </section>
+
+        <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Roadside network</p>
-              <h2 class="text-2xl font-black text-white">Towing roster and coverage</h2>
-              <p class="text-sm text-slate-400">View towing partners and coverage pulled live from Supabase without in-browser edits.</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
+              <h3 class="text-lg font-bold text-white">Towing companies list</h3>
             </div>
-            <div class="flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-              <i data-lucide="cloud" class="h-4 w-4"></i>
-              <span id="dataset-status">Connecting…</span>
-            </div>
+            <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
+              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+              Refresh data
+            </button>
           </div>
-
-          <section class="grid gap-3 sm:grid-cols-3">
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-              <p class="text-sm font-semibold text-slate-300">Companies tracked</p>
-              <p id="towing-total" class="text-3xl font-black text-white">-</p>
-            </div>
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-              <p class="text-sm font-semibold text-slate-300">States / regions</p>
-              <p id="towing-regions" class="text-3xl font-black text-amber-300">-</p>
-            </div>
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-              <p class="text-sm font-semibold text-slate-300">24/7 coverage</p>
-              <p id="towing-247" class="text-3xl font-black text-emerald-300">-</p>
-            </div>
-          </section>
-
-          <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
-                <h3 class="text-lg font-bold text-white">Towing companies list</h3>
-              </div>
-              <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
-                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-                Refresh data
+          <div class="overflow-x-auto rounded-xl border border-slate-800">
+            <table class="min-w-full divide-y divide-slate-800 text-sm whitespace-nowrap">
+              <thead class="bg-slate-950/60 text-slate-300">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-blue-300 w-16">Actions</th>
+                  <th class="px-4 py-3 text-left font-semibold">Company</th>
+                  <th class="px-4 py-3 text-left font-semibold">Region</th>
+                  <th class="px-4 py-3 text-left font-semibold">Phone</th>
+                  <th class="px-4 py-3 text-left font-semibold">Contact</th>
+                  <th class="px-4 py-3 text-left font-semibold">Email</th>
+                  <th class="px-4 py-3 text-left font-semibold">Availability</th>
+                  <th class="px-4 py-3 text-left font-semibold">Notes</th>
+                  <th class="px-4 py-3 text-left font-semibold">City</th>
+                  <th class="px-4 py-3 text-left font-semibold">State</th>
+                  <th class="px-4 py-3 text-left font-semibold">Zip</th>
+                </tr>
+              </thead>
+              <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
+            </table>
+          </div>
+          <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
+            <div class="flex items-center gap-2">
+              <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                Prev
+              </button>
+              <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
+              <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                Next
+                <i data-lucide="chevron-right" class="h-4 w-4"></i>
               </button>
             </div>
-            <div class="overflow-x-auto rounded-xl border border-slate-800">
-              <table class="min-w-full divide-y divide-slate-800 text-sm">
-                <thead class="bg-slate-950/60 text-slate-300">
-                  <tr>
-                    <th class="px-4 py-3 text-left font-semibold">Company</th>
-                    <th class="px-4 py-3 text-left font-semibold">Region</th>
-                    <th class="px-4 py-3 text-left font-semibold">Phone</th>
-                    <th class="px-4 py-3 text-left font-semibold">Contact</th>
-                    <th class="px-4 py-3 text-left font-semibold">Email</th>
-                    <th class="px-4 py-3 text-left font-semibold">Availability</th>
-                    <th class="px-4 py-3 text-left font-semibold">Notes</th>
-                    <th class="px-4 py-3 text-left font-semibold">City</th>
-                    <th class="px-4 py-3 text-left font-semibold">State</th>
-                    <th class="px-4 py-3 text-left font-semibold">Zip</th>
-                  </tr>
-                </thead>
-                <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
-              </table>
-            </div>
-            <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
-              <div class="flex items-center gap-2">
-                <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                  Prev
-                </button>
-                <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
-                <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  Next
-                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-300 shadow-inner shadow-slate-900/60 lg:mx-auto lg:max-w-5xl">
-            <p class="font-semibold text-white">Read-only directory</p>
-            <p class="mt-2 leading-relaxed text-slate-400">Towing records are now served directly from Supabase. Editing, uploading, or deleting entries is disabled from this dashboard to keep data consistent with the shared data source.</p>
-          </section>
-  
+          </div>
+        </section>
       </section>
     </div>
   </main>
@@ -194,53 +262,19 @@
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
 
-    const setupDashboardDropdown = () => {
-      document.querySelectorAll('[data-dropdown]').forEach((dropdown) => {
-        const trigger = dropdown.querySelector('[data-dropdown-trigger]');
-        const menu = dropdown.querySelector('[data-dropdown-menu]');
-        if (!trigger || !menu) return;
-
-        let hideTimeout;
-
-        const showMenu = () => {
-          clearTimeout(hideTimeout);
-          menu.classList.remove('hidden');
-        };
-
-        const scheduleHide = () => {
-          hideTimeout = setTimeout(() => {
-            menu.classList.add('hidden');
-          }, 500);
-        };
-
-        dropdown.addEventListener('mouseenter', showMenu);
-        dropdown.addEventListener('mouseleave', scheduleHide);
-        trigger.addEventListener('focus', showMenu);
-        trigger.addEventListener('blur', (event) => {
-          if (!dropdown.contains(event.relatedTarget)) {
-            scheduleHide();
-          }
-        });
-        menu.addEventListener('focusin', showMenu);
-        menu.addEventListener('focusout', (event) => {
-          if (!dropdown.contains(event.relatedTarget)) {
-            scheduleHide();
-          }
-        });
-      });
-    };
-
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
-    const TABLE_NAME = 'towing_companies';
+    
+    // LOGICA DOBLE: Leer de Vista Pública (rápido), Escribir en Tabla Real (seguro)
+    const READ_TABLE = 'view_towing_public';
+    const WRITE_TABLE = 'towing_companies';
+    
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const state = {
       rows: [],
-      pagination: {
-        page: 1,
-        pageSize: 20,
-      },
+      pagination: { page: 1, pageSize: 20 },
+      currentUserRole: 'user', 
     };
 
     const els = {
@@ -254,6 +288,31 @@
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
       refresh: document.getElementById('refresh-button'),
+      // Modal Els
+      modal: document.getElementById('edit-modal'),
+      closeModal: document.getElementById('close-modal'),
+      cancelEdit: document.getElementById('cancel-edit'),
+      editForm: document.getElementById('edit-form'),
+    };
+
+    // --- AUTH LOGIC ---
+    const requireSession = async () => {
+      const { data, error } = await supabaseClient.auth.getSession();
+      
+      if (data?.session) {
+          if (window.currentUserRole) {
+            state.currentUserRole = window.currentUserRole;
+          } else {
+            const { data: profile } = await supabaseClient
+              .from('profiles')
+              .select('role')
+              .eq('id', data.session.user.id)
+              .single();
+            state.currentUserRole = profile?.role || 'user';
+          }
+      } else {
+          state.currentUserRole = 'anon';
+      }
     };
 
     const getField = (row, ...keys) => {
@@ -267,15 +326,16 @@
     };
 
     const normalizeRow = (row) => ({
-      company: getField(row, 'Company', 'company', 'company_name', 'name'),
+      id: row.id,
+      company: getField(row, 'Company', 'company', 'name', 'company_name'),
       region: getField(row, 'Region', 'state', 'region'),
       phone: getField(row, 'Phone', 'phone'),
-      contact: getField(row, 'Contact', 'contact_name', 'contact'),
+      contact: getField(row, 'Contact', 'contact', 'contact_name'),
       email: getField(row, 'Email', 'email'),
       availability: getField(row, 'Availability', 'availability'),
       notes: getField(row, 'Notes', 'notes'),
       city: getField(row, 'City', 'city'),
-      state: getField(row, 'State', 'state_code'),
+      state: getField(row, 'State', 'state', 'state_code'),
       zip: getField(row, 'Zip', 'zip'),
     });
 
@@ -284,6 +344,7 @@
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
       const end = Math.min(state.rows.length, start + state.pagination.pageSize);
+      
       els.paginationSummary.textContent = state.rows.length
         ? `Showing ${start + 1}-${end} of ${state.rows.length}`
         : 'No entries to display';
@@ -292,25 +353,36 @@
       els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
 
       els.tableBody.innerHTML = '';
+      
+      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
+
       state.rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
+        
+        // --- 1. ACTION COLUMN (LEFT) ---
+        const actionTd = document.createElement('td');
+        actionTd.className = 'px-4 py-3 text-center align-top';
+        if (canEdit) {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-blue-400 transition hover:text-blue-300 hover:scale-110';
+            editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i>';
+            editBtn.onclick = () => openEditModal(row);
+            actionTd.appendChild(editBtn);
+        } else {
+            actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
+        }
+        tr.appendChild(actionTd);
+
+        // --- 2. DATA COLUMNS ---
         const columns = [
-          ['Company', row.company],
-          ['Region', row.region],
-          ['Phone', row.phone],
-          ['Contact', row.contact],
-          ['Email', row.email],
-          ['Availability', row.availability],
-          ['Notes', row.notes],
-          ['City', row.city],
-          ['State', row.state],
-          ['Zip', row.zip],
+          row.company, row.region, row.phone, row.contact, row.email,
+          row.availability, row.notes, row.city, row.state, row.zip
         ];
 
-        columns.forEach(([label, value]) => {
+        columns.forEach((value, index) => {
           const td = document.createElement('td');
           td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm';
-          if (label === 'Notes') {
+          if (index === 6) { // Notes
             td.classList.add('max-w-xs', 'leading-snug');
             td.style.display = '-webkit-box';
             td.style.WebkitLineClamp = '2';
@@ -323,6 +395,7 @@
 
         els.tableBody.appendChild(tr);
       });
+      lucide.createIcons();
     };
 
     const renderSummary = () => {
@@ -334,7 +407,8 @@
 
     const fetchData = async () => {
       els.status.textContent = 'Loading from Supabase…';
-      const { data, error } = await supabaseClient.from(TABLE_NAME).select('*');
+      // READ FROM VIEW
+      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
       if (error) {
         els.status.textContent = 'Error loading data';
         console.error('Error fetching towing_companies:', error);
@@ -342,11 +416,75 @@
       }
 
       state.rows = (data || []).map(normalizeRow);
-      state.pagination.page = 1;
       renderTable();
       renderSummary();
-      lucide.createIcons();
     };
+
+    // --- MODAL FUNCTIONS ---
+    function openEditModal(row) {
+      document.getElementById('edit-id').value = row.id;
+      document.getElementById('edit-company').value = row.company || '';
+      document.getElementById('edit-region').value = row.region || '';
+      document.getElementById('edit-phone').value = row.phone || '';
+      document.getElementById('edit-contact').value = row.contact || '';
+      document.getElementById('edit-email').value = row.email || '';
+      document.getElementById('edit-city').value = row.city || '';
+      document.getElementById('edit-state').value = row.state || '';
+      document.getElementById('edit-zip').value = row.zip || '';
+      document.getElementById('edit-availability').value = row.availability || '';
+      document.getElementById('edit-notes').value = row.notes || '';
+      
+      els.modal.classList.remove('hidden');
+      els.modal.classList.add('flex');
+    }
+
+    function closeEditModal() {
+      els.modal.classList.add('hidden');
+      els.modal.classList.remove('flex');
+    }
+
+    els.closeModal.addEventListener('click', closeEditModal);
+    els.cancelEdit.addEventListener('click', closeEditModal);
+
+    // SAVE CHANGES
+    els.editForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('edit-id').value;
+      if (!id) return;
+
+      const updates = {
+        company_name: document.getElementById('edit-company').value,
+        region: document.getElementById('edit-region').value,
+        phone: document.getElementById('edit-phone').value,
+        contact: document.getElementById('edit-contact').value, 
+        email: document.getElementById('edit-email').value,
+        city: document.getElementById('edit-city').value,
+        state: document.getElementById('edit-state').value, 
+        zip: document.getElementById('edit-zip').value,
+        availability: document.getElementById('edit-availability').value,
+        notes: document.getElementById('edit-notes').value
+      };
+
+      const btn = els.editForm.querySelector('button[type="submit"]');
+      const originalText = btn.textContent;
+      btn.textContent = 'Saving...';
+      btn.disabled = true;
+
+      const { error } = await supabaseClient
+        .from(WRITE_TABLE) // Write to REAL table
+        .update(updates)
+        .eq('id', id);
+
+      btn.textContent = originalText;
+      btn.disabled = false;
+
+      if (error) {
+        alert('Error saving: ' + error.message);
+      } else {
+        closeEditModal();
+        fetchData(); 
+      }
+    });
 
     els.prevPage.addEventListener('click', () => {
       if (state.pagination.page > 1) {
@@ -363,13 +501,15 @@
       }
     });
 
-    els.refresh.addEventListener('click', () => {
-      fetchData();
-    });
+    els.refresh.addEventListener('click', fetchData);
 
-    createConstellationBackground();
-    setupDashboardDropdown();
-    fetchData();
+    const init = async () => {
+        createConstellationBackground();
+        createConstellationBackground('edit-constellation-canvas'); // If you have a second canvas in modal
+        await requireSession();
+        fetchData();
+    }
+    init();
   </script>
 </body>
 </html>
