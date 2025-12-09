@@ -265,34 +265,26 @@
     </div>
   </section>
 
-    <script type="module">
+<script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
-
+  
+    // --- CONFIGURACIÓN ---
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     const TABLE_NAME = 'dispatchers';
     const LOGIN_PAGE = '../login.html';
+    
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const redirectToLogin = () => {
-      window.location.href = LOGIN_PAGE;
-    };
-
-    const requireSession = async () => {
-      const { data, error } = await supabaseClient.auth.getSession();
-      if (error || !data?.session) {
-        redirectToLogin();
-        throw new Error('No active Supabase session');
-      }
-
-      return data.session;
-    };
-
+  
+    // --- ESTADO ---
     const state = {
       rows: [],
       pagination: { page: 1, pageSize: 20 },
+      currentUserRole: 'user', 
+      editingId: null 
     };
-
+  
+    // --- ELEMENTOS DEL DOM ---
     const els = {
       tableBody: document.getElementById('table-body'),
       total: document.getElementById('dispatcher-total'),
@@ -304,19 +296,48 @@
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
       refresh: document.getElementById('refresh-button'),
+      // Modal (Ventana de edición)
+      modal: document.getElementById('edit-modal'),
+      modalForm: document.getElementById('edit-form'),
+      modalClose: document.getElementById('edit-close'),
+      modalCancel: document.getElementById('edit-cancel'),
+      modalDelete: document.getElementById('edit-delete'),
+      modalTitle: document.getElementById('edit-title')
     };
-
+  
+    // --- AUTENTICACIÓN Y ROLES ---
+    const requireSession = async () => {
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error || !data?.session) {
+        window.location.href = LOGIN_PAGE;
+        throw new Error('No active Supabase session');
+      }
+      
+      // Intentar obtener rol global o consultar BD
+      if (window.currentUserRole) {
+        state.currentUserRole = window.currentUserRole;
+      } else {
+        const { data: profile } = await supabaseClient
+          .from('profiles')
+          .select('role')
+          .eq('id', data.session.user.id)
+          .single();
+        state.currentUserRole = profile?.role || 'user';
+      }
+      return data.session;
+    };
+  
+    // --- DATOS ---
     const getField = (row, ...keys) => {
       for (const key of keys) {
         const value = row[key];
-        if (value !== undefined && value !== null && String(value).trim() !== '') {
-          return value;
-        }
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
       }
       return '';
     };
-
+  
     const normalizeRow = (row) => ({
+      id: row.id, // <--- IMPORTANTE: ID necesario para editar
       company: getField(row, 'Company', 'company', 'name'),
       region: getField(row, 'Region', 'state', 'region'),
       phone: getField(row, 'Phone', 'phone'),
@@ -328,41 +349,57 @@
       state: getField(row, 'State', 'state_code'),
       zip: getField(row, 'Zip', 'zip'),
     });
-
+  
+    // --- RENDERIZADO (DIBUJAR TABLA) ---
     const renderTable = () => {
       const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
       const end = Math.min(state.rows.length, start + state.pagination.pageSize);
+  
       els.paginationSummary.textContent = state.rows.length
         ? `Showing ${start + 1}-${end} of ${state.rows.length}`
         : 'No entries to display';
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
       els.prevPage.disabled = state.pagination.page === 1 || state.rows.length === 0;
       els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
-
+  
       els.tableBody.innerHTML = '';
+  
+      // Permisos
+      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
+  
       state.rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/30 transition-colors duration-150';
+  
+        // 1. Columna ACCIONES (Dinámica)
+        const actionsTd = document.createElement('td');
+        actionsTd.className = 'px-4 py-3 align-top whitespace-nowrap text-sm';
+        
+        if (canEdit) {
+            const editBtn = document.createElement('button');
+            editBtn.innerHTML = `<i data-lucide="pencil" class="h-4 w-4"></i>`;
+            editBtn.className = "mr-2 inline-flex items-center justify-center rounded-lg p-2 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition";
+            editBtn.onclick = () => openEditModal(row);
+            actionsTd.appendChild(editBtn);
+        } else {
+            actionsTd.textContent = '—';
+            actionsTd.className += ' text-slate-500';
+        }
+        tr.appendChild(actionsTd);
+  
+        // 2. Resto de columnas
         const columns = [
-          ['Actions', '—'],
-          ['Company', row.company],
-          ['Region', row.region],
-          ['Phone', row.phone],
-          ['Contact', row.contact],
-          ['Email', row.email],
-          ['Availability', row.availability],
-          ['Notes', row.notes],
-          ['City', row.city],
-          ['State', row.state],
-          ['Zip', row.zip],
+          row.company, row.region, row.phone, row.contact, row.email,
+          row.availability, row.notes, row.city, row.state, row.zip
         ];
-
-        columns.forEach(([label, value]) => {
+  
+        columns.forEach((value, index) => {
           const td = document.createElement('td');
-          td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm';
-          if (label === 'Notes') {
-            td.classList.add('max-w-xs', 'leading-snug');
+          td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm border-b border-slate-800/50';
+          if (index === 6) { // Notas con límite de líneas
+            td.classList.add('max-w-xs', 'leading-snug', 'text-slate-400', 'italic');
             td.style.display = '-webkit-box';
             td.style.WebkitLineClamp = '2';
             td.style.WebkitBoxOrient = 'vertical';
@@ -371,63 +408,126 @@
           td.textContent = value || '—';
           tr.appendChild(td);
         });
-
+  
         els.tableBody.appendChild(tr);
       });
+      
+      lucide.createIcons();
     };
-
+  
     const renderSummary = () => {
       els.total.textContent = state.rows.length;
       els.regions.textContent = new Set(state.rows.map((row) => row.region || '').filter(Boolean)).size;
       els.premier.textContent = state.rows.filter((row) => (row.availability || '').toLowerCase().includes('24')).length;
       els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
     };
-
+  
     const fetchData = async () => {
       els.status.textContent = 'Loading from Supabase…';
-      const { data, error } = await supabaseClient.from(TABLE_NAME).select('*');
+      const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').order('id', { ascending: true });
+  
       if (error) {
         els.status.textContent = 'Error loading data';
-        console.error('Error fetching dispatchers:', error);
+        console.error('Error:', error);
         return;
       }
-
       state.rows = (data || []).map(normalizeRow);
-      state.pagination.page = 1;
       renderTable();
       renderSummary();
-      lucide.createIcons();
     };
-
-    els.prevPage.addEventListener('click', () => {
-      if (state.pagination.page > 1) {
-        state.pagination.page -= 1;
-        renderTable();
+  
+    // --- LÓGICA DEL MODAL (EDITAR / BORRAR) ---
+    const openEditModal = (row) => {
+      state.editingId = row.id;
+      els.modalTitle.textContent = `Edit: ${row.company}`;
+      
+      const form = els.modalForm;
+      // Rellena los inputs del formulario
+      form.elements['Company'].value = row.company;
+      form.elements['Region'].value = row.region;
+      form.elements['Phone'].value = row.phone;
+      form.elements['Contact'].value = row.contact;
+      form.elements['Email'].value = row.email;
+      form.elements['City'].value = row.city;
+      form.elements['State'].value = row.state;
+      form.elements['Zip'].value = row.zip;
+      form.elements['Availability'].value = row.availability;
+      form.elements['Notes'].value = row.notes;
+  
+      // Solo Admin ve el botón borrar
+      if (state.currentUserRole === 'administrator') {
+        els.modalDelete.classList.remove('hidden');
+      } else {
+        els.modalDelete.classList.add('hidden');
+      }
+      els.modal.classList.remove('hidden');
+    };
+  
+    const closeEditModal = () => {
+      state.editingId = null;
+      els.modal.classList.add('hidden');
+      els.modalForm.reset();
+    };
+  
+    // GUARDAR (Update)
+    els.modalForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(els.modalForm);
+      const updates = {
+        company: formData.get('Company'),
+        region: formData.get('Region'),
+        phone: formData.get('Phone'),
+        contact_name: formData.get('Contact'),
+        email: formData.get('Email'),
+        city: formData.get('City'),
+        state_code: formData.get('State'),
+        zip: formData.get('Zip'),
+        availability: formData.get('Availability'),
+        notes: formData.get('Notes'),
+      };
+  
+      try {
+        const { error } = await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId);
+        if (error) throw error;
+        closeEditModal();
+        await fetchData();
+        alert('Actualizado correctamente');
+      } catch (err) {
+        alert('Error: ' + err.message);
       }
     });
-
-    els.nextPage.addEventListener('click', () => {
-      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
-      if (state.pagination.page < totalPages) {
-        state.pagination.page += 1;
-        renderTable();
+  
+    // BORRAR (Delete)
+    els.modalDelete.addEventListener('click', async () => {
+      if (!confirm('¿Seguro que quieres borrar este registro?')) return;
+      try {
+        const { error } = await supabaseClient.from(TABLE_NAME).delete().eq('id', state.editingId);
+        if (error) throw error;
+        closeEditModal();
+        await fetchData();
+        alert('Registro eliminado');
+      } catch (err) {
+        alert('Error: ' + err.message);
       }
     });
-
+  
+    els.modalClose.addEventListener('click', closeEditModal);
+    els.modalCancel.addEventListener('click', closeEditModal);
+    els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); }});
+    els.nextPage.addEventListener('click', () => { const max = Math.ceil(state.rows.length/state.pagination.pageSize); if(state.pagination.page < max){ state.pagination.page += 1; renderTable(); }});
     els.refresh.addEventListener('click', fetchData);
-
+  
+    // --- INICIO ---
     const initialize = async () => {
       createConstellationBackground();
-
       try {
         await requireSession();
         await fetchData();
       } catch (error) {
-        console.error('Initialization error:', error);
+        console.error('Init error:', error);
         els.status.textContent = 'Authentication required';
       }
     };
-
     initialize();
   </script>
 </body>
