@@ -247,6 +247,7 @@
             <table class="min-w-full divide-y divide-slate-800 text-sm">
               <thead class="bg-slate-950/60 text-slate-300">
                 <tr>
+                  <th class="px-4 py-3 text-left font-semibold text-blue-300 w-16">Actions</th>
                   <th class="px-4 py-3 text-left font-semibold">Company</th>
                   <th class="px-4 py-3 text-left font-semibold">Region</th>
                   <th class="px-4 py-3 text-left font-semibold">Phone</th>
@@ -257,7 +258,6 @@
                   <th class="px-4 py-3 text-left font-semibold">City</th>
                   <th class="px-4 py-3 text-left font-semibold">State</th>
                   <th class="px-4 py-3 text-left font-semibold">Zip</th>
-                  <th class="px-4 py-3 text-center font-semibold text-blue-300">Actions</th>
                 </tr>
               </thead>
               <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -413,7 +413,23 @@
 
       rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
-        // Define columns
+
+        // --- 1. ACTION COLUMN (MOVED TO START) ---
+        const actionTd = document.createElement('td');
+        actionTd.className = 'px-4 py-3 text-center align-top';
+        
+        if (canEdit) {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'text-blue-400 transition hover:text-blue-300 hover:scale-110';
+            editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i>';
+            editBtn.onclick = () => openEditModal(row);
+            actionTd.appendChild(editBtn);
+        } else {
+            actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
+        }
+        tr.appendChild(actionTd);
+
+        // --- 2. DATA COLUMNS ---
         const columns = [
           row.company, row.region, row.phone, row.contact, row.email, 
           row.availability, row.notes, row.city, row.state, row.zip
@@ -427,21 +443,6 @@
           tr.appendChild(td);
         });
 
-        // Add Action Column (Dynamic based on Role)
-        const actionTd = document.createElement('td');
-        actionTd.className = 'px-4 py-3 text-center align-top';
-        
-        if (canEdit) {
-            const editBtn = document.createElement('button');
-            editBtn.className = 'text-blue-400 transition hover:text-blue-300 hover:scale-110';
-            editBtn.innerHTML = '<i data-lucide="pencil" class="h-4 w-4"></i>';
-            editBtn.onclick = () => openEditModal(row);
-            actionTd.appendChild(editBtn);
-        } else {
-            actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
-        }
-        
-        tr.appendChild(actionTd);
         els.tableBody.appendChild(tr);
       });
       lucide.createIcons(); // Refresh icons for new rows
