@@ -59,7 +59,11 @@
             System Operational
          </div>
 
-         <a id="auth-button" href="login.html" class="text-sm font-semibold text-slate-400 hover:text-white transition-colors">Log In</a>
+         <div class="flex items-center">
+             <a id="nav-login" href="login.html" class="text-sm font-semibold text-slate-400 hover:text-white transition-colors">Log In</a>
+             
+             <button id="nav-logout" class="hidden text-sm font-semibold text-red-400 hover:text-red-300 transition-colors cursor-pointer">Log Out</button>
+         </div>
       </div>
     </div>
   </header>
@@ -202,13 +206,13 @@
       }
     };
 
-    // --- LOG IN / LOG OUT LOGIC ---
+    // --- LOG IN / LOG OUT LOGIC (Actualizado) ---
     const handleAuthUI = async () => {
-        const authBtn = document.getElementById('auth-button');
-        if(!authBtn) return;
+        // Obtenemos los dos botones por separado
+        const loginBtn = document.getElementById('nav-login');
+        const logoutBtn = document.getElementById('nav-logout');
 
-        // Use global supabase client (assuming initialized in supabaseClient.js)
-        // If 'supabase' is not defined globally, ensure supabaseClient.js attaches it to window
+        // Verificar el cliente Supabase
         const client = window.supabase || window.supabaseClient;
 
         if (!client) {
@@ -218,35 +222,31 @@
 
         const updateButtonState = (session) => {
             if (session) {
-                // USER IS LOGGED IN -> Show LOGOUT
-                authBtn.textContent = 'Log Out';
-                authBtn.href = '#';
-                authBtn.classList.remove('text-slate-400');
-                authBtn.classList.add('text-red-400', 'hover:text-red-300');
-                
-                authBtn.onclick = async (e) => {
-                    e.preventDefault();
-                    authBtn.textContent = 'Logging out...';
-                    const { error } = await client.auth.signOut();
-                    if (!error) {
-                        window.location.reload(); 
-                    }
-                };
+                // SESIÓN INICIADA: Ocultar Login, Mostrar Logout
+                if (loginBtn) loginBtn.classList.add('hidden');
+                if (logoutBtn) {
+                    logoutBtn.classList.remove('hidden');
+                    // Asignar función de logout
+                    logoutBtn.onclick = async () => {
+                        logoutBtn.textContent = '...';
+                        const { error } = await client.auth.signOut();
+                        if (!error) {
+                            window.location.reload(); 
+                        }
+                    };
+                }
             } else {
-                // USER IS GUEST -> Show LOGIN
-                authBtn.textContent = 'Log In';
-                authBtn.href = 'login.html';
-                authBtn.classList.add('text-slate-400');
-                authBtn.classList.remove('text-red-400', 'hover:text-red-300');
-                authBtn.onclick = null; // Standard link behavior
+                // MODO INVITADO: Mostrar Login, Ocultar Logout
+                if (loginBtn) loginBtn.classList.remove('hidden');
+                if (logoutBtn) logoutBtn.classList.add('hidden');
             }
         };
 
-        // 1. Check initial state
+        // 1. Estado inicial
         const { data: { session } } = await client.auth.getSession();
         updateButtonState(session);
 
-        // 2. Listen for changes
+        // 2. Escuchar cambios
         client.auth.onAuthStateChange((event, session) => {
             updateButtonState(session);
         });
@@ -256,7 +256,7 @@
       lucide.createIcons();
       init();
       createConstellationBackground();
-      handleAuthUI(); // Run Auth Logic
+      handleAuthUI(); // Ejecutar lógica Auth actualizada
     });
   </script>
 </body>
