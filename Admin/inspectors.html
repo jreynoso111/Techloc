@@ -11,7 +11,8 @@
   <script src="../assets/scripts/supabaseClient.js"></script>
   <script src="../assets/scripts/authManager.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
-  <script>
+  <script type="module">
+    import { createConstellationBackground } from '../assets/scripts/constellation.js';
     tailwind.config = {
       theme: {
         extend: {
@@ -22,8 +23,9 @@
     };
   </script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50">
-    <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+<body class="min-h-screen bg-slate-950 text-slate-50 relative">
+
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="flex items-center justify-between px-6 py-4 lg:px-10">
       <a href="../index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
@@ -53,7 +55,7 @@
 
   <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
-    <main class="px-6 py-8 lg:px-10">
+  <main class="px-6 py-8 lg:px-10">
     <div class="flex flex-col gap-8 lg:flex-row">
       <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
@@ -98,99 +100,96 @@
       </aside>
 
       <section class="flex-1 space-y-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Quality assurance</p>
+            <h2 class="text-2xl font-black text-white">Inspector roster and coverage</h2>
+            <p class="text-sm text-slate-400">Monitor field inspectors who certify installs, verify repairs, and complete safety checklists.</p>
+          </div>
+          <div class="flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
+            <i data-lucide="database" class="h-4 w-4"></i>
+            <span id="dataset-status">Connecting…</span>
+          </div>
+        </div>
+
+        <section class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">Inspectors tracked</p>
+            <p id="inspector-total" class="text-3xl font-black text-white">-</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">States / regions</p>
+            <p id="inspector-regions" class="text-3xl font-black text-amber-300">-</p>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+            <p class="text-sm font-semibold text-slate-300">Active inspectors</p>
+            <p id="inspector-active" class="text-3xl font-black text-emerald-300">-</p>
+          </div>
+        </section>
+
+        <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Quality assurance</p>
-                <h2 class="text-2xl font-black text-white">Inspector roster and coverage</h2>
-                <p class="text-sm text-slate-400">Monitor field inspectors who certify installs, verify repairs, and complete safety checklists.</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
+              <h3 class="text-lg font-bold text-white">Inspector list</h3>
             </div>
-            <div class="flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-200">
-              <i data-lucide="database" class="h-4 w-4"></i>
-              <span id="dataset-status">Connecting…</span>
-            </div>
+            <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
+              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+              Refresh data
+            </button>
           </div>
-
-          <section class="grid gap-3 sm:grid-cols-3">
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                <p class="text-sm font-semibold text-slate-300">Inspectors tracked</p>
-                <p id="inspector-total" class="text-3xl font-black text-white">-</p>
-            </div>
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-              <p class="text-sm font-semibold text-slate-300">States / regions</p>
-                <p id="inspector-regions" class="text-3xl font-black text-amber-300">-</p>
-            </div>
-            <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-                <p class="text-sm font-semibold text-slate-300">Active inspectors</p>
-                <p id="inspector-active" class="text-3xl font-black text-emerald-300">-</p>
-            </div>
-          </section>
-
-          <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
-                  <h3 class="text-lg font-bold text-white">Inspector list</h3>
-              </div>
-              <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
-                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-                Refresh data
+          <div class="overflow-x-auto rounded-xl border border-slate-800">
+            <table class="min-w-full divide-y divide-slate-800 text-sm whitespace-nowrap">
+              <thead class="bg-slate-950/60 text-slate-300">
+                <tr>
+                  <th class="px-4 py-3 text-left font-semibold">Actions</th>
+                  <th class="px-4 py-3 text-left font-semibold">ID</th>
+                  <th class="px-4 py-3 text-left font-semibold">Name</th>
+                  <th class="px-4 py-3 text-left font-semibold">Status</th>
+                  <th class="px-4 py-3 text-left font-semibold">Region</th>
+                  <th class="px-4 py-3 text-left font-semibold">Phone</th>
+                  <th class="px-4 py-3 text-left font-semibold">Email</th>
+                  <th class="px-4 py-3 text-left font-semibold">City</th>
+                  <th class="px-4 py-3 text-left font-semibold">State</th>
+                  <th class="px-4 py-3 text-left font-semibold">Zip</th>
+                  <th class="px-4 py-3 text-left font-semibold">Notes</th>
+                </tr>
+              </thead>
+              <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
+            </table>
+          </div>
+          <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
+            <div class="flex items-center gap-2">
+              <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                Prev
+              </button>
+              <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
+              <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                Next
+                <i data-lucide="chevron-right" class="h-4 w-4"></i>
               </button>
             </div>
-            <div class="overflow-x-auto rounded-xl border border-slate-800">
-              <table class="min-w-full divide-y divide-slate-800 text-sm whitespace-nowrap">
-                <thead class="bg-slate-950/60 text-slate-300">
-                  <tr>
-                    <th class="px-4 py-3 text-left font-semibold">Actions</th>
-                    <th class="px-4 py-3 text-left font-semibold">ID</th>
-                    <th class="px-4 py-3 text-left font-semibold">Name</th>
-                    <th class="px-4 py-3 text-left font-semibold">Status</th>
-                    <th class="px-4 py-3 text-left font-semibold">Region</th>
-                    <th class="px-4 py-3 text-left font-semibold">Phone</th>
-                    <th class="px-4 py-3 text-left font-semibold">Email</th>
-                    <th class="px-4 py-3 text-left font-semibold">City</th>
-                    <th class="px-4 py-3 text-left font-semibold">State</th>
-                    <th class="px-4 py-3 text-left font-semibold">Zip</th>
-                    <th class="px-4 py-3 text-left font-semibold">Notes</th>
-                  </tr>
-                </thead>
-                <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
-              </table>
-            </div>
-            <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
-              <div class="flex items-center gap-2">
-                <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                  Prev
-                </button>
-                <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
-                <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  Next
-                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-          </section>
+          </div>
+        </section>
 
-          <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-300 shadow-inner shadow-slate-900/60 lg:mx-auto lg:max-w-5xl">
-            <p class="font-semibold text-white">Read-only directory</p>
-            <p class="mt-2 leading-relaxed text-slate-400">Inspector records now load directly from Supabase. Uploading, editing, or deleting entries from this dashboard has been disabled for standard users to keep data aligned with the shared source.</p>
-          </section>
-   
+        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-300 shadow-inner shadow-slate-900/60 lg:mx-auto lg:max-w-5xl">
+          <p class="font-semibold text-white">Read-only directory</p>
+          <p class="mt-2 leading-relaxed text-slate-400">Inspector records now load directly from Supabase. Uploading, editing, or deleting entries from this dashboard has been disabled for standard users to keep data aligned with the shared source.</p>
+        </section>
       </section>
     </div>
   </main>
 
   <section id="edit-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center overflow-y-auto bg-slate-950/50 px-4 py-8 backdrop-blur-sm">
-    <canvas id="edit-constellation-canvas" class="pointer-events-none absolute inset-0 -z-10 opacity-80" aria-hidden="true"></canvas>
     <div class="relative w-full max-w-3xl rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-2xl shadow-blue-900/40">
       <div class="mb-4 flex items-start justify-between gap-4">
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Edit partner</p>
           <h3 id="edit-title" class="text-lg font-bold text-white">Edit inspector</h3>
-          <p class="text-sm text-slate-400">Edit partner details without leaving the roster.</p>
         </div>
-        <button id="edit-close" class="rounded-full border border-slate-700 p-2 text-slate-200 transition hover:border-red-500 hover:text-white" aria-label="Close edit dialog">
+        <button id="edit-close" class="rounded-full border border-slate-700 p-2 text-slate-200 transition hover:border-red-500 hover:text-white">
           <i data-lucide="x"></i>
         </button>
       </div>
@@ -269,15 +268,18 @@
 
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
-  
+   
     // --- CONFIGURATION ---
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+    
+    // TABLA MAESTRA Y CATEGORÍA CORRECTA
     const TABLE_NAME = 'Services';
+    const CATEGORY_FILTER = 'inspector'; // Singular y minúscula según tu lista
     const LOGIN_PAGE = '../login.html';
     
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  
+   
     // --- STATE ---
     const state = {
       rows: [],
@@ -285,7 +287,7 @@
       currentUserRole: 'user', 
       editingId: null 
     };
-  
+   
     // --- DOM ELEMENTS ---
     const els = {
       tableBody: document.getElementById('table-body'),
@@ -306,73 +308,78 @@
       modalDelete: document.getElementById('edit-delete'),
       modalTitle: document.getElementById('edit-title')
     };
-  
+   
     // --- AUTH & ROLES ---
     const requireSession = async () => {
       const { data, error } = await supabaseClient.auth.getSession();
-      if (error || !data?.session) {
-        window.location.href = LOGIN_PAGE;
-        throw new Error('No active Supabase session');
-      }
-      
-      if (window.currentUserRole) {
-        state.currentUserRole = window.currentUserRole;
+      if (data?.session) {
+        if (window.currentUserRole) {
+          state.currentUserRole = window.currentUserRole;
+        } else {
+          const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('role')
+            .eq('id', data.session.user.id)
+            .single();
+          state.currentUserRole = profile?.role || 'user';
+        }
       } else {
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('role')
-          .eq('id', data.session.user.id)
-          .single();
-        state.currentUserRole = profile?.role || 'user';
+        state.currentUserRole = 'anon';
       }
-      return data.session;
     };
-  
-    // --- DATA HANDLING ---
+   
+    // --- HELPER PARA LEER DATOS (INCLUYENDO METADATA) ---
     const getField = (row, ...keys) => {
+      // 1. Buscar en columnas normales
       for (const key of keys) {
-        const value = row[key];
-        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
+      }
+      // 2. Buscar dentro de metadata (JSON) si existe
+      if (row.metadata) {
+        for (const key of keys) {
+           if (row.metadata[key] !== undefined) return row.metadata[key];
+        }
       }
       return '';
     };
-  
+   
     const normalizeRow = (row) => ({
-      id: row.id, // Primary Key for Supabase operations
-      inspector_id: getField(row, 'ID', 'inspector_id'), // Display ID (e.g., I-307)
-      name: getField(row, 'Name', 'name', 'full_name'),
-      status: getField(row, 'Status', 'status'),
-      region: getField(row, 'Region', 'region'),
-      phone: getField(row, 'Phone', 'phone'),
-      email: getField(row, 'Email', 'email'),
-      city: getField(row, 'City', 'city'),
-      state: getField(row, 'State', 'state', 'state_code'),
-      zip: getField(row, 'Zip', 'zip'),
-      notes: getField(row, 'Notes', 'notes')
+      id: row.id, 
+      // Mapeamos ID y Status desde Metadata usando getField
+      inspector_id: getField(row, 'inspector_id', 'ID'),
+      name: getField(row, 'name', 'full_name'),
+      status: getField(row, 'status', 'Status'),
+      region: getField(row, 'region', 'state'), // Region suele ser State
+      phone: getField(row, 'phone'),
+      email: getField(row, 'email'),
+      city: getField(row, 'city'),
+      state: getField(row, 'state'),
+      zip: getField(row, 'zip', 'zip_code'),
+      notes: getField(row, 'notes')
     });
-  
+   
     // --- RENDER ---
     const renderTable = () => {
       const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
       const end = Math.min(state.rows.length, start + state.pagination.pageSize);
-  
+   
       els.paginationSummary.textContent = state.rows.length
         ? `Showing ${start + 1}-${end} of ${state.rows.length}`
         : 'No entries to display';
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
       els.prevPage.disabled = state.pagination.page === 1 || state.rows.length === 0;
       els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
-  
+   
       els.tableBody.innerHTML = '';
-  
-      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
-  
+   
+      const canEdit = ['moderator', 'administrator', 'authenticated'].includes(state.currentUserRole);
+   
       state.rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-900/30 transition-colors duration-150';
-  
+   
         // 1. ACTIONS
         const actionsTd = document.createElement('td');
         actionsTd.className = 'px-4 py-3 align-top whitespace-nowrap text-sm';
@@ -388,13 +395,13 @@
             actionsTd.className += ' text-slate-500';
         }
         tr.appendChild(actionsTd);
-  
+   
         // 2. DATA COLUMNS
         const columns = [
           row.inspector_id, row.name, row.status, row.region, row.phone,
           row.email, row.city, row.state, row.zip, row.notes
         ];
-  
+   
         columns.forEach((value, index) => {
           const td = document.createElement('td');
           td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm border-b border-slate-800/50';
@@ -414,28 +421,29 @@
           td.textContent = value || '—';
           tr.appendChild(td);
         });
-  
+   
         els.tableBody.appendChild(tr);
       });
       
-      lucide.createIcons();
+      if(window.lucide) window.lucide.createIcons();
     };
-  
+   
     const renderSummary = () => {
       els.total.textContent = state.rows.length;
       els.regions.textContent = new Set(state.rows.map((row) => row.region || '').filter(Boolean)).size;
       els.premier.textContent = state.rows.filter((row) => (row.status || '').toLowerCase() === 'active').length;
       els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
     };
-  
+   
     const fetchData = async () => {
       els.status.textContent = 'Loading from Supabase…';
+      
       const { data, error } = await supabaseClient
         .from(TABLE_NAME)
         .select('*')
-        .eq('category', 'inspector')
+        .eq('category', CATEGORY_FILTER)
         .order('id', { ascending: true });
-  
+   
       if (error) {
         els.status.textContent = 'Error loading data';
         console.error('Error:', error);
@@ -445,25 +453,24 @@
       renderTable();
       renderSummary();
     };
-  
+   
     // --- MODAL LOGIC ---
     const openEditModal = (row) => {
       state.editingId = row.id;
       els.modalTitle.textContent = `Edit: ${row.name}`;
       
       const form = els.modalForm;
-      form.elements['ID'].value = row.inspector_id;
-      form.elements['Name'].value = row.name;
-      form.elements['Status'].value = row.status;
-      form.elements['Region'].value = row.region;
-      form.elements['Phone'].value = row.phone;
-      form.elements['Email'].value = row.email;
-      form.elements['City'].value = row.city;
-      form.elements['State'].value = row.state;
-      form.elements['Zip'].value = row.zip;
-      form.elements['Notes'].value = row.notes;
-  
-      // Only Admin can delete
+      form.elements['ID'].value = row.inspector_id || '';
+      form.elements['Name'].value = row.name || '';
+      form.elements['Status'].value = row.status || 'Active';
+      form.elements['Region'].value = row.region || '';
+      form.elements['Phone'].value = row.phone || '';
+      form.elements['Email'].value = row.email || '';
+      form.elements['City'].value = row.city || '';
+      form.elements['State'].value = row.state || '';
+      form.elements['Zip'].value = row.zip || '';
+      form.elements['Notes'].value = row.notes || '';
+   
       if (state.currentUserRole === 'administrator') {
         els.modalDelete.classList.remove('hidden');
       } else {
@@ -471,30 +478,41 @@
       }
       els.modal.classList.remove('hidden');
     };
-  
+   
     const closeEditModal = () => {
       state.editingId = null;
       els.modal.classList.add('hidden');
       els.modalForm.reset();
     };
-  
-    // UPDATE
+   
+    // UPDATE - Lógica de Metadata
     els.modalForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(els.modalForm);
+
+      // Recuperamos metadata actual
+      const { data: currentData } = await supabaseClient.from(TABLE_NAME).select('metadata').eq('id', state.editingId).single();
+      const existingMeta = currentData?.metadata || {};
+
       const updates = {
-        inspector_id: formData.get('ID'),
+        // Campos principales
         name: formData.get('Name'),
-        status: formData.get('Status'),
-        region: formData.get('Region'),
         phone: formData.get('Phone'),
         email: formData.get('Email'),
         city: formData.get('City'),
         state: formData.get('State'),
         zip: formData.get('Zip'),
-        notes: formData.get('Notes'),
+        
+        // Campos extra van a Metadata
+        metadata: {
+            ...existingMeta,
+            inspector_id: formData.get('ID'),
+            status: formData.get('Status'),
+            region: formData.get('Region'),
+            notes: formData.get('Notes')
+        }
       };
-  
+   
       try {
         const { error } = await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId);
         if (error) throw error;
@@ -505,7 +523,7 @@
         alert('Error: ' + err.message);
       }
     });
-  
+   
     // DELETE
     els.modalDelete.addEventListener('click', async () => {
       if (!confirm('Are you sure you want to delete this inspector?')) return;
@@ -519,13 +537,13 @@
         alert('Error: ' + err.message);
       }
     });
-  
+   
     els.modalClose.addEventListener('click', closeEditModal);
     els.modalCancel.addEventListener('click', closeEditModal);
     els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); }});
     els.nextPage.addEventListener('click', () => { const max = Math.ceil(state.rows.length/state.pagination.pageSize); if(state.pagination.page < max){ state.pagination.page += 1; renderTable(); }});
     els.refresh.addEventListener('click', fetchData);
-  
+   
     // --- INIT ---
     const initialize = async () => {
       createConstellationBackground();
