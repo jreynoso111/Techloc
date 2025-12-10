@@ -740,6 +740,54 @@
     </div>
   </div>
 
+  <!-- Vehicle edit modal (admin only) -->
+  <div id="vehicle-edit-modal" class="fixed inset-0 z-[600] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="w-full max-w-4xl rounded-2xl border border-amber-600/40 bg-slate-950 shadow-2xl shadow-amber-500/20 overflow-hidden">
+      <div class="flex items-center justify-between border-b border-amber-900/40 bg-amber-500/10 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Editar vehículo</p>
+          <h3 id="vehicle-edit-title" class="text-lg font-bold text-white"></h3>
+        </div>
+        <button id="vehicle-edit-close" class="rounded-lg border border-amber-700/60 bg-amber-600/15 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition-colors">Cerrar</button>
+      </div>
+      <form id="vehicle-edit-form" class="max-h-[70vh] overflow-y-auto p-4 space-y-4">
+        <div id="vehicle-edit-status" class="hidden rounded-lg border px-3 py-2 text-xs font-semibold"></div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2" id="vehicle-edit-fields"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="vehicle-edit-cancel" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cancelar</button>
+          <button type="submit" id="vehicle-edit-save" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/60 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-100 hover:bg-amber-500/30 transition-colors">
+            <i data-lucide="save" class="h-4 w-4"></i>
+            Guardar cambios
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Service edit modal (admin only) -->
+  <div id="service-edit-modal" class="fixed inset-0 z-[600] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="w-full max-w-3xl rounded-2xl border border-emerald-500/30 bg-slate-950 shadow-2xl shadow-emerald-900/30 overflow-hidden">
+      <div class="flex items-center justify-between border-b border-emerald-900/40 bg-emerald-500/10 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Editar servicio</p>
+          <h3 id="service-edit-title" class="text-lg font-bold text-white"></h3>
+        </div>
+        <button id="service-edit-close" class="rounded-lg border border-emerald-700/60 bg-emerald-600/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25 transition-colors">Cerrar</button>
+      </div>
+      <form id="service-edit-form" class="max-h-[70vh] overflow-y-auto p-4 space-y-4">
+        <div id="service-edit-status" class="hidden rounded-lg border px-3 py-2 text-xs font-semibold"></div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2" id="service-edit-fields"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="service-edit-cancel" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-emerald-400 hover:text-emerald-200 transition-colors">Cancelar</button>
+          <button type="submit" id="service-edit-save" class="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/30 transition-colors">
+            <i data-lucide="save" class="h-4 w-4"></i>
+            Guardar servicio
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     // --- Base Config ---
     const STATE_CENTERS = {
@@ -769,6 +817,9 @@
     let inspectors = [];
     let vehicles = [];
     let vehicleHeaders = [];
+    const serviceHeadersByCategory = {};
+    let editingService = null;
+    let editingVehicleId = null;
     let selectedVehicleId = null;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
@@ -831,6 +882,15 @@
       vehicles: 'vehicles'
     };
 
+    const setServiceHeaders = (category, data = []) => {
+      if (!category || !Array.isArray(data) || !data.length) return;
+      serviceHeadersByCategory[category] = Object.keys(data[0]);
+    };
+
+    const getServiceHeaders = (category) => serviceHeadersByCategory[category] || [];
+
+    const isAdminUser = () => `${window.currentUserRole || ''}`.toLowerCase() === 'administrator';
+
     const toStateCode = (value = '') => {
       if (!value) return '';
       const match = `${value}`.match(/([A-Z]{2})/i);
@@ -838,6 +898,13 @@
     };
 
     const normalizeKey = (key = '') => `${key}`.trim().toLowerCase().replace(/\s+/g, '_');
+
+    const escapeHTML = (value = '') => `${value}`
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
 
     const getField = (row, ...keys) => {
       for (const key of keys) {
@@ -904,12 +971,16 @@
       return { lat: base[0], lng: base[1] };
     };
 
-    const resolveCoords = (row, { zip = '', city = '', stateCode = '', seed = 0 } = {}) => {
+    const resolveCoords = (row, { zip = '', city = '', stateCode = '', seed = 0, fallbackLatLng = null } = {}) => {
       const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
       const rawLng = parseFloat(getField(row, 'lng', 'Lng', 'long', 'Long', 'longitude', 'Longitude'));
-      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng);
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
       if (hasExactCoords) {
-        return { coords: { lat: rawLat, lng: rawLng }, hasExactCoords: true, accuracy: 'latlong' };
+        return { coords: { lat: rawLat, lng: rawLng }, hasExactCoords: true, accuracy: 'exact' };
+      }
+
+      if (fallbackLatLng && Number.isFinite(fallbackLatLng.lat) && Number.isFinite(fallbackLatLng.lng)) {
+        return { coords: fallbackLatLng, hasExactCoords: true, accuracy: 'exact' };
       }
 
       const coordsFromZip = deriveCoords({ zip, stateCode, seed });
@@ -930,7 +1001,7 @@
       const stateCode = toStateCode(getField(row, 'State', 'state', 'state_code')) || 'US';
       const city = getField(row, 'City', 'city');
       const zip = getField(row, 'Zip', 'zip');
-      const { coords, hasExactCoords } = resolveCoords(row, { zip, city, stateCode, seed: idx });
+      const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       return {
         id: row?.id ?? idx,
         name: company || 'Installer',
@@ -942,7 +1013,7 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
-        locationAccuracy: hasExactCoords ? 'exact' : 'derived',
+        locationAccuracy: accuracy,
       };
     };
 
@@ -950,7 +1021,7 @@
       const stateCode = toStateCode(getField(row, 'state', 'region', 'State', 'Region', 'state_code')) || 'US';
       const city = getField(row, 'city', 'City');
       const zip = getField(row, 'zip', 'Zip', 'zipcode', 'postal_code');
-      const { coords, hasExactCoords } = resolveCoords(row, { zip, city, stateCode, seed: idx });
+      const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       return {
         id: row?.id ?? `${type}-${idx}`,
         type,
@@ -965,7 +1036,9 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
-        locationAccuracy: hasExactCoords ? 'exact' : 'derived',
+        locationAccuracy: accuracy,
+        details: row,
+        seed: idx
       };
     };
 
@@ -976,7 +1049,7 @@
       const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
       const zip = getField(row, 'PT ZipCode', 'Zip', 'zip');
       const city = getField(row, 'PT City', 'City', 'city');
-      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null, seed: idx });
+      const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
       return {
         id: row?.id ?? idx,
@@ -999,9 +1072,9 @@
         state: stateCode,
         city: city || '',
         zipcode: zip || '',
-        lat: hasExactCoords ? coords.lat : null,
-        lng: hasExactCoords ? coords.lng : null,
-        locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
+        lat: coords.lat,
+        lng: coords.lng,
+        locationAccuracy: accuracy,
         customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
         customer: getField(row, 'PT City', 'City', 'city')
           ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
@@ -1013,6 +1086,17 @@
     };
 
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
+
+    const getLocationNote = (accuracy = '') => {
+      if (accuracy === 'zip') return 'Ubicación aproximada (Basada en Zip Code)';
+      if (accuracy === 'city') return 'Ubicación aproximada (Basada en Ciudad)';
+      if (accuracy === 'state') return 'Ubicación aproximada (Centro del estado)';
+      return '';
+    };
+
+    const getAccuracyDot = (accuracy = '') => {
+      return accuracy === 'exact' ? 'bg-emerald-300' : 'bg-amber-300';
+    };
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
@@ -1197,6 +1281,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.towing);
         if (error) throw error;
+        setServiceHeaders('towing', data);
         towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
       } catch (err) {
@@ -1212,6 +1297,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.resellers);
         if (error) throw error;
+        setServiceHeaders('reseller', data);
         resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
       } catch (err) {
@@ -1227,6 +1313,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.repair);
         if (error) throw error;
+        setServiceHeaders('repair', data);
         repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
       } catch (err) {
@@ -1242,6 +1329,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.locksmiths);
         if (error) throw error;
+        setServiceHeaders('locksmith', data);
         locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
       } catch (err) {
@@ -1257,6 +1345,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.dispatchers);
         if (error) throw error;
+        setServiceHeaders('dispatcher', data);
         dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
       } catch (err) {
@@ -1272,6 +1361,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.tire);
         if (error) throw error;
+        setServiceHeaders('tire', data);
         tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
         updateTireUI(tirePartners);
       } catch (err) {
@@ -1287,6 +1377,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.inspectors);
         if (error) throw error;
+        setServiceHeaders('inspector', data);
         inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
         updateInspectorUI(inspectors);
       } catch (err) {
@@ -1394,19 +1485,16 @@
           if (!(normalized in row)) row[normalized] = value;
         });
 
-        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc')); 
+        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc'));
         const numericLat = parseFloat(getField(row, 'Lat', 'lat'));
         const numericLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
         const hasExactCoords = Number.isFinite(numericLat) && Number.isFinite(numericLng) && numericLat !== 0 && numericLng !== 0;
-        const fallbackLatLng = hasExactCoords
-          ? { lat: numericLat, lng: numericLng }
-          : null;
-        const coords = deriveCoords({
+        const { coords, accuracy } = resolveCoords(row, {
           zip: getField(row, 'PT ZipCode', 'Zip', 'zip'),
           city: getField(row, 'PT City', 'City', 'city'),
           stateCode,
-          fallbackLatLng,
-          seed: idx
+          seed: idx,
+          fallbackLatLng: hasExactCoords ? { lat: numericLat, lng: numericLng } : null
         });
 
         const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
@@ -1432,9 +1520,9 @@
           state: stateCode,
           city: getField(row, 'PT City', 'City', 'city') || '',
           zipcode: getField(row, 'PT ZipCode', 'Zip', 'zip') || '',
-          lat: hasExactCoords ? coords.lat : null,
-          lng: hasExactCoords ? coords.lng : null,
-          locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
+          lat: coords.lat,
+          lng: coords.lng,
+          locationAccuracy: accuracy,
           customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
           customer: getField(row, 'PT City', 'City', 'city')
             ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
@@ -1671,6 +1759,14 @@
             ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300"><i data-lucide="navigation" class="h-3 w-3"></i><span class="font-semibold text-slate-100">${Math.round(partner.distance)} mi</span></div>` : ''}
             ${partner.notes ? `<div class="col-span-2 text-[10px] text-slate-400 leading-tight">${partner.notes}</div>` : ''}
           </div>
+          ${isAdminUser() ? `
+            <div class="mt-2 flex justify-end">
+              <button data-edit-service class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">
+                <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                Editar fila
+              </button>
+            </div>
+          ` : ''}
         `;
 
         card.addEventListener('click', () => {
@@ -1682,6 +1778,14 @@
           }
           renderPartnerUI(partners, options);
         });
+
+        const editBtn = card.querySelector('[data-edit-service]');
+        if (editBtn) {
+          editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openServiceEditModal(partner);
+          });
+        }
 
         container.appendChild(card);
       });
@@ -1810,7 +1914,13 @@
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
-            <div class="pt-1 flex justify-end">
+            <div class="pt-1 flex items-center justify-between gap-2">
+              ${isAdminUser() ? `
+                <button data-edit-vehicle class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                  <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                  Editar fila
+                </button>
+              ` : '<span></span>'}
               <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 <i data-lucide="info" class="h-3.5 w-3.5"></i>
                 See more
@@ -1837,17 +1947,26 @@
             });
           }
 
+          const editBtn = card.querySelector('[data-edit-vehicle]');
+          if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openVehicleEditModal(vehicle);
+            });
+          }
+
           let coords = null;
           if (hasValidCoords(vehicle)) {
             vehicle.locationAccuracy = vehicle.locationAccuracy || 'exact';
-            vehicle.locationNote = vehicle.locationAccuracy === 'zip' ? 'Ubicación aproximada (Basada en Zip Code)' : '';
+            vehicle.locationNote = getLocationNote(vehicle.locationAccuracy);
             coords = { lat: vehicle.lat, lng: vehicle.lng };
-          } else if (vehicle.zipcode) {
-            coords = deriveCoords({ zip: vehicle.zipcode, city: vehicle.city, stateCode: vehicle.state });
+          } else if (vehicle.zipcode || vehicle.city || vehicle.state) {
+            const derived = resolveCoords(vehicle, { zip: vehicle.zipcode, city: vehicle.city, stateCode: vehicle.state });
+            coords = derived.coords;
             vehicle.lat = coords.lat;
             vehicle.lng = coords.lng;
-            vehicle.locationAccuracy = 'zip';
-            vehicle.locationNote = 'Ubicación aproximada (Basada en Zip Code)';
+            vehicle.locationAccuracy = derived.accuracy;
+            vehicle.locationNote = getLocationNote(vehicle.locationAccuracy);
           } else {
             console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
           }
@@ -1928,7 +2047,7 @@
     }
 
     function vehicleCard(vehicle) {
-      const accuracyDot = vehicle.locationAccuracy === 'zip' ? 'bg-amber-300' : 'bg-emerald-300';
+      const accuracyDot = getAccuracyDot(vehicle.locationAccuracy);
       const modelYear = [vehicle.model || 'Vehicle', vehicle.year].filter(Boolean).join(' · ');
       return `
         <div class="w-[240px] bg-slate-950/90 text-white">
@@ -2456,6 +2575,308 @@
       modal.classList.remove('flex');
     }
 
+    function setEditStatus(message = '', tone = 'info') {
+      const status = document.getElementById('vehicle-edit-status');
+      if (!status) return;
+
+      if (!message) {
+        status.classList.add('hidden');
+        status.textContent = '';
+        return;
+      }
+
+      const toneClasses = {
+        success: 'border-emerald-700 bg-emerald-500/15 text-emerald-100',
+        error: 'border-red-700 bg-red-600/15 text-red-100',
+        info: 'border-amber-700 bg-amber-600/15 text-amber-100'
+      };
+
+      status.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${toneClasses[tone] || toneClasses.info}`;
+      status.textContent = message;
+      status.classList.remove('hidden');
+    }
+
+    const coerceValueForUpdate = (value, original) => {
+      if (value === '') return null;
+      if (typeof original === 'number') {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : original;
+      }
+      if (typeof original === 'boolean') return value === 'true' || value === '1' || value === 'yes';
+      return value;
+    };
+
+    const buildEditableFields = (vehicle) => {
+      return vehicleHeaders
+        .filter(header => header !== 'id' && header !== 'created_at')
+        .map((header) => ({
+          key: header,
+          value: vehicle[header] ?? vehicle[header?.toLowerCase()] ?? ''
+        }));
+    };
+
+    function openVehicleEditModal(vehicle) {
+      if (!isAdminUser() || !supabaseClient) return;
+
+      const modal = document.getElementById('vehicle-edit-modal');
+      const title = document.getElementById('vehicle-edit-title');
+      const fieldsContainer = document.getElementById('vehicle-edit-fields');
+      const saveBtn = document.getElementById('vehicle-edit-save');
+
+      if (!modal || !title || !fieldsContainer || !saveBtn) return;
+
+      editingVehicleId = vehicle.id;
+      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`.trim();
+
+      const editableFields = buildEditableFields(vehicle);
+      const staticIdField = `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">ID</label>
+          <input type="text" value="${escapeHTML(vehicle.id)}" class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-200" disabled>
+        </div>
+      `;
+
+      fieldsContainer.innerHTML = [staticIdField, ...editableFields.map(({ key, value }) => `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">${key}</label>
+          <input
+            name="field-${key}"
+            type="text"
+            value="${escapeHTML(value ?? '')}"
+            class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+          >
+        </div>
+      `)].join('');
+
+      setEditStatus('');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      saveBtn.disabled = false;
+      iconLib.createIcons();
+    }
+
+    function closeVehicleEditModal() {
+      const modal = document.getElementById('vehicle-edit-modal');
+      const form = document.getElementById('vehicle-edit-form');
+      if (!modal || !form) return;
+      editingVehicleId = null;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      form.reset();
+      setEditStatus('');
+    }
+
+    async function handleVehicleEditSubmit(event) {
+      event.preventDefault();
+      if (!isAdminUser() || !supabaseClient || !editingVehicleId) return;
+
+      const vehicle = vehicles.find(v => v.id === editingVehicleId);
+      if (!vehicle) {
+        setEditStatus('No se encontró el vehículo seleccionado.', 'error');
+        return;
+      }
+
+      const saveBtn = document.getElementById('vehicle-edit-save');
+      const form = document.getElementById('vehicle-edit-form');
+      if (!form || !saveBtn) return;
+
+      const editableFields = buildEditableFields(vehicle);
+      const updates = {};
+
+      editableFields.forEach(({ key }) => {
+        const input = form.querySelector(`[name="field-${key}"]`);
+        if (input) {
+          updates[key] = coerceValueForUpdate(input.value, vehicle[key]);
+        }
+      });
+
+      saveBtn.disabled = true;
+      setEditStatus('Guardando cambios…', 'info');
+
+      const { error } = await supabaseClient
+        .from(TABLES.vehicles)
+        .update(updates)
+        .eq('id', editingVehicleId);
+
+      if (error) {
+        console.error('Error updating vehicle:', error.message);
+        setEditStatus(`No se pudo guardar: ${error.message}`, 'error');
+        saveBtn.disabled = false;
+        return;
+      }
+
+      Object.assign(vehicle, updates);
+      setEditStatus('Cambios guardados correctamente.', 'success');
+      renderVehicles();
+      setTimeout(closeVehicleEditModal, 600);
+    }
+
+    const getPartnerCollection = (type = '') => {
+      const collections = {
+        towing: towingCompanies,
+        reseller: resellers,
+        repair: repairShops,
+        locksmith: locksmiths,
+        dispatcher: dispatchers,
+        tire: tirePartners,
+        inspector: inspectors,
+      };
+      return collections[type] || [];
+    };
+
+    const refreshServiceUI = (type = '') => {
+      const redraw = {
+        towing: () => updateTowingUI(towingCompanies),
+        reseller: () => updateResellerUI(resellers),
+        repair: () => updateRepairUI(repairShops),
+        locksmith: () => updateLocksmithUI(locksmiths),
+        dispatcher: () => updateDispatcherUI(dispatchers),
+        tire: () => updateTireUI(tirePartners),
+        inspector: () => updateInspectorUI(inspectors),
+      };
+
+      if (typeof redraw[type] === 'function') {
+        redraw[type]();
+      }
+    };
+
+    const getServiceHeadersForPartner = (partner) => {
+      if (!partner) return [];
+      const headers = getServiceHeaders(partner.type);
+      if (headers.length) return headers;
+      return partner.details ? Object.keys(partner.details) : [];
+    };
+
+    const buildServiceEditableFields = (partner) => {
+      return getServiceHeadersForPartner(partner)
+        .filter(header => header !== 'id' && header !== 'created_at')
+        .map((header) => ({
+          key: header,
+          value: partner.details?.[header] ?? partner[header] ?? ''
+        }));
+    };
+
+    function setServiceEditStatus(message = '', tone = 'info') {
+      const status = document.getElementById('service-edit-status');
+      if (!status) return;
+
+      if (!message) {
+        status.classList.add('hidden');
+        status.textContent = '';
+        return;
+      }
+
+      const toneClasses = {
+        success: 'border-emerald-700 bg-emerald-600/15 text-emerald-100',
+        error: 'border-red-700 bg-red-600/15 text-red-100',
+        info: 'border-emerald-700 bg-emerald-600/15 text-emerald-100'
+      };
+
+      status.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${toneClasses[tone] || toneClasses.info}`;
+      status.textContent = message;
+      status.classList.remove('hidden');
+    }
+
+    function openServiceEditModal(partner) {
+      if (!isAdminUser() || !supabaseClient || !partner) return;
+
+      const modal = document.getElementById('service-edit-modal');
+      const title = document.getElementById('service-edit-title');
+      const fieldsContainer = document.getElementById('service-edit-fields');
+      const saveBtn = document.getElementById('service-edit-save');
+
+      if (!modal || !title || !fieldsContainer || !saveBtn) return;
+
+      editingService = { id: partner.id, type: partner.type };
+      title.textContent = `${partner.company || 'Servicio'} ${partner.city ? '• ' + partner.city : ''}`.trim();
+
+      const editableFields = buildServiceEditableFields(partner);
+      const staticIdField = `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">ID</label>
+          <input type="text" value="${escapeHTML(partner.id)}" class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-200" disabled>
+        </div>
+      `;
+
+      fieldsContainer.innerHTML = [staticIdField, ...editableFields.map(({ key, value }) => `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">${key}</label>
+          <input
+            name="service-field-${key}"
+            type="text"
+            value="${escapeHTML(value ?? '')}"
+            class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+          >
+        </div>
+      `)].join('');
+
+      setServiceEditStatus('');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      saveBtn.disabled = false;
+      iconLib.createIcons();
+    }
+
+    function closeServiceEditModal() {
+      const modal = document.getElementById('service-edit-modal');
+      const form = document.getElementById('service-edit-form');
+      if (!modal || !form) return;
+      editingService = null;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      form.reset();
+      setServiceEditStatus('');
+    }
+
+    async function handleServiceEditSubmit(event) {
+      event.preventDefault();
+      if (!isAdminUser() || !supabaseClient || !editingService) return;
+
+      const { id, type } = editingService;
+      const collection = getPartnerCollection(type);
+      const partner = collection.find((p) => p.id === id);
+      if (!partner) {
+        setServiceEditStatus('No se encontró el servicio seleccionado.', 'error');
+        return;
+      }
+
+      const saveBtn = document.getElementById('service-edit-save');
+      const form = document.getElementById('service-edit-form');
+      if (!form || !saveBtn) return;
+
+      const editableFields = buildServiceEditableFields(partner);
+      const updates = {};
+
+      editableFields.forEach(({ key }) => {
+        const input = form.querySelector(`[name="service-field-${key}"]`);
+        if (input) {
+          updates[key] = coerceValueForUpdate(input.value, partner.details?.[key] ?? partner[key]);
+        }
+      });
+
+      saveBtn.disabled = true;
+      setServiceEditStatus('Guardando cambios…', 'info');
+
+      const { error } = await supabaseClient
+        .from(TABLES.services)
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating service:', error.message);
+        setServiceEditStatus(`No se pudo guardar: ${error.message}`, 'error');
+        saveBtn.disabled = false;
+        return;
+      }
+
+      const updatedRow = { ...(partner.details || {}), ...updates };
+      const refreshed = normalizePartner(updatedRow, partner.type, partner.seed ?? 0);
+      Object.assign(partner, refreshed);
+      setServiceEditStatus('Cambios guardados correctamente.', 'success');
+      refreshServiceUI(partner.type);
+      setTimeout(closeServiceEditModal, 600);
+    }
+
     function attachPopupHandlers() {
       const btn = document.querySelector('.vehicle-popup button[data-view-more-popup]');
       if (btn) {
@@ -2917,6 +3338,20 @@
       document.getElementById('vehicle-modal')?.addEventListener('click', (e) => {
         if (e.target.id === 'vehicle-modal') closeVehicleModal();
       });
+      document.getElementById('vehicle-edit-close')?.addEventListener('click', closeVehicleEditModal);
+      document.getElementById('vehicle-edit-cancel')?.addEventListener('click', closeVehicleEditModal);
+      document.getElementById('vehicle-edit-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'vehicle-edit-modal') closeVehicleEditModal();
+      });
+      document.getElementById('vehicle-edit-form')?.addEventListener('submit', handleVehicleEditSubmit);
+      document.getElementById('service-edit-close')?.addEventListener('click', closeServiceEditModal);
+      document.getElementById('service-edit-cancel')?.addEventListener('click', closeServiceEditModal);
+      document.getElementById('service-edit-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'service-edit-modal') closeServiceEditModal();
+      });
+      document.getElementById('service-edit-form')?.addEventListener('submit', handleServiceEditSubmit);
+
+      window.addEventListener('auth:role-ready', () => renderVehicles());
     });
   </script>
   <script type="module">
