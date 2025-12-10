@@ -216,10 +216,22 @@
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
               <h3 class="text-lg font-bold text-white">Towing companies list</h3>
             </div>
-            <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
-              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-              Refresh data
-            </button>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                <i data-lucide="search" class="h-4 w-4"></i>
+                <input id="search" type="search" placeholder="Search company, state, or city" class="w-60 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" />
+              </div>
+              <div class="flex flex-wrap items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                <span>Sort:</span>
+                <button data-sort="company" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Company</button>
+                <button data-sort="region" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Region</button>
+                <button data-sort="availability" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Availability</button>
+              </div>
+              <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
+                <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                Refresh data
+              </button>
+            </div>
           </div>
           <div class="overflow-x-auto rounded-xl border border-slate-800">
             <table class="min-w-full divide-y divide-slate-800 text-sm whitespace-nowrap">
@@ -269,13 +281,14 @@
     // LOGICA DOBLE: Leer de Vista Pública (rápido), Escribir en Tabla Real (seguro)
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
-    
+
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const state = {
       rows: [],
+      filters: { search: '', sortKey: 'company', sortDir: 'asc' },
       pagination: { page: 1, pageSize: 20 },
-      currentUserRole: 'user', 
+      currentUserRole: 'user',
     };
 
     const els = {
@@ -289,6 +302,7 @@
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
       refresh: document.getElementById('refresh-button'),
+      search: document.getElementById('search'),
       // Modal Els
       modal: document.getElementById('edit-modal'),
       closeModal: document.getElementById('close-modal'),
@@ -340,24 +354,47 @@
       zip: getField(row, 'Zip', 'zip'),
     });
 
+    const getText = (value) => String(value || '').toLowerCase();
+
+    const applySearch = (rows) => {
+      if (!state.filters.search) return rows;
+      const term = state.filters.search.toLowerCase();
+      return rows.filter((row) => [row.company, row.region, row.city, row.state].some((value) => getText(value).includes(term)));
+    };
+
+    const applySort = (rows) => {
+      const sorters = {
+        company: (a, b) => getText(a.company).localeCompare(getText(b.company)),
+        region: (a, b) => getText(a.region).localeCompare(getText(b.region)),
+        availability: (a, b) => getText(a.availability).localeCompare(getText(b.availability)),
+      };
+      const sorter = sorters[state.filters.sortKey];
+      if (!sorter) return rows;
+      const sorted = [...rows].sort((a, b) => sorter(a, b));
+      return state.filters.sortDir === 'asc' ? sorted : sorted.reverse();
+    };
+
+    const getVisibleRows = () => applySort(applySearch(state.rows));
+
     const renderTable = () => {
-      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
+      const rows = getVisibleRows();
+      const totalPages = Math.max(1, Math.ceil(rows.length / state.pagination.pageSize));
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
-      const end = Math.min(state.rows.length, start + state.pagination.pageSize);
-      
-      els.paginationSummary.textContent = state.rows.length
-        ? `Showing ${start + 1}-${end} of ${state.rows.length}`
+      const end = Math.min(rows.length, start + state.pagination.pageSize);
+
+      els.paginationSummary.textContent = rows.length
+        ? `Showing ${rows.length ? start + 1 : 0}-${end} of ${rows.length}`
         : 'No entries to display';
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
-      els.prevPage.disabled = state.pagination.page === 1 || state.rows.length === 0;
-      els.nextPage.disabled = state.pagination.page >= totalPages || state.rows.length === 0;
+      els.prevPage.disabled = state.pagination.page === 1 || rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
 
       els.tableBody.innerHTML = '';
-      
+
       const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
 
-      state.rows.slice(start, end).forEach((row) => {
+      rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
         
         // --- 1. ACTION COLUMN (LEFT) ---
@@ -498,7 +535,7 @@
     });
 
     els.nextPage.addEventListener('click', () => {
-      const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
+      const totalPages = Math.max(1, Math.ceil(getVisibleRows().length / state.pagination.pageSize));
       if (state.pagination.page < totalPages) {
         state.pagination.page += 1;
         renderTable();
@@ -506,6 +543,26 @@
     });
 
     els.refresh.addEventListener('click', fetchData);
+
+    els.search.addEventListener('input', (event) => {
+      state.filters.search = event.target.value.trim();
+      state.pagination.page = 1;
+      renderTable();
+    });
+
+    const handleSort = (key) => {
+      if (state.filters.sortKey === key) {
+        state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.filters.sortKey = key;
+        state.filters.sortDir = 'asc';
+      }
+      renderTable();
+    };
+
+    document.querySelectorAll('[data-sort]').forEach((button) => {
+      button.addEventListener('click', () => handleSort(button.dataset.sort));
+    });
 
     const init = async () => {
         createConstellationBackground();
