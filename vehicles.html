@@ -653,15 +653,20 @@
       (window.supabase?.createClient
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
         : null);
+    const SERVICE_TABLE = 'Services';
+    const SERVICE_CATEGORIES = {
+      technicians: 'GPS Technician',
+      towing: 'Towing',
+      resellers: 'dealer/auction',
+      repair: 'Repair Shop',
+      locksmiths: 'Locksmith',
+      dispatchers: 'Dispatcher',
+      tire: 'Tires Services',
+      inspectors: 'inspector',
+    };
+
     const TABLES = {
-      technicians: 'gps_installers',
-      towing: 'towing_companies',
-      resellers: 'resellers',
-      repair: 'repair_shops',
-      locksmiths: 'locksmiths',
-      dispatchers: 'dispatchers',
-      tire: 'tire_services',
-      inspectors: 'inspectors',
+      services: SERVICE_TABLE,
       vehicles: 'vehicles'
     };
 
@@ -999,7 +1004,10 @@
         return;
       }
       try {
-        const { data, error } = await supabaseClient.from(TABLES.technicians).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.technicians);
         if (error) throw error;
         technicians = (data || []).map((row, idx) => normalizeInstaller(row, idx)).filter(t => t.company || t.city || t.state);
         renderedTechIds = '';
@@ -1045,7 +1053,10 @@
     async function loadTowingCompanies() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.towing).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.towing);
         if (error) throw error;
         towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
@@ -1057,7 +1068,10 @@
     async function loadResellers() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.resellers).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.resellers);
         if (error) throw error;
         resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
@@ -1069,7 +1083,10 @@
     async function loadRepairShops() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.repair).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.repair);
         if (error) throw error;
         repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
@@ -1081,7 +1098,10 @@
     async function loadLocksmiths() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.locksmiths).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.locksmiths);
         if (error) throw error;
         locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
@@ -1093,7 +1113,10 @@
     async function loadDispatchers() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.dispatchers).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.dispatchers);
         if (error) throw error;
         dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
@@ -1105,7 +1128,10 @@
     async function loadTireServices() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.tire).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.tire);
         if (error) throw error;
         tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
         updateTireUI(tirePartners);
@@ -1117,7 +1143,10 @@
     async function loadInspectors() {
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient.from(TABLES.inspectors).select('*');
+        const { data, error } = await supabaseClient
+          .from(SERVICE_TABLE)
+          .select('*')
+          .eq('category', SERVICE_CATEGORIES.inspectors);
         if (error) throw error;
         inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
         updateInspectorUI(inspectors);

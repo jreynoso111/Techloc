@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="../assets/scripts/supabaseClient.js"></script>
   <script src="../assets/scripts/authManager.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
@@ -262,6 +263,28 @@
             <div id="datasets" class="grid gap-4 md:grid-cols-2"></div>
           </section>
 
+          <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
+                <h3 class="text-lg font-bold text-white">Import Services CSV</h3>
+                <p class="text-sm text-slate-400">Files are parsed client-side and inserted through the deduplication RPC.</p>
+              </div>
+              <span class="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">RPC protected</span>
+            </div>
+            <form id="csv-upload-form" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+              <div class="space-y-2">
+                <label for="csv-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
+                <input id="csv-file" name="csv-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-blue-500 focus:outline-none" />
+              </div>
+              <button id="upload-button" type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
+                <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+                <span>Upload &amp; dedupe</span>
+              </button>
+            </form>
+            <p class="text-xs leading-relaxed text-slate-400">Expected headers: name, category, phone, address, city, state, zip, lat, lng, website, metadata. All other columns are stored inside metadata and the RPC prevents duplicates.</p>
+          </section>
+
    
       </section>
     </div>
@@ -300,66 +323,27 @@
     // --- MAPPING: Frontend Keys to Actual Supabase Tables ---
     const DATASETS = [
       {
-        table: 'gps_installers', // Real Table Name
+        table: 'Services',
         scope: 'Partners',
-        title: 'Installers (Technicians)',
-        description: 'Partner installer companies, contacts, and regions.',
-        displayName: 'gps_installers'
+        title: 'Service Providers',
+        description: 'Unified services directory filtered by category values.',
+        displayName: 'Services'
       },
       {
-        table: 'towing_companies', // Real Table Name
-        scope: 'Logistics',
-        title: 'Towing Companies',
-        description: 'Roadside partners, dispatch contacts, and coverage.',
-        displayName: 'towing_companies'
-      },
-      {
-        table: 'resellers', // Real Table Name
-        scope: 'Channel',
-        title: 'Resellers',
-        description: 'Channel partners and tier commitments.',
-        displayName: 'resellers'
-      },
-      {
-        table: 'repair_shops', // Real Table Name
-        scope: 'Service',
-        title: 'Repair Shops',
-        description: 'Shops for triage, diagnostics, and repairs.',
-        displayName: 'repair_shops'
-      },
-      {
-        table: 'locksmiths', // Real Table Name
-        scope: 'Access',
-        title: 'Locksmiths',
-        description: 'Vehicle access partners for lockouts.',
-        displayName: 'locksmiths'
-      },
-      {
-        table: 'inspectors', // Real Table Name
-        scope: 'Quality',
-        title: 'Inspectors',
-        description: 'Field inspectors validating installations.',
-        displayName: 'inspectors'
-      },
-      {
-        table: 'dispatchers', // Real Table Name
-        scope: 'Coordination',
-        title: 'Dispatchers',
-        description: 'Ops desks coordinating calls.',
-        displayName: 'dispatchers'
-      },
-      {
-        table: 'tire_services', // Real Table Name
-        scope: 'Maintenance',
-        title: 'Tire Services',
-        description: 'Commercial tire vendors.',
-        displayName: 'tire_services'
-      },
+        table: 'vehicles',
+        scope: 'Fleet',
+        title: 'Vehicles',
+        description: 'Live vehicle and asset records.',
+        displayName: 'vehicles'
+      }
     ];
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const REQUIRED_COLUMNS = ['name', 'category'];
+    const KNOWN_COLUMNS = ['name', 'category', 'phone', 'address', 'city', 'state', 'zip', 'lat', 'lng', 'website', 'metadata'];
 
     const formatRelativeTime = (dateString) => {
       if (!dateString) return 'Unknown';
@@ -457,6 +441,113 @@
       return { card: clone, stats: { ...stats, table: dataset.displayName } };
     };
 
+    const toNumber = (value) => {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const mapCsvRow = (row) => {
+      const normalized = Object.entries(row || {}).reduce((acc, [key, val]) => {
+        acc[key.trim()] = typeof val === 'string' ? val.trim() : val;
+        return acc;
+      }, {});
+
+      const metadata = Object.entries(normalized).reduce((acc, [key, val]) => {
+        if (!KNOWN_COLUMNS.includes(key.toLowerCase()) && val !== undefined && val !== null && `${val}`.trim() !== '') {
+          acc[key] = val;
+        }
+        return acc;
+      }, {});
+
+      const lat = toNumber(normalized.lat ?? normalized.latitude ?? normalized.Lat ?? normalized.Latitude);
+      const lng = toNumber(normalized.lng ?? normalized.longitude ?? normalized.Lng ?? normalized.Longitude);
+
+      return {
+        name: normalized.name ?? normalized.company ?? normalized.Company ?? '',
+        category: (normalized.category ?? normalized.Category ?? '').trim(),
+        phone: normalized.phone ?? normalized.Phone ?? '',
+        address: normalized.address ?? normalized.Address ?? '',
+        city: normalized.city ?? normalized.City ?? '',
+        state: normalized.state ?? normalized.State ?? '',
+        zip: normalized.zip ?? normalized.Zip ?? '',
+        lat,
+        lng,
+        website: normalized.website ?? normalized.Website ?? '',
+        metadata: Object.keys(metadata).length ? metadata : null,
+      };
+    };
+
+    const uploadCsvRows = async (rows) => {
+      const mapped = rows
+        .map(mapCsvRow)
+        .filter((row) => REQUIRED_COLUMNS.every((key) => row[key] && `${row[key]}`.trim() !== ''));
+
+      if (!mapped.length) {
+        alert('No valid rows detected. Please ensure at least name and category are present.');
+        return;
+      }
+
+      const { data, error } = await supabaseClient.rpc('importar_partners_sin_duplicados', {
+        nuevos_datos: mapped,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const result = data || {};
+      alert(
+        'Upload Result:\nSaved: ' + (result.insertados ?? 0) +
+        '\nDuplicates Skipped: ' + (result.duplicados ?? 0) +
+        '\nErrors: ' + (result.errores ?? 0)
+      );
+    };
+
+    const wireCsvUpload = () => {
+      const form = document.getElementById('csv-upload-form');
+      const fileInput = document.getElementById('csv-file');
+      const submitBtn = document.getElementById('upload-button');
+
+      if (!form || !fileInput || !submitBtn) return;
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const file = fileInput.files?.[0];
+        if (!file) {
+          alert('Please select a CSV file to upload.');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Uploading…</span>';
+
+        window.Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results) => {
+            try {
+              if (results.errors?.length) {
+                throw new Error(results.errors[0].message);
+              }
+              await uploadCsvRows(results.data || []);
+            } catch (err) {
+              alert('Upload failed: ' + err.message);
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; dedupe</span>';
+              lucide.createIcons();
+            }
+          },
+          error: (err) => {
+            alert('CSV parse error: ' + err.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; dedupe</span>';
+            lucide.createIcons();
+          },
+        });
+      });
+    };
+
     const mount = async () => {
       const container = document.getElementById('datasets');
       let totalRows = 0;
@@ -479,6 +570,7 @@
 
     createConstellationBackground();
     mount();
+    wireCsvUpload();
   </script>
 </div>
 </body>

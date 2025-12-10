@@ -266,8 +266,8 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     
     // LOGICA DOBLE: Leer de Vista Pública (rápido), Escribir en Tabla Real (seguro)
-    const READ_TABLE = 'view_towing_public';
-    const WRITE_TABLE = 'towing_companies';
+    const READ_TABLE = 'Services';
+    const WRITE_TABLE = 'Services';
     
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -408,10 +408,13 @@
     const fetchData = async () => {
       els.status.textContent = 'Loading from Supabase…';
       // READ FROM VIEW
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+      const { data, error } = await supabaseClient
+        .from(READ_TABLE)
+        .select('*')
+        .eq('category', 'Towing');
       if (error) {
         els.status.textContent = 'Error loading data';
-        console.error('Error fetching towing_companies:', error);
+        console.error('Error fetching services:', error);
         return;
       }
 
