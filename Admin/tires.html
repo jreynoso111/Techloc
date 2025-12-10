@@ -279,9 +279,9 @@
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     
-    // TABLE: 'Services' (Mayúscula) | CATEGORY: 'Tires Services' (Exacto como en tu lista)
+    // TABLA Y CATEGORÍA CORRECTAS
     const TABLE_NAME = 'Services';
-    const CATEGORY_FILTER = 'Tires Services';
+    const CATEGORY_FILTER = 'Tires Services'; // Exacto como en tu lista
     const LOGIN_PAGE = '../login.html';
     
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -343,7 +343,6 @@
     const formatRating = (value) => (value ? Number(value).toFixed(1) : '—');
     const getText = (value) => String(value || '').toLowerCase();
     
-    // Función robusta para buscar datos (incluso en metadata)
     const getField = (row, ...keys) => {
       // 1. Buscar en columnas normales
       for (const key of keys) {
@@ -360,7 +359,7 @@
 
     // --- DATA NORMALIZATION ---
     const normalizeRow = (row) => ({
-      // Solución error ID: Buscar 'id' o 'ID'
+      // Solución Error ID: Buscar 'id' o 'ID'
       id: row.id || row.ID, 
       
       company: getField(row, 'name', 'company_name', 'Company', 'company'),
@@ -496,12 +495,11 @@
       els.datasetStatus.textContent = 'Connecting…';
       els.status.textContent = 'Fetching rows from Supabase…';
 
-      // Consulta corregida: No ordenar por ID
+      // Consulta sin ordenamiento de servidor para evitar errores de columna
       const { data, error } = await supabaseClient
         .from(TABLE_NAME)
         .select('*')
-        .eq('category', CATEGORY_FILTER)
-        .order('name', { ascending: true }); // Ordenar por nombre es más seguro
+        .eq('category', CATEGORY_FILTER);
 
       if (error) {
         console.error('Supabase error:', error);
@@ -560,7 +558,7 @@
       els.modalForm.reset();
     };
 
-    // UPDATE CORRECTO: Usando Metadata para campos extra
+    // UPDATE: Usando Metadata
     els.modalForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(els.modalForm);
@@ -570,7 +568,7 @@
       const existingMeta = currentData?.metadata || {};
 
       const updates = {
-        name: formData.get('Company'), // Mapeo a columna 'name'
+        name: formData.get('Company'),
         state: formData.get('State'),
         city: formData.get('City'),
         phone: formData.get('Phone'),
