@@ -5,10 +5,14 @@
   // Ejemplo: si estás en 'vehicles.html', buscará datos en la tabla 'vehicles'
   const tableMapping = {
     'vehicles.html': 'vehicles',
-    'towing.html': 'towing_companies',
-    'locksmiths.html': 'locksmiths',
-    'technicians.html': 'technicians'
-    // ... agrega aquí el resto de tus páginas
+    'towing.html': 'Services',
+    'resellers.html': 'Services',
+    'repair.html': 'Services',
+    'locksmiths.html': 'Services',
+    'inspectors.html': 'Services',
+    'dispatchers.html': 'Services',
+    'tires.html': 'Services',
+    'technicians.html': 'Services'
   };
 
   // Función principal para cargar datos
