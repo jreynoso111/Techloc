@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../assets/scripts/supabaseClient.js"></script>
   <script src="../assets/scripts/authManager.js"></script>
+  <script src="../assets/scripts/datasets.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
   <script>
     tailwind.config = {
@@ -233,10 +234,10 @@
               </h3>
               <span class="text-[10px] font-mono text-slate-500">REAL-TIME</span>
             </div>
-            
-            <div class="flex-1 overflow-hidden relative">
+
+            <div class="flex-1 relative flex flex-col">
                 <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-900/90 to-transparent pointer-events-none z-10"></div>
-                <ul id="activity-feed" class="space-y-0 h-[350px] overflow-y-auto custom-scrollbar pr-2 pb-4">
+                <ul id="activity-feed" class="flex-1 min-h-[420px] overflow-y-auto custom-scrollbar pr-2 pb-4 divide-y divide-white/5">
                     <li class="text-center py-10 text-slate-600 text-xs italic">Waiting for events...</li>
                 </ul>
             </div>
@@ -291,6 +292,19 @@
     const TABLE_ANALYTICS = 'analytics_events';
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const datasetEntries = window.TL_DATASETS ? Object.entries(window.TL_DATASETS) : [
+      ['dispatchers', '../assets/data/dispatchers.csv'],
+      ['installers', '../assets/data/installers.csv'],
+      ['inspectors', '../assets/data/inspectors.csv'],
+      ['locksmiths', '../assets/data/locksmiths.csv'],
+      ['repair_shops', '../assets/data/repair_shops.csv'],
+      ['resellers', '../assets/data/resellers.csv'],
+      ['technicians', '../assets/data/technicians.csv'],
+      ['tires', '../assets/data/tires.csv'],
+      ['towing_companies', '../assets/data/towing_companies.csv'],
+      ['vehicles', '../assets/data/vehicles.csv']
+    ];
+    let actorProfile = { role: 'guest', email: 'anonymous', id: 'n/a' };
 
     // --- ELEMENTS ---
     const els = {
@@ -384,6 +398,58 @@
         return [...parts, ...remaining].join(' • ') || 'Sin detalles adicionales';
     };
 
+    const parseCsv = (text) => {
+        const lines = text.trim().split(/\r?\n/).filter(Boolean);
+        if (lines.length === 0) return [];
+        const headers = lines.shift().split(',').map(h => h.trim().toLowerCase());
+        return lines.map(line => {
+            const values = line.match(/(?:"([^"]*)"|[^,])+/g) || [];
+            return headers.reduce((acc, header, idx) => {
+                const raw = values[idx] || '';
+                const cleaned = raw.replace(/^"|"$/g, '').trim();
+                acc[header] = cleaned;
+                return acc;
+            }, {});
+        });
+    };
+
+    const loadLocalDatasets = async () => {
+        const datasets = await Promise.all(datasetEntries.map(async ([key, path]) => {
+            try {
+                const response = await fetch(path);
+                if (!response.ok) throw new Error(`No se pudo cargar ${path}`);
+                const csvText = await response.text();
+                const parsed = parseCsv(csvText).map(row => ({
+                    ...row,
+                    category: row.category || key,
+                    source: 'web-file'
+                }));
+                return parsed;
+            } catch (err) {
+                console.warn(`Dataset skip (${path}):`, err.message);
+                return [];
+            }
+        }));
+
+        return datasets.flat();
+    };
+
+    const hydrateActorProfile = async () => {
+        try {
+            const { data } = await supabaseClient.auth.getSession();
+            const user = data?.session?.user;
+            if (user) {
+                actorProfile = {
+                    id: user.id,
+                    email: user.email || 'unknown',
+                    role: window.currentUserRole || 'user'
+                };
+            }
+        } catch (err) {
+            console.warn('No se pudo obtener el perfil activo', err.message);
+        }
+    };
+
     // --- TRACKING LOGIC ---
     const trackUserActivity = () => {
         document.addEventListener('click', async (e) => {
@@ -399,7 +465,7 @@
             // Send to DB
             const { error } = await supabaseClient
                 .from(TABLE_ANALYTICS)
-                .insert([{ event_type: 'click', element_id: elementId, details: { page: 'Analytics' } }]);
+                .insert([{ event_type: 'click', element_id: elementId, details: { page: 'Analytics', profile: actorProfile } }]);
             
             if(!error) refreshActivityFeed(); 
         });
@@ -429,13 +495,10 @@
         
         // Layout Profesional: Flexbox + Background Track
         const barHtml = `
-          <div class="group">
-            <div class="flex justify-between items-end mb-1.5">
+          <div class="group space-y-2">
+            <div class="flex justify-between items-center">
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 group-hover:text-white transition-colors">${cat}</span>
-              <div class="text-right">
-                <span class="font-mono text-sm font-bold text-white block leading-none">${count}</span>
-                <span class="font-mono text-[10px] text-slate-500">${percentage}%</span>
-              </div>
+              <span class="font-mono text-xs font-bold text-white flex items-center gap-1 leading-none">${count}<span class="text-slate-500 font-medium">(${percentage}%)</span></span>
             </div>
             <div class="h-2 w-full rounded-full bg-white/5 overflow-hidden">
               <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out" style="width: 0%" data-width="${percentage}%"></div>
@@ -532,22 +595,25 @@
                     const color = isClick ? 'text-amber-400' : 'text-blue-400';
                     const bg = isClick ? 'bg-amber-400/10' : 'bg-blue-400/10';
                     const detailText = formatDetails(log.details || {});
+                    const actor = log?.details?.profile || {};
+                    const actorLabel = actor.email || actor.name || 'Invitado';
+                    const roleLabel = actor.role ? ` (${actor.role})` : '';
                     const timestamp = new Date(log.created_at).toLocaleString();
 
                     const html = `
-                        <li class="group flex items-start gap-3 border-b border-white/5 py-3 px-1 hover:bg-white/5 transition-colors rounded-lg mb-1">
-                            <div class="mt-0.5 rounded-lg ${bg} p-1.5 ${color}">
+                        <li class="group grid grid-cols-[auto_1fr_auto] items-center gap-3 py-2 px-1 hover:bg-white/5 transition-colors rounded-lg">
+                            <div class="rounded-lg ${bg} p-1.5 ${color}">
                                 <i data-lucide="${icon}" class="h-3 w-3"></i>
                             </div>
-                            <div>
-                                <p class="text-xs text-slate-300 leading-tight">
-                                    <span class="font-bold text-white uppercase text-[10px] tracking-wide">${log.event_type}</span>
-                                    <span class="text-slate-500">on</span>
-                                    <span class="text-emerald-400 font-medium">${log.element_id}</span>
-                                </p>
-                                <p class="text-[11px] text-slate-400 mt-1">${detailText}</p>
-                                <p class="text-[10px] text-slate-600 font-mono mt-1 group-hover:text-slate-400 transition-colors">${timeAgo(log.created_at)} • ${timestamp}</p>
+                            <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-300 leading-tight">
+                                <span class="font-bold text-white uppercase text-[10px] tracking-wide">${log.event_type}</span>
+                                <span class="text-slate-500">on</span>
+                                <span class="text-emerald-400 font-medium truncate">${log.element_id}</span>
+                                <span class="text-slate-600">•</span>
+                                <span class="text-slate-200 truncate">${actorLabel}${roleLabel}</span>
+                                ${detailText ? `<span class="text-slate-500">• ${detailText}</span>` : ''}
                             </div>
+                            <div class="text-[10px] text-slate-600 font-mono text-right group-hover:text-slate-400 transition-colors">${timeAgo(log.created_at)} • ${timestamp}</div>
                         </li>
                     `;
                     els.activityFeed.insertAdjacentHTML('beforeend', html);
@@ -563,18 +629,22 @@
     // --- INIT ---
     const init = async () => {
       createConstellationBackground();
+      await hydrateActorProfile();
       trackUserActivity();
-      
+
       els.status.textContent = 'Syncing...';
-      const { data, error } = await supabaseClient.from(TABLE_SERVICES).select('*');
-      
-      if (!error) {
-          const activityCount = await refreshActivityFeed();
-          calculateAnalytics(data || [], activityCount);
-          els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${data.length} PARTNERS</span>`;
-          lucide.createIcons();
-      }
-      
+      const [{ data, error }, webRows] = await Promise.all([
+        supabaseClient.from(TABLE_SERVICES).select('*'),
+        loadLocalDatasets()
+      ]);
+
+      const baseRows = error ? [] : (data || []);
+      const combinedRows = [...baseRows, ...webRows];
+      const activityCount = await refreshActivityFeed();
+      calculateAnalytics(combinedRows || [], activityCount);
+      els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${combinedRows.length} RECORDS</span>`;
+      lucide.createIcons();
+
       setInterval(refreshActivityFeed, 10000); // Live feed update
     };
 
