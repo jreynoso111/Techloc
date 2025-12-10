@@ -38,11 +38,14 @@
       <div class="flex flex-wrap items-center justify-end gap-3">
         <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
           <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+          <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
           <a id="nav-dashboard" href="./index.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
         </nav>
         <div class="flex items-center gap-2">
-           <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex">
-            <span class="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span> System Live
+          <a id="nav-login" href="../login.html" class="hidden rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+          <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+          <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex" data-admin-actions>
+            <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span> Admin Tools
           </div>
         </div>
       </div>
@@ -62,11 +65,32 @@
           <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
             Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
           </a>
+          <a href="./technicians.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Installers <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
           <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
             Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
           </a>
+          <a href="./towing.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Towing <span class="text-xs font-medium text-slate-400">Roadside</span>
+          </a>
+          <a href="./resellers.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Resellers <span class="text-xs font-medium text-slate-400">Channel</span>
+          </a>
+          <a href="./repair.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Repair shops <span class="text-xs font-medium text-slate-400">Service</span>
+          </a>
+          <a href="./locksmiths.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Locksmiths <span class="text-xs font-medium text-slate-400">Access</span>
+          </a>
+          <a href="./inspectors.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Inspectors <span class="text-xs font-medium text-slate-400">Quality</span>
+          </a>
           <a href="./dispatchers.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
             Dispatchers <span class="text-xs font-medium text-slate-400">Coordination</span>
+          </a>
+          <a href="./tires.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Tire services <span class="text-xs font-medium text-slate-400">Commercial</span>
           </a>
           <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
             Analytics <span class="text-xs font-medium text-blue-100">Insights</span>
@@ -245,6 +269,7 @@
     const formatCategory = (str) => {
         if (!str) return 'Unknown';
         const clean = str.trim().toLowerCase();
+        // Capitaliza la primera letra
         return clean.charAt(0).toUpperCase() + clean.slice(1);
     };
 
@@ -285,7 +310,7 @@
 
             console.log('Tracking click:', elementId);
 
-            // Insertar en Supabase sin esperar respuesta (fire & forget)
+            // Insertar en Supabase sin esperar respuesta
             const { error } = await supabaseClient
                 .from(TABLE_ANALYTICS)
                 .insert([{ event_type: eventType, element_id: elementId, details: { page: 'Analytics' } }]);
@@ -316,7 +341,7 @@
       
       sortedCats.forEach(([cat, count]) => {
         const percentage = ((count / rows.length) * 100).toFixed(1);
-        // Highlight dispatchers specifically if wanted
+        // Resaltar Dispatchers si lo deseas
         const barColor = cat === 'Dispatcher' ? 'bg-indigo-500' : 'bg-blue-600';
         
         const barHtml = `
@@ -380,6 +405,7 @@
 
     // --- FETCH ACTIVITY FEED ---
     const refreshActivityFeed = async () => {
+        // Asegúrate de haber creado la tabla analytics_events primero en Supabase
         const { data, count } = await supabaseClient
             .from(TABLE_ANALYTICS)
             .select('*', { count: 'exact' })
@@ -404,7 +430,6 @@
                 els.activityFeed.insertAdjacentHTML('beforeend', html);
             });
             lucide.createIcons();
-            // Actualizar contador visual si está cargado
             if(els.kpiClicks) els.kpiClicks.textContent = count || data.length;
             return count;
         }
@@ -426,8 +451,13 @@
         return;
       }
 
-      // 2. Get Analytics Data Count (para el KPI)
-      const activityCount = await refreshActivityFeed();
+      // 2. Get Analytics Data Count
+      let activityCount = 0;
+      try {
+          activityCount = await refreshActivityFeed();
+      } catch (err) {
+          console.warn("Analytics table might not exist yet", err);
+      }
 
       // 3. Process
       calculateAnalytics(servicesData || [], activityCount);
@@ -438,7 +468,7 @@
     // --- INIT ---
     const init = async () => {
       createConstellationBackground();
-      trackUserActivity(); // Start listening for clicks
+      trackUserActivity(); // Inicia el tracking
       await fetchAnalytics();
       
       // Auto refresh feed every 30 seconds
