@@ -740,6 +740,30 @@
     </div>
   </div>
 
+  <!-- Vehicle edit modal (admin only) -->
+  <div id="vehicle-edit-modal" class="fixed inset-0 z-[600] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="w-full max-w-4xl rounded-2xl border border-amber-600/40 bg-slate-950 shadow-2xl shadow-amber-500/20 overflow-hidden">
+      <div class="flex items-center justify-between border-b border-amber-900/40 bg-amber-500/10 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Editar vehículo</p>
+          <h3 id="vehicle-edit-title" class="text-lg font-bold text-white"></h3>
+        </div>
+        <button id="vehicle-edit-close" class="rounded-lg border border-amber-700/60 bg-amber-600/15 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition-colors">Cerrar</button>
+      </div>
+      <form id="vehicle-edit-form" class="max-h-[70vh] overflow-y-auto p-4 space-y-4">
+        <div id="vehicle-edit-status" class="hidden rounded-lg border px-3 py-2 text-xs font-semibold"></div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2" id="vehicle-edit-fields"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="vehicle-edit-cancel" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cancelar</button>
+          <button type="submit" id="vehicle-edit-save" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/60 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-100 hover:bg-amber-500/30 transition-colors">
+            <i data-lucide="save" class="h-4 w-4"></i>
+            Guardar cambios
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     // --- Base Config ---
     const STATE_CENTERS = {
@@ -769,6 +793,7 @@
     let inspectors = [];
     let vehicles = [];
     let vehicleHeaders = [];
+    let editingVehicleId = null;
     let selectedVehicleId = null;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
@@ -831,6 +856,8 @@
       vehicles: 'vehicles'
     };
 
+    const isAdminUser = () => `${window.currentUserRole || ''}`.toLowerCase() === 'administrator';
+
     const toStateCode = (value = '') => {
       if (!value) return '';
       const match = `${value}`.match(/([A-Z]{2})/i);
@@ -838,6 +865,13 @@
     };
 
     const normalizeKey = (key = '') => `${key}`.trim().toLowerCase().replace(/\s+/g, '_');
+
+    const escapeHTML = (value = '') => `${value}`
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
 
     const getField = (row, ...keys) => {
       for (const key of keys) {
@@ -1822,7 +1856,13 @@
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
-            <div class="pt-1 flex justify-end">
+            <div class="pt-1 flex items-center justify-between gap-2">
+              ${isAdminUser() ? `
+                <button data-edit-vehicle class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                  <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                  Editar fila
+                </button>
+              ` : '<span></span>'}
               <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 <i data-lucide="info" class="h-3.5 w-3.5"></i>
                 See more
@@ -1846,6 +1886,14 @@
             viewMoreBtn.addEventListener('click', (e) => {
               e.stopPropagation();
               openVehicleModal(vehicle);
+            });
+          }
+
+          const editBtn = card.querySelector('[data-edit-vehicle]');
+          if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openVehicleEditModal(vehicle);
             });
           }
 
@@ -2469,6 +2517,142 @@
       modal.classList.remove('flex');
     }
 
+    function setEditStatus(message = '', tone = 'info') {
+      const status = document.getElementById('vehicle-edit-status');
+      if (!status) return;
+
+      if (!message) {
+        status.classList.add('hidden');
+        status.textContent = '';
+        return;
+      }
+
+      const toneClasses = {
+        success: 'border-emerald-700 bg-emerald-500/15 text-emerald-100',
+        error: 'border-red-700 bg-red-600/15 text-red-100',
+        info: 'border-amber-700 bg-amber-600/15 text-amber-100'
+      };
+
+      status.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${toneClasses[tone] || toneClasses.info}`;
+      status.textContent = message;
+      status.classList.remove('hidden');
+    }
+
+    const coerceValueForUpdate = (value, original) => {
+      if (value === '') return null;
+      if (typeof original === 'number') {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : original;
+      }
+      if (typeof original === 'boolean') return value === 'true' || value === '1' || value === 'yes';
+      return value;
+    };
+
+    const buildEditableFields = (vehicle) => {
+      return vehicleHeaders
+        .filter(header => header !== 'id' && header !== 'created_at')
+        .map((header) => ({
+          key: header,
+          value: vehicle[header] ?? vehicle[header?.toLowerCase()] ?? ''
+        }));
+    };
+
+    function openVehicleEditModal(vehicle) {
+      if (!isAdminUser() || !supabaseClient) return;
+
+      const modal = document.getElementById('vehicle-edit-modal');
+      const title = document.getElementById('vehicle-edit-title');
+      const fieldsContainer = document.getElementById('vehicle-edit-fields');
+      const saveBtn = document.getElementById('vehicle-edit-save');
+
+      if (!modal || !title || !fieldsContainer || !saveBtn) return;
+
+      editingVehicleId = vehicle.id;
+      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`.trim();
+
+      const editableFields = buildEditableFields(vehicle);
+      const staticIdField = `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">ID</label>
+          <input type="text" value="${escapeHTML(vehicle.id)}" class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-200" disabled>
+        </div>
+      `;
+
+      fieldsContainer.innerHTML = [staticIdField, ...editableFields.map(({ key, value }) => `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">${key}</label>
+          <input
+            name="field-${key}"
+            type="text"
+            value="${escapeHTML(value ?? '')}"
+            class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+          >
+        </div>
+      `)].join('');
+
+      setEditStatus('');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      saveBtn.disabled = false;
+      iconLib.createIcons();
+    }
+
+    function closeVehicleEditModal() {
+      const modal = document.getElementById('vehicle-edit-modal');
+      const form = document.getElementById('vehicle-edit-form');
+      if (!modal || !form) return;
+      editingVehicleId = null;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      form.reset();
+      setEditStatus('');
+    }
+
+    async function handleVehicleEditSubmit(event) {
+      event.preventDefault();
+      if (!isAdminUser() || !supabaseClient || !editingVehicleId) return;
+
+      const vehicle = vehicles.find(v => v.id === editingVehicleId);
+      if (!vehicle) {
+        setEditStatus('No se encontró el vehículo seleccionado.', 'error');
+        return;
+      }
+
+      const saveBtn = document.getElementById('vehicle-edit-save');
+      const form = document.getElementById('vehicle-edit-form');
+      if (!form || !saveBtn) return;
+
+      const editableFields = buildEditableFields(vehicle);
+      const updates = {};
+
+      editableFields.forEach(({ key }) => {
+        const input = form.querySelector(`[name="field-${key}"]`);
+        if (input) {
+          updates[key] = coerceValueForUpdate(input.value, vehicle[key]);
+        }
+      });
+
+      saveBtn.disabled = true;
+      setEditStatus('Guardando cambios…', 'info');
+
+      const { error } = await supabaseClient
+        .from(TABLES.vehicles)
+        .update(updates)
+        .eq('id', editingVehicleId);
+
+      if (error) {
+        console.error('Error updating vehicle:', error.message);
+        setEditStatus(`No se pudo guardar: ${error.message}`, 'error');
+        saveBtn.disabled = false;
+        return;
+      }
+
+      Object.assign(vehicle, updates);
+      setEditStatus('Cambios guardados correctamente.', 'success');
+      renderVehicles();
+      setTimeout(closeVehicleEditModal, 600);
+    }
+
     function attachPopupHandlers() {
       const btn = document.querySelector('.vehicle-popup button[data-view-more-popup]');
       if (btn) {
@@ -2930,6 +3114,14 @@
       document.getElementById('vehicle-modal')?.addEventListener('click', (e) => {
         if (e.target.id === 'vehicle-modal') closeVehicleModal();
       });
+      document.getElementById('vehicle-edit-close')?.addEventListener('click', closeVehicleEditModal);
+      document.getElementById('vehicle-edit-cancel')?.addEventListener('click', closeVehicleEditModal);
+      document.getElementById('vehicle-edit-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'vehicle-edit-modal') closeVehicleEditModal();
+      });
+      document.getElementById('vehicle-edit-form')?.addEventListener('submit', handleVehicleEditSubmit);
+
+      window.addEventListener('auth:role-ready', () => renderVehicles());
     });
   </script>
   <script type="module">
