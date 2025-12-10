@@ -920,7 +920,16 @@
       const stateCode = toStateCode(getField(row, 'state', 'region', 'State', 'Region', 'state_code')) || 'US';
       const city = getField(row, 'city', 'City');
       const zip = getField(row, 'zip', 'Zip', 'zipcode', 'postal_code');
-      const coords = deriveCoords({ zip, city, stateCode, seed: idx });
+      const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
+      const rawLng = parseFloat(getField(row, 'lng', 'Lng', 'long', 'Long', 'longitude', 'Longitude'));
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
+      const coords = deriveCoords({
+        zip,
+        city,
+        stateCode,
+        fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null,
+        seed: idx
+      });
       return {
         id: row?.id ?? `${type}-${idx}`,
         type,
