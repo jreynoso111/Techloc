@@ -75,6 +75,21 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-3 gap-4">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Zip Code</label>
+            <input type="text" id="edit-zip" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Latitude</label>
+            <input type="number" step="any" id="edit-lat" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Longitude</label>
+            <input type="number" step="any" id="edit-lng" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
         <div class="space-y-1">
           <label class="text-xs font-semibold uppercase text-slate-400">Availability</label>
           <select id="edit-availability" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
@@ -248,6 +263,8 @@
                   <th class="px-4 py-3 text-left font-semibold">City</th>
                   <th class="px-4 py-3 text-left font-semibold">State</th>
                   <th class="px-4 py-3 text-left font-semibold">Zip</th>
+                  <th class="px-4 py-3 text-left font-semibold">Latitude</th>
+                  <th class="px-4 py-3 text-left font-semibold">Longitude</th>
                 </tr>
               </thead>
               <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -345,21 +362,28 @@
     const normalizeRow = (row) => ({
       id: row.id,
       // Mapeamos 'name' de la DB a 'company' de la UI
-      company: getField(row, 'name', 'company_name', 'company'), 
+      company: getField(row, 'name', 'company_name', 'company'),
       region: getField(row, 'state', 'region'), // Usamos state como region
       phone: getField(row, 'phone'),
       email: getField(row, 'email'),
       city: getField(row, 'city'),
       state: getField(row, 'state'),
       zip: getField(row, 'zip', 'zip_code'),
-      
+      lat: parseFloat(getField(row, 'lat', 'latitude', 'Lat')),
+      lng: parseFloat(getField(row, 'long', 'lng', 'longitude', 'Long', 'Lng')),
+
       // Estos campos probablemente viven en METADATA ahora:
       contact: getField(row, 'contact_name', 'contact'),
-      availability: getField(row, 'availability'), 
+      availability: getField(row, 'availability'),
       notes: getField(row, 'notes')
     });
 
     const getText = (value) => String(value || '').toLowerCase();
+
+    const formatCoordinate = (value) => {
+      const num = parseFloat(value);
+      return Number.isFinite(num) ? num.toFixed(6) : '—';
+    };
 
     // --- FILTROS Y SORT ---
     const applySearch = (rows) => {
@@ -421,8 +445,9 @@
 
         // 2. Data Columns
         const columns = [
-          row.company, row.region, row.phone, row.contact, row.email, 
-          row.availability, row.notes, row.city, row.state, row.zip
+          row.company, row.region, row.phone, row.contact, row.email,
+          row.availability, row.notes, row.city, row.state, row.zip,
+          formatCoordinate(row.lat), formatCoordinate(row.lng)
         ];
 
         columns.forEach((value, index) => {
@@ -448,6 +473,9 @@
       document.getElementById('edit-email').value = row.email || '';
       document.getElementById('edit-city').value = row.city || '';
       document.getElementById('edit-state').value = row.state || '';
+      document.getElementById('edit-zip').value = row.zip || '';
+      document.getElementById('edit-lat').value = Number.isFinite(row.lat) ? row.lat : '';
+      document.getElementById('edit-lng').value = Number.isFinite(row.lng) ? row.lng : '';
       document.getElementById('edit-notes').value = row.notes || '';
       document.getElementById('edit-availability').value = row.availability || 'Unknown';
       
@@ -480,7 +508,9 @@
         email: document.getElementById('edit-email').value,
         city: document.getElementById('edit-city').value,
         state: document.getElementById('edit-state').value,
-        zip: '', // Si tuvieras input de zip
+        zip: document.getElementById('edit-zip').value,
+        lat: parseFloat(document.getElementById('edit-lat').value) || null,
+        long: parseFloat(document.getElementById('edit-lng').value) || null,
         
         // 2. Columnas EXTRAS (Van a metadata)
         metadata: {

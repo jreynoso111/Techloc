@@ -852,6 +852,14 @@
         const snakeValue = row?.[snakeKey];
         if (snakeValue !== undefined && snakeValue !== null && String(snakeValue).trim() !== '') return snakeValue;
       }
+
+      if (row?.metadata) {
+        for (const key of keys) {
+          const metaValue = row.metadata?.[key] ?? row.metadata?.[normalizeKey(key)];
+          if (metaValue !== undefined && metaValue !== null && String(metaValue).trim() !== '') return metaValue;
+        }
+      }
+
       return '';
     };
 
@@ -896,12 +904,33 @@
       return { lat: base[0], lng: base[1] };
     };
 
+    const resolveCoords = (row, { zip = '', city = '', stateCode = '', seed = 0 } = {}) => {
+      const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
+      const rawLng = parseFloat(getField(row, 'lng', 'Lng', 'long', 'Long', 'longitude', 'Longitude'));
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng);
+      if (hasExactCoords) {
+        return { coords: { lat: rawLat, lng: rawLng }, hasExactCoords: true, accuracy: 'latlong' };
+      }
+
+      const coordsFromZip = deriveCoords({ zip, stateCode, seed });
+      if (`${zip}`.trim()) {
+        return { coords: coordsFromZip, hasExactCoords: false, accuracy: 'zip' };
+      }
+
+      const coordsFromCity = deriveCoords({ city, stateCode, seed });
+      if (`${city}`.trim()) {
+        return { coords: coordsFromCity, hasExactCoords: false, accuracy: 'city' };
+      }
+
+      return { coords: deriveCoords({ stateCode, seed }), hasExactCoords: false, accuracy: 'state' };
+    };
+
     const normalizeInstaller = (row, idx = 0) => {
       const company = getField(row, 'company_name', 'Installation Company', 'Company', 'company', 'name');
       const stateCode = toStateCode(getField(row, 'State', 'state', 'state_code')) || 'US';
       const city = getField(row, 'City', 'city');
       const zip = getField(row, 'Zip', 'zip');
-      const coords = deriveCoords({ zip, city, stateCode, seed: idx });
+      const { coords, hasExactCoords } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       return {
         id: row?.id ?? idx,
         name: company || 'Installer',
@@ -913,6 +942,7 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
+        locationAccuracy: hasExactCoords ? 'exact' : 'derived',
       };
     };
 
@@ -920,16 +950,7 @@
       const stateCode = toStateCode(getField(row, 'state', 'region', 'State', 'Region', 'state_code')) || 'US';
       const city = getField(row, 'city', 'City');
       const zip = getField(row, 'zip', 'Zip', 'zipcode', 'postal_code');
-      const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
-      const rawLng = parseFloat(getField(row, 'lng', 'Lng', 'long', 'Long', 'longitude', 'Longitude'));
-      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
-      const coords = deriveCoords({
-        zip,
-        city,
-        stateCode,
-        fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null,
-        seed: idx
-      });
+      const { coords, hasExactCoords } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       return {
         id: row?.id ?? `${type}-${idx}`,
         type,
@@ -944,6 +965,7 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
+        locationAccuracy: hasExactCoords ? 'exact' : 'derived',
       };
     };
 
