@@ -904,12 +904,16 @@
       return { lat: base[0], lng: base[1] };
     };
 
-    const resolveCoords = (row, { zip = '', city = '', stateCode = '', seed = 0 } = {}) => {
+    const resolveCoords = (row, { zip = '', city = '', stateCode = '', seed = 0, fallbackLatLng = null } = {}) => {
       const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
       const rawLng = parseFloat(getField(row, 'lng', 'Lng', 'long', 'Long', 'longitude', 'Longitude'));
-      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng);
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
       if (hasExactCoords) {
-        return { coords: { lat: rawLat, lng: rawLng }, hasExactCoords: true, accuracy: 'latlong' };
+        return { coords: { lat: rawLat, lng: rawLng }, hasExactCoords: true, accuracy: 'exact' };
+      }
+
+      if (fallbackLatLng && Number.isFinite(fallbackLatLng.lat) && Number.isFinite(fallbackLatLng.lng)) {
+        return { coords: fallbackLatLng, hasExactCoords: true, accuracy: 'exact' };
       }
 
       const coordsFromZip = deriveCoords({ zip, stateCode, seed });
@@ -930,7 +934,7 @@
       const stateCode = toStateCode(getField(row, 'State', 'state', 'state_code')) || 'US';
       const city = getField(row, 'City', 'city');
       const zip = getField(row, 'Zip', 'zip');
-      const { coords, hasExactCoords } = resolveCoords(row, { zip, city, stateCode, seed: idx });
+      const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       return {
         id: row?.id ?? idx,
         name: company || 'Installer',
@@ -942,7 +946,7 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
-        locationAccuracy: hasExactCoords ? 'exact' : 'derived',
+        locationAccuracy: accuracy,
       };
     };
 
@@ -950,7 +954,7 @@
       const stateCode = toStateCode(getField(row, 'state', 'region', 'State', 'Region', 'state_code')) || 'US';
       const city = getField(row, 'city', 'City');
       const zip = getField(row, 'zip', 'Zip', 'zipcode', 'postal_code');
-      const { coords, hasExactCoords } = resolveCoords(row, { zip, city, stateCode, seed: idx });
+      const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       return {
         id: row?.id ?? `${type}-${idx}`,
         type,
@@ -965,7 +969,7 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
-        locationAccuracy: hasExactCoords ? 'exact' : 'derived',
+        locationAccuracy: accuracy,
       };
     };
 
@@ -976,7 +980,7 @@
       const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
       const zip = getField(row, 'PT ZipCode', 'Zip', 'zip');
       const city = getField(row, 'PT City', 'City', 'city');
-      const coords = deriveCoords({ zip, city, stateCode, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null, seed: idx });
+      const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
       return {
         id: row?.id ?? idx,
@@ -999,9 +1003,9 @@
         state: stateCode,
         city: city || '',
         zipcode: zip || '',
-        lat: hasExactCoords ? coords.lat : null,
-        lng: hasExactCoords ? coords.lng : null,
-        locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
+        lat: coords.lat,
+        lng: coords.lng,
+        locationAccuracy: accuracy,
         customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
         customer: getField(row, 'PT City', 'City', 'city')
           ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
@@ -1013,6 +1017,17 @@
     };
 
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
+
+    const getLocationNote = (accuracy = '') => {
+      if (accuracy === 'zip') return 'Ubicación aproximada (Basada en Zip Code)';
+      if (accuracy === 'city') return 'Ubicación aproximada (Basada en Ciudad)';
+      if (accuracy === 'state') return 'Ubicación aproximada (Centro del estado)';
+      return '';
+    };
+
+    const getAccuracyDot = (accuracy = '') => {
+      return accuracy === 'exact' ? 'bg-emerald-300' : 'bg-amber-300';
+    };
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
@@ -1394,19 +1409,16 @@
           if (!(normalized in row)) row[normalized] = value;
         });
 
-        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc')); 
+        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc'));
         const numericLat = parseFloat(getField(row, 'Lat', 'lat'));
         const numericLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
         const hasExactCoords = Number.isFinite(numericLat) && Number.isFinite(numericLng) && numericLat !== 0 && numericLng !== 0;
-        const fallbackLatLng = hasExactCoords
-          ? { lat: numericLat, lng: numericLng }
-          : null;
-        const coords = deriveCoords({
+        const { coords, accuracy } = resolveCoords(row, {
           zip: getField(row, 'PT ZipCode', 'Zip', 'zip'),
           city: getField(row, 'PT City', 'City', 'city'),
           stateCode,
-          fallbackLatLng,
-          seed: idx
+          seed: idx,
+          fallbackLatLng: hasExactCoords ? { lat: numericLat, lng: numericLng } : null
         });
 
         const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
@@ -1432,9 +1444,9 @@
           state: stateCode,
           city: getField(row, 'PT City', 'City', 'city') || '',
           zipcode: getField(row, 'PT ZipCode', 'Zip', 'zip') || '',
-          lat: hasExactCoords ? coords.lat : null,
-          lng: hasExactCoords ? coords.lng : null,
-          locationAccuracy: hasExactCoords ? 'exact' : 'unknown',
+          lat: coords.lat,
+          lng: coords.lng,
+          locationAccuracy: accuracy,
           customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
           customer: getField(row, 'PT City', 'City', 'city')
             ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
@@ -1840,14 +1852,15 @@
           let coords = null;
           if (hasValidCoords(vehicle)) {
             vehicle.locationAccuracy = vehicle.locationAccuracy || 'exact';
-            vehicle.locationNote = vehicle.locationAccuracy === 'zip' ? 'Ubicación aproximada (Basada en Zip Code)' : '';
+            vehicle.locationNote = getLocationNote(vehicle.locationAccuracy);
             coords = { lat: vehicle.lat, lng: vehicle.lng };
-          } else if (vehicle.zipcode) {
-            coords = deriveCoords({ zip: vehicle.zipcode, city: vehicle.city, stateCode: vehicle.state });
+          } else if (vehicle.zipcode || vehicle.city || vehicle.state) {
+            const derived = resolveCoords(vehicle, { zip: vehicle.zipcode, city: vehicle.city, stateCode: vehicle.state });
+            coords = derived.coords;
             vehicle.lat = coords.lat;
             vehicle.lng = coords.lng;
-            vehicle.locationAccuracy = 'zip';
-            vehicle.locationNote = 'Ubicación aproximada (Basada en Zip Code)';
+            vehicle.locationAccuracy = derived.accuracy;
+            vehicle.locationNote = getLocationNote(vehicle.locationAccuracy);
           } else {
             console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
           }
@@ -1928,7 +1941,7 @@
     }
 
     function vehicleCard(vehicle) {
-      const accuracyDot = vehicle.locationAccuracy === 'zip' ? 'bg-amber-300' : 'bg-emerald-300';
+      const accuracyDot = getAccuracyDot(vehicle.locationAccuracy);
       const modelYear = [vehicle.model || 'Vehicle', vehicle.year].filter(Boolean).join(' · ');
       return `
         <div class="w-[240px] bg-slate-950/90 text-white">
