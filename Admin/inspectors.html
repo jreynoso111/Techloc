@@ -57,7 +57,6 @@
 
   <main class="px-6 py-8 lg:px-10">
     <div class="flex flex-col gap-8 lg:flex-row">
-      
       <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
@@ -271,7 +270,7 @@
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     
-    // TABLE: 'Services' (Capitalized) | CATEGORY: 'inspector' (Singular)
+    // TABLA MAESTRA Y CATEGORÍA CORRECTA
     const TABLE_NAME = 'Services';
     const CATEGORY_FILTER = 'inspector'; 
     const LOGIN_PAGE = '../login.html';
@@ -306,7 +305,7 @@
       modalTitle: document.getElementById('edit-title')
     };
    
-    // --- AUTH ---
+    // --- AUTH & ROLES ---
     const requireSession = async () => {
       const { data, error } = await supabaseClient.auth.getSession();
       if (data?.session) {
@@ -326,11 +325,13 @@
       }
     };
    
-    // --- HELPER (READ METADATA) ---
+    // --- HELPER PARA LEER DATOS (ROBUSTO: BUSCA MINUSCULAS Y MAYUSCULAS) ---
     const getField = (row, ...keys) => {
+      // 1. Buscar en columnas normales
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
       }
+      // 2. Buscar dentro de metadata (JSON) si existe
       if (row.metadata) {
         for (const key of keys) {
            if (row.metadata[key] !== undefined) return row.metadata[key];
@@ -339,9 +340,11 @@
       return '';
     };
    
-    // --- DATA NORMALIZATION ---
     const normalizeRow = (row) => ({
-      id: row.id, 
+      // AQUÍ ESTÁ LA SOLUCIÓN DEL ERROR DE ID:
+      // Buscamos 'id' (minúscula) O 'ID' (mayúscula)
+      id: row.id || row.ID, 
+      
       inspector_id: getField(row, 'inspector_id', 'ID'),
       name: getField(row, 'name', 'full_name'),
       status: getField(row, 'status', 'Status'),
@@ -424,7 +427,7 @@
       els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
     };
    
-    // --- FETCH ---
+    // --- FETCH (SOLUCIÓN DEL ERROR DE COLUMNA) ---
     const fetchData = async () => {
       els.status.textContent = 'Loading from Supabase…';
       console.log(`Fetching ${CATEGORY_FILTER} from ${TABLE_NAME}...`);
@@ -433,10 +436,10 @@
         .from(TABLE_NAME)
         .select('*')
         .eq('category', CATEGORY_FILTER)
-        .order('id', { ascending: true });
-   
+        // Eliminado .order('id') porque causaba error si la columna se llama "ID"
+        // Dejamos que Supabase entregue por defecto o usamos sort javascript client-side si es necesario
+      
       if (error) {
-        // ERROR DISPLAY: Shows technical error on screen
         els.status.innerHTML = `<span class="text-red-400 font-bold">Error: ${error.message}</span>`;
         console.error('Supabase Error:', error);
         return;
