@@ -671,6 +671,54 @@
           <input id="vehicle-search" type="text" placeholder="Search by VIN, model, city..." class="w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all">
           <i data-lucide="search" class="h-4 w-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2"></i>
         </div>
+        <div class="mt-3 space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+          <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+            <span>Vehicle filters</span>
+            <button id="vehicle-filters-reset" class="text-amber-300 hover:text-amber-200 text-[10px] font-bold">Reset</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-[11px]">
+            <label class="space-y-1">
+              <span class="block text-slate-400 font-semibold">Inv. Prep. Stat</span>
+              <select id="filter-invprep" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white text-[11px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label class="space-y-1">
+              <span class="block text-slate-400 font-semibold">GPS Fix</span>
+              <select id="filter-gps" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white text-[11px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label class="space-y-1">
+              <span class="block text-slate-400 font-semibold">Moving</span>
+              <select id="filter-moving" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white text-[11px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
+                <option value="all">All</option>
+                <option value="moving">Moving</option>
+                <option value="stopped">Not moving</option>
+              </select>
+            </label>
+            <label class="space-y-1">
+              <span class="block text-slate-400 font-semibold">Deal status</span>
+              <select id="filter-deal-status" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white text-[11px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label class="space-y-1">
+              <span class="block text-slate-400 font-semibold">PT Status</span>
+              <select id="filter-pt" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white text-[11px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label class="space-y-1">
+              <span class="block text-slate-400 font-semibold">Deal completion %</span>
+              <div class="flex items-center gap-2 text-[10px] text-slate-300">
+                <input id="filter-deal-min" type="number" min="0" max="100" step="1" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400" placeholder="0">
+                <span class="text-slate-500">to</span>
+                <input id="filter-deal-max" type="number" min="0" max="100" step="1" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400" placeholder="100">
+              </div>
+            </label>
+          </div>
+        </div>
       </div>
       <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
         <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
@@ -746,6 +794,15 @@
       dispatcher: '',
       tire: '',
       inspector: ''
+    };
+    const vehicleFilters = {
+      invPrep: 'all',
+      gpsFix: 'all',
+      moving: 'all',
+      dealStatus: 'all',
+      ptStatus: 'all',
+      dealMin: 0,
+      dealMax: 100,
     };
     const selectedServiceByType = {};
     const locationCache = new Map();
@@ -924,57 +981,7 @@
       };
     };
 
-    let googleGeocoder = null;
-    let renderVersion = 0;
-
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
-
-    const getGoogleGeocoder = () => {
-      if (!window.google?.maps?.Geocoder) return null;
-      if (!googleGeocoder) googleGeocoder = new window.google.maps.Geocoder();
-      return googleGeocoder;
-    };
-
-    async function resolveVehicleLocation(vehicle) {
-      if (hasValidCoords(vehicle)) {
-        vehicle.locationAccuracy = vehicle.locationAccuracy || 'exact';
-        vehicle.locationNote = vehicle.locationAccuracy === 'zip' ? 'Ubicación aproximada (Basada en Zip Code)' : '';
-        return { lat: vehicle.lat, lng: vehicle.lng, accuracy: vehicle.locationAccuracy };
-      }
-
-      const zip = `${vehicle.zipcode || ''}`.trim();
-      if (!zip) {
-        console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
-        return null;
-      }
-
-      const geocoder = getGoogleGeocoder();
-      if (!geocoder) {
-        console.warn(`Geocoder unavailable for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
-        return null;
-      }
-
-      return new Promise((resolve) => {
-        geocoder.geocode({ address: zip }, (results, status) => {
-          if (status === 'OK' && results?.length) {
-            const location = results[0].geometry?.location;
-            if (location?.lat && location?.lng) {
-              const lat = location.lat();
-              const lng = location.lng();
-              vehicle.lat = lat;
-              vehicle.lng = lng;
-              vehicle.locationAccuracy = 'zip';
-              vehicle.locationNote = 'Ubicación aproximada (Basada en Zip Code)';
-              resolve({ lat, lng, accuracy: 'zip' });
-              return;
-            }
-          }
-
-          console.warn(`Geocoding failed for vehicle ${vehicle.vin || vehicle.id || 'unknown'} with status ${status}`);
-          resolve(null);
-        });
-      });
-    }
 
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
@@ -1131,6 +1138,8 @@
         if (error) throw error;
         vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx));
         vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
+        updateVehicleFilterOptions();
+        syncVehicleFilterInputs();
         renderVehicles();
       } catch (err) {
         console.warn("Vehicle load warning: " + err.message);
@@ -1689,7 +1698,6 @@
       container.innerHTML = '';
       vehicleLayer.clearLayers();
       vehicleMarkers.clear();
-      renderVersion += 1;
 
       const searchBox = document.getElementById('vehicle-search');
       const filtered = getVehicleList(searchBox?.value || '');
@@ -1699,6 +1707,8 @@
         container.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No vehicles match your search.</div>`;
         return;
       }
+
+      const fragment = document.createDocumentFragment();
 
       filtered.forEach((vehicle) => {
         const movingMeta = getMovingMeta(vehicle);
@@ -1791,11 +1801,22 @@
             });
           }
 
-          const renderStamp = renderVersion;
+          let coords = null;
+          if (hasValidCoords(vehicle)) {
+            vehicle.locationAccuracy = vehicle.locationAccuracy || 'exact';
+            vehicle.locationNote = vehicle.locationAccuracy === 'zip' ? 'Ubicación aproximada (Basada en Zip Code)' : '';
+            coords = { lat: vehicle.lat, lng: vehicle.lng };
+          } else if (vehicle.zipcode) {
+            coords = deriveCoords({ zip: vehicle.zipcode, city: vehicle.city, stateCode: vehicle.state });
+            vehicle.lat = coords.lat;
+            vehicle.lng = coords.lng;
+            vehicle.locationAccuracy = 'zip';
+            vehicle.locationNote = 'Ubicación aproximada (Basada en Zip Code)';
+          } else {
+            console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
+          }
 
-          resolveVehicleLocation(vehicle).then((coords) => {
-            if (renderStamp !== renderVersion || !coords) return;
-
+          if (coords) {
             const markerColor = getVehicleMarkerColor(vehicle);
             const borderColor = getVehicleMarkerBorderColor(markerColor);
 
@@ -1820,11 +1841,12 @@
             }
 
             vehicleMarkers.set(vehicle.id, { marker });
-          });
+          }
 
-          container.appendChild(card);
+          fragment.appendChild(card);
         });
 
+      container.appendChild(fragment);
       iconLib.createIcons();
     }
 
@@ -1908,15 +1930,55 @@
       `;
     }
 
-    function filterVehicles(list, query) {
+    function parseDealCompletion(value) {
+      if (value === null || value === undefined) return null;
+      const raw = String(value).replace(/%/g, '').trim();
+      const num = parseFloat(raw);
+      if (!Number.isFinite(num)) return null;
+      if (num <= 1) return num * 100;
+      return num;
+    }
+
+    function matchesRange(value, min, max) {
+      const pct = parseDealCompletion(value);
+      if (!Number.isFinite(pct)) return min <= 0; // allow unknowns only when the range starts at 0
+      return pct >= min && pct <= max;
+    }
+
+    function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
-      if (!q) return list;
-      return list.filter(v =>
-        v.model.toLowerCase().includes(q) ||
-        v.vin.toLowerCase().includes(q) ||
-        v.lastLocation.toLowerCase().includes(q) ||
-        v.customer.toLowerCase().includes(q)
-      );
+      if (q) {
+        const matchesSearch =
+          vehicle.model.toLowerCase().includes(q) ||
+          vehicle.vin.toLowerCase().includes(q) ||
+          vehicle.lastLocation.toLowerCase().includes(q) ||
+          vehicle.customer.toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+      }
+
+      const invPrep = (vehicle.invPrepStatus || '').toLowerCase();
+      if (vehicleFilters.invPrep !== 'all' && invPrep !== vehicleFilters.invPrep) return false;
+
+      const gpsFix = (vehicle.gpsFix || '').toLowerCase();
+      if (vehicleFilters.gpsFix !== 'all' && gpsFix !== vehicleFilters.gpsFix) return false;
+
+      const dealStatus = (vehicle.status || '').toLowerCase();
+      if (vehicleFilters.dealStatus !== 'all' && dealStatus !== vehicleFilters.dealStatus) return false;
+
+      const ptStatus = (vehicle.ptStatus || '').toLowerCase();
+      if (vehicleFilters.ptStatus !== 'all' && ptStatus !== vehicleFilters.ptStatus) return false;
+
+      if (!matchesRange(vehicle.dealCompletion, vehicleFilters.dealMin, vehicleFilters.dealMax)) return false;
+
+      const isStopped = isVehicleNotMoving(vehicle);
+      if (vehicleFilters.moving === 'moving' && isStopped) return false;
+      if (vehicleFilters.moving === 'stopped' && !isStopped) return false;
+
+      return true;
+    }
+
+    function filterVehicles(list, query) {
+      return list.filter(v => matchesVehicleFilters(v, query));
     }
 
     function getVehiclesForTech(tech) {
@@ -1931,6 +1993,113 @@
         .filter(item => item.distance <= 180)
         .sort((a, b) => a.distance - b.distance)
         .map(item => item.vehicle);
+    }
+
+    function getUniqueVehicleValues(field) {
+      return Array.from(new Set(vehicles
+        .map(v => (v?.[field] ?? '').toString().trim())
+        .filter(Boolean)
+        .map(v => v.toLowerCase())))
+        .sort();
+    }
+
+    function setSelectOptions(selectId, values) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      const previous = select.value;
+      select.innerHTML = '<option value="all">All</option>';
+      values.forEach((val) => {
+        const option = document.createElement('option');
+        option.value = val;
+        option.textContent = val;
+        select.appendChild(option);
+      });
+      if (values.includes(previous)) {
+        select.value = previous;
+      }
+    }
+
+    function updateVehicleFilterOptions() {
+      setSelectOptions('filter-invprep', getUniqueVehicleValues('invPrepStatus'));
+      setSelectOptions('filter-gps', getUniqueVehicleValues('gpsFix'));
+      setSelectOptions('filter-deal-status', getUniqueVehicleValues('status'));
+      setSelectOptions('filter-pt', getUniqueVehicleValues('ptStatus'));
+    }
+
+    function syncVehicleFilterInputs() {
+      const invPrepSelect = document.getElementById('filter-invprep');
+      const gpsSelect = document.getElementById('filter-gps');
+      const movingSelect = document.getElementById('filter-moving');
+      const dealStatusSelect = document.getElementById('filter-deal-status');
+      const ptSelect = document.getElementById('filter-pt');
+      const minInput = document.getElementById('filter-deal-min');
+      const maxInput = document.getElementById('filter-deal-max');
+
+      if (invPrepSelect) invPrepSelect.value = vehicleFilters.invPrep;
+      if (gpsSelect) gpsSelect.value = vehicleFilters.gpsFix;
+      if (movingSelect) movingSelect.value = vehicleFilters.moving;
+      if (dealStatusSelect) dealStatusSelect.value = vehicleFilters.dealStatus;
+      if (ptSelect) ptSelect.value = vehicleFilters.ptStatus;
+      if (minInput) minInput.value = vehicleFilters.dealMin;
+      if (maxInput) maxInput.value = vehicleFilters.dealMax;
+    }
+
+    function resetVehicleFilters() {
+      vehicleFilters.invPrep = 'all';
+      vehicleFilters.gpsFix = 'all';
+      vehicleFilters.moving = 'all';
+      vehicleFilters.dealStatus = 'all';
+      vehicleFilters.ptStatus = 'all';
+      vehicleFilters.dealMin = 0;
+      vehicleFilters.dealMax = 100;
+      syncVehicleFilterInputs();
+      renderVehicles();
+    }
+
+    function bindVehicleFilterHandlers() {
+      const selectHandlers = [
+        { id: 'filter-invprep', key: 'invPrep' },
+        { id: 'filter-gps', key: 'gpsFix' },
+        { id: 'filter-moving', key: 'moving' },
+        { id: 'filter-deal-status', key: 'dealStatus' },
+        { id: 'filter-pt', key: 'ptStatus' }
+      ];
+
+      selectHandlers.forEach(({ id, key }) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', () => {
+          vehicleFilters[key] = el.value || 'all';
+          renderVehicles();
+        });
+      });
+
+      const minInput = document.getElementById('filter-deal-min');
+      const maxInput = document.getElementById('filter-deal-max');
+      [minInput, maxInput].forEach((input, idx) => {
+        if (!input) return;
+        input.addEventListener('input', () => {
+          const val = parseFloat(input.value);
+          if (Number.isFinite(val)) {
+            if (idx === 0) vehicleFilters.dealMin = Math.max(0, Math.min(val, 100));
+            else vehicleFilters.dealMax = Math.max(0, Math.min(val, 100));
+          } else {
+            if (idx === 0) vehicleFilters.dealMin = 0;
+            else vehicleFilters.dealMax = 100;
+          }
+          if (vehicleFilters.dealMin > vehicleFilters.dealMax) {
+            vehicleFilters.dealMin = vehicleFilters.dealMax;
+            syncVehicleFilterInputs();
+          }
+          renderVehicles();
+        });
+      });
+
+      const resetBtn = document.getElementById('vehicle-filters-reset');
+      resetBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        resetVehicleFilters();
+      });
     }
 
     function getVehicleList(query) {
@@ -2680,6 +2849,8 @@
       loadInspectors();
       setupResizableSidebars();
       setupSidebarToggles();
+      bindVehicleFilterHandlers();
+      syncVehicleFilterInputs();
       const filterConfigs = [
         { id: 'towing-filter', type: 'towing' },
         { id: 'reseller-filter', type: 'reseller' },
