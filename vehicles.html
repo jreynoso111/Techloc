@@ -907,16 +907,22 @@
     const resolveCoords = (row, { zip = '', city = '', stateCode = '', seed = 0 } = {}) => {
       const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
       const rawLng = parseFloat(getField(row, 'lng', 'Lng', 'long', 'Long', 'longitude', 'Longitude'));
-      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
-      const coords = deriveCoords({
-        zip,
-        city,
-        stateCode,
-        fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null,
-        seed
-      });
+      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng);
+      if (hasExactCoords) {
+        return { coords: { lat: rawLat, lng: rawLng }, hasExactCoords: true, accuracy: 'latlong' };
+      }
 
-      return { coords, hasExactCoords };
+      const coordsFromZip = deriveCoords({ zip, stateCode, seed });
+      if (`${zip}`.trim()) {
+        return { coords: coordsFromZip, hasExactCoords: false, accuracy: 'zip' };
+      }
+
+      const coordsFromCity = deriveCoords({ city, stateCode, seed });
+      if (`${city}`.trim()) {
+        return { coords: coordsFromCity, hasExactCoords: false, accuracy: 'city' };
+      }
+
+      return { coords: deriveCoords({ stateCode, seed }), hasExactCoords: false, accuracy: 'state' };
     };
 
     const normalizeInstaller = (row, idx = 0) => {
