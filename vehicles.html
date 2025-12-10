@@ -764,6 +764,30 @@
     </div>
   </div>
 
+  <!-- Service edit modal (admin only) -->
+  <div id="service-edit-modal" class="fixed inset-0 z-[600] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div class="w-full max-w-3xl rounded-2xl border border-emerald-500/30 bg-slate-950 shadow-2xl shadow-emerald-900/30 overflow-hidden">
+      <div class="flex items-center justify-between border-b border-emerald-900/40 bg-emerald-500/10 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Editar servicio</p>
+          <h3 id="service-edit-title" class="text-lg font-bold text-white"></h3>
+        </div>
+        <button id="service-edit-close" class="rounded-lg border border-emerald-700/60 bg-emerald-600/15 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-500/25 transition-colors">Cerrar</button>
+      </div>
+      <form id="service-edit-form" class="max-h-[70vh] overflow-y-auto p-4 space-y-4">
+        <div id="service-edit-status" class="hidden rounded-lg border px-3 py-2 text-xs font-semibold"></div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2" id="service-edit-fields"></div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" id="service-edit-cancel" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-emerald-400 hover:text-emerald-200 transition-colors">Cancelar</button>
+          <button type="submit" id="service-edit-save" class="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/30 transition-colors">
+            <i data-lucide="save" class="h-4 w-4"></i>
+            Guardar servicio
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     // --- Base Config ---
     const STATE_CENTERS = {
@@ -793,6 +817,8 @@
     let inspectors = [];
     let vehicles = [];
     let vehicleHeaders = [];
+    const serviceHeadersByCategory = {};
+    let editingService = null;
     let editingVehicleId = null;
     let selectedVehicleId = null;
     let selectedTechId = null;
@@ -855,6 +881,13 @@
       services: SERVICE_TABLE,
       vehicles: 'vehicles'
     };
+
+    const setServiceHeaders = (category, data = []) => {
+      if (!category || !Array.isArray(data) || !data.length) return;
+      serviceHeadersByCategory[category] = Object.keys(data[0]);
+    };
+
+    const getServiceHeaders = (category) => serviceHeadersByCategory[category] || [];
 
     const isAdminUser = () => `${window.currentUserRole || ''}`.toLowerCase() === 'administrator';
 
@@ -1004,6 +1037,8 @@
         lat: coords.lat,
         lng: coords.lng,
         locationAccuracy: accuracy,
+        details: row,
+        seed: idx
       };
     };
 
@@ -1246,6 +1281,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.towing);
         if (error) throw error;
+        setServiceHeaders('towing', data);
         towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
       } catch (err) {
@@ -1261,6 +1297,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.resellers);
         if (error) throw error;
+        setServiceHeaders('reseller', data);
         resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
       } catch (err) {
@@ -1276,6 +1313,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.repair);
         if (error) throw error;
+        setServiceHeaders('repair', data);
         repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
       } catch (err) {
@@ -1291,6 +1329,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.locksmiths);
         if (error) throw error;
+        setServiceHeaders('locksmith', data);
         locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
       } catch (err) {
@@ -1306,6 +1345,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.dispatchers);
         if (error) throw error;
+        setServiceHeaders('dispatcher', data);
         dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
       } catch (err) {
@@ -1321,6 +1361,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.tire);
         if (error) throw error;
+        setServiceHeaders('tire', data);
         tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
         updateTireUI(tirePartners);
       } catch (err) {
@@ -1336,6 +1377,7 @@
           .select('*')
           .eq('category', SERVICE_CATEGORIES.inspectors);
         if (error) throw error;
+        setServiceHeaders('inspector', data);
         inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
         updateInspectorUI(inspectors);
       } catch (err) {
@@ -1717,6 +1759,14 @@
             ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300"><i data-lucide="navigation" class="h-3 w-3"></i><span class="font-semibold text-slate-100">${Math.round(partner.distance)} mi</span></div>` : ''}
             ${partner.notes ? `<div class="col-span-2 text-[10px] text-slate-400 leading-tight">${partner.notes}</div>` : ''}
           </div>
+          ${isAdminUser() ? `
+            <div class="mt-2 flex justify-end">
+              <button data-edit-service class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">
+                <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
+                Editar fila
+              </button>
+            </div>
+          ` : ''}
         `;
 
         card.addEventListener('click', () => {
@@ -1728,6 +1778,14 @@
           }
           renderPartnerUI(partners, options);
         });
+
+        const editBtn = card.querySelector('[data-edit-service]');
+        if (editBtn) {
+          editBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openServiceEditModal(partner);
+          });
+        }
 
         container.appendChild(card);
       });
@@ -2653,6 +2711,172 @@
       setTimeout(closeVehicleEditModal, 600);
     }
 
+    const getPartnerCollection = (type = '') => {
+      const collections = {
+        towing: towingCompanies,
+        reseller: resellers,
+        repair: repairShops,
+        locksmith: locksmiths,
+        dispatcher: dispatchers,
+        tire: tirePartners,
+        inspector: inspectors,
+      };
+      return collections[type] || [];
+    };
+
+    const refreshServiceUI = (type = '') => {
+      const redraw = {
+        towing: () => updateTowingUI(towingCompanies),
+        reseller: () => updateResellerUI(resellers),
+        repair: () => updateRepairUI(repairShops),
+        locksmith: () => updateLocksmithUI(locksmiths),
+        dispatcher: () => updateDispatcherUI(dispatchers),
+        tire: () => updateTireUI(tirePartners),
+        inspector: () => updateInspectorUI(inspectors),
+      };
+
+      if (typeof redraw[type] === 'function') {
+        redraw[type]();
+      }
+    };
+
+    const getServiceHeadersForPartner = (partner) => {
+      if (!partner) return [];
+      const headers = getServiceHeaders(partner.type);
+      if (headers.length) return headers;
+      return partner.details ? Object.keys(partner.details) : [];
+    };
+
+    const buildServiceEditableFields = (partner) => {
+      return getServiceHeadersForPartner(partner)
+        .filter(header => header !== 'id' && header !== 'created_at')
+        .map((header) => ({
+          key: header,
+          value: partner.details?.[header] ?? partner[header] ?? ''
+        }));
+    };
+
+    function setServiceEditStatus(message = '', tone = 'info') {
+      const status = document.getElementById('service-edit-status');
+      if (!status) return;
+
+      if (!message) {
+        status.classList.add('hidden');
+        status.textContent = '';
+        return;
+      }
+
+      const toneClasses = {
+        success: 'border-emerald-700 bg-emerald-600/15 text-emerald-100',
+        error: 'border-red-700 bg-red-600/15 text-red-100',
+        info: 'border-emerald-700 bg-emerald-600/15 text-emerald-100'
+      };
+
+      status.className = `rounded-lg border px-3 py-2 text-xs font-semibold ${toneClasses[tone] || toneClasses.info}`;
+      status.textContent = message;
+      status.classList.remove('hidden');
+    }
+
+    function openServiceEditModal(partner) {
+      if (!isAdminUser() || !supabaseClient || !partner) return;
+
+      const modal = document.getElementById('service-edit-modal');
+      const title = document.getElementById('service-edit-title');
+      const fieldsContainer = document.getElementById('service-edit-fields');
+      const saveBtn = document.getElementById('service-edit-save');
+
+      if (!modal || !title || !fieldsContainer || !saveBtn) return;
+
+      editingService = { id: partner.id, type: partner.type };
+      title.textContent = `${partner.company || 'Servicio'} ${partner.city ? '• ' + partner.city : ''}`.trim();
+
+      const editableFields = buildServiceEditableFields(partner);
+      const staticIdField = `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">ID</label>
+          <input type="text" value="${escapeHTML(partner.id)}" class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-200" disabled>
+        </div>
+      `;
+
+      fieldsContainer.innerHTML = [staticIdField, ...editableFields.map(({ key, value }) => `
+        <div class="space-y-1">
+          <label class="block text-[11px] font-semibold text-slate-300">${key}</label>
+          <input
+            name="service-field-${key}"
+            type="text"
+            value="${escapeHTML(value ?? '')}"
+            class="w-full rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+          >
+        </div>
+      `)].join('');
+
+      setServiceEditStatus('');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      saveBtn.disabled = false;
+      iconLib.createIcons();
+    }
+
+    function closeServiceEditModal() {
+      const modal = document.getElementById('service-edit-modal');
+      const form = document.getElementById('service-edit-form');
+      if (!modal || !form) return;
+      editingService = null;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      form.reset();
+      setServiceEditStatus('');
+    }
+
+    async function handleServiceEditSubmit(event) {
+      event.preventDefault();
+      if (!isAdminUser() || !supabaseClient || !editingService) return;
+
+      const { id, type } = editingService;
+      const collection = getPartnerCollection(type);
+      const partner = collection.find((p) => p.id === id);
+      if (!partner) {
+        setServiceEditStatus('No se encontró el servicio seleccionado.', 'error');
+        return;
+      }
+
+      const saveBtn = document.getElementById('service-edit-save');
+      const form = document.getElementById('service-edit-form');
+      if (!form || !saveBtn) return;
+
+      const editableFields = buildServiceEditableFields(partner);
+      const updates = {};
+
+      editableFields.forEach(({ key }) => {
+        const input = form.querySelector(`[name="service-field-${key}"]`);
+        if (input) {
+          updates[key] = coerceValueForUpdate(input.value, partner.details?.[key] ?? partner[key]);
+        }
+      });
+
+      saveBtn.disabled = true;
+      setServiceEditStatus('Guardando cambios…', 'info');
+
+      const { error } = await supabaseClient
+        .from(TABLES.services)
+        .update(updates)
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error updating service:', error.message);
+        setServiceEditStatus(`No se pudo guardar: ${error.message}`, 'error');
+        saveBtn.disabled = false;
+        return;
+      }
+
+      const updatedRow = { ...(partner.details || {}), ...updates };
+      const refreshed = normalizePartner(updatedRow, partner.type, partner.seed ?? 0);
+      Object.assign(partner, refreshed);
+      setServiceEditStatus('Cambios guardados correctamente.', 'success');
+      refreshServiceUI(partner.type);
+      setTimeout(closeServiceEditModal, 600);
+    }
+
     function attachPopupHandlers() {
       const btn = document.querySelector('.vehicle-popup button[data-view-more-popup]');
       if (btn) {
@@ -3120,6 +3344,12 @@
         if (e.target.id === 'vehicle-edit-modal') closeVehicleEditModal();
       });
       document.getElementById('vehicle-edit-form')?.addEventListener('submit', handleVehicleEditSubmit);
+      document.getElementById('service-edit-close')?.addEventListener('click', closeServiceEditModal);
+      document.getElementById('service-edit-cancel')?.addEventListener('click', closeServiceEditModal);
+      document.getElementById('service-edit-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'service-edit-modal') closeServiceEditModal();
+      });
+      document.getElementById('service-edit-form')?.addEventListener('submit', handleServiceEditSubmit);
 
       window.addEventListener('auth:role-ready', () => renderVehicles());
     });
