@@ -267,8 +267,8 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     
     // LOGICA DOBLE: Leer de Vista Pública, Escribir en Tabla Real
-    const READ_TABLE = 'view_installers_public';
-    const WRITE_TABLE = 'gps_installers';
+    const READ_TABLE = 'Services';
+    const WRITE_TABLE = 'Services';
     
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -473,9 +473,12 @@
 
     const refresh = async () => {
       els.status.textContent = 'Loading from Supabase…';
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
-      if (error) {
-        console.error('Error fetching gps_installers:', error);
+      const { data, error } = await supabaseClient
+        .from(READ_TABLE)
+        .select('*')
+        .eq('category', 'GPS Technician');
+        if (error) {
+          console.error('Error fetching services:', error);
         els.status.textContent = 'Error loading data';
         return;
       }
