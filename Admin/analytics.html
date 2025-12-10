@@ -235,9 +235,9 @@
               <span class="text-[10px] font-mono text-slate-500">REAL-TIME</span>
             </div>
 
-            <div class="flex-1 relative flex flex-col">
+            <div class="flex-1 relative flex flex-col min-h-[520px]">
                 <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-900/90 to-transparent pointer-events-none z-10"></div>
-                <ul id="activity-feed" class="flex-1 min-h-[420px] overflow-y-auto custom-scrollbar pr-2 pb-4 divide-y divide-white/5">
+                <ul id="activity-feed" class="flex-1 h-full overflow-y-auto custom-scrollbar pr-2 pb-4 divide-y divide-white/5">
                     <li class="text-center py-10 text-slate-600 text-xs italic">Waiting for events...</li>
                 </ul>
             </div>
@@ -305,6 +305,8 @@
       ['vehicles', '../assets/data/vehicles.csv']
     ];
     let actorProfile = { role: 'guest', email: 'anonymous', id: 'n/a' };
+    let changeChannel = null;
+    const liveEvents = [];
 
     // --- ELEMENTS ---
     const els = {
@@ -335,17 +337,20 @@
 
     // --- LOGIC: NORMALIZACION DE CATEGORIAS (AQUI ESTA EL ARREGLO DE DISPATCHERS) ---
     const formatCategory = (str) => {
-        if (!str) return 'Unknown';
-        const clean = str.trim().toLowerCase();
+        if (!str) return 'Uncategorized';
+        const clean = String(str).trim().toLowerCase();
         
         // Reglas especificas para atrapar nombres variados
-        if (clean.includes('dispatch') || clean.includes('coordination')) return 'Dispatcher';
+        if (clean.includes('dispatch')) return 'Dispatcher';
+        if (clean.includes('coordination')) return 'Dispatcher';
         if (clean.includes('gps') || clean.includes('technician') || clean.includes('installer')) return 'Technician';
         if (clean.includes('tow')) return 'Towing';
         if (clean.includes('lock')) return 'Locksmith';
         if (clean.includes('inspector')) return 'Inspector';
         if (clean.includes('repair') || clean.includes('shop')) return 'Repair Shop';
-        
+        if (clean.includes('reseller') || clean.includes('dealer') || clean.includes('auction')) return 'Dealer/Auction';
+        if (clean.includes('vehicle') || clean.includes('fleet') || clean.includes('car')) return 'Vehicle';
+
         // Default: Capitalizar
         return clean.charAt(0).toUpperCase() + clean.slice(1);
     };
@@ -363,15 +368,41 @@
         return colors[cat] || 'bg-slate-500';
     };
 
-    const normalizeRow = (row) => ({
-      id: row.id,
-      name: getField(row, 'name', 'company_name', 'company'),
-      category: formatCategory(getField(row, 'category', 'type', 'service_type', 'role', 'title', 'function', 'position')),
-      state: getField(row, 'state', 'region'),
-      city: getField(row, 'city'),
-      rating: Number(getField(row, 'google_rating')) || 0,
-      created_at: row.created_at || new Date().toISOString()
-    });
+    const resolveLocation = (row) => {
+        const lat = Number(getField(row, 'lat', 'latitude'));
+        const lng = Number(getField(row, 'long', 'lng', 'longitude'));
+        const validCoords = !Number.isNaN(lat) && !Number.isNaN(lng) && lat !== 0 && lng !== 0;
+
+        if (validCoords) {
+            return { lat, lng, label: `${lat}, ${lng}`, source: 'coords' };
+        }
+
+        const zip = getField(row, 'zip', 'zipcode', 'postal', 'postal_code');
+        const city = getField(row, 'city');
+        const state = getField(row, 'state', 'region');
+        const label = zip || city || state ? `${city ? city + ', ' : ''}${state || ''}${zip ? ' ' + zip : ''}` : 'Sin ubicación';
+
+        return { lat: null, lng: null, label, source: zip ? 'zip' : (city ? 'city' : 'none') };
+    };
+
+    const normalizeRow = (row) => {
+      const categoryRaw = getField(row, 'category', 'business_type', 'type', 'service_type', 'role', 'title', 'function', 'position', 'segment', 'line_of_business');
+      const category = formatCategory(categoryRaw || row.category || row.type || row.service_type || row.business_type || '');
+      const location = resolveLocation(row);
+
+      return {
+        id: row.id,
+        name: getField(row, 'name', 'company_name', 'company', 'business_name'),
+        category,
+        state: getField(row, 'state', 'region'),
+        city: getField(row, 'city'),
+        rating: Number(getField(row, 'google_rating')) || 0,
+        created_at: row.created_at || new Date().toISOString(),
+        isVehicle: category === 'Vehicle',
+        location,
+        source: row.source || 'database'
+      };
+    };
 
     const timeAgo = (dateStr) => {
         const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
@@ -422,6 +453,7 @@
                 const parsed = parseCsv(csvText).map(row => ({
                     ...row,
                     category: row.category || key,
+                    business_type: row.business_type || row.type || key,
                     source: 'web-file'
                 }));
                 return parsed;
@@ -456,7 +488,7 @@
             const target = e.target.closest('a, button');
             if (!target) return;
             const elementId = target.id || target.innerText.substring(0, 15).trim() || target.tagName;
-            
+
             // UI Feedback visual inmediato
             const originalColor = target.style.borderColor;
             target.style.borderColor = '#10b981'; // green flash
@@ -466,33 +498,48 @@
             const { error } = await supabaseClient
                 .from(TABLE_ANALYTICS)
                 .insert([{ event_type: 'click', element_id: elementId, details: { page: 'Analytics', profile: actorProfile } }]);
-            
-            if(!error) refreshActivityFeed(); 
+
+            if(error) console.warn('Click analytics failed', error.message);
         });
     };
 
+    const fetchClickAnalytics = async () => {
+        try {
+            const { count, error } = await supabaseClient
+                .from(TABLE_ANALYTICS)
+                .select('*', { count: 'exact', head: true });
+
+            if (error) throw error;
+            return count || 0;
+        } catch (err) {
+            console.warn('No se pudo obtener clicks', err.message);
+            return 0;
+        }
+    };
+
     // --- ANALYTICS VISUALIZATION ---
-    const calculateAnalytics = (data, activityCount) => {
+    const calculateAnalytics = (data, clickCount) => {
       const rows = data.map(normalizeRow);
-      
+
       // 1. KPIs
       els.kpiTotal.textContent = rows.length;
-      els.kpiClicks.textContent = activityCount || 0; 
+      els.kpiClicks.textContent = clickCount || 0;
 
-      // 2. Category Breakdown (PROFESSIONAL LAYOUT)
+      // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluyendo vehículos como servicio
+      const serviceRows = rows.filter(r => !r.isVehicle);
       const catCounts = {};
-      rows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
-      const dispatcherCount = rows.filter(r => r.category === 'Dispatcher').length;
+      serviceRows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
+      const dispatcherCount = serviceRows.filter(r => r.category === 'Dispatcher').length;
       if (catCounts['Dispatcher'] === undefined) catCounts['Dispatcher'] = dispatcherCount;
       els.kpiCategories.textContent = Object.keys(catCounts).length;
 
       els.categoryBars.innerHTML = '';
       const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
-      
+
       sortedCats.forEach(([cat, count]) => {
-        const percentage = ((count / rows.length) * 100).toFixed(1);
+        const percentage = serviceRows.length ? ((count / serviceRows.length) * 100).toFixed(1) : 0;
         const colorClass = getCategoryColor(cat);
-        
+
         // Layout Profesional: Flexbox + Background Track
         const barHtml = `
           <div class="group space-y-2">
@@ -507,7 +554,7 @@
         `;
         els.categoryBars.insertAdjacentHTML('beforeend', barHtml);
       });
-      
+
       // Animate bars on load
       setTimeout(() => {
         document.querySelectorAll('[data-width]').forEach(el => {
@@ -517,7 +564,7 @@
 
       // 4. Avg Rating
       const ratedRows = rows.filter(r => r.rating > 0);
-      const avg = ratedRows.length 
+      const avg = ratedRows.length
         ? (ratedRows.reduce((sum, r) => sum + r.rating, 0) / ratedRows.length).toFixed(1)
         : '—';
       els.kpiRating.textContent = avg;
@@ -558,7 +605,7 @@
         let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
         if(r.category === 'Dispatcher') badgeColor = 'bg-violet-500/10 text-violet-300 border-violet-500/20';
         if(r.category === 'Technician') badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
-        
+
         const rowHtml = `
           <tr class="hover:bg-white/5 transition-colors group">
             <td class="px-4 py-3 font-medium text-slate-300 text-xs truncate max-w-[140px] group-hover:text-white">${r.name}</td>
@@ -575,55 +622,72 @@
     };
 
     // --- ACTIVITY FEED ---
-    const refreshActivityFeed = async () => {
-        let count = 0;
-        try {
-            const { data, count: totalCount, error } = await supabaseClient
-                .from(TABLE_ANALYTICS)
-                .select('*', { count: 'exact' })
-                .order('created_at', { ascending: false })
-                .limit(20);
-            
-            if (error) throw error;
-            count = totalCount;
+    const summarizeChanges = (oldRow = {}, newRow = {}) => {
+        const changed = [];
+        const keys = new Set([...Object.keys(oldRow || {}), ...Object.keys(newRow || {})]);
+        const skip = ['created_at', 'updated_at', 'id', 'metadata'];
 
-            if (data && data.length > 0) {
-                els.activityFeed.innerHTML = '';
-                data.forEach(log => {
-                    const isClick = log.event_type === 'click';
-                    const icon = isClick ? 'mouse-pointer-2' : 'activity';
-                    const color = isClick ? 'text-amber-400' : 'text-blue-400';
-                    const bg = isClick ? 'bg-amber-400/10' : 'bg-blue-400/10';
-                    const detailText = formatDetails(log.details || {});
-                    const actor = log?.details?.profile || {};
-                    const actorLabel = actor.email || actor.name || 'Invitado';
-                    const roleLabel = actor.role ? ` (${actor.role})` : '';
-                    const timestamp = new Date(log.created_at).toLocaleString();
+        keys.forEach(key => {
+            if (skip.includes(key)) return;
+            const before = oldRow ? oldRow[key] : undefined;
+            const after = newRow ? newRow[key] : undefined;
+            if (before === after) return;
+            if (typeof before === 'object' || typeof after === 'object') return;
+            changed.push(`${key}: ${before ?? '—'} → ${after ?? '—'}`);
+        });
 
-                    const html = `
-                        <li class="group grid grid-cols-[auto_1fr_auto] items-center gap-3 py-2 px-1 hover:bg-white/5 transition-colors rounded-lg">
-                            <div class="rounded-lg ${bg} p-1.5 ${color}">
-                                <i data-lucide="${icon}" class="h-3 w-3"></i>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-300 leading-tight">
-                                <span class="font-bold text-white uppercase text-[10px] tracking-wide">${log.event_type}</span>
-                                <span class="text-slate-500">on</span>
-                                <span class="text-emerald-400 font-medium truncate">${log.element_id}</span>
-                                <span class="text-slate-600">•</span>
-                                <span class="text-slate-200 truncate">${actorLabel}${roleLabel}</span>
-                                ${detailText ? `<span class="text-slate-500">• ${detailText}</span>` : ''}
-                            </div>
-                            <div class="text-[10px] text-slate-600 font-mono text-right group-hover:text-slate-400 transition-colors">${timeAgo(log.created_at)} • ${timestamp}</div>
-                        </li>
-                    `;
-                    els.activityFeed.insertAdjacentHTML('beforeend', html);
-                });
-                lucide.createIcons();
-            }
-        } catch (err) {
-            console.warn("Analytics table check:", err.message);
-        }
-        return count;
+        return changed.slice(0, 3);
+    };
+
+    const appendLiveEvent = (payload) => {
+        const eventTypeRaw = payload.eventType || payload.event_type || 'change';
+        const eventType = typeof eventTypeRaw === 'string' ? eventTypeRaw.toUpperCase() : 'CHANGE';
+        const table = payload.table || payload.table_schema || payload.table_name || 'unknown';
+        const actor = payload.new?.updated_by || payload.new?.updated_by_email || payload.new?.user_email || payload.new?.user || payload.new?.audit_user || payload.new?.metadata?.actor || payload.old?.metadata?.actor || 'Desconocido';
+        const actorRole = payload.new?.updated_by_role || payload.new?.metadata?.role || '';
+        const timestamp = payload.commit_timestamp || payload.created_at || new Date().toISOString();
+        const changeList = summarizeChanges(payload.old, payload.new);
+        const changeText = changeList.length ? changeList.join(' • ') : 'Sin cambios detectables';
+        const icon = eventType === 'DELETE' ? 'trash' : (eventType === 'INSERT' ? 'plus' : 'edit');
+        const color = eventType === 'DELETE'
+            ? { text: 'text-rose-400', bg: 'bg-rose-400/10' }
+            : (eventType === 'INSERT'
+                ? { text: 'text-emerald-400', bg: 'bg-emerald-400/10' }
+                : { text: 'text-blue-400', bg: 'bg-blue-400/10' });
+
+        const html = `
+            <li class="grid grid-cols-[auto,1fr,auto] items-center gap-3 py-2 px-2 text-[11px] leading-tight">
+                <div class="rounded-lg ${color.bg} p-1.5 ${color.text}">
+                    <i data-lucide="${icon}" class="h-3 w-3"></i>
+                </div>
+                <div class="flex flex-wrap items-center gap-1 text-slate-300 truncate">
+                    <span class="font-bold text-white uppercase text-[10px] tracking-wide">${eventType}</span>
+                    <span class="text-slate-500">${table}</span>
+                    <span class="text-slate-600">•</span>
+                    <span class="text-emerald-300 truncate">${actor}${actorRole ? ' (' + actorRole + ')' : ''}</span>
+                    <span class="text-slate-600">•</span>
+                    <span class="text-slate-400 truncate">${changeText}</span>
+                </div>
+                <div class="text-[10px] text-slate-600 font-mono text-right">${timeAgo(timestamp)}</div>
+            </li>
+        `;
+
+        liveEvents.unshift(html);
+        if (liveEvents.length > 50) liveEvents.pop();
+
+        els.activityFeed.innerHTML = liveEvents.join('');
+        lucide.createIcons();
+    };
+
+    const startRealtimeFeed = () => {
+        if (changeChannel) supabaseClient.removeChannel(changeChannel);
+        changeChannel = supabaseClient.channel('all-table-changes')
+            .on('postgres_changes', { event: '*', schema: 'public' }, payload => appendLiveEvent(payload))
+            .subscribe(status => {
+                if (status === 'SUBSCRIBED' && liveEvents.length === 0) {
+                    els.activityFeed.innerHTML = '<li class="text-center py-6 text-slate-600 text-xs italic">Escuchando cambios de tablas...</li>';
+                }
+            });
     };
 
     // --- INIT ---
@@ -633,19 +697,19 @@
       trackUserActivity();
 
       els.status.textContent = 'Syncing...';
-      const [{ data, error }, webRows] = await Promise.all([
+      const [{ data, error }, webRows, clickCount] = await Promise.all([
         supabaseClient.from(TABLE_SERVICES).select('*'),
-        loadLocalDatasets()
+        loadLocalDatasets(),
+        fetchClickAnalytics()
       ]);
 
       const baseRows = error ? [] : (data || []);
       const combinedRows = [...baseRows, ...webRows];
-      const activityCount = await refreshActivityFeed();
-      calculateAnalytics(combinedRows || [], activityCount);
+      calculateAnalytics(combinedRows || [], clickCount);
       els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${combinedRows.length} RECORDS</span>`;
       lucide.createIcons();
 
-      setInterval(refreshActivityFeed, 10000); // Live feed update
+      startRealtimeFeed();
     };
 
     els.refreshBtn.addEventListener('click', () => {
