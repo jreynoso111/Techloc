@@ -57,6 +57,7 @@
 
   <main class="px-6 py-8 lg:px-10">
     <div class="flex flex-col gap-8 lg:flex-row">
+      
       <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
@@ -138,6 +139,7 @@
               Refresh data
             </button>
           </div>
+
           <div class="overflow-x-auto rounded-xl border border-slate-800">
             <table class="min-w-full divide-y divide-slate-800 text-sm whitespace-nowrap">
               <thead class="bg-slate-950/60 text-slate-300">
@@ -158,6 +160,7 @@
               <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
             </table>
           </div>
+
           <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
             <div class="flex items-center gap-2">
@@ -172,11 +175,6 @@
               </button>
             </div>
           </div>
-        </section>
-
-        <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 text-sm text-slate-300 shadow-inner shadow-slate-900/60 lg:mx-auto lg:max-w-5xl">
-          <p class="font-semibold text-white">Read-only directory</p>
-          <p class="mt-2 leading-relaxed text-slate-400">Inspector records now load directly from Supabase. Uploading, editing, or deleting entries from this dashboard has been disabled for standard users to keep data aligned with the shared source.</p>
         </section>
       </section>
     </div>
@@ -273,7 +271,7 @@
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     
-    // TABLA MAESTRA Y CATEGORÍA CORRECTA (inspector = singular/lowercase)
+    // TABLE: 'Services' (Capitalized) | CATEGORY: 'inspector' (Singular)
     const TABLE_NAME = 'Services';
     const CATEGORY_FILTER = 'inspector'; 
     const LOGIN_PAGE = '../login.html';
@@ -300,7 +298,6 @@
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
       refresh: document.getElementById('refresh-button'),
-      // Modal
       modal: document.getElementById('edit-modal'),
       modalForm: document.getElementById('edit-form'),
       modalClose: document.getElementById('edit-close'),
@@ -309,7 +306,7 @@
       modalTitle: document.getElementById('edit-title')
     };
    
-    // --- AUTH & ROLES ---
+    // --- AUTH ---
     const requireSession = async () => {
       const { data, error } = await supabaseClient.auth.getSession();
       if (data?.session) {
@@ -324,17 +321,16 @@
           state.currentUserRole = profile?.role || 'user';
         }
       } else {
+        console.warn('No session found, defaulting to anon.');
         state.currentUserRole = 'anon';
       }
     };
    
-    // --- HELPER PARA LEER DATOS (INCLUYENDO METADATA) ---
+    // --- HELPER (READ METADATA) ---
     const getField = (row, ...keys) => {
-      // 1. Buscar en columnas normales
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
       }
-      // 2. Buscar dentro de metadata (JSON) si existe
       if (row.metadata) {
         for (const key of keys) {
            if (row.metadata[key] !== undefined) return row.metadata[key];
@@ -343,13 +339,13 @@
       return '';
     };
    
+    // --- DATA NORMALIZATION ---
     const normalizeRow = (row) => ({
       id: row.id, 
-      // Mapeamos ID y Status desde Metadata usando getField
       inspector_id: getField(row, 'inspector_id', 'ID'),
       name: getField(row, 'name', 'full_name'),
       status: getField(row, 'status', 'Status'),
-      region: getField(row, 'region', 'state'), // Region suele ser State
+      region: getField(row, 'region', 'state'), 
       phone: getField(row, 'phone'),
       email: getField(row, 'email'),
       city: getField(row, 'city'),
@@ -358,7 +354,7 @@
       notes: getField(row, 'notes')
     });
    
-    // --- RENDER ---
+    // --- RENDER TABLE ---
     const renderTable = () => {
       const totalPages = Math.max(1, Math.ceil(state.rows.length / state.pagination.pageSize));
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
@@ -380,10 +376,8 @@
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-900/30 transition-colors duration-150';
    
-        // 1. ACTIONS
         const actionsTd = document.createElement('td');
         actionsTd.className = 'px-4 py-3 align-top whitespace-nowrap text-sm';
-        
         if (canEdit) {
             const editBtn = document.createElement('button');
             editBtn.innerHTML = `<i data-lucide="pencil" class="h-4 w-4"></i>`;
@@ -396,7 +390,6 @@
         }
         tr.appendChild(actionsTd);
    
-        // 2. DATA COLUMNS
         const columns = [
           row.inspector_id, row.name, row.status, row.region, row.phone,
           row.email, row.city, row.state, row.zip, row.notes
@@ -405,13 +398,11 @@
         columns.forEach((value, index) => {
           const td = document.createElement('td');
           td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm border-b border-slate-800/50';
-          
-          if (index === 2) { // Status styling
+          if (index === 2) { 
              const statusColor = (value || '').toLowerCase() === 'active' ? 'text-emerald-400' : 'text-slate-400';
              td.classList.add(statusColor, 'font-medium');
           }
-          
-          if (index === 9) { // Notes formatting
+          if (index === 9) {
             td.classList.add('max-w-xs', 'leading-snug', 'text-slate-400', 'italic');
             td.style.display = '-webkit-box';
             td.style.WebkitLineClamp = '2';
@@ -421,10 +412,8 @@
           td.textContent = value || '—';
           tr.appendChild(td);
         });
-   
         els.tableBody.appendChild(tr);
       });
-      
       if(window.lucide) window.lucide.createIcons();
     };
    
@@ -435,8 +424,10 @@
       els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
     };
    
+    // --- FETCH ---
     const fetchData = async () => {
       els.status.textContent = 'Loading from Supabase…';
+      console.log(`Fetching ${CATEGORY_FILTER} from ${TABLE_NAME}...`);
       
       const { data, error } = await supabaseClient
         .from(TABLE_NAME)
@@ -445,8 +436,9 @@
         .order('id', { ascending: true });
    
       if (error) {
-        els.status.textContent = 'Error loading data';
-        console.error('Error:', error);
+        // ERROR DISPLAY: Shows technical error on screen
+        els.status.innerHTML = `<span class="text-red-400 font-bold">Error: ${error.message}</span>`;
+        console.error('Supabase Error:', error);
         return;
       }
       state.rows = (data || []).map(normalizeRow);
@@ -458,7 +450,6 @@
     const openEditModal = (row) => {
       state.editingId = row.id;
       els.modalTitle.textContent = `Edit: ${row.name}`;
-      
       const form = els.modalForm;
       form.elements['ID'].value = row.inspector_id || '';
       form.elements['Name'].value = row.name || '';
@@ -470,12 +461,8 @@
       form.elements['State'].value = row.state || '';
       form.elements['Zip'].value = row.zip || '';
       form.elements['Notes'].value = row.notes || '';
-   
-      if (state.currentUserRole === 'administrator') {
-        els.modalDelete.classList.remove('hidden');
-      } else {
-        els.modalDelete.classList.add('hidden');
-      }
+      if (state.currentUserRole === 'administrator') els.modalDelete.classList.remove('hidden');
+      else els.modalDelete.classList.add('hidden');
       els.modal.classList.remove('hidden');
     };
    
@@ -485,25 +472,20 @@
       els.modalForm.reset();
     };
    
-    // UPDATE - Lógica de Metadata
+    // UPDATE
     els.modalForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(els.modalForm);
-
-      // Recuperamos metadata actual
       const { data: currentData } = await supabaseClient.from(TABLE_NAME).select('metadata').eq('id', state.editingId).single();
       const existingMeta = currentData?.metadata || {};
-
+      
       const updates = {
-        // Campos principales
         name: formData.get('Name'),
         phone: formData.get('Phone'),
         email: formData.get('Email'),
         city: formData.get('City'),
         state: formData.get('State'),
         zip: formData.get('Zip'),
-        
-        // Campos extra van a Metadata
         metadata: {
             ...existingMeta,
             inspector_id: formData.get('ID'),
@@ -512,16 +494,13 @@
             notes: formData.get('Notes')
         }
       };
-   
       try {
         const { error } = await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId);
         if (error) throw error;
         closeEditModal();
         await fetchData();
         alert('Inspector updated successfully');
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
+      } catch (err) { alert('Error: ' + err.message); }
     });
    
     // DELETE
@@ -533,9 +512,7 @@
         closeEditModal();
         await fetchData();
         alert('Inspector deleted');
-      } catch (err) {
-        alert('Error: ' + err.message);
-      }
+      } catch (err) { alert('Error: ' + err.message); }
     });
    
     els.modalClose.addEventListener('click', closeEditModal);
@@ -544,16 +521,10 @@
     els.nextPage.addEventListener('click', () => { const max = Math.ceil(state.rows.length/state.pagination.pageSize); if(state.pagination.page < max){ state.pagination.page += 1; renderTable(); }});
     els.refresh.addEventListener('click', fetchData);
    
-    // --- INIT ---
     const initialize = async () => {
       createConstellationBackground();
-      try {
-        await requireSession();
-        await fetchData();
-      } catch (error) {
-        console.error('Init error:', error);
-        els.status.textContent = 'Authentication required';
-      }
+      await requireSession();
+      await fetchData();
     };
     initialize();
   </script>
