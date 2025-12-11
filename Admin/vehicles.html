@@ -484,6 +484,8 @@
 
 
 
+    const ADMIN_ROLE = 'administrator';
+
     const DATASET = { key: 'vehicles', path: getDatasetPath('vehicles') };
 
     const supabaseClient = window.supabaseClient;
@@ -493,6 +495,61 @@
     if (templateDownload) templateDownload.href = DATASET.path;
 
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
+
+    const normalizeHeader = (header = '') => {
+      const aliases = {
+        'deal status': 'deal_status',
+        'deal_status': 'deal_status',
+        'dealstatus': 'deal_status',
+        'customer id': 'customer_id',
+        'customerid': 'customer_id',
+        'unit type': 'unit_type',
+        'unittype': 'unit_type',
+        'model year': 'model_year',
+        'modelyear': 'model_year',
+        'model': 'model',
+        'shortvin': 'short_vin',
+        'short vin': 'short_vin',
+        'short_vin': 'short_vin',
+        'inv. prep. stat.': 'inv_prep_stat',
+        'inv prep stat': 'inv_prep_stat',
+        'inv_prep_stat': 'inv_prep_stat',
+        'deal completion': 'deal_completion',
+        'gps fix': 'gps_fix',
+        'gps fix reason': 'gps_fix_reason',
+        'pt status': 'pt_status',
+        'pt_status': 'pt_status',
+        'pt serial ': 'pt_serial',
+        'pt serial': 'pt_serial',
+        'pt_serial': 'pt_serial',
+        'encore serial': 'encore_serial',
+        'moving': 'moving',
+        'pt last read': 'pt_last_read',
+        'pt_last_read': 'pt_last_read',
+        'state loc': 'state_loc',
+        'state_loc': 'state_loc',
+        'pt city': 'pt_city',
+        'pt_city': 'pt_city',
+        'pt zipcode': 'pt_zipcode',
+        'pt zip code': 'pt_zipcode',
+        'pt_zipcode': 'pt_zipcode',
+        'lat': 'lat',
+        'latitude': 'lat',
+        'long': 'long',
+        'lng': 'long',
+        'longitude': 'long',
+      };
+
+      const trimmed = header.trim();
+      const lowerTrimmed = trimmed.toLowerCase();
+      if (aliases[lowerTrimmed]) return aliases[lowerTrimmed];
+
+      return trimmed
+        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+        .replace(/[^A-Za-z0-9]+/g, '_')
+        .replace(/_+/g, '_')
+        .toLowerCase();
+    };
 
     const parseCsvLine = (line = '') => {
 
@@ -652,6 +709,16 @@
 
     };
 
+    const normalizeRows = (rows = []) => rows.map((row) => Object.entries(row).reduce((acc, [key, value]) => {
+
+      const normalizedKey = normalizeHeader(key);
+
+      acc[normalizedKey] = (value || '').trim();
+
+      return acc;
+
+    }, {}));
+
 
 
     const loadDataset = async () => {
@@ -792,9 +859,9 @@
 
       const total = typeof state.remoteTotal === 'number' ? state.remoteTotal : rows.length;
 
-      const gpsIssues = rows.filter((row) => String(row['GPS Fix'] || '').toLowerCase() !== 'all').length;
+      const gpsIssues = rows.filter((row) => String(getValue(row, 'GPS Fix', 'gps fix') || '').toLowerCase() !== 'all').length;
 
-      const states = new Set(rows.map((r) => (r['State Loc'] || '').trim()).filter(Boolean)).size;
+      const states = new Set(rows.map((r) => (getValue(r, 'State Loc', 'state loc') || '').trim()).filter(Boolean)).size;
 
       document.getElementById('vehicle-total').textContent = total.toLocaleString();
 
@@ -834,29 +901,27 @@
 
 
 
-    const mapServiceRow = (row = {}) => {
+    const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
-      const companyName = (row.company_name || row['Company Name'] || row.Company || '').trim();
 
-      const city = (row.city || row.City || row['PT City'] || '').trim();
 
-      const email = (row.email || row.Email || '').trim();
+    const mapVehicleRows = (rows = []) => {
 
-      return {
+      const normalizedRows = normalizeRows(rows);
 
-        company_name: companyName,
+      const deduped = new Map();
 
-        city,
+      normalizedRows.forEach((row) => {
 
-        email,
+        const key = row.short_vin || row.shortvin;
 
-        state: (row.state || row.State || row['State Loc'] || '').trim() || null,
+        if (!key) return;
 
-        phone: (row.phone || row.Phone || '').trim() || null,
+        deduped.set(key, row);
 
-        service_type: (row.category || row.Category || '').trim() || null,
+      });
 
-      };
+      return Array.from(deduped.values());
 
     };
 
@@ -866,23 +931,37 @@
 
       if (!supabaseClient) throw new Error('Supabase client is not available.');
 
+      if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
+
       const text = await file.text();
 
       const { rows } = parseCsvText(text);
 
-      const mapped = rows
+      const mapped = mapVehicleRows(rows);
 
-        .map(mapServiceRow)
+      if (!mapped.length) throw new Error('No valid vehicle rows with ShortVIN found.');
 
-        .filter((row) => row.company_name && row.city && row.email);
+      const conflictKey = 'short_vin';
 
-      if (!mapped.length) throw new Error('No valid rows with company_name, city, and email found.');
+      const conflictValues = mapped.map((row) => row[conflictKey]).filter(Boolean);
+
+      if (!conflictValues.length) throw new Error('No ShortVIN column found in the CSV file.');
+
+      const { error: deleteError } = await supabaseClient
+
+        .from('vehicles')
+
+        .delete()
+
+        .in(conflictKey, conflictValues);
+
+      if (deleteError) throw deleteError;
 
       const { error } = await supabaseClient
 
-        .from('Services')
+        .from('vehicles')
 
-        .upsert(mapped, { onConflict: 'company_name,city,email' });
+        .insert(mapped);
 
       if (error) throw error;
 
@@ -892,13 +971,50 @@
 
 
 
+    const getValue = (row = {}, ...keys) => {
+      if (!row) return '';
+
+      const lowerLookup = Object.keys(row).reduce((acc, key) => {
+
+        acc[key.toLowerCase()] = key;
+
+        return acc;
+
+      }, {});
+
+      for (const key of keys) {
+
+        const direct = row[key];
+
+        if (direct !== undefined) return direct;
+
+        const matchKey = lowerLookup[key.toLowerCase()];
+
+        if (matchKey !== undefined) return row[matchKey];
+
+      }
+
+      return '';
+
+    };
+
     const applySearch = (rows, term) => {
 
       if (!term) return rows;
 
       const query = term.toLowerCase();
 
-      return rows.filter((row) => [row.Model, row.ShortVIN, row['PT City'], row['State Loc']]
+      return rows.filter((row) => [
+
+        getValue(row, 'Model', 'model'),
+
+        getValue(row, 'ShortVIN', 'Short VIN', 'shortvin', 'short vin'),
+
+        getValue(row, 'PT City', 'pt city'),
+
+        getValue(row, 'State Loc', 'state loc'),
+
+      ]
 
         .some((value) => String(value || '').toLowerCase().includes(query)));
 
@@ -968,6 +1084,40 @@
 
       uploadStatus: document.getElementById('csv-upload-status'),
 
+      uploadButton: document.getElementById('csv-upload-button'),
+
+    };
+
+
+
+    const setUploadAvailability = (allowed) => {
+
+      const controls = [els.uploadInput, els.uploadButton];
+
+      controls.forEach((control) => {
+
+        if (!control) return;
+
+        control.disabled = !allowed;
+
+        control.classList.toggle('cursor-not-allowed', !allowed);
+
+        control.classList.toggle('opacity-60', !allowed);
+
+      });
+
+      if (els.uploadStatus) {
+
+        els.uploadStatus.textContent = allowed
+
+          ? 'Supabase import with dedupe'
+
+          : 'Admin role required to upload';
+
+        els.uploadStatus.classList.toggle('text-amber-300', !allowed);
+
+      }
+
     };
 
 
@@ -975,6 +1125,16 @@
     const wireUploadForm = () => {
 
       if (!els.uploadForm || !els.uploadInput) return;
+
+      setUploadAvailability(isAdminUser());
+
+      window.addEventListener('auth:role-ready', (event) => {
+
+        const role = (event.detail?.role || '').toLowerCase();
+
+        setUploadAvailability(role === ADMIN_ROLE);
+
+      });
 
       els.uploadInput.addEventListener('change', () => {
 
@@ -994,6 +1154,16 @@
 
         event.preventDefault();
 
+        if (!isAdminUser()) {
+
+          alert('You must be an administrator to upload vehicle data.');
+
+          setUploadAvailability(false);
+
+          return;
+
+        }
+
         const file = els.uploadInput.files?.[0];
 
         if (!file) {
@@ -1008,7 +1178,7 @@
 
           els.uploadStatus.textContent = 'Uploading...';
 
-          els.uploadStatus.classList.remove('text-emerald-300', 'text-red-300');
+          els.uploadStatus.classList.remove('text-emerald-300', 'text-red-300', 'text-amber-300');
 
         }
 
@@ -1018,7 +1188,7 @@
 
           if (els.uploadStatus) {
 
-            els.uploadStatus.textContent = 'Upload complete (upserted).';
+            els.uploadStatus.textContent = 'Upload complete (vehicles replaced).';
 
             els.uploadStatus.classList.add('text-emerald-300');
 
@@ -1056,7 +1226,7 @@
 
       if (state.filters.status !== 'all') {
 
-        result = result.filter((row) => getText(row['Deal Status'] || row.Status) === state.filters.status);
+        result = result.filter((row) => getText(getValue(row, 'Deal Status', 'Status')) === state.filters.status);
 
       }
 
@@ -1064,7 +1234,7 @@
 
       if (state.filters.gps !== 'all') {
 
-        result = result.filter((row) => getText(row['GPS Fix']) === state.filters.gps);
+        result = result.filter((row) => getText(getValue(row, 'GPS Fix', 'gps fix')) === state.filters.gps);
 
       }
 
@@ -1072,7 +1242,7 @@
 
       if (state.filters.state !== 'all') {
 
-        result = result.filter((row) => getText(row['State Loc']) === state.filters.state);
+        result = result.filter((row) => getText(getValue(row, 'State Loc', 'state loc')) === state.filters.state);
 
       }
 
@@ -1080,15 +1250,15 @@
 
       const sorters = {
 
-        status: (a, b) => getText(a['Deal Status'] || a.Status).localeCompare(getText(b['Deal Status'] || b.Status)),
+        status: (a, b) => getText(getValue(a, 'Deal Status', 'Status')).localeCompare(getText(getValue(b, 'Deal Status', 'Status'))),
 
-        model: (a, b) => `${a['Model Year'] || ''} ${a.Model || a['Unit Type'] || ''}`
+        model: (a, b) => `${getValue(a, 'Model Year', 'model year') || ''} ${getValue(a, 'Model', 'Unit Type', 'model', 'unit type') || ''}`
 
-          .localeCompare(`${b['Model Year'] || ''} ${b.Model || b['Unit Type'] || ''}`),
+          .localeCompare(`${getValue(b, 'Model Year', 'model year') || ''} ${getValue(b, 'Model', 'Unit Type', 'model', 'unit type') || ''}`),
 
-        location: (a, b) => `${a['State Loc'] || ''} ${a['PT City'] || ''}`
+        location: (a, b) => `${getValue(a, 'State Loc', 'state loc') || ''} ${getValue(a, 'PT City', 'pt city') || ''}`
 
-          .localeCompare(`${b['State Loc'] || ''} ${b['PT City'] || ''}`),
+          .localeCompare(`${getValue(b, 'State Loc', 'state loc') || ''} ${getValue(b, 'PT City', 'pt city') || ''}`),
 
       };
 
@@ -1186,11 +1356,11 @@
 
 
 
-      populateSelect('status-filter', rows.map((row) => row['Deal Status'] || row.Status), 'All statuses');
+      populateSelect('status-filter', rows.map((row) => getValue(row, 'Deal Status', 'Status', 'deal status', 'status')), 'All statuses');
 
-      populateSelect('gps-filter', rows.map((row) => row['GPS Fix']), 'GPS: Any');
+      populateSelect('gps-filter', rows.map((row) => getValue(row, 'GPS Fix', 'gps fix')), 'GPS: Any');
 
-      populateSelect('state-filter', rows.map((row) => row['State Loc']), 'All states');
+      populateSelect('state-filter', rows.map((row) => getValue(row, 'State Loc', 'state loc')), 'All states');
 
 
 
