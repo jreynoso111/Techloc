@@ -119,11 +119,11 @@
             <p id="stat-total" class="text-3xl font-black text-white">-</p>
           </div>
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-            <p class="text-sm font-semibold text-slate-300">States covered</p>
+            <p class="text-sm font-semibold text-slate-300">Unique categories</p>
             <p id="stat-states" class="text-3xl font-black text-amber-300">-</p>
           </div>
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-            <p class="text-sm font-semibold text-slate-300">Avg. Google rating</p>
+            <p class="text-sm font-semibold text-slate-300">24/7 availability</p>
             <p id="stat-rating" class="text-3xl font-black text-emerald-300">-</p>
           </div>
         </section>
@@ -137,20 +137,21 @@
             </div>
             <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               <div class="flex flex-wrap gap-2">
-                <select id="state-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-                  <option value="all">All states</option>
-                </select>
                 <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
                   <span class="text-slate-400">Sort:</span>
                   <button data-sort="company" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Company</button>
-                  <button data-sort="state" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">State</button>
-                  <button data-sort="rating" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Rating</button>
+                  <button data-sort="category" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Category</button>
+                  <button data-sort="availability" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Availability</button>
                 </div>
               </div>
               <div class="flex flex-wrap gap-2">
                 <input id="search" type="search" placeholder="Search..." class="w-48 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
                 <button id="refresh-button" class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 hover:bg-slate-800">
                   <i data-lucide="refresh-cw" class="h-4 w-4"></i> Refresh
+                </button>
+                <button id="add-record" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow shadow-blue-500/40 transition hover:-translate-y-0.5">
+                  <i data-lucide="plus" class="h-4 w-4"></i>
+                  Add tire service
                 </button>
               </div>
             </div>
@@ -161,14 +162,16 @@
                 <tr>
                   <th class="px-4 py-3 text-left font-semibold">Actions</th>
                   <th class="px-4 py-3 text-left font-semibold">Company</th>
-                  <th class="px-4 py-3 text-left font-semibold">State</th>
-                  <th class="px-4 py-3 text-left font-semibold">City</th>
+                  <th class="px-4 py-3 text-left font-semibold">Authorization</th>
+                  <th class="px-4 py-3 text-left font-semibold">Category</th>
                   <th class="px-4 py-3 text-left font-semibold">Phone</th>
-                  <th class="px-4 py-3 text-left font-semibold">Latitude</th>
-                  <th class="px-4 py-3 text-left font-semibold">Longitude</th>
-                  <th class="px-4 py-3 text-left font-semibold">Web / Email</th>
-                  <th class="px-4 py-3 text-left font-semibold">Ratings</th>
+                  <th class="px-4 py-3 text-left font-semibold">Contact</th>
+                  <th class="px-4 py-3 text-left font-semibold">Email</th>
                   <th class="px-4 py-3 text-left font-semibold">Notes</th>
+                  <th class="px-4 py-3 text-left font-semibold">Website</th>
+                  <th class="px-4 py-3 text-left font-semibold">Availability</th>
+                  <th class="px-4 py-3 text-left font-semibold">Lat</th>
+                  <th class="px-4 py-3 text-left font-semibold">Long</th>
                 </tr>
               </thead>
               <tbody id="tires-table" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -209,63 +212,58 @@
       <form id="edit-form" class="space-y-3">
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Company Name</label>
-            <input name="Company" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Company name</label>
+            <input name="company_name" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Authorization</label>
+            <input name="authorization" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Category</label>
+            <input name="category" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Availability</label>
+            <input name="availability" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Phone</label>
-            <input name="Phone" type="tel" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-          </div>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">City</label>
-            <input name="City" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <input name="phone" type="tel" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">State</label>
-            <input name="State" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</label>
+            <input name="contact" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Website</label>
-              <input name="Website" type="url" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
-              <input name="Email" type="email" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Google Rating</label>
-              <input name="GoogleRating" type="number" step="0.1" max="5" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Yelp Rating</label>
-              <input name="YelpRating" type="number" step="0.1" max="5" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-        </div>
-        <div class="mb-3">
-           <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Zip Code</label>
-           <input name="Zip" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-           <div>
-             <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Latitude</label>
-             <input name="Lat" type="number" step="any" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-           </div>
-           <div>
-             <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Longitude</label>
-             <input name="Lng" type="number" step="any" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-           </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
+            <input name="email" type="email" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Website</label>
+            <input name="website" type="url" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
         </div>
         <div>
-           <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
-           <input name="Notes" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
+          <textarea name="notes" rows="2" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"></textarea>
         </div>
-
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Latitude</label>
+            <input name="lat" type="number" step="any" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Longitude</label>
+            <input name="long" type="number" step="any" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2">
           <button type="button" id="edit-delete" class="inline-flex items-center gap-2 rounded-full border border-red-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-200 transition hover:bg-red-600/10 hover:text-white">
             <i data-lucide="trash-2" class="h-4 w-4"></i>
@@ -288,27 +286,23 @@
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
 
-    // --- CONFIGURATION ---
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
-    
-    // TABLA Y CATEGORÍA CORRECTAS
+
     const TABLE_NAME = 'Services';
-    const CATEGORY_FILTER = 'Tires Services'; // Exacto como en tu lista
+    const CATEGORY_FILTER = 'Tires Services';
     const LOGIN_PAGE = '../login.html';
-    
+
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // --- STATE ---
     const state = {
       rows: [],
       pagination: { page: 1, pageSize: 20 },
-      filters: { search: '', state: 'all', sortKey: 'state', sortDir: 'asc' },
+      filters: { search: '', sortKey: 'company', sortDir: 'asc' },
       currentUserRole: 'user',
-      editingId: null
+      editingId: null,
     };
 
-    // --- DOM ELEMENTS ---
     const els = {
       status: document.getElementById('status-text'),
       datasetStatus: document.getElementById('dataset-status'),
@@ -317,45 +311,39 @@
       statStates: document.getElementById('stat-states'),
       statRating: document.getElementById('stat-rating'),
       refresh: document.getElementById('refresh-button'),
-      stateFilter: document.getElementById('state-filter'),
       search: document.getElementById('search'),
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
+      addRecord: document.getElementById('add-record'),
       modal: document.getElementById('edit-modal'),
       modalForm: document.getElementById('edit-form'),
       modalClose: document.getElementById('edit-close'),
       modalCancel: document.getElementById('edit-cancel'),
       modalDelete: document.getElementById('edit-delete'),
-      modalTitle: document.getElementById('edit-title')
+      modalTitle: document.getElementById('edit-title'),
     };
 
-    // --- AUTH & ROLES ---
     const requireSession = async () => {
-      const { data, error } = await supabaseClient.auth.getSession();
-      if (error || !data?.session) {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data?.session) {
+        if (window.currentUserRole) {
+          state.currentUserRole = window.currentUserRole;
+        } else {
+          const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('role')
+            .eq('id', data.session.user.id)
+            .single();
+          state.currentUserRole = profile?.role || 'user';
+        }
+      } else {
         window.location.href = LOGIN_PAGE;
         throw new Error('No active Supabase session');
       }
-      
-      if (window.currentUserRole) {
-        state.currentUserRole = window.currentUserRole;
-      } else {
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('role')
-          .eq('id', data.session.user.id)
-          .single();
-        state.currentUserRole = profile?.role || 'user';
-      }
-      return data.session;
     };
 
-    // --- HELPERS ---
-    const formatRating = (value) => (value ? Number(value).toFixed(1) : '—');
-    const getText = (value) => String(value || '').toLowerCase();
-    
     const getField = (row, ...keys) => {
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
@@ -363,206 +351,166 @@
       return '';
     };
 
-    // --- DATA NORMALIZATION ---
     const normalizeRow = (row) => ({
-      // Solución Error ID: Buscar 'id' o 'ID'
-      id: row.id || row.ID, 
-      
-      company: getField(row, 'company_name', 'name', 'Company', 'company'),
-      state: getField(row, 'state', 'province', 'region'),
-      city: getField(row, 'city', 'town'),
-      phone: getField(row, 'phone', 'phone_number'),
-      website: getField(row, 'website', 'web', 'url'),
-      email: getField(row, 'email', 'mail'),
-      zip: getField(row, 'zip', 'zip_code', 'Zip'),
+      id: row.id || row.ID,
+      company: getField(row, 'company_name', 'company', 'name', 'Company'),
+      authorization: getField(row, 'authorization', 'Authorization'),
+      category: getField(row, 'category', 'Category', 'service_type'),
+      phone: getField(row, 'phone', 'Phone'),
+      contact: getField(row, 'contact', 'Contact'),
+      email: getField(row, 'email', 'Email'),
+      notes: getField(row, 'notes', 'Notes', 'note'),
+      website: getField(row, 'website', 'Website', 'url'),
+      availability: getField(row, 'availability', 'Availability'),
       lat: parseFloat(getField(row, 'lat', 'latitude', 'Lat')),
-      lng: parseFloat(getField(row, 'lng', 'longitude', 'Long', 'long')),
-      google_rating: getField(row, 'google_rating', 'Google'),
-      yelp_rating: getField(row, 'yelp_rating', 'Yelp'),
-      notes: getField(row, 'notes', 'note', 'comments'),
+      long: parseFloat(getField(row, 'long', 'lng', 'longitude', 'Lng', 'Long')),
     });
 
-    // ... (FILTERING AND SORTING) ...
-    function populateStateFilter(rows) {
-      const options = Array.from(new Set(rows.map((row) => getText(row.state)).filter(Boolean))).sort();
-      els.stateFilter.innerHTML = '<option value="all">All states</option>';
-      options.forEach((value) => {
-        const option = document.createElement('option');
-        option.value = value;
-        option.textContent = value.toUpperCase();
-        els.stateFilter.appendChild(option);
-      });
-    }
+    const getText = (value) => String(value || '').toLowerCase();
 
-    function applySearch(rows, term) {
-      if (!term) return rows;
-      const query = term.toLowerCase();
-      return rows.filter((row) => [row.company, row.state, row.city].some((value) => getText(value).includes(query)));
-    }
+    const applySearch = (rows) => {
+      if (!state.filters.search) return rows;
+      const term = state.filters.search.toLowerCase();
+      return rows.filter((row) =>
+        [row.company, row.category, row.contact, row.availability].some((value) => getText(value).includes(term))
+      );
+    };
 
-    function applyFiltersAndSort() {
-      const filters = state.filters;
-      let result = applySearch(state.rows, filters.search);
-      if (filters.state !== 'all') {
-        result = result.filter((row) => getText(row.state) === filters.state);
-      }
+    const applySort = (rows) => {
       const sorters = {
         company: (a, b) => getText(a.company).localeCompare(getText(b.company)),
-        state: (a, b) => getText(a.state).localeCompare(getText(b.state)),
-        rating: (a, b) => Number(a.google_rating || 0) - Number(b.google_rating || 0),
+        category: (a, b) => getText(a.category).localeCompare(getText(b.category)),
+        availability: (a, b) => getText(a.availability).localeCompare(getText(b.availability)),
       };
-      if (filters.sortKey && sorters[filters.sortKey]) {
-        result = result.sort((a, b) => {
-          const comparison = sorters[filters.sortKey](a, b);
-          return filters.sortDir === 'asc' ? comparison : -comparison;
-        });
-      }
-      return result;
-    }
+      const sorter = sorters[state.filters.sortKey];
+      if (!sorter) return rows;
+      const sorted = [...rows].sort((a, b) => sorter(a, b));
+      return state.filters.sortDir === 'asc' ? sorted : sorted.reverse();
+    };
 
-    function updateSortButtons() {
-      document.querySelectorAll('[data-sort]').forEach((button) => {
-        const isActive = button.dataset.sort === state.filters.sortKey;
-        button.classList.toggle('bg-blue-600/30', isActive);
-        button.classList.toggle('text-white', isActive);
-        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (state.filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
-      });
-    }
+    const getVisibleRows = () => applySort(applySearch(state.rows));
 
-    // --- RENDER TABLE ---
-    function renderTable() {
-      const filteredRows = applyFiltersAndSort();
-      const totalPages = Math.max(1, Math.ceil(filteredRows.length / state.pagination.pageSize));
+    const formatCoordinate = (value) => (Number.isFinite(value) ? value.toFixed(6) : '—');
+
+    const renderTable = () => {
+      const rows = getVisibleRows();
+      const totalPages = Math.max(1, Math.ceil(rows.length / state.pagination.pageSize));
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
-      const end = Math.min(filteredRows.length, start + state.pagination.pageSize);
+      const end = Math.min(rows.length, start + state.pagination.pageSize);
 
-      els.paginationSummary.textContent = filteredRows.length
-        ? `Showing ${start + 1}-${end} of ${filteredRows.length}`
-        : 'No entries';
+      els.paginationSummary.textContent = rows.length
+        ? `Showing ${rows.length ? start + 1 : 0}-${end} of ${rows.length}`
+        : 'No entries to display';
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
-      els.prevPage.disabled = state.pagination.page === 1 || filteredRows.length === 0;
-      els.nextPage.disabled = state.pagination.page >= totalPages || filteredRows.length === 0;
+      els.prevPage.disabled = state.pagination.page === 1 || rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
 
       els.tableBody.innerHTML = '';
-      
+
       const canEdit = ['moderator', 'administrator', 'authenticated'].includes(state.currentUserRole);
 
-      filteredRows.slice(start, end).forEach((row) => {
-        const webLink = row.website
-          ? `<a href="${row.website}" target="_blank" class="text-blue-300 underline">Web</a>`
-          : '<span class="text-slate-500">No web</span>';
-        const emailLink = row.email
-          ? `<a href="mailto:${row.email}" class="text-blue-200 underline">Email</a>`
-          : '';
-
+      rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-900/30 transition-colors duration-150';
-        
+
         const actionsTd = document.createElement('td');
         actionsTd.className = 'px-4 py-3 align-top whitespace-nowrap text-sm';
         if (canEdit) {
-            const editBtn = document.createElement('button');
-            editBtn.innerHTML = `<i data-lucide="pencil" class="h-4 w-4"></i>`;
-            editBtn.className = "mr-2 inline-flex items-center justify-center rounded-lg p-2 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition";
-            editBtn.onclick = () => openEditModal(row);
-            actionsTd.appendChild(editBtn);
+          const editBtn = document.createElement('button');
+          editBtn.innerHTML = `<i data-lucide="pencil" class="h-4 w-4"></i>`;
+          editBtn.className = "mr-2 inline-flex items-center justify-center rounded-lg p-2 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300 transition";
+          editBtn.onclick = () => openEditModal(row);
+          actionsTd.appendChild(editBtn);
         } else {
-            actionsTd.textContent = '—';
-            actionsTd.className += ' text-slate-500';
+          actionsTd.textContent = '—';
+          actionsTd.className += ' text-slate-500';
         }
         tr.appendChild(actionsTd);
 
-        tr.innerHTML += `
-          <td class="px-4 py-3 font-semibold text-white">${row.company || '—'}</td>
-          <td class="px-4 py-3 text-slate-200">${row.state || '—'}</td>
-          <td class="px-4 py-3 text-slate-200">${row.city || '—'}</td>
-          <td class="px-4 py-3 text-blue-200"><a href="tel:${row.phone || ''}">${row.phone || '—'}</a></td>
-          <td class="px-4 py-3 text-slate-200">${Number.isFinite(row.lat) ? row.lat : '—'}</td>
-          <td class="px-4 py-3 text-slate-200">${Number.isFinite(row.lng) ? row.lng : '—'}</td>
-          <td class="px-4 py-3 text-slate-200 space-y-1">${webLink}${emailLink ? '<br>' + emailLink : ''}</td>
-          <td class="px-4 py-3 text-slate-200">Google: <span class="font-semibold text-emerald-300">${formatRating(row.google_rating)}</span><br>Yelp: <span class="font-semibold text-amber-300">${formatRating(row.yelp_rating)}</span></td>
-          <td class="px-4 py-3 text-slate-300 italic max-w-xs truncate">${row.notes ? row.notes : ''}</td>
-        `;
+        const columns = [
+          row.company,
+          row.authorization,
+          row.category,
+          row.phone,
+          row.contact,
+          row.email,
+          row.notes,
+          row.website,
+          row.availability,
+          formatCoordinate(row.lat),
+          formatCoordinate(row.long),
+        ];
+
+        columns.forEach((value, index) => {
+          const td = document.createElement('td');
+          td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm border-b border-slate-800/50';
+          if (index === 6) {
+            td.classList.add('max-w-xs', 'leading-snug', 'text-slate-400', 'italic');
+            td.style.display = '-webkit-box';
+            td.style.WebkitLineClamp = '2';
+            td.style.WebkitBoxOrient = 'vertical';
+            td.style.overflow = 'hidden';
+          }
+          td.textContent = value || '—';
+          tr.appendChild(td);
+        });
         els.tableBody.appendChild(tr);
       });
-      if(window.lucide) window.lucide.createIcons();
-    }
+      if (window.lucide) window.lucide.createIcons();
+    };
 
-    function updateStats(rows) {
-      els.statTotal.textContent = rows.length;
-      const states = new Set(rows.map((r) => r.state).filter(Boolean));
-      els.statStates.textContent = states.size || '—';
-      const googleRatings = rows.map((r) => Number(r.google_rating)).filter((n) => Number.isFinite(n));
-      const average = googleRatings.length
-        ? (googleRatings.reduce((sum, n) => sum + n, 0) / googleRatings.length).toFixed(1)
-        : '—';
-      els.statRating.textContent = average;
-    }
+    const renderSummary = () => {
+      els.statTotal.textContent = state.rows.length;
+      els.statStates.textContent = new Set(state.rows.map((row) => row.category || '').filter(Boolean)).size;
+      els.statRating.textContent = state.rows.filter((row) => (row.availability || '').toLowerCase().includes('24')).length;
+      els.datasetStatus.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
+    };
 
-    // --- LOAD DATA ---
-    async function loadData() {
-      els.datasetStatus.textContent = 'Connecting…';
-      els.status.textContent = 'Fetching rows from Supabase…';
+    const fetchData = async () => {
+      els.datasetStatus.textContent = 'Fetching tire services…';
+      els.status.textContent = 'Loading rows…';
 
-      // Consulta sin ordenamiento de servidor para evitar errores de columna
       const { data, error } = await supabaseClient
         .from(TABLE_NAME)
         .select('*')
         .eq('category', CATEGORY_FILTER);
 
       if (error) {
-        console.error('Supabase error:', error);
-        els.datasetStatus.textContent = 'Connection failed';
-        els.status.innerHTML = `<span class="text-red-400">❌ Error: ${error.message}</span>`;
-        els.tableBody.innerHTML = '';
+        els.datasetStatus.innerHTML = `<span class="text-red-400 font-bold">Error: ${error.message}</span>`;
+        console.error('Supabase Error:', error);
         return;
       }
-
-      const normalizedRows = (data || []).map(normalizeRow);
-      
-      if (normalizedRows.length === 0) {
-        els.datasetStatus.textContent = 'Connected (0 rows)';
-        els.status.textContent = '⚠️ Connected, but no tires services found.';
-        els.tableBody.innerHTML = '';
-        updateStats([]);
-        return;
-      }
-
-      state.rows = normalizedRows;
-      els.datasetStatus.textContent = `Connected • ${normalizedRows.length} rows`;
-      els.status.textContent = '✅ Live data loaded.';
-      populateStateFilter(state.rows);
+      state.rows = (data || []).map(normalizeRow);
       renderTable();
-      updateStats(state.rows);
-      updateSortButtons();
-    }
+      renderSummary();
+      els.status.textContent = 'Data loaded';
+    };
 
-    // --- MODAL & EVENTS ---
     const openEditModal = (row) => {
-      state.editingId = row.id;
-      els.modalTitle.textContent = `Edit: ${row.company}`;
+      state.editingId = row?.id ?? null;
+      els.modalTitle.textContent = row?.company ? `Edit: ${row.company}` : 'Add tire service';
       const form = els.modalForm;
-      form.elements['Company'].value = row.company || '';
-      form.elements['State'].value = row.state || '';
-      form.elements['City'].value = row.city || '';
-      form.elements['Phone'].value = row.phone || '';
-      form.elements['Website'].value = row.website || '';
-      form.elements['Email'].value = row.email || '';
-      form.elements['GoogleRating'].value = row.google_rating || '';
-      form.elements['YelpRating'].value = row.yelp_rating || '';
-      form.elements['Notes'].value = row.notes || '';
-      form.elements['Zip'].value = row.zip || '';
-      form.elements['Lat'].value = Number.isFinite(row.lat) ? row.lat : '';
-      form.elements['Lng'].value = Number.isFinite(row.lng) ? row.lng : '';
-
-      if (state.currentUserRole === 'administrator') {
-        els.modalDelete.classList.remove('hidden');
-      } else {
-        els.modalDelete.classList.add('hidden');
-      }
+      form.elements['company_name'].value = row?.company || '';
+      form.elements['authorization'].value = row?.authorization || '';
+      form.elements['category'].value = row?.category || CATEGORY_FILTER;
+      form.elements['availability'].value = row?.availability || '';
+      form.elements['phone'].value = row?.phone || '';
+      form.elements['contact'].value = row?.contact || '';
+      form.elements['email'].value = row?.email || '';
+      form.elements['website'].value = row?.website || '';
+      form.elements['lat'].value = Number.isFinite(row?.lat) ? row.lat : '';
+      form.elements['long'].value = Number.isFinite(row?.long) ? row.long : '';
+      form.elements['notes'].value = row?.notes || '';
+      if (state.currentUserRole === 'administrator') els.modalDelete.classList.remove('hidden');
+      else els.modalDelete.classList.add('hidden');
       els.modal.classList.remove('hidden');
     };
+
+    els.addRecord.addEventListener('click', () => {
+      openEditModal(null);
+      els.modalDelete.classList.add('hidden');
+    });
 
     const closeEditModal = () => {
       state.editingId = null;
@@ -570,46 +518,45 @@
       els.modalForm.reset();
     };
 
-    // UPDATE
     els.modalForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(els.modalForm);
 
       const updates = {
-        company_name: formData.get('Company'),
-        state: formData.get('State'),
-        city: formData.get('City'),
-        phone: formData.get('Phone'),
-        website: formData.get('Website'),
-        email: formData.get('Email'),
-        zip: formData.get('Zip'),
-        lat: parseFloat(formData.get('Lat')) || null,
-        lng: parseFloat(formData.get('Lng')) || null,
-        google_rating: formData.get('GoogleRating') || null,
-        yelp_rating: formData.get('YelpRating') || null,
-        notes: formData.get('Notes'),
-        category: CATEGORY_FILTER,
+        company_name: formData.get('company_name'),
+        authorization: formData.get('authorization'),
+        category: formData.get('category') || CATEGORY_FILTER,
+        phone: formData.get('phone'),
+        contact: formData.get('contact'),
+        email: formData.get('email'),
+        notes: formData.get('notes'),
+        website: formData.get('website'),
+        availability: formData.get('availability'),
+        lat: parseFloat(formData.get('lat')) || null,
+        long: parseFloat(formData.get('long')) || null,
       };
 
       try {
-        const { error } = await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId);
+        const { error } = state.editingId
+          ? await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId)
+          : await supabaseClient.from(TABLE_NAME).insert([{ ...updates, category: CATEGORY_FILTER }]);
         if (error) throw error;
         closeEditModal();
-        await loadData();
-        alert('Updated successfully');
+        await fetchData();
+        alert(state.editingId ? 'Tire service updated successfully' : 'Tire service created successfully');
       } catch (err) {
         alert('Error: ' + err.message);
       }
     });
 
     els.modalDelete.addEventListener('click', async () => {
-      if (!confirm('Are you sure?')) return;
+      if (!confirm('Are you sure you want to delete this tire service?')) return;
       try {
         const { error } = await supabaseClient.from(TABLE_NAME).delete().eq('id', state.editingId);
         if (error) throw error;
         closeEditModal();
-        await loadData();
-        alert('Deleted successfully');
+        await fetchData();
+        alert('Tire service deleted');
       } catch (err) {
         alert('Error: ' + err.message);
       }
@@ -617,53 +564,41 @@
 
     els.modalClose.addEventListener('click', closeEditModal);
     els.modalCancel.addEventListener('click', closeEditModal);
-    els.refresh.addEventListener('click', loadData);
-    
-    document.querySelectorAll('[data-sort]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const key = button.dataset.sort;
-        if (state.filters.sortKey === key) {
-          state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          state.filters.sortKey = key;
-          state.filters.sortDir = 'asc';
-        }
-        updateSortButtons();
-        renderTable();
-      });
-    });
-
-    els.stateFilter.addEventListener('change', (event) => {
-      state.filters.state = event.target.value;
-      state.pagination.page = 1;
-      renderTable();
-    });
+    els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); }});
+    els.nextPage.addEventListener('click', () => { const max = Math.ceil(getVisibleRows().length/state.pagination.pageSize); if(state.pagination.page < max){ state.pagination.page += 1; renderTable(); }});
+    els.refresh.addEventListener('click', fetchData);
 
     els.search.addEventListener('input', (event) => {
-      state.filters.search = event.target.value;
+      state.filters.search = event.target.value.trim();
       state.pagination.page = 1;
       renderTable();
     });
-    
-    els.prevPage.addEventListener('click', () => { 
-        if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); }
-    });
-    els.nextPage.addEventListener('click', () => { 
-        state.pagination.page += 1; renderTable(); 
+
+    const handleSort = (key) => {
+      if (state.filters.sortKey === key) {
+        state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.filters.sortKey = key;
+        state.filters.sortDir = 'asc';
+      }
+      renderTable();
+    };
+
+    document.querySelectorAll('[data-sort]').forEach((button) => {
+      button.addEventListener('click', () => handleSort(button.dataset.sort));
     });
 
-    const initDirectory = async () => {
+    const initialize = async () => {
       createConstellationBackground();
       try {
         await requireSession();
-        await loadData();
+        await fetchData();
       } catch (error) {
         console.error('Init error:', error);
         els.status.textContent = 'Authentication required';
       }
     };
-
-    initDirectory();
+    initialize();
   </script>
 </body>
 </html>
