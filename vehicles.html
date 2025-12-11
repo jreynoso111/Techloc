@@ -937,6 +937,25 @@
       return '';
     };
 
+    const formatPhoneNumber = (value) => {
+      const raw = String(value ?? '').replace(/\s+/g, ' ').trim();
+      if (!raw) return { display: '', tel: '' };
+
+      const digits = raw.replace(/\D+/g, '');
+
+      if (digits.length === 11 && digits.startsWith('1')) {
+        const ten = digits.slice(1);
+        return { display: `${ten.slice(0, 3)}-${ten.slice(3, 6)}-${ten.slice(6)}`, tel: digits };
+      }
+
+      if (digits.length === 10) {
+        return { display: `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`, tel: digits };
+      }
+
+      const compact = raw.replace(/\s+/g, '');
+      return { display: digits || compact, tel: digits || compact };
+    };
+
     const deriveCoords = ({ zip = '', city = '', stateCode = '', fallbackLatLng = null, seed = 0 }) => {
       if (fallbackLatLng && Number.isFinite(fallbackLatLng.lat) && Number.isFinite(fallbackLatLng.lng)) {
         return { lat: fallbackLatLng.lat, lng: fallbackLatLng.lng };
@@ -1009,13 +1028,15 @@
       const city = getField(row, 'City', 'city');
       const zip = getField(row, 'Zip', 'zip');
       const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
+      const { display: phone, tel: phoneDial } = formatPhoneNumber(getField(row, 'Phone', 'phone'));
       return {
         id: row?.id ?? idx,
         type: 'technicians',
         name: company || 'Installer',
         company: company || 'Installer',
         email: getField(row, 'Email', 'email') || '-',
-        phone: getField(row, 'Phone', 'phone') || '-',
+        phone: phone || '-',
+        phoneDial,
         city: city || '',
         state: stateCode,
         zip: zip || '',
@@ -1032,12 +1053,14 @@
       const city = getField(row, 'city', 'City');
       const zip = getField(row, 'zip', 'Zip', 'zipcode', 'postal_code');
       const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
+      const { display: phone, tel: phoneDial } = formatPhoneNumber(getField(row, 'phone', 'Phone'));
       return {
         id: row?.id ?? `${type}-${idx}`,
         type,
         company: getField(row, 'company_name', 'company', 'Company', 'name') || 'Partner',
         region: getField(row, 'region', 'Region', 'state') || stateCode,
-        phone: getField(row, 'phone', 'Phone'),
+        phone,
+        phoneDial,
         contact: getField(row, 'contact', 'Contact', 'contact_name'),
         availability: getField(row, 'availability', 'tier', 'Availability'),
         notes: getField(row, 'notes', 'Notes'),
@@ -1458,13 +1481,15 @@
           stateCode,
           seed: idx
         });
+        const { display: phone, tel: phoneDial } = formatPhoneNumber(row['phone']);
 
         return {
           id: idx,
           name: companyName,
           company: companyName,
           email: row['email'] || '-',
-          phone: row['phone'] || '-',
+          phone: phone || '-',
+          phoneDial,
           city: row['city'] || '',
           state: stateCode,
           zip: row['zip'] || '',
@@ -1565,12 +1590,15 @@
           seed: idx
         });
 
+        const { display: phone, tel: phoneDial } = formatPhoneNumber(row['phone']);
+
         return {
           id: `${type}-${idx}`,
           type,
           company: row['company'] || row['name'] || 'Partner',
           region: row['region'] || stateCode,
-          phone: row['phone'] || '',
+          phone,
+          phoneDial,
           contact: row['contact'] || '',
           availability: row['availability'] || row['tier'] || '',
           notes: row['notes'] || '',
@@ -1614,7 +1642,7 @@
             <div class="text-slate-900 p-1 font-sans">
               <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
               <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
-              <a href="tel:${tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
+              <a href="tel:${tech.phoneDial || tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
               <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
             </div>
           `);
@@ -1756,7 +1784,7 @@
           <div class="text-slate-900 p-1 font-sans">
             <strong class="block text-sm font-bold mb-1">${partner.company}</strong>
             <div class="text-xs text-slate-500 mb-2">${locationText || 'US'}</div>
-            <a href="tel:${partner.phone}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${partner.phone || 'Contact'}</a>
+            <a href="tel:${partner.phoneDial || partner.phone}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${partner.phone || 'Contact'}</a>
             <div class="text-[10px] text-slate-500">${partner.availability || ''}</div>
           </div>
         `);
@@ -1777,7 +1805,7 @@
             </div>
             <div class="text-right text-[11px] text-slate-400 leading-tight">
               <p class="font-semibold text-slate-200">${partner.contact || 'Dispatch'}</p>
-              <a class="block font-bold text-blue-200" href="tel:${partner.phone}">${partner.phone || ''}</a>
+              <a class="block font-bold text-blue-200" href="tel:${partner.phoneDial || partner.phone}">${partner.phone || ''}</a>
               <p class="text-[10px] text-slate-500">${partner.availability || ''}</p>
             </div>
           </div>
