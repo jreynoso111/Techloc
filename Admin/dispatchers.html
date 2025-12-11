@@ -351,20 +351,15 @@
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
       }
-      if (row.metadata) {
-        for (const key of keys) {
-           if (row.metadata[key] !== undefined) return row.metadata[key];
-        }
-      }
       return '';
     };
    
     const normalizeRow = (row) => ({
       id: row.id || row.ID,
-      company: getField(row, 'name', 'company_name', 'company'),
-      region: getField(row, 'state', 'region'),
+      company: getField(row, 'company_name', 'name', 'company'),
+      region: getField(row, 'region', 'state'),
       phone: getField(row, 'phone'),
-      contact: getField(row, 'contact_name', 'contact', 'primary_contact'),
+      contact: getField(row, 'contact'),
       email: getField(row, 'email'),
       availability: getField(row, 'availability'),
       notes: getField(row, 'notes'),
@@ -521,26 +516,20 @@
     els.modalForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(els.modalForm);
-      const { data: currentData } = await supabaseClient.from(TABLE_NAME).select('metadata').eq('id', state.editingId).single();
-      const existingMeta = currentData?.metadata || {};
-      
       const updates = {
-        name: formData.get('Company'), // Mapeo a columna 'name'
+        company_name: formData.get('Company'),
+        region: formData.get('Region'),
         phone: formData.get('Phone'),
+        contact: formData.get('Contact'),
         email: formData.get('Email'),
         city: formData.get('City'),
         state: formData.get('State'),
         zip: formData.get('Zip'),
         lat: parseFloat(formData.get('Lat')) || null,
         long: parseFloat(formData.get('Long')) || null,
-        // Datos extra a metadata
-        metadata: {
-            ...existingMeta,
-            region: formData.get('Region'),
-            contact_name: formData.get('Contact'),
-            availability: formData.get('Availability'),
-            notes: formData.get('Notes')
-        }
+        availability: formData.get('Availability'),
+        notes: formData.get('Notes'),
+        category: CATEGORY_FILTER,
       };
       try {
         const { error } = await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId);
