@@ -484,6 +484,8 @@
 
 
 
+    const ADMIN_ROLE = 'administrator';
+
     const DATASET = { key: 'vehicles', path: getDatasetPath('vehicles') };
 
     const supabaseClient = window.supabaseClient;
@@ -493,6 +495,37 @@
     if (templateDownload) templateDownload.href = DATASET.path;
 
     const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
+
+    const normalizeHeader = (header = '') => {
+      const aliases = {
+        'ShortVIN': 'short_vin',
+        'Short VIN': 'short_vin',
+        'PT City': 'pt_city',
+        'State Loc': 'state_loc',
+        'PT Status': 'pt_status',
+        'PT Serial ': 'pt_serial',
+        'PT Serial': 'pt_serial',
+        'Encore Serial': 'encore_serial',
+        'Inv. Prep. Stat.': 'inv_prep_stat',
+        'GPS Fix': 'gps_fix',
+        'GPS Fix Reason': 'gps_fix_reason',
+        'Deal Status': 'deal_status',
+        'Customer ID': 'customer_id',
+        'Unit Type': 'unit_type',
+        'Model Year': 'model_year',
+        'PT ZipCode': 'pt_zipcode',
+        'PT Zipcode': 'pt_zipcode',
+      };
+
+      const trimmed = header.trim();
+      if (aliases[trimmed]) return aliases[trimmed];
+
+      return trimmed
+        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+        .replace(/[^A-Za-z0-9]+/g, '_')
+        .replace(/_+/g, '_')
+        .toLowerCase();
+    };
 
     const parseCsvLine = (line = '') => {
 
@@ -651,6 +684,16 @@
       return { headers: headerValues, rows };
 
     };
+
+    const normalizeRows = (rows = []) => rows.map((row) => Object.entries(row).reduce((acc, [key, value]) => {
+
+      const normalizedKey = normalizeHeader(key);
+
+      acc[normalizedKey] = (value || '').trim();
+
+      return acc;
+
+    }, {}));
 
 
 
@@ -834,29 +877,27 @@
 
 
 
-    const mapServiceRow = (row = {}) => {
+    const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
-      const companyName = (row.company_name || row['Company Name'] || row.Company || '').trim();
 
-      const city = (row.city || row.City || row['PT City'] || '').trim();
 
-      const email = (row.email || row.Email || '').trim();
+    const mapVehicleRows = (rows = []) => {
 
-      return {
+      const normalizedRows = normalizeRows(rows);
 
-        company_name: companyName,
+      const deduped = new Map();
 
-        city,
+      normalizedRows.forEach((row) => {
 
-        email,
+        const key = row.short_vin || row.shortvin;
 
-        state: (row.state || row.State || row['State Loc'] || '').trim() || null,
+        if (!key) return;
 
-        phone: (row.phone || row.Phone || '').trim() || null,
+        deduped.set(key, row);
 
-        service_type: (row.category || row.Category || '').trim() || null,
+      });
 
-      };
+      return Array.from(deduped.values());
 
     };
 
@@ -866,23 +907,37 @@
 
       if (!supabaseClient) throw new Error('Supabase client is not available.');
 
+      if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
+
       const text = await file.text();
 
       const { rows } = parseCsvText(text);
 
-      const mapped = rows
+      const mapped = mapVehicleRows(rows);
 
-        .map(mapServiceRow)
+      if (!mapped.length) throw new Error('No valid vehicle rows with ShortVIN found.');
 
-        .filter((row) => row.company_name && row.city && row.email);
+      const conflictKey = 'short_vin';
 
-      if (!mapped.length) throw new Error('No valid rows with company_name, city, and email found.');
+      const conflictValues = mapped.map((row) => row[conflictKey]).filter(Boolean);
+
+      if (!conflictValues.length) throw new Error('No ShortVIN column found in the CSV file.');
+
+      const { error: deleteError } = await supabaseClient
+
+        .from('vehicles')
+
+        .delete()
+
+        .in(conflictKey, conflictValues);
+
+      if (deleteError) throw deleteError;
 
       const { error } = await supabaseClient
 
-        .from('Services')
+        .from('vehicles')
 
-        .upsert(mapped, { onConflict: 'company_name,city,email' });
+        .insert(mapped);
 
       if (error) throw error;
 
@@ -968,6 +1023,40 @@
 
       uploadStatus: document.getElementById('csv-upload-status'),
 
+      uploadButton: document.getElementById('csv-upload-button'),
+
+    };
+
+
+
+    const setUploadAvailability = (allowed) => {
+
+      const controls = [els.uploadInput, els.uploadButton];
+
+      controls.forEach((control) => {
+
+        if (!control) return;
+
+        control.disabled = !allowed;
+
+        control.classList.toggle('cursor-not-allowed', !allowed);
+
+        control.classList.toggle('opacity-60', !allowed);
+
+      });
+
+      if (els.uploadStatus) {
+
+        els.uploadStatus.textContent = allowed
+
+          ? 'Supabase import with dedupe'
+
+          : 'Admin role required to upload';
+
+        els.uploadStatus.classList.toggle('text-amber-300', !allowed);
+
+      }
+
     };
 
 
@@ -975,6 +1064,16 @@
     const wireUploadForm = () => {
 
       if (!els.uploadForm || !els.uploadInput) return;
+
+      setUploadAvailability(isAdminUser());
+
+      window.addEventListener('auth:role-ready', (event) => {
+
+        const role = (event.detail?.role || '').toLowerCase();
+
+        setUploadAvailability(role === ADMIN_ROLE);
+
+      });
 
       els.uploadInput.addEventListener('change', () => {
 
@@ -994,6 +1093,16 @@
 
         event.preventDefault();
 
+        if (!isAdminUser()) {
+
+          alert('You must be an administrator to upload vehicle data.');
+
+          setUploadAvailability(false);
+
+          return;
+
+        }
+
         const file = els.uploadInput.files?.[0];
 
         if (!file) {
@@ -1008,7 +1117,7 @@
 
           els.uploadStatus.textContent = 'Uploading...';
 
-          els.uploadStatus.classList.remove('text-emerald-300', 'text-red-300');
+          els.uploadStatus.classList.remove('text-emerald-300', 'text-red-300', 'text-amber-300');
 
         }
 
@@ -1018,7 +1127,7 @@
 
           if (els.uploadStatus) {
 
-            els.uploadStatus.textContent = 'Upload complete (upserted).';
+            els.uploadStatus.textContent = 'Upload complete (vehicles replaced).';
 
             els.uploadStatus.classList.add('text-emerald-300');
 
