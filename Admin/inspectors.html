@@ -137,14 +137,18 @@
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
               <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
                 <i data-lucide="search" class="h-4 w-4"></i>
-                <input id="search" type="search" placeholder="Search name, region, or city" class="w-60 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" />
+                <input id="search" type="search" placeholder="Search company, category, or contact" class="w-60 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" />
               </div>
               <div class="flex flex-wrap items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
                 <span>Sort:</span>
-                <button data-sort="name" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Name</button>
-                <button data-sort="region" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Region</button>
-                <button data-sort="status" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Status</button>
+                <button data-sort="company" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Company</button>
+                <button data-sort="category" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Category</button>
+                <button data-sort="availability" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Availability</button>
               </div>
+              <button id="add-record" class="inline-flex items-center gap-2 rounded-full border border-emerald-700 bg-emerald-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:-translate-y-0.5 hover:text-white">
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                Add inspector
+              </button>
               <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-700 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:text-white">
                 <i data-lucide="refresh-cw" class="h-4 w-4"></i>
                 Refresh data
@@ -157,19 +161,18 @@
               <thead class="bg-slate-950/60 text-slate-300">
                 <tr>
                   <th class="px-4 py-3 text-left font-semibold">Actions</th>
-                  <th class="px-4 py-3 text-left font-semibold">ID</th>
-                  <th class="px-4 py-3 text-left font-semibold">Name</th>
-                  <th class="px-4 py-3 text-left font-semibold">Status</th>
-                  <th class="px-4 py-3 text-left font-semibold">Region</th>
+                  <th class="px-4 py-3 text-left font-semibold">Company</th>
+                  <th class="px-4 py-3 text-left font-semibold">Authorization</th>
+                  <th class="px-4 py-3 text-left font-semibold">Category</th>
                   <th class="px-4 py-3 text-left font-semibold">Phone</th>
-          <th class="px-4 py-3 text-left font-semibold">Email</th>
-          <th class="px-4 py-3 text-left font-semibold">City</th>
-          <th class="px-4 py-3 text-left font-semibold">State</th>
-          <th class="px-4 py-3 text-left font-semibold">Zip</th>
-          <th class="px-4 py-3 text-left font-semibold">Latitude</th>
-          <th class="px-4 py-3 text-left font-semibold">Longitude</th>
-          <th class="px-4 py-3 text-left font-semibold">Notes</th>
-        </tr>
+                  <th class="px-4 py-3 text-left font-semibold">Contact</th>
+                  <th class="px-4 py-3 text-left font-semibold">Email</th>
+                  <th class="px-4 py-3 text-left font-semibold">Notes</th>
+                  <th class="px-4 py-3 text-left font-semibold">Website</th>
+                  <th class="px-4 py-3 text-left font-semibold">Availability</th>
+                  <th class="px-4 py-3 text-left font-semibold">Lat</th>
+                  <th class="px-4 py-3 text-left font-semibold">Long</th>
+                </tr>
               </thead>
               <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
             </table>
@@ -208,51 +211,48 @@
       <form id="edit-form" class="space-y-3">
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Inspector ID</label>
-            <input name="ID" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Company name</label>
+            <input name="company_name" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Status</label>
-            <select name="Status" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Authorization</label>
+            <input name="authorization" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Full name</label>
-            <input name="Name" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Category</label>
+            <input name="category" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Region</label>
-            <input name="Region" required type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Availability</label>
+            <input name="availability" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
-        <div class="grid gap-3 sm:grid-cols-3">
+        <div class="grid gap-3 sm:grid-cols-2">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Phone</label>
-            <input name="Phone" required type="tel" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <input name="phone" type="tel" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
-            <input name="Email" required type="email" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">City</label>
-              <input name="City" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">State</label>
-              <input name="State" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-            </div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</label>
+            <input name="contact" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
         </div>
-        <div class="grid gap-3 sm:grid-cols-[1.2fr_1fr]">
+        <div class="grid gap-3 sm:grid-cols-2">
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Zip</label>
-            <input name="Zip" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
+            <input name="email" type="email" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Website</label>
+            <input name="website" type="url" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Latitude</label>
+            <input name="lat" type="number" step="any" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
@@ -265,9 +265,13 @@
             </div>
           </div>
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
-            <input name="Notes" type="text" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Longitude</label>
+            <input name="lng" type="number" step="any" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
           </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Notes</label>
+          <textarea name="notes" rows="3" class="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"></textarea>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button type="button" id="edit-delete" class="inline-flex items-center gap-2 rounded-full border border-red-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-red-200 transition hover:bg-red-600/10 hover:text-white">
@@ -361,22 +365,18 @@
     };
    
     const normalizeRow = (row) => ({
-      // AQUÍ ESTÁ LA SOLUCIÓN DEL ERROR DE ID:
-      // Buscamos 'id' (minúscula) O 'ID' (mayúscula)
-      id: row.id || row.ID, 
-      
-      inspector_id: getField(row, 'inspector_id', 'ID'),
-      name: getField(row, 'name', 'full_name'),
-      status: getField(row, 'status', 'Status'),
-      region: getField(row, 'region', 'state'),
+      id: row.id || row.ID,
+      company: getField(row, 'company_name', 'name', 'company'),
+      authorization: getField(row, 'authorization', 'Authorization'),
+      category: getField(row, 'category', 'Category'),
       phone: getField(row, 'phone'),
+      contact: getField(row, 'contact'),
       email: getField(row, 'email'),
-      city: getField(row, 'city'),
-      state: getField(row, 'state'),
-      zip: getField(row, 'zip', 'zip_code'),
+      notes: getField(row, 'notes'),
+      website: getField(row, 'website', 'url'),
+      availability: getField(row, 'availability'),
       lat: parseFloat(getField(row, 'lat', 'latitude', 'Lat')),
       lng: parseFloat(getField(row, 'lng', 'longitude', 'Long', 'long')),
-      notes: getField(row, 'notes')
     });
 
     const getText = (value) => String(value || '').toLowerCase();
@@ -385,16 +385,16 @@
       if (!state.filters.search) return rows;
       const term = state.filters.search.toLowerCase();
       return rows.filter((row) =>
-        [row.name, row.region, row.city, row.state, row.status]
+        [row.company, row.category, row.contact]
           .some((value) => getText(value).includes(term))
       );
     };
 
     const applySort = (rows) => {
       const sorters = {
-        name: (a, b) => getText(a.name).localeCompare(getText(b.name)),
-        region: (a, b) => getText(a.region).localeCompare(getText(b.region)),
-        status: (a, b) => getText(a.status).localeCompare(getText(b.status)),
+        company: (a, b) => getText(a.company).localeCompare(getText(b.company)),
+        category: (a, b) => getText(a.category).localeCompare(getText(b.category)),
+        availability: (a, b) => getText(a.availability).localeCompare(getText(b.availability)),
       };
       const sorter = sorters[state.filters.sortKey];
       if (!sorter) return rows;
@@ -442,21 +442,19 @@
         tr.appendChild(actionsTd);
    
         const columns = [
-          row.inspector_id, row.name, row.status, row.region, row.phone,
-          row.email, row.city, row.state, row.zip,
+          row.company, row.authorization, row.category, row.phone,
+          row.contact, row.email, row.notes, row.website, row.availability,
           Number.isFinite(row.lat) ? row.lat : '—',
-          Number.isFinite(row.lng) ? row.lng : '—',
-          row.notes
+          Number.isFinite(row.lng) ? row.lng : '—'
         ];
    
         columns.forEach((value, index) => {
           const td = document.createElement('td');
           td.className = 'px-4 py-3 text-slate-200 align-top whitespace-normal break-words text-sm border-b border-slate-800/50';
-          if (index === 2) {
-             const statusColor = (value || '').toLowerCase() === 'active' ? 'text-emerald-400' : 'text-slate-400';
-             td.classList.add(statusColor, 'font-medium');
+          if (index === 10 || index === 11) {
+            td.classList.add('tabular-nums');
           }
-          if (index === 11) {
+          if (index === 6) {
             td.classList.add('max-w-xs', 'leading-snug', 'text-slate-400', 'italic');
             td.style.display = '-webkit-box';
             td.style.WebkitLineClamp = '2';
@@ -473,8 +471,8 @@
    
     const renderSummary = () => {
       els.total.textContent = state.rows.length;
-      els.regions.textContent = new Set(state.rows.map((row) => row.region || '').filter(Boolean)).size;
-      els.premier.textContent = state.rows.filter((row) => (row.status || '').toLowerCase() === 'active').length;
+      els.regions.textContent = new Set(state.rows.map((row) => row.category || '').filter(Boolean)).size;
+      els.premier.textContent = state.rows.filter((row) => (row.availability || '').toLowerCase().includes('available')).length;
       els.status.textContent = state.rows.length ? `Connected • ${state.rows.length} records` : 'Awaiting data';
     };
    
@@ -486,10 +484,8 @@
       const { data, error } = await supabaseClient
         .from(TABLE_NAME)
         .select('*')
-        .eq('category', CATEGORY_FILTER)
-        // Eliminado .order('id') porque causaba error si la columna se llama "ID"
-        // Dejamos que Supabase entregue por defecto o usamos sort javascript client-side si es necesario
-      
+        .eq('category', CATEGORY_FILTER);
+
       if (error) {
         els.status.innerHTML = `<span class="text-red-400 font-bold">Error: ${error.message}</span>`;
         console.error('Supabase Error:', error);
@@ -502,25 +498,29 @@
    
     // --- MODAL LOGIC ---
     const openEditModal = (row) => {
-      state.editingId = row.id;
-      els.modalTitle.textContent = `Edit: ${row.name}`;
+      state.editingId = row?.id ?? null;
+      els.modalTitle.textContent = row?.company ? `Edit: ${row.company}` : 'Add inspector';
       const form = els.modalForm;
-      form.elements['ID'].value = row.inspector_id || '';
-      form.elements['Name'].value = row.name || '';
-      form.elements['Status'].value = row.status || 'Active';
-      form.elements['Region'].value = row.region || '';
-      form.elements['Phone'].value = row.phone || '';
-      form.elements['Email'].value = row.email || '';
-      form.elements['City'].value = row.city || '';
-      form.elements['State'].value = row.state || '';
-      form.elements['Zip'].value = row.zip || '';
-      form.elements['Lat'].value = Number.isFinite(row.lat) ? row.lat : '';
-      form.elements['Lng'].value = Number.isFinite(row.lng) ? row.lng : '';
-      form.elements['Notes'].value = row.notes || '';
+      form.elements['company_name'].value = row?.company || '';
+      form.elements['authorization'].value = row?.authorization || '';
+      form.elements['category'].value = row?.category || CATEGORY_FILTER;
+      form.elements['availability'].value = row?.availability || '';
+      form.elements['phone'].value = row?.phone || '';
+      form.elements['contact'].value = row?.contact || '';
+      form.elements['email'].value = row?.email || '';
+      form.elements['website'].value = row?.website || '';
+      form.elements['lat'].value = Number.isFinite(row?.lat) ? row.lat : '';
+      form.elements['lng'].value = Number.isFinite(row?.lng) ? row.lng : '';
+      form.elements['notes'].value = row?.notes || '';
       if (state.currentUserRole === 'administrator') els.modalDelete.classList.remove('hidden');
       else els.modalDelete.classList.add('hidden');
       els.modal.classList.remove('hidden');
     };
+
+    document.getElementById('add-record').addEventListener('click', () => {
+      openEditModal(null);
+      els.modalDelete.classList.add('hidden');
+    });
    
     const closeEditModal = () => {
       state.editingId = null;
@@ -534,26 +534,26 @@
       const formData = new FormData(els.modalForm);
 
       const updates = {
-        company_name: formData.get('Name'),
-        inspector_id: formData.get('ID'),
-        status: formData.get('Status'),
-        region: formData.get('Region'),
-        phone: formData.get('Phone'),
-        email: formData.get('Email'),
-        city: formData.get('City'),
-        state: formData.get('State'),
-        zip: formData.get('Zip'),
-        lat: parseFloat(formData.get('Lat')) || null,
-        lng: parseFloat(formData.get('Lng')) || null,
-        notes: formData.get('Notes'),
-        category: CATEGORY_FILTER,
+        company_name: formData.get('company_name'),
+        authorization: formData.get('authorization'),
+        category: formData.get('category') || CATEGORY_FILTER,
+        phone: formData.get('phone'),
+        contact: formData.get('contact'),
+        email: formData.get('email'),
+        notes: formData.get('notes'),
+        website: formData.get('website'),
+        availability: formData.get('availability'),
+        lat: parseFloat(formData.get('lat')) || null,
+        lng: parseFloat(formData.get('lng')) || null,
       };
       try {
-        const { error } = await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId);
+        const { error } = state.editingId
+          ? await supabaseClient.from(TABLE_NAME).update(updates).eq('id', state.editingId)
+          : await supabaseClient.from(TABLE_NAME).insert([{ ...updates, category: CATEGORY_FILTER }]);
         if (error) throw error;
         closeEditModal();
         await fetchData();
-        alert('Inspector updated successfully');
+        alert(state.editingId ? 'Inspector updated successfully' : 'Inspector created successfully');
       } catch (err) { alert('Error: ' + err.message); }
     });
    
