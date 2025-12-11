@@ -235,13 +235,8 @@
   </main>
 
   <script>
-    const profiles = [
-      { id: crypto.randomUUID(), name: 'Avery Chen', email: 'avery.chen@techloc.io', level: 'Administrator', status: 'Verified', lastActive: '5m ago' },
-      { id: crypto.randomUUID(), name: 'Miguel Santos', email: 'miguel.santos@techloc.io', level: 'Moderator', status: 'Verified', lastActive: '32m ago' },
-      { id: crypto.randomUUID(), name: 'Priya Patel', email: 'priya.patel@techloc.io', level: 'Viewer', status: 'Pending', lastActive: '1h ago' },
-      { id: crypto.randomUUID(), name: 'Owen Blake', email: 'owen.blake@techloc.io', level: 'Moderator', status: 'Suspended', lastActive: '2d ago' },
-      { id: crypto.randomUUID(), name: 'Nora Kim', email: 'nora.kim@techloc.io', level: 'Viewer', status: 'Verified', lastActive: '18m ago' },
-    ];
+    const supabase = window.supabaseClient;
+    let profiles = [];
 
     const statusStyles = {
       Verified: 'bg-emerald-500/20 text-emerald-100 border-emerald-400/30',
@@ -258,6 +253,15 @@
     function renderProfiles() {
       const body = document.getElementById('profiles-body');
       body.innerHTML = '';
+
+      if (!profiles.length) {
+        const empty = document.createElement('tr');
+        empty.innerHTML = `<td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">No profiles found.</td>`;
+        body.appendChild(empty);
+        renderStats();
+        lucide.createIcons();
+        return;
+      }
 
       profiles.forEach((profile) => {
         const row = document.createElement('tr');
@@ -315,27 +319,46 @@
       lucide.createIcons();
     }
 
-    window.promoteProfile = (id) => {
+    window.promoteProfile = async (id) => {
       const profile = profiles.find((p) => p.id === id);
       if (!profile) return;
 
       const order = ['Viewer', 'Moderator', 'Administrator'];
       const currentIndex = order.indexOf(profile.level);
       const nextLevel = order[Math.min(order.length - 1, currentIndex + 1)];
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ level: nextLevel, status: 'Verified', last_active: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error promoting profile', error);
+        return;
+      }
+
       profile.level = nextLevel;
       profile.status = 'Verified';
       profile.lastActive = 'moments ago';
       renderProfiles();
     };
 
-    window.removeProfile = (id) => {
+    window.removeProfile = async (id) => {
       const index = profiles.findIndex((p) => p.id === id);
       if (index === -1) return;
+
+      const { error } = await supabase.from('profiles').delete().eq('id', id);
+
+      if (error) {
+        console.error('Error removing profile', error);
+        return;
+      }
+
       profiles.splice(index, 1);
       renderProfiles();
     };
 
-    document.getElementById('profile-form').addEventListener('submit', (event) => {
+    document.getElementById('profile-form').addEventListener('submit', async (event) => {
       event.preventDefault();
       const name = document.getElementById('profile-name').value.trim();
       const email = document.getElementById('profile-email').value.trim();
@@ -344,21 +367,74 @@
 
       if (!name || !email) return;
 
-      profiles.unshift({
-        id: crypto.randomUUID(),
-        name,
-        email,
-        level,
-        status,
-        lastActive: 'just now',
-      });
+      const { data, error } = await supabase
+        .from('profiles')
+        .insert([{ name, email, level, status, last_active: new Date().toISOString() }])
+        .select()
+        .single();
 
+      if (error) {
+        console.error('Error saving profile', error);
+        return;
+      }
+
+      profiles.unshift(normalizeProfile(data));
       event.target.reset();
       renderProfiles();
     });
 
-    document.addEventListener('DOMContentLoaded', () => {
+    function normalizeProfile(record) {
+      return {
+        id: record.id,
+        name: record.name || record.full_name || record.display_name || 'Unnamed',
+        email: record.email || record.contact_email || 'unknown',
+        level: record.level || record.access_level || 'Viewer',
+        status: record.status || record.state || 'Pending',
+        lastActive: formatLastActive(record.last_active || record.lastActive || record.updated_at || record.created_at),
+      };
+    }
+
+    function formatLastActive(value) {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '—';
+
+      const diff = Date.now() - date.getTime();
+      const minutes = Math.floor(diff / (1000 * 60));
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
+
+    async function fetchProfiles() {
+      const body = document.getElementById('profiles-body');
+      body.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Loading profiles...</td></tr>`;
+
+      if (!supabase) {
+        body.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-200">Supabase client not available.</td></tr>`;
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading profiles', error);
+        body.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-200">Error loading profiles.</td></tr>`;
+        return;
+      }
+
+      profiles = (data || []).map(normalizeProfile);
       renderProfiles();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchProfiles();
     });
   </script>
 </body>
