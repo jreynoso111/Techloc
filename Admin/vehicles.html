@@ -338,7 +338,7 @@
 
                   </a>
 
-                  <form id="csv-upload-form" class="flex flex-wrap items-center gap-2 rounded-full border border-slate-800 bg-slate-900/60 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
+                  <form id="csv-upload-form" class="flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 md:flex-row md:items-center md:gap-3 md:rounded-full md:py-1">
                     <label for="csv-upload-input" class="inline-flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 transition hover:text-white">
                       <i data-lucide="file-up" class="h-4 w-4"></i>
                       <span id="csv-upload-label">Select CSV</span>
@@ -346,6 +346,12 @@
                     </label>
                     <button id="csv-upload-button" type="submit" class="rounded-full bg-blue-600 px-3 py-1 text-white transition hover:bg-blue-500">Upload</button>
                     <span id="csv-upload-status" class="text-[10px] font-semibold normal-case text-slate-400">Supabase import with dedupe</span>
+                    <div id="upload-progress" class="hidden w-full rounded-full border border-slate-800/60 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold normal-case text-slate-200 md:w-64">
+                      <div class="relative h-2 overflow-hidden rounded-full bg-slate-800/80">
+                        <div id="upload-progress-bar" class="absolute inset-y-0 left-0 w-0 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 transition-[width]" style="transition-duration:200ms"></div>
+                      </div>
+                      <div id="upload-progress-label" class="mt-1 text-[10px] font-semibold text-slate-300">0% Ready to upload</div>
+                    </div>
                   </form>
 
                 </div>
@@ -933,9 +939,15 @@
 
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
 
+      updateUploadProgress(5, 'Reading CSV');
+
       const text = await file.text();
 
+      updateUploadProgress(20, 'Parsing rows');
+
       const { rows } = parseCsvText(text);
+
+      updateUploadProgress(40, 'Normalizing vehicles');
 
       const mapped = mapVehicleRows(rows);
 
@@ -947,6 +959,8 @@
 
       if (!conflictValues.length) throw new Error('No ShortVIN column found in the CSV file.');
 
+      updateUploadProgress(55, 'Removing duplicates');
+
       const { error: deleteError } = await supabaseClient
 
         .from('vehicles')
@@ -957,6 +971,8 @@
 
       if (deleteError) throw deleteError;
 
+      updateUploadProgress(75, 'Uploading to Supabase');
+
       const { error } = await supabaseClient
 
         .from('vehicles')
@@ -965,7 +981,11 @@
 
       if (error) throw error;
 
+      updateUploadProgress(90, 'Refreshing counts');
+
       await fetchVehiclesCount();
+
+      finishUploadProgress();
 
     };
 
@@ -1086,6 +1106,12 @@
 
       uploadButton: document.getElementById('csv-upload-button'),
 
+      uploadProgress: document.getElementById('upload-progress'),
+
+      uploadProgressBar: document.getElementById('upload-progress-bar'),
+
+      uploadProgressLabel: document.getElementById('upload-progress-label'),
+
     };
 
 
@@ -1117,6 +1143,76 @@
         els.uploadStatus.classList.toggle('text-amber-300', !allowed);
 
       }
+
+    };
+
+
+
+    const clampProgress = (value) => Math.min(100, Math.max(0, Math.round(value)));
+
+
+
+    const resetUploadProgress = () => {
+
+      if (els.uploadProgress) {
+
+        els.uploadProgress.classList.add('hidden');
+
+      }
+
+      if (els.uploadProgressBar) {
+
+        els.uploadProgressBar.style.width = '0%';
+
+      }
+
+      if (els.uploadProgressLabel) {
+
+        els.uploadProgressLabel.textContent = '0% Ready to upload';
+
+      }
+
+    };
+
+
+
+    const updateUploadProgress = (value, label = '') => {
+
+      const clamped = clampProgress(value);
+
+      if (els.uploadProgress) {
+
+        els.uploadProgress.classList.remove('hidden');
+
+      }
+
+      if (els.uploadProgressBar) {
+
+        els.uploadProgressBar.style.width = `${clamped}%`;
+
+      }
+
+      if (els.uploadProgressLabel) {
+
+        const suffix = label ? ` ${label}` : ' Uploading';
+
+        els.uploadProgressLabel.textContent = `${clamped}%${suffix}`;
+
+      }
+
+    };
+
+
+
+    const finishUploadProgress = (label = 'Upload complete') => {
+
+      updateUploadProgress(100, label);
+
+      setTimeout(() => {
+
+        resetUploadProgress();
+
+      }, 2000);
 
     };
 
@@ -1174,6 +1270,10 @@
 
         }
 
+        resetUploadProgress();
+
+        updateUploadProgress(0, 'Preparing upload');
+
         if (els.uploadStatus) {
 
           els.uploadStatus.textContent = 'Uploading...';
@@ -1197,6 +1297,8 @@
         } catch (error) {
 
           console.error('Upload failed', error);
+
+          updateUploadProgress(100, 'Upload failed');
 
           if (els.uploadStatus) {
 
