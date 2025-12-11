@@ -343,17 +343,10 @@
       }
     };
 
-    // --- HELPER PARA LEER DATOS (INCLUYENDO METADATA) ---
+    // --- HELPER PARA LEER DATOS ---
     const getField = (row, ...keys) => {
-      // 1. Buscar en columnas normales
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
-      }
-      // 2. Buscar dentro de metadata (JSON) si existe
-      if (row.metadata) {
-        for (const key of keys) {
-           if (row.metadata[key] !== undefined) return row.metadata[key];
-        }
       }
       return '';
     };
@@ -361,9 +354,8 @@
     // --- NORMALIZADOR (ADAPTADO A LA NUEVA TABLA) ---
     const normalizeRow = (row) => ({
       id: row.id,
-      // Mapeamos 'name' de la DB a 'company' de la UI
-      company: getField(row, 'name', 'company_name', 'company'),
-      region: getField(row, 'state', 'region'), // Usamos state como region
+      company: getField(row, 'company_name', 'name', 'company'),
+      region: getField(row, 'region', 'state'),
       phone: getField(row, 'phone'),
       email: getField(row, 'email'),
       city: getField(row, 'city'),
@@ -371,9 +363,7 @@
       zip: getField(row, 'zip', 'zip_code'),
       lat: parseFloat(getField(row, 'lat', 'latitude', 'Lat')),
       lng: parseFloat(getField(row, 'long', 'lng', 'longitude', 'Long', 'Lng')),
-
-      // Estos campos probablemente viven en METADATA ahora:
-      contact: getField(row, 'contact_name', 'contact'),
+      contact: getField(row, 'contact'),
       availability: getField(row, 'availability'),
       notes: getField(row, 'notes')
     });
@@ -497,29 +487,20 @@
       const id = document.getElementById('edit-id').value;
       if (!id) return;
 
-      // Recuperamos datos actuales para no borrar metadata existente
-      const { data: currentData } = await supabaseClient.from(TABLE_NAME).select('metadata').eq('id', id).single();
-      const existingMeta = currentData?.metadata || {};
-
-      // 1. Columnas ESTÁNDAR (Las que sí existen en la tabla)
       const updates = {
-        name: document.getElementById('edit-company').value, // OJO: company -> name
+        company_name: document.getElementById('edit-company').value,
+        region: document.getElementById('edit-region').value,
         phone: document.getElementById('edit-phone').value,
+        contact: document.getElementById('edit-contact').value,
         email: document.getElementById('edit-email').value,
         city: document.getElementById('edit-city').value,
         state: document.getElementById('edit-state').value,
         zip: document.getElementById('edit-zip').value,
         lat: parseFloat(document.getElementById('edit-lat').value) || null,
         long: parseFloat(document.getElementById('edit-lng').value) || null,
-        
-        // 2. Columnas EXTRAS (Van a metadata)
-        metadata: {
-           ...existingMeta, // Mantenemos lo que ya había
-           contact_name: document.getElementById('edit-contact').value,
-           notes: document.getElementById('edit-notes').value,
-           availability: document.getElementById('edit-availability').value,
-           region: document.getElementById('edit-region').value 
-        }
+        availability: document.getElementById('edit-availability').value,
+        notes: document.getElementById('edit-notes').value,
+        category: CATEGORY_FILTER,
       };
 
       // UI Loading
