@@ -47,6 +47,8 @@ const notifySessionListeners = (session) => {
   sessionListeners.forEach((listener) => listener(session));
 };
 
+const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
+
 const setSession = (session) => {
   currentSession = session;
   notifySessionListeners(session);
@@ -329,8 +331,8 @@ const enforceAdminGuard = async () => {
     return session;
   }
 
-  if (routeInfo.isProfilesPage && role !== 'administrator') {
-    redirectToAdminHome();
+  if (routeInfo.isAdminRoute && !roleAllowsDashboard(role)) {
+    redirectToHome();
     return session;
   }
 

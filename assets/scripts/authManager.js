@@ -22,6 +22,8 @@
 
   const getNavElement = (key) => document.getElementById(navIds[key]);
 
+  const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
+
   // Rutas protegidas
   const protectedRoutes = [
     (path) => path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
@@ -66,6 +68,29 @@
     }
   };
 
+  const toggleDashboardLinks = (hasSession, role, status) =>
+    whenDomReady.then(() => {
+      const isSuspended = status === 'suspended';
+      const canShowDashboard = hasSession && !isSuspended && roleAllowsDashboard(role);
+      const dashboardLinks = document.querySelectorAll('[data-dashboard-link]');
+
+      dashboardLinks.forEach((link) => {
+        if (!link) return;
+
+        if (canShowDashboard) {
+          link.classList.remove('hidden');
+          link.removeAttribute('aria-hidden');
+          link.removeAttribute('tabindex');
+          link.style.pointerEvents = '';
+        } else {
+          link.classList.add('hidden');
+          link.setAttribute('aria-hidden', 'true');
+          link.setAttribute('tabindex', '-1');
+          link.style.pointerEvents = 'none';
+        }
+      });
+    });
+
   const updateNav = (hasSession, role, status) => // <--- Modificado para aceptar 'role' y 'status'
     whenDomReady.then(() => {
       const controlLink = getNavElement('control');
@@ -74,18 +99,19 @@
       const logoutButton = getNavElement('logout');
 
       const isSuspended = status === 'suspended';
+      const canShowDashboard = hasSession && !isSuspended && roleAllowsDashboard(role);
 
       if (hasSession && !isSuspended) {
         // Lógica de visualización basada en sesión
         controlLink?.classList.remove('hidden');
         controlLink?.classList.add('md:inline-flex');
-        
-        // --- EJEMPLO: Solo mostrar Dashboard a administradores ---
-        if (role === 'administrator') {
-            dashboardLink?.classList.remove('hidden');
-            dashboardLink?.classList.add('md:inline-flex');
+
+        if (canShowDashboard) {
+          dashboardLink?.classList.remove('hidden');
+          dashboardLink?.classList.add('md:inline-flex');
         } else {
-            dashboardLink?.classList.add('hidden');
+          dashboardLink?.classList.add('hidden');
+          dashboardLink?.classList.remove('md:inline-flex');
         }
 
         logoutButton?.classList.remove('hidden');
@@ -98,6 +124,8 @@
         logoutButton?.classList.add('hidden');
         loginLink?.classList.remove('hidden');
       }
+
+      toggleDashboardLinks(hasSession, role, status);
     });
 
   const toggleProtectedBlocks = (hasSession) =>
@@ -126,9 +154,16 @@
     return protectedRoutes.some((matcher) => matcher(path));
   };
 
-  const enforceRouteProtection = (hasSession) => {
+  const enforceRouteProtection = (hasSession, role) => {
+    const isAdminPath = window.location.pathname.toLowerCase().includes('/admin/');
+
     if (!hasSession && isProtectedRoute()) {
       window.location.replace(mapsTo('login.html'));
+      return;
+    }
+
+    if (hasSession && isAdminPath && !roleAllowsDashboard(role)) {
+      window.location.replace(mapsTo('index.html'));
       return;
     }
 
@@ -200,7 +235,7 @@
 
       updateNav(hasSession, userRole, userStatus); // Pasamos el rol y estado
       toggleProtectedBlocks(hasSession);
-      enforceRouteProtection(hasSession);
+      enforceRouteProtection(hasSession, userRole);
       bindLogout();
 
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -227,7 +262,7 @@
 
         updateNav(sessionExists, updatedRole, updatedStatus);
         toggleProtectedBlocks(sessionExists);
-        enforceRouteProtection(sessionExists);
+        enforceRouteProtection(sessionExists, updatedRole);
 
         if (event === 'SIGNED_IN' && onLoginPage) {
           window.location.replace(mapsTo('index.html'));
@@ -240,7 +275,7 @@
       });
     } catch (error) {
       console.error('Failed to verify Supabase session', error);
-      enforceRouteProtection(false);
+      enforceRouteProtection(false, null);
       updateNav(false, null, null);
       toggleProtectedBlocks(false);
     }
