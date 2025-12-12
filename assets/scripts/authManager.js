@@ -126,9 +126,16 @@
     return protectedRoutes.some((matcher) => matcher(path));
   };
 
-  const enforceRouteProtection = (hasSession) => {
+  const enforceRouteProtection = (hasSession, role) => {
+    const isAdminPath = window.location.pathname.toLowerCase().includes('/admin/');
+
     if (!hasSession && isProtectedRoute()) {
       window.location.replace(mapsTo('login.html'));
+      return;
+    }
+
+    if (hasSession && isAdminPath && role !== 'administrator') {
+      window.location.replace(mapsTo('index.html'));
       return;
     }
 
@@ -200,7 +207,7 @@
 
       updateNav(hasSession, userRole, userStatus); // Pasamos el rol y estado
       toggleProtectedBlocks(hasSession);
-      enforceRouteProtection(hasSession);
+      enforceRouteProtection(hasSession, userRole);
       bindLogout();
 
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -227,7 +234,7 @@
 
         updateNav(sessionExists, updatedRole, updatedStatus);
         toggleProtectedBlocks(sessionExists);
-        enforceRouteProtection(sessionExists);
+        enforceRouteProtection(sessionExists, updatedRole);
 
         if (event === 'SIGNED_IN' && onLoginPage) {
           window.location.replace(mapsTo('index.html'));
@@ -240,7 +247,7 @@
       });
     } catch (error) {
       console.error('Failed to verify Supabase session', error);
-      enforceRouteProtection(false);
+      enforceRouteProtection(false, null);
       updateNav(false, null, null);
       toggleProtectedBlocks(false);
     }
