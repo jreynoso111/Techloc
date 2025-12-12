@@ -303,7 +303,32 @@
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const REQUIRED_COLUMNS = ['name', 'category'];
-    const KNOWN_COLUMNS = ['name', 'category', 'phone', 'address', 'city', 'state', 'zip', 'lat', 'lng', 'website', 'metadata'];
+    const KNOWN_COLUMNS = [
+      'name',
+      'category',
+      'company_name',
+      'customer',
+      'customer id',
+      'customer_id',
+      'type',
+      'unit type',
+      'phone',
+      'address',
+      'city',
+      'state',
+      'zip',
+      'lat',
+      'lng',
+      'latitude',
+      'longitude',
+      'long',
+      'website',
+      'metadata',
+    ];
+
+    const ADMIN_ROLE = 'administrator';
+
+    const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
     const formatRelativeTime = (dateString) => {
       if (!dateString) return 'Unknown';
@@ -419,12 +444,43 @@
         return acc;
       }, {});
 
-      const lat = toNumber(normalized.lat ?? normalized.latitude ?? normalized.Lat ?? normalized.Latitude);
-      const lng = toNumber(normalized.lng ?? normalized.longitude ?? normalized.Lng ?? normalized.Longitude);
+      const lat = toNumber(
+        normalized.lat ??
+          normalized.latitude ??
+          normalized.Lat ??
+          normalized.Latitude ??
+          normalized['lat.'] ??
+          normalized['latitude.']
+      );
+      const lng = toNumber(
+        normalized.lng ??
+          normalized.long ??
+          normalized.Long ??
+          normalized.longitude ??
+          normalized.Longitude ??
+          normalized['long.'] ??
+          normalized['longitude.']
+      );
 
       return {
-        name: normalized.name ?? normalized.company ?? normalized.Company ?? '',
-        category: (normalized.category ?? normalized.Category ?? '').trim(),
+        name:
+          normalized.name ??
+          normalized.company_name ??
+          normalized.company ??
+          normalized.Company ??
+          normalized.customer ??
+          normalized['customer id'] ??
+          normalized.customer_id ??
+          normalized['Customer ID'] ??
+          '',
+        category:
+          (normalized.category ??
+            normalized.Category ??
+            normalized.type ??
+            normalized.Type ??
+            normalized['unit type'] ??
+            normalized['Unit Type'] ??
+            '').trim() || 'GPS Technician',
         phone: normalized.phone ?? normalized.Phone ?? '',
         address: normalized.address ?? normalized.Address ?? '',
         city: normalized.city ?? normalized.City ?? '',
@@ -467,11 +523,23 @@
       const form = document.getElementById('csv-upload-form');
       const fileInput = document.getElementById('csv-file');
       const submitBtn = document.getElementById('upload-button');
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        return allowed;
+      };
 
       if (!form || !fileInput || !submitBtn) return;
 
+      requireAdmin();
+
       form.addEventListener('submit', (event) => {
         event.preventDefault();
+        if (!requireAdmin()) {
+          alert('Only administrators can upload service data.');
+          return;
+        }
         const file = fileInput.files?.[0];
         if (!file) {
           alert('Please select a CSV file to upload.');
