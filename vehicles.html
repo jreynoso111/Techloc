@@ -162,6 +162,26 @@
       stroke-linejoin: round;
     }
 
+    .service-icon-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .service-cross {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ef4444;
+      font-size: 11px;
+      font-weight: 900;
+      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
+      pointer-events: none;
+    }
+
     .distance-label-wrapper { pointer-events: none; }
 
     .distance-label {
@@ -284,6 +304,7 @@
     </div>
     <div id="right-toggle-group" class="sidebar-toggle-group right-3 items-end">
       <button id="open-right-sidebar" class="sidebar-toggle-btn">Show Vehicles</button>
+      <button id="toggle-vehicle-markers" class="sidebar-toggle-btn active" aria-pressed="true">Hide Vehicle Marks</button>
     </div>
 
     <!-- Floating Legend -->
@@ -854,6 +875,7 @@
     let inspectors = [];
     let vehicles = [];
     let vehicleHeaders = [];
+    let vehicleMarkersVisible = true;
     const serviceHeadersByCategory = {};
     let editingService = null;
     let editingVehicleId = null;
@@ -1093,6 +1115,7 @@
         phoneDial,
         contact: getField(row, 'contact', 'Contact', 'contact_name'),
         availability: getField(row, 'availability', 'tier', 'Availability'),
+        authorization: getField(row, 'authorization', 'Authorization'),
         notes: getField(row, 'notes', 'Notes'),
         city: city || '',
         state: stateCode,
@@ -1187,9 +1210,16 @@
       inspector: 'inspector'
     };
 
-    const createServiceIcon = (color) => L.divIcon({
+    const isUnauthorizedPartner = (partner = {}) => {
+      const value = `${partner.authorization || partner.details?.authorization || ''}`.trim().toLowerCase();
+      return value === 'no' || value === 'unauthorized';
+    };
+
+    const getPartnerColor = (partner, defaultColor) => isUnauthorizedPartner(partner) ? '#94a3b8' : defaultColor;
+
+    const createServiceIcon = (color, { unauthorized = false } = {}) => L.divIcon({
       className: 'service-triangle-icon',
-      html: `<svg width="18" height="16" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg"><path d="M9 1.1L17 14.8H1L9 1.1Z"/></svg>`,
+      html: `<div class="service-icon-wrapper"><svg width="18" height="16" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg"><path d="M9 1.1L17 14.8H1L9 1.1Z"/></svg>${unauthorized ? '<span class="service-cross">✕</span>' : ''}</div>`,
       iconSize: [18, 16],
       iconAnchor: [9, 14],
       popupAnchor: [0, -10]
@@ -1814,8 +1844,10 @@
       const selectedService = getSelectedService(type);
 
       sorted.slice(0, 75).forEach((partner, idx) => {
+        const unauthorized = isUnauthorizedPartner(partner);
+        const markerColor = getPartnerColor(partner, accentColor);
         const marker = L.marker([partner.lat, partner.lng], {
-          icon: createServiceIcon(accentColor)
+          icon: createServiceIcon(markerColor, { unauthorized })
         }).addTo(layer);
 
         const locationText = `${partner.city ? `${partner.city}, ` : ''}${partner.state || partner.region || 'US'}${partner.zip ? ` ${partner.zip}` : ''}`.trim();
@@ -1935,12 +1967,56 @@
       if (inspectorSidebarVisible) updateInspectorUI(inspectors);
     }
 
+    function updateVehicleMarkerToggle() {
+      const toggle = document.getElementById('toggle-vehicle-markers');
+      if (!toggle) return;
+
+      toggle.textContent = vehicleMarkersVisible ? 'Hide Vehicle Marks' : 'Show Vehicle Marks';
+      toggle.classList.toggle('active', vehicleMarkersVisible);
+      toggle.setAttribute('aria-pressed', vehicleMarkersVisible ? 'true' : 'false');
+    }
+
+    function setVehicleMarkersVisible(visible) {
+      vehicleMarkersVisible = !!visible;
+      updateVehicleMarkerToggle();
+
+      if (!vehicleMarkersVisible) {
+        if (vehicleLayer) {
+          vehicleLayer.clearLayers();
+          if (map?.hasLayer(vehicleLayer)) map.removeLayer(vehicleLayer);
+        }
+        vehicleMarkers.clear();
+        highlightLayer?.clearLayers();
+        return;
+      }
+
+      if (vehicleLayer && map && !map.hasLayer(vehicleLayer)) {
+        vehicleLayer.addTo(map);
+      }
+
+      renderVehicles();
+    }
+
+    function setupVehicleMarkerToggle() {
+      const toggle = document.getElementById('toggle-vehicle-markers');
+      if (!toggle) return;
+
+      toggle.addEventListener('click', () => setVehicleMarkersVisible(!vehicleMarkersVisible));
+      updateVehicleMarkerToggle();
+    }
+
     function renderVehicles() {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
       container.innerHTML = '';
       vehicleLayer.clearLayers();
       vehicleMarkers.clear();
+
+      if (!vehicleMarkersVisible && map?.hasLayer(vehicleLayer)) {
+        map.removeLayer(vehicleLayer);
+      } else if (vehicleMarkersVisible && map && vehicleLayer && !map.hasLayer(vehicleLayer)) {
+        vehicleLayer.addTo(map);
+      }
 
       const searchBox = document.getElementById('vehicle-search');
       const filtered = getVehicleList(searchBox?.value || '');
@@ -2074,7 +2150,7 @@
             console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
           }
 
-          if (coords) {
+          if (coords && vehicleMarkersVisible) {
             const markerColor = getVehicleMarkerColor(vehicle);
             const borderColor = getVehicleMarkerBorderColor(markerColor);
 
@@ -2111,6 +2187,7 @@
     function focusVehicle(vehicle) {
       if (!vehicle) return;
       if (!hasValidCoords(vehicle)) return;
+      if (!vehicleMarkersVisible) return;
       highlightLayer.clearLayers();
 
       const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
@@ -3138,9 +3215,10 @@
         const chosen = selectedPartner || getNearestFromList(origin, filtered, type)?.entry;
         if (!chosen) return;
 
-        const color = SERVICE_COLORS[type] || '#38bdf8';
+        const unauthorized = isUnauthorizedPartner(chosen);
+        const color = getPartnerColor(chosen, SERVICE_COLORS[type] || '#38bdf8');
         const marker = L.marker([chosen.lat, chosen.lng], {
-          icon: createServiceIcon(color)
+          icon: createServiceIcon(color, { unauthorized })
         }).addTo(serviceLayer);
 
         marker.on('click', (e) => {
@@ -3446,6 +3524,7 @@
       loadInspectors();
       setupResizableSidebars();
       setupSidebarToggles();
+      setupVehicleMarkerToggle();
       bindVehicleFilterHandlers();
       syncVehicleFilterInputs();
       const filterConfigs = [
