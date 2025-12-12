@@ -22,6 +22,7 @@ let currentSession = null;
 let initialSessionResolved = false;
 let initializationPromise = null;
 let cachedUserRole = null;
+let cachedUserStatus = null;
 const sessionListeners = new Set();
 
 const HOME_PAGE = new URL('../../index.html', import.meta.url).toString();
@@ -51,28 +52,36 @@ const setSession = (session) => {
   notifySessionListeners(session);
 };
 
-const getUserRole = async (session) => {
-  if (window.currentUserRole) return window.currentUserRole;
-  if (cachedUserRole) return cachedUserRole;
+const getUserAccess = async (session) => {
+  if (window.currentUserRole && window.currentUserStatus) {
+    return { role: window.currentUserRole, status: window.currentUserStatus };
+  }
+
+  if (cachedUserRole && cachedUserStatus) {
+    return { role: cachedUserRole, status: cachedUserStatus };
+  }
 
   const userId = session?.user?.id;
-  if (!userId) return 'user';
+  if (!userId) return { role: 'user', status: 'active' };
 
   const { data, error } = await supabaseClient
     .from('profiles')
-    .select('role')
+    .select('role, status')
     .eq('id', userId)
     .single();
 
   if (error) {
     console.warn('Unable to fetch user role', error);
-    return 'user';
+    return { role: 'user', status: 'active' };
   }
 
   const normalizedRole = (data?.role || 'user').toLowerCase();
+  const normalizedStatus = (data?.status || 'active').toLowerCase();
   cachedUserRole = normalizedRole;
+  cachedUserStatus = normalizedStatus;
   window.currentUserRole = normalizedRole;
-  return normalizedRole;
+  window.currentUserStatus = normalizedStatus;
+  return { role: normalizedRole, status: normalizedStatus };
 };
 
 const applyRoleVisibility = (role) => {
@@ -124,7 +133,9 @@ const initializeAuthState = () => {
 
       if (!session) {
         cachedUserRole = null;
+        cachedUserStatus = null;
         window.currentUserRole = null;
+        window.currentUserStatus = null;
       }
 
       if (event === 'SIGNED_OUT') {
@@ -280,7 +291,13 @@ const syncNavigationVisibility = async (sessionFromEvent = null) => {
 
   const session = sessionFromEvent ?? currentSession;
   const authorized = isAuthorizedUser(session);
-  const role = authorized ? await getUserRole(session) : 'user';
+  const { role, status } = authorized ? await getUserAccess(session) : { role: 'user', status: 'active' };
+
+  if (status === 'suspended' && (routeInfo.isAdminRoute || routeInfo.isControlView)) {
+    await supabaseClient.auth.signOut();
+    redirectToLogin();
+    return;
+  }
 
   applyRoleVisibility(role);
 
@@ -302,9 +319,15 @@ const enforceAdminGuard = async () => {
   await waitForDom();
   applyLoadingState();
   const session = await requireSession();
-  const role = await getUserRole(session);
+  const { role, status } = await getUserAccess(session);
   setupLogoutButton();
   applyRoleVisibility(role);
+
+  if (status === 'suspended') {
+    await supabaseClient.auth.signOut();
+    redirectToLogin();
+    return session;
+  }
 
   if (routeInfo.isProfilesPage && role !== 'administrator') {
     redirectToAdminHome();
