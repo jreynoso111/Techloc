@@ -81,6 +81,21 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">City</label>
+            <input type="text" id="edit-city" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">State</label>
+            <input type="text" id="edit-state" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Zip</label>
+            <input type="text" id="edit-zip" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Availability</label>
@@ -201,12 +216,12 @@
         </section>
 
         <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex flex-col gap-3">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
               <h3 class="text-lg font-bold text-white">Service list</h3>
             </div>
-            <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <div class="flex flex-col gap-2">
               <div class="flex flex-wrap gap-2">
                 <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                   <option value="all">All companies</option>
@@ -248,6 +263,9 @@
                   <th class="px-4 py-3 text-left font-semibold">Phone</th>
                   <th class="px-4 py-3 text-left font-semibold">Contact</th>
                   <th class="px-4 py-3 text-left font-semibold">Address</th>
+                  <th class="px-4 py-3 text-left font-semibold">City</th>
+                  <th class="px-4 py-3 text-left font-semibold">State</th>
+                  <th class="px-4 py-3 text-left font-semibold">Zip</th>
                   <th class="px-4 py-3 text-left font-semibold">Email</th>
                   <th class="px-4 py-3 text-left font-semibold">Notes</th>
                   <th class="px-4 py-3 text-left font-semibold">Website</th>
@@ -376,14 +394,15 @@
       phone: getField(row, 'Phone', 'phone'),
       contact: getField(row, 'contact', 'Contact'),
       address: getField(row, 'address', 'Address'),
+      city: getField(row, 'City', 'city'),
+      state: getField(row, 'State', 'state', 'state_code'),
+      zip: getField(row, 'Zip', 'zip', 'zipcode', 'postal_code'),
       email: getField(row, 'Email', 'email'),
       notes: getField(row, 'Notes', 'notes'),
       website: getField(row, 'website', 'Website'),
       availability: getField(row, 'availability', 'Availability'),
       lat: getField(row, 'lat', 'latitude', 'Lat'),
       long: getField(row, 'long', 'lng', 'longitude', 'Lon'),
-      state: getField(row, 'State', 'state', 'state_code'),
-      city: getField(row, 'City', 'city'),
     });
 
     const updateStats = () => {
@@ -401,7 +420,7 @@
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const query = term.toLowerCase();
-      return rows.filter((row) => [row.company, row.authorization, row.category, row.contact, row.address, row.state, row.city]
+      return rows.filter((row) => [row.company, row.authorization, row.category, row.contact, row.address, row.state, row.city, row.zip]
         .some((value) => String(value || '').toLowerCase().includes(query)));
     };
 
@@ -506,6 +525,9 @@
           ['Phone', row.phone],
           ['Contact', row.contact],
           ['Address', row.address],
+          ['City', row.city],
+          ['State', row.state],
+          ['Zip', row.zip],
           ['Email', row.email],
           ['Notes', row.notes],
           ['Website', row.website],
@@ -555,6 +577,9 @@
       document.getElementById('edit-contact').value = row.contact || '';
       document.getElementById('edit-email').value = row.email || '';
       document.getElementById('edit-address').value = row.address || '';
+      document.getElementById('edit-city').value = row.city || '';
+      document.getElementById('edit-state').value = row.state || '';
+      document.getElementById('edit-zip').value = row.zip || '';
       document.getElementById('edit-website').value = row.website || '';
       document.getElementById('edit-availability').value = row.availability || '';
       document.getElementById('edit-lat').value = row.lat || '';
@@ -625,6 +650,9 @@
         contact: document.getElementById('edit-contact').value,
         email: document.getElementById('edit-email').value,
         address: document.getElementById('edit-address').value,
+        city: document.getElementById('edit-city').value,
+        state: document.getElementById('edit-state').value,
+        zip: document.getElementById('edit-zip').value,
         notes: document.getElementById('edit-notes').value,
         website: document.getElementById('edit-website').value,
         availability: document.getElementById('edit-availability').value,
