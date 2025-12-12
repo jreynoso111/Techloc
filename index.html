@@ -145,7 +145,7 @@
     // --- 1. LÓGICA DE ESTADÍSTICAS (SUPABASE) ---
     const fetchServiceStats = async () => {
       // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
-      const client = window.supabase || window.supabaseClient;
+      const client = window.supabaseClient || window.supabase;
 
       if (!client) {
         console.error("Supabase client not initialized.");
@@ -153,9 +153,9 @@
       }
 
       try {
-        // Consultamos la tabla 'services'. Solicitamos columnas clave para calcular métricas.
-        const { data, error, count } = await client
-          .from('services')
+        // Consultamos la tabla 'Services' en Supabase para obtener las métricas en vivo.
+        const { data = [], error, count } = await client
+          .from('Services')
           .select('state, status, availability', { count: 'exact' });
 
         if (error) {
@@ -164,12 +164,12 @@
         }
 
         // A. Total Partners: Total de filas retornadas
-        const totalCount = count || data.length || 0;
+        const totalCount = count ?? data.length ?? 0;
 
         // B. Available Now: Filtramos filas que tengan "24/7", "Available" o "Active"
         const availableCount = data.filter(row => {
-            const availText = (row.availability || '').toLowerCase();
-            const statusText = (row.status || '').toLowerCase();
+            const availText = String(row.availability || '').toLowerCase();
+            const statusText = String(row.status || '').toLowerCase();
             return availText.includes('24/7') || statusText === 'available' || statusText === 'active';
         }).length;
 
