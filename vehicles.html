@@ -1256,6 +1256,16 @@
 
         const lat = parseFloat(e.latlng.lat.toFixed(6));
         const lng = parseFloat(e.latlng.lng.toFixed(6));
+
+        if (selectedVehicleId !== null) {
+          resetSelection();
+          lastOriginPoint = null;
+          lastClientLocation = null;
+          targetLayer?.clearLayers();
+          renderVisibleSidebars();
+          return;
+        }
+
         resetSelection();
         targetLayer?.clearLayers();
         const locationPoint = { lat, lng, name: 'Pinned location' };
@@ -1822,6 +1832,12 @@
         marker.on('click', (e) => {
           e.originalEvent.handledByMarker = true;
           sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+          selectedServiceByType[type] = partner;
+          const originPoint = getCurrentOrigin();
+          if (originPoint) {
+            showServicesFromOrigin(originPoint, { forceType: type });
+          }
+          renderPartnerUI(partners, options);
           map.panTo([partner.lat, partner.lng]);
         });
 
@@ -2454,10 +2470,13 @@
     function resetSelection() {
       selectedVehicleId = null;
       selectedTechId = null;
+      Object.keys(selectedServiceByType).forEach(key => delete selectedServiceByType[key]);
       highlightLayer?.clearLayers();
       connectionLayer?.clearLayers();
       serviceLayer?.clearLayers();
       serviceConnectionLayer?.clearLayers();
+      lastOriginPoint = null;
+      lastClientLocation = null;
       renderVehicles();
       renderVisibleSidebars();
       toggleSelectionBanner();
