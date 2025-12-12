@@ -349,6 +349,13 @@
       } else {
           state.currentUserRole = 'anon';
       }
+
+      const addButton = els.addRecord;
+      const isAdmin = state.currentUserRole === 'administrator';
+      if (addButton) {
+        addButton.classList.toggle('hidden', !isAdmin);
+        addButton.disabled = !isAdmin;
+      }
     };
 
     const getField = (row, ...keys) => {
@@ -462,7 +469,8 @@
 
       els.tableBody.innerHTML = '';
       
-      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
+      const canEdit = state.currentUserRole === 'administrator';
+      const canDelete = state.currentUserRole === 'administrator';
 
       rows.slice(start, end).forEach((row) => {
         const tr = document.createElement('tr');
@@ -478,11 +486,13 @@
           editBtn.onclick = () => openEditModal(row);
           actionTd.appendChild(editBtn);
 
-          const deleteBtn = document.createElement('button');
-          deleteBtn.className = 'text-red-400 transition hover:text-red-300 hover:scale-110';
-          deleteBtn.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>';
-          deleteBtn.onclick = () => deleteRow(row);
-          actionTd.appendChild(deleteBtn);
+          if (canDelete) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'text-red-400 transition hover:text-red-300 hover:scale-110';
+            deleteBtn.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>';
+            deleteBtn.onclick = () => deleteRow(row);
+            actionTd.appendChild(deleteBtn);
+          }
         } else {
           actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
         }
@@ -553,6 +563,10 @@
     }
 
     function openEditModal(row) {
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can edit services.');
+        return;
+      }
       document.getElementById('modal-title').textContent = 'Edit Service';
       setFormValues(row);
       els.modal.classList.remove('hidden');
@@ -560,6 +574,10 @@
     }
 
     function openCreateModal() {
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can add services.');
+        return;
+      }
       document.getElementById('modal-title').textContent = 'Add new record';
       setFormValues({ category: PAGE_CATEGORY });
       els.modal.classList.remove('hidden');
@@ -576,6 +594,10 @@
 
     async function deleteRow(row) {
       if (!row?.id) return;
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can delete records.');
+        return;
+      }
       const confirmed = confirm(`Delete "${row.company}"?`);
       if (!confirmed) return;
       const { error } = await supabaseClient.from(WRITE_TABLE).delete().eq('id', row.id);
@@ -589,6 +611,10 @@
     // SAVE CHANGES
     els.editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can save changes.');
+        return;
+      }
       const id = document.getElementById('edit-id').value;
 
       const payload = {
