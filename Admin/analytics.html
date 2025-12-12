@@ -356,7 +356,7 @@
         const zip = getField(row, 'zip', 'zipcode', 'postal', 'postal_code');
         const city = getField(row, 'city');
         const state = getField(row, 'state', 'region');
-        const label = zip || city || state ? `${city ? city + ', ' : ''}${state || ''}${zip ? ' ' + zip : ''}` : 'Sin ubicación';
+        const label = zip || city || state ? `${city ? city + ', ' : ''}${state || ''}${zip ? ' ' + zip : ''}` : 'No location provided';
 
         return { lat: null, lng: null, label, source: zip ? 'zip' : (city ? 'city' : 'none') };
     };
@@ -392,7 +392,7 @@
 
     const formatDetails = (details = {}) => {
         if (typeof details === 'string') return details;
-        if (!details || typeof details !== 'object') return 'Sin detalles adicionales';
+        if (!details || typeof details !== 'object') return 'No additional details';
         const parts = [];
         if (details.page) parts.push(`Page: ${details.page}`);
         if (details.region || details.state) parts.push(`Region: ${details.region || details.state}`);
@@ -402,7 +402,7 @@
           .filter(([key]) => !['page', 'region', 'state', 'category', 'note'].includes(key))
           .slice(0, 2)
           .map(([key, value]) => `${key}: ${value}`);
-        return [...parts, ...remaining].join(' • ') || 'Sin detalles adicionales';
+        return [...parts, ...remaining].join(' • ') || 'No additional details';
     };
 
     const parseCsv = (text) => {
@@ -424,7 +424,7 @@
         const datasets = await Promise.all(datasetEntries.map(async ([key, path]) => {
             try {
                 const response = await fetch(path);
-                if (!response.ok) throw new Error(`No se pudo cargar ${path}`);
+                if (!response.ok) throw new Error(`Could not load ${path}`);
                 const csvText = await response.text();
                 const parsed = parseCsv(csvText).map(row => ({
                     ...row,
@@ -454,7 +454,7 @@
                 };
             }
         } catch (err) {
-            console.warn('No se pudo obtener el perfil activo', err.message);
+            console.warn('Could not retrieve the active profile', err.message);
         }
     };
 
@@ -488,7 +488,7 @@
             if (error) throw error;
             return count || 0;
         } catch (err) {
-            console.warn('No se pudo obtener clicks', err.message);
+            console.warn('Could not fetch clicks', err.message);
             return 0;
         }
     };
@@ -501,7 +501,7 @@
       els.kpiTotal.textContent = rows.length;
       els.kpiClicks.textContent = clickCount || 0;
 
-      // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluyendo vehículos como servicio
+      // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluding vehicles as a service
       const serviceRows = rows.filter(r => !r.isVehicle);
       const catCounts = {};
       serviceRows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
@@ -619,11 +619,11 @@
         const eventTypeRaw = payload.eventType || payload.event_type || 'change';
         const eventType = typeof eventTypeRaw === 'string' ? eventTypeRaw.toUpperCase() : 'CHANGE';
         const table = payload.table || payload.table_schema || payload.table_name || 'unknown';
-        const actor = payload.new?.updated_by || payload.new?.updated_by_email || payload.new?.user_email || payload.new?.user || payload.new?.audit_user || payload.new?.metadata?.actor || payload.old?.metadata?.actor || 'Desconocido';
+        const actor = payload.new?.updated_by || payload.new?.updated_by_email || payload.new?.user_email || payload.new?.user || payload.new?.audit_user || payload.new?.metadata?.actor || payload.old?.metadata?.actor || 'Unknown';
         const actorRole = payload.new?.updated_by_role || payload.new?.metadata?.role || '';
         const timestamp = payload.commit_timestamp || payload.created_at || new Date().toISOString();
         const changeList = summarizeChanges(payload.old, payload.new);
-        const changeText = changeList.length ? changeList.join(' • ') : 'Sin cambios detectables';
+        const changeText = changeList.length ? changeList.join(' • ') : 'No detectable changes';
         const icon = eventType === 'DELETE' ? 'trash' : (eventType === 'INSERT' ? 'plus' : 'edit');
         const color = eventType === 'DELETE'
             ? { text: 'text-rose-400', bg: 'bg-rose-400/10' }
