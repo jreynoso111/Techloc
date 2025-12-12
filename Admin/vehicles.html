@@ -703,6 +703,8 @@
 
     const renderTable = (rows) => {
 
+      const allowEdit = isAdminUser();
+
       els.tableBody.innerHTML = '';
 
       els.tableHead.innerHTML = '';
@@ -711,13 +713,27 @@
 
       const headerRow = document.createElement('tr');
 
-      const editHeader = document.createElement('th');
+      if (allowEdit) {
 
-      editHeader.className = 'px-3 py-2 text-left text-xs font-semibold whitespace-nowrap';
+        const editHeader = document.createElement('th');
 
-      editHeader.textContent = '';
+        editHeader.className = 'px-3 py-2 text-left text-xs font-semibold whitespace-nowrap';
 
-      headerRow.appendChild(editHeader);
+        editHeader.textContent = '';
+
+        headerRow.appendChild(editHeader);
+
+      } else {
+
+        const readOnlyHeader = document.createElement('th');
+
+        readOnlyHeader.className = 'px-3 py-2 text-left text-xs font-semibold whitespace-nowrap text-slate-500';
+
+        readOnlyHeader.textContent = 'Access';
+
+        headerRow.appendChild(readOnlyHeader);
+
+      }
 
       state.headers.forEach((header) => {
 
@@ -769,21 +785,23 @@
 
         tr.className = 'transition hover:bg-slate-800/40';
 
-        const actionCell = [
+        const actionCell = allowEdit
+          ? [
 
-          '<td class="px-3 py-2 align-top">',
+              '<td class="px-3 py-2 align-top">',
 
-          '<button type="button" class="inline-flex items-center justify-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:border-blue-500 hover:text-white">',
+              '<button type="button" class="inline-flex items-center justify-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:border-blue-500 hover:text-white">',
 
-          '<i data-lucide="pencil" class="h-3.5 w-3.5"></i>',
+              '<i data-lucide="pencil" class="h-3.5 w-3.5"></i>',
 
-          '<span class="sr-only">Edit row</span>',
+              '<span class="sr-only">Edit row</span>',
 
-          '</button>',
+              '</button>',
 
-          '</td>',
+              '</td>',
 
-        ].join('');
+            ].join('')
+          : '<td class="px-3 py-2 align-top text-xs font-semibold uppercase tracking-wide text-slate-600">Read only</td>';
 
         const dataCells = state.headers.map((header, idx) => {
 

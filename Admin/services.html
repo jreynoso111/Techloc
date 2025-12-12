@@ -349,6 +349,13 @@
       } else {
           state.currentUserRole = 'anon';
       }
+
+      const addButton = els.addRecord;
+      const isAdmin = state.currentUserRole === 'administrator';
+      if (addButton) {
+        addButton.classList.toggle('hidden', !isAdmin);
+        addButton.disabled = !isAdmin;
+      }
     };
 
     const getField = (row, ...keys) => {
@@ -462,7 +469,7 @@
 
       els.tableBody.innerHTML = '';
       
-      const canEdit = ['moderator', 'administrator'].includes(state.currentUserRole);
+      const canEdit = state.currentUserRole === 'administrator';
       const canDelete = state.currentUserRole === 'administrator';
 
       rows.slice(start, end).forEach((row) => {
@@ -485,11 +492,6 @@
             deleteBtn.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>';
             deleteBtn.onclick = () => deleteRow(row);
             actionTd.appendChild(deleteBtn);
-          } else {
-            const badge = document.createElement('span');
-            badge.className = 'text-[10px] font-semibold uppercase tracking-wide text-slate-500';
-            badge.textContent = 'Edit only';
-            actionTd.appendChild(badge);
           }
         } else {
           actionTd.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
@@ -561,6 +563,10 @@
     }
 
     function openEditModal(row) {
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can edit services.');
+        return;
+      }
       document.getElementById('modal-title').textContent = 'Edit Service';
       setFormValues(row);
       els.modal.classList.remove('hidden');
@@ -568,6 +574,10 @@
     }
 
     function openCreateModal() {
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can add services.');
+        return;
+      }
       document.getElementById('modal-title').textContent = 'Add new record';
       setFormValues({ category: PAGE_CATEGORY });
       els.modal.classList.remove('hidden');
@@ -601,6 +611,10 @@
     // SAVE CHANGES
     els.editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (state.currentUserRole !== 'administrator') {
+        alert('Only administrators can save changes.');
+        return;
+      }
       const id = document.getElementById('edit-id').value;
 
       const payload = {
