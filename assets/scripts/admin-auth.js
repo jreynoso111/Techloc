@@ -329,8 +329,8 @@ const enforceAdminGuard = async () => {
     return session;
   }
 
-  if (routeInfo.isProfilesPage && role !== 'administrator') {
-    redirectToAdminHome();
+  if (routeInfo.isAdminRoute && role !== 'administrator') {
+    redirectToHome();
     return session;
   }
 
