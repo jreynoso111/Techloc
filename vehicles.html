@@ -1821,6 +1821,7 @@
 
         marker.on('click', (e) => {
           e.originalEvent.handledByMarker = true;
+          sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
           map.panTo([partner.lat, partner.lng]);
         });
 
@@ -1855,6 +1856,7 @@
         `;
 
         card.addEventListener('click', () => {
+          sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
           map.panTo([partner.lat, partner.lng]);
           selectedServiceByType[type] = partner;
           const originPoint = getCurrentOrigin();
@@ -3000,6 +3002,8 @@
     }
 
     function getActivePartnerType() {
+      const visibleTypes = getVisibleServiceTypes();
+      if (visibleTypes.length) return visibleTypes[0];
       const typeMap = {
         left: 'tech',
         towing: 'towing',
@@ -3019,6 +3023,19 @@
       if (tireSidebarVisible) return 'tire';
       if (inspectorSidebarVisible) return 'inspector';
       return 'tech';
+    }
+
+    function getVisibleServiceTypes() {
+      const visibleTypes = [];
+      if (techSidebarVisible) visibleTypes.push('tech');
+      if (towingSidebarVisible) visibleTypes.push('towing');
+      if (resellerSidebarVisible) visibleTypes.push('reseller');
+      if (repairSidebarVisible) visibleTypes.push('repair');
+      if (locksmithSidebarVisible) visibleTypes.push('locksmith');
+      if (dispatcherSidebarVisible) visibleTypes.push('dispatcher');
+      if (tireSidebarVisible) visibleTypes.push('tire');
+      if (inspectorSidebarVisible) visibleTypes.push('inspector');
+      return visibleTypes;
     }
 
     function getPartnerLabel(type) {
@@ -3087,10 +3104,11 @@
 
       lastOriginPoint = { lat: origin.lat, lng: origin.lng, name: origin.name || origin.customer || '' };
 
+      const visibleTypes = getVisibleServiceTypes();
       const activeTypes = forceType
         ? [forceType]
-        : isAnyServiceSidebarOpen()
-          ? [getActivePartnerType()]
+        : visibleTypes.length
+          ? [visibleTypes[0]]
           : SERVICE_TYPES;
 
       activeTypes.forEach((type) => {
