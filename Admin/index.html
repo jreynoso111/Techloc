@@ -494,20 +494,33 @@
       const form = document.getElementById('csv-upload-form');
       const fileInput = document.getElementById('csv-file');
       const submitBtn = document.getElementById('upload-button');
-      const requireAdmin = () => {
-        const allowed = isAdminUser();
-        if (fileInput) fileInput.disabled = !allowed;
-        if (submitBtn) submitBtn.disabled = !allowed;
+      if (!form || !fileInput || !submitBtn) return;
+
+      const applyUploadAccess = ({ role, status }) => {
+        const allowed = String(role || '').toLowerCase() === ADMIN_ROLE && status !== 'suspended';
+        const titleText = allowed ? '' : 'Administrator access required';
+        fileInput.disabled = !allowed;
+        fileInput.title = titleText;
+        submitBtn.disabled = !allowed;
+        submitBtn.title = titleText;
         return allowed;
       };
 
-      if (!form || !fileInput || !submitBtn) return;
+      const syncAccess = async () => {
+        const session = await getCurrentSession();
+        const { role, status } = session ? await getUserAccess(session) : { role: 'user', status: 'active' };
+        applyUploadAccess({ role, status });
+      };
 
-      requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', (event) => {
+        const detail = event?.detail || {};
+        applyUploadAccess({ role: detail.role, status: detail.status });
+      });
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
-        if (!requireAdmin()) {
+        if (!isAdminUser()) {
           alert('Only administrators can upload service data.');
           return;
         }

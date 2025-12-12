@@ -24,6 +24,12 @@ let initializationPromise = null;
 let cachedUserRole = null;
 let cachedUserStatus = null;
 const sessionListeners = new Set();
+const broadcastRoleStatus = (role, status) =>
+  window.dispatchEvent(
+    new CustomEvent('auth:role-updated', {
+      detail: { role: role ?? null, status: status ?? null },
+    }),
+  );
 
 const HOME_PAGE = new URL('../../index.html', import.meta.url).toString();
 
@@ -60,11 +66,19 @@ const getUserAccess = async (session) => {
   }
 
   if (cachedUserRole && cachedUserStatus) {
+    window.currentUserRole = cachedUserRole;
+    window.currentUserStatus = cachedUserStatus;
+    broadcastRoleStatus(cachedUserRole, cachedUserStatus);
     return { role: cachedUserRole, status: cachedUserStatus };
   }
 
   const userId = session?.user?.id;
-  if (!userId) return { role: 'user', status: 'active' };
+  if (!userId) {
+    window.currentUserRole = 'user';
+    window.currentUserStatus = 'active';
+    broadcastRoleStatus('user', 'active');
+    return { role: 'user', status: 'active' };
+  }
 
   const { data, error } = await supabaseClient
     .from('profiles')
@@ -83,6 +97,7 @@ const getUserAccess = async (session) => {
   cachedUserStatus = normalizedStatus;
   window.currentUserRole = normalizedRole;
   window.currentUserStatus = normalizedStatus;
+  broadcastRoleStatus(normalizedRole, normalizedStatus);
   return { role: normalizedRole, status: normalizedStatus };
 };
 
@@ -138,6 +153,7 @@ const initializeAuthState = () => {
         cachedUserStatus = null;
         window.currentUserRole = null;
         window.currentUserStatus = null;
+        broadcastRoleStatus(null, null);
       }
 
       if (event === 'SIGNED_OUT') {
