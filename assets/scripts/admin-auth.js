@@ -21,6 +21,7 @@ window.supabaseClient = supabaseClient;
 let currentSession = null;
 let initialSessionResolved = false;
 let initializationPromise = null;
+let cachedUserRole = null;
 const sessionListeners = new Set();
 
 const HOME_PAGE = new URL('../../index.html', import.meta.url).toString();
@@ -50,6 +51,43 @@ const setSession = (session) => {
   notifySessionListeners(session);
 };
 
+const getUserRole = async (session) => {
+  if (window.currentUserRole) return window.currentUserRole;
+  if (cachedUserRole) return cachedUserRole;
+
+  const userId = session?.user?.id;
+  if (!userId) return 'user';
+
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.warn('Unable to fetch user role', error);
+    return 'user';
+  }
+
+  const normalizedRole = (data?.role || 'user').toLowerCase();
+  cachedUserRole = normalizedRole;
+  window.currentUserRole = normalizedRole;
+  return normalizedRole;
+};
+
+const applyRoleVisibility = (role) => {
+  const adminOnly = document.querySelectorAll('[data-admin-only]');
+  adminOnly.forEach((item) => {
+    if (role === 'administrator') {
+      item.classList.remove('hidden');
+      item.removeAttribute('aria-hidden');
+    } else {
+      item.classList.add('hidden');
+      item.setAttribute('aria-hidden', 'true');
+    }
+  });
+};
+
 const isAuthorizedUser = (session) => Boolean(session);
 
 const routeInfo = (() => {
@@ -58,6 +96,7 @@ const routeInfo = (() => {
     isAdminRoute: path.includes('/admin/'),
     isControlView: path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
     isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
+    isProfilesPage: path.includes('/admin/profiles.html'),
   };
 })();
 
@@ -82,6 +121,11 @@ const initializeAuthState = () => {
 
     supabaseClient.auth.onAuthStateChange((event, session) => {
       setSession(session);
+
+      if (!session) {
+        cachedUserRole = null;
+        window.currentUserRole = null;
+      }
 
       if (event === 'SIGNED_OUT') {
         const isProtectedRoute = routeInfo.isAdminRoute || routeInfo.isControlView;
@@ -236,6 +280,9 @@ const syncNavigationVisibility = async (sessionFromEvent = null) => {
 
   const session = sessionFromEvent ?? currentSession;
   const authorized = isAuthorizedUser(session);
+  const role = authorized ? await getUserRole(session) : 'user';
+
+  applyRoleVisibility(role);
 
   if (authorized) {
     navItems.forEach((item) => item.classList.remove('hidden'));
@@ -255,7 +302,15 @@ const enforceAdminGuard = async () => {
   await waitForDom();
   applyLoadingState();
   const session = await requireSession();
+  const role = await getUserRole(session);
   setupLogoutButton();
+  applyRoleVisibility(role);
+
+  if (routeInfo.isProfilesPage && role !== 'administrator') {
+    redirectToAdminHome();
+    return session;
+  }
+
   revealAuthorizedUi();
   return session;
 };
