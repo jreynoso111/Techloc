@@ -498,12 +498,18 @@
         const allowed = isAdminUser();
         if (fileInput) fileInput.disabled = !allowed;
         if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
         return allowed;
       };
 
       if (!form || !fileInput || !submitBtn) return;
 
-      requireAdmin();
+      const syncAccess = () => requireAdmin();
+
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
