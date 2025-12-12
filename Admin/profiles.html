@@ -381,23 +381,30 @@
       event.preventDefault();
       
       const id = document.getElementById('profile-id').value;
-      const name = document.getElementById('profile-name').value.trim();
+      const name = document.getElementById('profile-name').value.trim(); // Obtenemos el valor del input
       const email = document.getElementById('profile-email').value.trim();
       const role = document.getElementById('profile-role').value;
       const status = document.getElementById('profile-status').value;
 
       if (!name || !email) return;
 
+      // CORRECCIÓN APLICADA: Mapear 'name' del form a 'full_name' de la DB
       if (id) {
         // UPDATE
         const { error } = await supabase
           .from('profiles')
-          .update({ name, email, role, status, last_active: new Date().toISOString() })
+          .update({ 
+            full_name: name, // IMPORTANTE: Enviar a columna 'full_name'
+            email, 
+            role, 
+            status, 
+            last_active: new Date().toISOString() 
+          })
           .eq('id', id);
 
         if (error) { 
           console.error('Error updating', error); 
-          alert('Error updating profile'); 
+          alert('Error updating profile: ' + error.message); 
           return; 
         }
 
@@ -409,13 +416,19 @@
         // INSERT
         const { data, error } = await supabase
           .from('profiles')
-          .insert([{ name, email, role, status, last_active: new Date().toISOString() }])
+          .insert([{ 
+            full_name: name, // IMPORTANTE: Enviar a columna 'full_name'
+            email, 
+            role, 
+            status, 
+            last_active: new Date().toISOString() 
+          }])
           .select()
           .single();
 
         if (error) { 
           console.error('Error creating', error); 
-          alert('Error creating profile'); 
+          alert('Error creating profile: ' + error.message); 
           return; 
         }
         profiles.unshift(normalizeProfile(data));
@@ -459,6 +472,7 @@
     function normalizeProfile(record) {
       return {
         id: record.id,
+        // Normalizamos lectura: Si 'name' existe úsalo, si no, usa 'full_name'
         name: record.name || record.full_name || 'Unnamed',
         email: record.email || 'unknown',
         role: record.role || record.app_role || 'user', 
