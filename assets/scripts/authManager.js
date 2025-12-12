@@ -38,31 +38,44 @@
     return `${basePath}${normalizedPage}`;
   };
 
-  // --- NUEVO: Función para obtener el rol desde la tabla profiles ---
-  const fetchUserRole = async (userId) => {
+  // --- NUEVO: Función para obtener el rol y estado desde la tabla profiles ---
+  const fetchUserProfile = async (userId) => {
     try {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('role')
+        .select('role, status')
         .eq('id', userId)
         .single();
 
-      if (error || !data) return 'user'; // Rol por defecto si falla
-      return data.role;
+      if (error || !data)
+        return {
+          role: 'user',
+          status: 'active',
+        }; // Valores por defecto si falla
+
+      return {
+        role: data.role || 'user',
+        status: data.status || 'active',
+      };
     } catch (err) {
       console.error('Error fetching role:', err);
-      return 'user';
+      return {
+        role: 'user',
+        status: 'active',
+      };
     }
   };
 
-  const updateNav = (hasSession, role) => // <--- Modificado para aceptar 'role'
+  const updateNav = (hasSession, role, status) => // <--- Modificado para aceptar 'role' y 'status'
     whenDomReady.then(() => {
       const controlLink = getNavElement('control');
       const dashboardLink = getNavElement('dashboard');
       const loginLink = getNavElement('login');
       const logoutButton = getNavElement('logout');
 
-      if (hasSession) {
+      const isSuspended = status === 'suspended';
+
+      if (hasSession && !isSuspended) {
         // Lógica de visualización basada en sesión
         controlLink?.classList.remove('hidden');
         controlLink?.classList.add('md:inline-flex');
@@ -116,6 +129,12 @@
   const enforceRouteProtection = (hasSession) => {
     if (!hasSession && isProtectedRoute()) {
       window.location.replace(mapsTo('login.html'));
+      return;
+    }
+
+    if (window.currentUserStatus === 'suspended' && isProtectedRoute()) {
+      window.supabaseClient?.auth.signOut();
+      window.location.replace(mapsTo('login.html'));
     }
   };
 
@@ -124,18 +143,21 @@
       const logoutButton = getNavElement('logout');
       if (!logoutButton || logoutButton.dataset.bound === 'true') return;
 
-      logoutButton.dataset.bound = 'true';
-      logoutButton.addEventListener('click', async (event) => {
-        event.preventDefault();
-        try {
-          await supabaseClient.auth.signOut();
-          // Limpiar rol global al salir
-          window.currentUserRole = null; 
-        } catch (error) {
-          console.error('Error during Supabase sign out', error);
-        }
+        logoutButton.dataset.bound = 'true';
+        logoutButton.addEventListener('click', async (event) => {
+          event.preventDefault();
+          try {
+            await supabaseClient.auth.signOut();
+            // Limpiar rol global al salir
+            window.currentUserRole = null;
+            window.currentUserStatus = null;
+            document.body.removeAttribute('data-user-role');
+            document.body.removeAttribute('data-user-status');
+          } catch (error) {
+            console.error('Error during Supabase sign out', error);
+          }
+        });
       });
-    });
   };
 
   const startAuthFlow = async () => {
@@ -143,22 +165,31 @@
       const { data } = await supabaseClient.auth.getSession();
       const hasSession = Boolean(data?.session);
       let userRole = 'user'; // Rol por defecto
+      let userStatus = 'active';
 
       // --- NUEVO: Si hay sesión, buscamos el rol en la base de datos ---
       if (hasSession && data.session.user) {
-        userRole = await fetchUserRole(data.session.user.id);
-        
-        // Guardamos el rol globalmente para usarlo en otros scripts
-        window.currentUserRole = userRole; 
-        
+        const profile = await fetchUserProfile(data.session.user.id);
+        userRole = profile.role;
+        userStatus = profile.status.toLowerCase();
+
+        // Guardamos el rol y estado globalmente para usarlo en otros scripts
+        window.currentUserRole = userRole;
+        window.currentUserStatus = userStatus;
+
         // Opcional: Añadir al body para usar CSS (ej: body[data-role="admin"] .delete-btn { display: block; })
         document.body.setAttribute('data-user-role', userRole);
-        
+        document.body.setAttribute('data-user-status', userStatus);
+
         // Disparamos un evento para avisar a otros scripts que el rol está listo
-        window.dispatchEvent(new CustomEvent('auth:role-ready', { detail: { role: userRole } }));
+        window.dispatchEvent(
+          new CustomEvent('auth:role-ready', { detail: { role: userRole, status: userStatus } })
+        );
       } else {
         window.currentUserRole = null;
+        window.currentUserStatus = null;
         document.body.removeAttribute('data-user-role');
+        document.body.removeAttribute('data-user-status');
       }
 
       const isLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
@@ -167,7 +198,7 @@
         return;
       }
 
-      updateNav(hasSession, userRole); // Pasamos el rol
+      updateNav(hasSession, userRole, userStatus); // Pasamos el rol y estado
       toggleProtectedBlocks(hasSession);
       enforceRouteProtection(hasSession);
       bindLogout();
@@ -175,19 +206,26 @@
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
         const sessionExists = Boolean(session);
         let updatedRole = 'user';
+        let updatedStatus = 'active';
 
         if (sessionExists && session.user) {
-           updatedRole = await fetchUserRole(session.user.id);
+           const profile = await fetchUserProfile(session.user.id);
+           updatedRole = profile.role;
+           updatedStatus = profile.status.toLowerCase();
            window.currentUserRole = updatedRole;
+           window.currentUserStatus = updatedStatus;
            document.body.setAttribute('data-user-role', updatedRole);
+           document.body.setAttribute('data-user-status', updatedStatus);
         } else {
            window.currentUserRole = null;
+           window.currentUserStatus = null;
            document.body.removeAttribute('data-user-role');
+           document.body.removeAttribute('data-user-status');
         }
 
         const onLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
 
-        updateNav(sessionExists, updatedRole);
+        updateNav(sessionExists, updatedRole, updatedStatus);
         toggleProtectedBlocks(sessionExists);
         enforceRouteProtection(sessionExists);
 
@@ -203,7 +241,7 @@
     } catch (error) {
       console.error('Failed to verify Supabase session', error);
       enforceRouteProtection(false);
-      updateNav(false, null);
+      updateNav(false, null, null);
       toggleProtectedBlocks(false);
     }
   };
