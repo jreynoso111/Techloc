@@ -75,10 +75,18 @@
       const dashboardLinks = document.querySelectorAll('[data-dashboard-link]');
 
       dashboardLinks.forEach((link) => {
+        if (!link) return;
+
         if (canShowDashboard) {
           link.classList.remove('hidden');
+          link.removeAttribute('aria-hidden');
+          link.removeAttribute('tabindex');
+          link.style.pointerEvents = '';
         } else {
           link.classList.add('hidden');
+          link.setAttribute('aria-hidden', 'true');
+          link.setAttribute('tabindex', '-1');
+          link.style.pointerEvents = 'none';
         }
       });
     });
