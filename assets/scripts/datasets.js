@@ -4,15 +4,8 @@
   const csvPath = (name) => `${basePath}${name}.csv`;
 
   const paths = {
-    installers: csvPath('installers'),
+    services: csvPath('technicians'),
     vehicles: csvPath('vehicles'),
-    towing_companies: csvPath('towing_companies'),
-    resellers: csvPath('resellers'),
-    repair_shops: csvPath('repair_shops'),
-    locksmiths: csvPath('locksmiths'),
-    dispatchers: csvPath('dispatchers'),
-    technicians: csvPath('technicians'),
-    inspectors: csvPath('inspectors'),
   };
 
   window.TL_DATASETS = paths;

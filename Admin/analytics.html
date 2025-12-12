@@ -96,41 +96,13 @@
             Dashboard
             <span class="text-xs font-medium text-slate-400">Overview</span>
           </a>
-          <a href="./technicians.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Installers
+          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Services
             <span class="text-xs font-medium text-slate-400">Technicians</span>
           </a>
           <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
             Vehicles
             <span class="text-xs font-medium text-slate-400">Fleet</span>
-          </a>
-          <a href="./towing.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Towing
-            <span class="text-xs font-medium text-slate-400">Roadside</span>
-          </a>
-          <a href="./resellers.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Resellers
-            <span class="text-xs font-medium text-slate-400">Channel</span>
-          </a>
-          <a href="./repair.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Repair shops
-            <span class="text-xs font-medium text-slate-400">Service</span>
-          </a>
-          <a href="./locksmiths.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Locksmiths
-            <span class="text-xs font-medium text-slate-400">Access</span>
-          </a>
-          <a href="./inspectors.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Inspectors
-            <span class="text-xs font-medium text-slate-400">Quality</span>
-          </a>
-          <a href="./dispatchers.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Dispatchers
-            <span class="text-xs font-medium text-slate-400">Coordination</span>
-          </a>
-          <a href="./tires.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Tire services
-            <span class="text-xs font-medium text-slate-400">Commercial tires</span>
           </a>
           <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
             Analytics
@@ -293,15 +265,7 @@
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     const datasetEntries = window.TL_DATASETS ? Object.entries(window.TL_DATASETS) : [
-      ['dispatchers', '../assets/data/dispatchers.csv'],
-      ['installers', '../assets/data/installers.csv'],
-      ['inspectors', '../assets/data/inspectors.csv'],
-      ['locksmiths', '../assets/data/locksmiths.csv'],
-      ['repair_shops', '../assets/data/repair_shops.csv'],
-      ['resellers', '../assets/data/resellers.csv'],
-      ['technicians', '../assets/data/technicians.csv'],
-      ['tires', '../assets/data/tires.csv'],
-      ['towing_companies', '../assets/data/towing_companies.csv'],
+      ['services', '../assets/data/technicians.csv'],
       ['vehicles', '../assets/data/vehicles.csv']
     ];
     let actorProfile = { role: 'guest', email: 'anonymous', id: 'n/a' };
@@ -335,20 +299,13 @@
       return '';
     };
 
-    // --- LOGIC: NORMALIZACION DE CATEGORIAS (AQUI ESTA EL ARREGLO DE DISPATCHERS) ---
+    // --- LOGIC: NORMALIZACION DE CATEGORIAS ---
     const formatCategory = (str) => {
         if (!str) return 'Uncategorized';
         const clean = String(str).trim().toLowerCase();
-        
+
         // Reglas especificas para atrapar nombres variados
-        if (clean.includes('dispatch')) return 'Dispatcher';
-        if (clean.includes('coordination')) return 'Dispatcher';
         if (clean.includes('gps') || clean.includes('technician') || clean.includes('installer')) return 'Technician';
-        if (clean.includes('tow')) return 'Towing';
-        if (clean.includes('lock')) return 'Locksmith';
-        if (clean.includes('inspector')) return 'Inspector';
-        if (clean.includes('repair') || clean.includes('shop')) return 'Repair Shop';
-        if (clean.includes('reseller') || clean.includes('dealer') || clean.includes('auction')) return 'Dealer/Auction';
         if (clean.includes('vehicle') || clean.includes('fleet') || clean.includes('car')) return 'Vehicle';
 
         // Default: Capitalizar
@@ -358,12 +315,8 @@
     // Colores para el layout profesional
     const getCategoryColor = (cat) => {
         const colors = {
-            'Dispatcher': 'bg-violet-500', // Destacamos dispatchers
             'Technician': 'bg-blue-500',
-            'Towing': 'bg-amber-500',
-            'Locksmith': 'bg-pink-500',
-            'Inspector': 'bg-emerald-500',
-            'Repair Shop': 'bg-orange-500'
+            'Vehicle': 'bg-emerald-500',
         };
         return colors[cat] || 'bg-slate-500';
     };
@@ -529,9 +482,7 @@
       const serviceRows = rows.filter(r => !r.isVehicle);
       const catCounts = {};
       serviceRows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
-      const dispatcherCount = serviceRows.filter(r => r.category === 'Dispatcher').length;
-      if (catCounts['Dispatcher'] === undefined) catCounts['Dispatcher'] = dispatcherCount;
-      els.kpiCategories.textContent = Object.keys(catCounts).length;
+        els.kpiCategories.textContent = Object.keys(catCounts).length;
 
       els.categoryBars.innerHTML = '';
       const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
@@ -600,11 +551,11 @@
       // 6. Recent Table (Badges)
       const recent = rows.slice(-30).reverse();
       els.tableBody.innerHTML = '';
-      recent.forEach(r => {
-        // Badges styles based on category logic
-        let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
-        if(r.category === 'Dispatcher') badgeColor = 'bg-violet-500/10 text-violet-300 border-violet-500/20';
-        if(r.category === 'Technician') badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
+        recent.forEach(r => {
+          // Badges styles based on category logic
+          let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
+          if(r.category === 'Technician') badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
+          if(r.category === 'Vehicle') badgeColor = 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
 
         const rowHtml = `
           <tr class="hover:bg-white/5 transition-colors group">
