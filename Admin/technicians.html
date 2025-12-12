@@ -72,12 +72,23 @@
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Address</label>
+            <input type="text" id="edit-address" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Website</label>
             <input type="text" id="edit-website" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
           </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Availability</label>
             <input type="text" id="edit-availability" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+          <div class="space-y-1">
+            <label class="text-xs font-semibold uppercase text-slate-400">Notes</label>
+            <textarea id="edit-notes" rows="3" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></textarea>
           </div>
         </div>
 
@@ -90,11 +101,6 @@
             <label class="text-xs font-semibold uppercase text-slate-400">Longitude</label>
             <input type="text" id="edit-long" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
           </div>
-        </div>
-
-        <div class="space-y-1">
-          <label class="text-xs font-semibold uppercase text-slate-400">Notes</label>
-          <textarea id="edit-notes" rows="3" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></textarea>
         </div>
 
         <div class="flex items-center justify-end gap-3 pt-2">
@@ -195,7 +201,7 @@
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Partner network</p>
             <h2 class="text-2xl font-black text-white">Installer roster and coverage</h2>
-            <p class="text-sm text-slate-400">Search, filter, and confirm regional availability.</p>
+            <p class="text-sm text-slate-400">Search, filter by category, and confirm coverage across the full services directory.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
@@ -232,6 +238,9 @@
                 <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                   <option value="all">All states</option>
                 </select>
+                <select id="category-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                  <option value="all">All categories</option>
+                </select>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
@@ -240,7 +249,7 @@
                   <button data-sort="state" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">State</button>
                   <button data-sort="city" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">City</button>
                 </div>
-                <input id="search" type="search" placeholder="Search by company, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+                <input id="search" type="search" placeholder="Search by company, category, address, state, or city" class="w-64 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
                 <button id="add-record" class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5" data-admin-actions>
                   <i data-lucide="plus" class="h-4 w-4"></i>
                   New record
@@ -262,6 +271,7 @@
                   <th class="px-4 py-3 text-left font-semibold">Category</th>
                   <th class="px-4 py-3 text-left font-semibold">Phone</th>
                   <th class="px-4 py-3 text-left font-semibold">Contact</th>
+                  <th class="px-4 py-3 text-left font-semibold">Address</th>
                   <th class="px-4 py-3 text-left font-semibold">Email</th>
                   <th class="px-4 py-3 text-left font-semibold">Notes</th>
                   <th class="px-4 py-3 text-left font-semibold">Website</th>
@@ -311,6 +321,7 @@
         search: '',
         company: 'all',
         state: 'all',
+        category: 'all',
         sortKey: '',
         sortDir: 'asc',
       },
@@ -329,6 +340,7 @@
       companies: document.getElementById('tech-companies'),
       companyFilter: document.getElementById('company-filter'),
       stateFilter: document.getElementById('state-filter'),
+      categoryFilter: document.getElementById('category-filter'),
       search: document.getElementById('search'),
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
@@ -380,6 +392,7 @@
       category: getField(row, 'category', 'Category'),
       phone: getField(row, 'Phone', 'phone'),
       contact: getField(row, 'contact', 'Contact'),
+      address: getField(row, 'address', 'Address'),
       email: getField(row, 'Email', 'email'),
       notes: getField(row, 'Notes', 'notes'),
       website: getField(row, 'website', 'Website'),
@@ -405,7 +418,7 @@
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const query = term.toLowerCase();
-      return rows.filter((row) => [row.company, row.authorization, row.category, row.contact, row.state, row.city]
+      return rows.filter((row) => [row.company, row.authorization, row.category, row.contact, row.address, row.state, row.city]
         .some((value) => String(value || '').toLowerCase().includes(query)));
     };
 
@@ -421,6 +434,10 @@
 
       if (filters.state !== 'all') {
         result = result.filter((row) => getText(row.state) === filters.state);
+      }
+
+      if (filters.category !== 'all') {
+        result = result.filter((row) => getText(row.category) === filters.category);
       }
 
       const sorters = {
@@ -502,6 +519,7 @@
           ['Category', row.category],
           ['Phone', row.phone],
           ['Contact', row.contact],
+          ['Address', row.address],
           ['Email', row.email],
           ['Notes', row.notes],
           ['Website', row.website],
@@ -512,7 +530,7 @@
 
         columns.forEach(([label, value]) => {
           const td = document.createElement('td');
-          td.className = label === 'Company' ? 'px-4 py-3 font-semibold text-white' : 'px-4 py-3 text-slate-200';
+          td.className = label === 'Company Name' ? 'px-4 py-3 font-semibold text-white' : 'px-4 py-3 text-slate-200';
           td.textContent = value || '—';
           tr.appendChild(td);
         });
@@ -525,8 +543,7 @@
       els.status.textContent = 'Loading from Supabase…';
       const { data, error } = await supabaseClient
         .from(READ_TABLE)
-        .select('*')
-        .eq('category', PAGE_CATEGORY);
+        .select('*');
         if (error) {
           console.error('Error fetching services:', error);
         els.status.textContent = 'Error loading data';
@@ -538,6 +555,7 @@
       updateStats();
       populateSelect(els.companyFilter, state.rows.map((row) => row.company), 'All companies');
       populateSelect(els.stateFilter, state.rows.map((row) => row.state), 'All states');
+      populateSelect(els.categoryFilter, state.rows.map((row) => row.category), 'All categories');
       renderTable();
     };
 
@@ -550,6 +568,7 @@
       document.getElementById('edit-phone').value = row.phone || '';
       document.getElementById('edit-contact').value = row.contact || '';
       document.getElementById('edit-email').value = row.email || '';
+      document.getElementById('edit-address').value = row.address || '';
       document.getElementById('edit-website').value = row.website || '';
       document.getElementById('edit-availability').value = row.availability || '';
       document.getElementById('edit-lat').value = row.lat || '';
@@ -603,6 +622,7 @@
         phone: document.getElementById('edit-phone').value,
         contact: document.getElementById('edit-contact').value,
         email: document.getElementById('edit-email').value,
+        address: document.getElementById('edit-address').value,
         notes: document.getElementById('edit-notes').value,
         website: document.getElementById('edit-website').value,
         availability: document.getElementById('edit-availability').value,
@@ -641,6 +661,12 @@
 
     els.stateFilter.addEventListener('change', (event) => {
       state.filters.state = event.target.value;
+      state.pagination.page = 1;
+      renderTable();
+    });
+
+    els.categoryFilter.addEventListener('change', (event) => {
+      state.filters.category = event.target.value;
       state.pagination.page = 1;
       renderTable();
     });
