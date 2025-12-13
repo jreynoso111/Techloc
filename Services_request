@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc • Service Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/scripts/supabaseClient.js"></script>
+  <script src="assets/scripts/authManager.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { slate: { 950: '#020617' } },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="assets/visuals/theme.css" />
+</head>
+
+<body class="min-h-screen bg-slate-950 text-slate-50">
+  <div class="pointer-events-none fixed inset-0 z-0 opacity-80 mix-blend-screen" aria-hidden="true">
+    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
+  </div>
+
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <a href="index.html" class="flex items-center gap-3">
+        <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+          <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+        </div>
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Network</p>
+          <h1 class="text-base font-black leading-tight text-white">Service Control</h1>
+        </div>
+      </a>
+
+      <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
+        <a id="nav-home" href="index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+        <a id="nav-control-view" href="vehicles.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control View</a>
+        <a id="nav-services" href="services.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Services</a>
+        <a id="nav-dashboard" href="Admin/index.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Dashboard</a>
+        <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About</a>
+        <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
+      </nav>
+
+      <div class="flex items-center gap-3" data-admin-actions>
+        <a id="nav-login" href="login.html" class="rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+        <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="relative z-10 mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
+
+    <!-- Header / Controls -->
+    <section class="rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
+      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div class="space-y-1">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Board</p>
+          <h2 class="text-2xl font-black text-white">Service Requests</h2>
+          <p class="text-sm text-slate-300">Track any service requested for any vehicle — table, kanban, and saved filters.</p>
+        </div>
+
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2">
+            <i data-lucide="search" class="h-4 w-4 text-slate-400"></i>
+            <input id="searchInput" type="text" placeholder="Search (VIN, unit, request, vendor...)" class="w-72 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" />
+          </div>
+
+          <div class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-1">
+            <button data-view="table" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-white bg-blue-600">Table</button>
+            <button data-view="kanban" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Kanban</button>
+            <button data-view="calendar" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Calendar</button>
+          </div>
+
+          <button id="newRequestBtn" class="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow shadow-blue-500/20 transition hover:bg-blue-500">
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            New request
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick filters -->
+      <div class="mt-5 flex flex-wrap items-center gap-2 text-xs">
+        <button data-filter="open" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Open</button>
+        <button data-filter="in_progress" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">In progress</button>
+        <button data-filter="waiting" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Waiting</button>
+        <button data-filter="closed" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Closed</button>
+        <span class="ml-2 text-slate-500">Tip: these map to your status values.</span>
+      </div>
+    </section>
+
+    <!-- TABLE VIEW -->
+    <section id="tableView" class="rounded-3xl border border-slate-900 bg-slate-900/70 p-0 shadow-xl shadow-blue-900/30 overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+        <p class="text-sm font-bold text-white">All requests</p>
+        <p id="resultsMeta" class="text-xs text-slate-400">0 items</p>
+      </div>
+
+      <div class="overflow-auto">
+        <table class="min-w-full text-left text-sm">
+          <thead class="sticky top-0 bg-slate-950/80 backdrop-blur">
+            <tr class="text-xs uppercase tracking-[0.14em] text-slate-400">
+              <th class="px-6 py-3">Status</th>
+              <th class="px-6 py-3">Unit</th>
+              <th class="px-6 py-3">VIN</th>
+              <th class="px-6 py-3">Service</th>
+              <th class="px-6 py-3">Vendor</th>
+              <th class="px-6 py-3">Requested</th>
+              <th class="px-6 py-3">Due</th>
+              <th class="px-6 py-3">Owner</th>
+              <th class="px-6 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-800">
+            <!-- rows injected here -->
+          </tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="hidden px-6 py-10">
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/40 p-6">
+          <p class="text-sm font-bold text-white">No service requests found</p>
+          <p class="mt-1 text-sm text-slate-300">Create the first request, or adjust filters/search.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- KANBAN VIEW -->
+    <section id="kanbanView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
+      <div class="mb-4 flex items-center justify-between">
+        <p class="text-sm font-bold text-white">Kanban</p>
+        <p class="text-xs text-slate-400">Drag & drop can be added next (Phase 2).</p>
+      </div>
+      <div class="grid gap-4 md:grid-cols-4" id="kanbanColumns">
+        <!-- columns injected -->
+      </div>
+    </section>
+
+    <!-- CALENDAR VIEW (stub for now) -->
+    <section id="calendarView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
+      <div class="space-y-2">
+        <p class="text-sm font-bold text-white">Calendar</p>
+        <p class="text-sm text-slate-300">We’ll wire this to the <span class="font-semibold">Due</span> date and show month/week views in Phase 3.</p>
+        <div class="rounded-3xl border border-slate-800 bg-slate-950/40 p-6 text-slate-400">
+          Calendar placeholder
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal: New / Edit Request -->
+  <div id="modalOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
+    <div class="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Service request</p>
+          <h3 id="modalTitle" class="text-lg font-black text-white">New request</h3>
+        </div>
+        <button id="modalClose" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-2 text-slate-200 hover:bg-slate-800">
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <form id="requestForm" class="space-y-5 px-6 py-6">
+        <input type="hidden" id="requestId" />
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="space-y-2">
+            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Unit</span>
+            <input id="unitInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="e.g. KS3791" />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">VIN</span>
+            <input id="vinInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Vehicle VIN" />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Service type</span>
+            <input id="serviceInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="GPS install, locksmith, tow, inspection..." />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Status</span>
+            <select id="statusInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Waiting">Waiting</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Vendor</span>
+            <input id="vendorInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Company / technician" />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Due date</span>
+            <input id="dueInput" type="date" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+        </div>
+
+        <label class="space-y-2 block">
+          <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Notes</span>
+          <textarea id="notesInput" rows="3" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Add instructions, contact info, address, etc."></textarea>
+        </label>
+
+        <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p id="formError" class="text-sm text-red-300"></p>
+          <div class="flex items-center gap-2">
+            <button type="button" id="deleteBtn" class="hidden rounded-2xl border border-red-800 bg-red-950/40 px-4 py-2 text-sm font-black text-red-200 hover:bg-red-950/70">Delete</button>
+            <button type="submit" class="rounded-2xl bg-blue-600 px-5 py-2 text-sm font-black text-white hover:bg-blue-500">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
+
+    // ---- Supabase client adapter (works with your existing setup) ----
+    function getClient() {
+      // Option A: your supabaseClient.js exposes a global
+      if (window.supabaseClient) return window.supabaseClient;
+      // Option B: your supabaseClient.js exposes a function
+      if (window.getSupabaseClient) return window.getSupabaseClient();
+      // Option C: direct createClient (FILL THESE ONLY IF NEEDED)
+      // return supabase.createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_ANON_KEY');
+      return null;
+    }
+
+    const state = {
+      view: 'table',
+      filterStatus: null,
+      search: '',
+      items: [],
+      loading: false,
+      client: null,
+    };
+
+    // ---- DOM ----
+    const tableView = document.getElementById('tableView');
+    const kanbanView = document.getElementById('kanbanView');
+    const calendarView = document.getElementById('calendarView');
+    const tableBody = document.getElementById('tableBody');
+    const emptyState = document.getElementById('emptyState');
+    const resultsMeta = document.getElementById('resultsMeta');
+    const searchInput = document.getElementById('searchInput');
+
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalClose = document.getElementById('modalClose');
+    const newRequestBtn = document.getElementById('newRequestBtn');
+    const requestForm = document.getElementById('requestForm');
+
+    const requestId = document.getElementById('requestId');
+    const unitInput = document.getElementById('unitInput');
+    const vinInput = document.getElementById('vinInput');
+    const serviceInput = document.getElementById('serviceInput');
+    const statusInput = document.getElementById('statusInput');
+    const vendorInput = document.getElementById('vendorInput');
+    const dueInput = document.getElementById('dueInput');
+    const notesInput = document.getElementById('notesInput');
+    const formError = document.getElementById('formError');
+    const modalTitle = document.getElementById('modalTitle');
+    const deleteBtn = document.getElementById('deleteBtn');
+
+    // ---- Helpers ----
+    const statusPill = (status) => {
+      const map = {
+        'Open': 'bg-slate-800 text-slate-100 border-slate-700',
+        'In Progress': 'bg-blue-600/20 text-blue-200 border-blue-700/40',
+        'Waiting': 'bg-amber-600/20 text-amber-200 border-amber-700/40',
+        'Closed': 'bg-emerald-600/20 text-emerald-200 border-emerald-700/40',
+      };
+      const cls = map[status] || 'bg-slate-800 text-slate-100 border-slate-700';
+      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${status || '—'}</span>`;
+    };
+
+    function fmtDate(v) {
+      if (!v) return '—';
+      try {
+        const d = new Date(v);
+        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+      } catch {
+        return v;
+      }
+    }
+
+    function applyFilters(items) {
+      let out = [...items];
+      if (state.filterStatus) {
+        const target = state.filterStatus;
+        out = out.filter(r => (r.status || '').toLowerCase() === target);
+      }
+      if (state.search) {
+        const q = state.search.toLowerCase();
+        out = out.filter(r =>
+          [r.unit, r.vin, r.service_type, r.vendor, r.notes].filter(Boolean).some(v => String(v).toLowerCase().includes(q))
+        );
+      }
+      return out;
+    }
+
+    function setView(view) {
+      state.view = view;
+      tableView.classList.toggle('hidden', view !== 'table');
+      kanbanView.classList.toggle('hidden', view !== 'kanban');
+      calendarView.classList.toggle('hidden', view !== 'calendar');
+
+      document.querySelectorAll('.viewBtn').forEach(btn => {
+        const active = btn.dataset.view === view;
+        btn.classList.toggle('bg-blue-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('text-slate-300', !active);
+      });
+
+      render();
+    }
+
+    // ---- Data (MVP) ----
+    // Expected table (recommended): public.service_requests
+    // Columns (minimum): id (uuid), created_at, unit, vin, service_type, status, vendor, due_date, notes, owner_name
+    async function loadRequests() {
+      if (!state.client) return;
+      state.loading = true;
+      // NOTE: Adjust the select list to match your table columns.
+      const { data, error } = await state.client
+        .from('service_requests')
+        .select('id, created_at, unit, vin, service_type, status, vendor, due_date, notes, owner_name')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error(error);
+        // Soft fail: show empty state
+        state.items = [];
+      } else {
+        state.items = data || [];
+      }
+      state.loading = false;
+      render();
+    }
+
+    async function upsertRequest(payload) {
+      const { data, error } = await state.client
+        .from('service_requests')
+        .upsert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    }
+
+    async function deleteRequest(id) {
+      const { error } = await state.client
+        .from('service_requests')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+
+    // ---- Render ----
+    function renderTable(items) {
+      tableBody.innerHTML = '';
+
+      if (!items.length) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+      emptyState.classList.add('hidden');
+
+      for (const r of items) {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-950/30';
+        tr.innerHTML = `
+          <td class="px-6 py-3">${statusPill(r.status)}</td>
+          <td class="px-6 py-3 font-bold text-white">${r.unit || '—'}</td>
+          <td class="px-6 py-3 text-slate-200">${r.vin || '—'}</td>
+          <td class="px-6 py-3 text-slate-200">${r.service_type || '—'}</td>
+          <td class="px-6 py-3 text-slate-300">${r.vendor || '—'}</td>
+          <td class="px-6 py-3 text-slate-400">${fmtDate(r.created_at)}</td>
+          <td class="px-6 py-3 text-slate-300">${fmtDate(r.due_date)}</td>
+          <td class="px-6 py-3 text-slate-300">${r.owner_name || '—'}</td>
+          <td class="px-6 py-3 text-right">
+            <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800" data-id="${r.id}">
+              <i data-lucide="pencil" class="h-4 w-4"></i>
+              Edit
+            </button>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      }
+
+      // Bind edit buttons
+      document.querySelectorAll('.editBtn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          const item = state.items.find(x => String(x.id) === String(id));
+          if (item) openModal(item);
+        });
+      });
+
+      lucide.createIcons();
+    }
+
+    function renderKanban(items) {
+      const columnsEl = document.getElementById('kanbanColumns');
+      const columns = [
+        { key: 'Open', label: 'Open' },
+        { key: 'In Progress', label: 'In Progress' },
+        { key: 'Waiting', label: 'Waiting' },
+        { key: 'Closed', label: 'Closed' },
+      ];
+
+      columnsEl.innerHTML = '';
+
+      for (const col of columns) {
+        const bucket = items.filter(r => (r.status || 'Open') === col.key);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'rounded-3xl border border-slate-800 bg-slate-950/40 p-4';
+        wrapper.innerHTML = `
+          <div class="mb-3 flex items-center justify-between">
+            <p class="text-sm font-black text-white">${col.label}</p>
+            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs font-bold text-slate-300">${bucket.length}</span>
+          </div>
+          <div class="space-y-3" id="col-${col.key.replace(/\s/g,'-')}"></div>
+        `;
+        columnsEl.appendChild(wrapper);
+
+        const stack = wrapper.querySelector('div[id^="col-"]');
+        for (const r of bucket) {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'w-full rounded-3xl border border-slate-800 bg-slate-900/50 p-4 text-left transition hover:bg-slate-900/70';
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-black text-white">${r.unit || 'Unit —'}</p>
+                <p class="mt-1 text-xs text-slate-400">${r.vin || 'VIN —'}</p>
+              </div>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-slate-400"></i>
+            </div>
+            <p class="mt-3 text-sm text-slate-200">${r.service_type || 'Service —'}</p>
+            <p class="mt-2 text-xs text-slate-400">Due: ${fmtDate(r.due_date)}</p>
+          `;
+          card.addEventListener('click', () => openModal(r));
+          stack.appendChild(card);
+        }
+      }
+
+      lucide.createIcons();
+    }
+
+    function render() {
+      const filtered = applyFilters(state.items);
+      resultsMeta.textContent = `${filtered.length} item${filtered.length === 1 ? '' : 's'}`;
+
+      if (state.view === 'table') renderTable(filtered);
+      if (state.view === 'kanban') renderKanban(filtered);
+      // calendar is stub
+    }
+
+    // ---- Modal ----
+    function openModal(item = null) {
+      formError.textContent = '';
+
+      const isEdit = !!item;
+      modalTitle.textContent = isEdit ? 'Edit request' : 'New request';
+      deleteBtn.classList.toggle('hidden', !isEdit);
+
+      requestId.value = item?.id || '';
+      unitInput.value = item?.unit || '';
+      vinInput.value = item?.vin || '';
+      serviceInput.value = item?.service_type || '';
+      statusInput.value = item?.status || 'Open';
+      vendorInput.value = item?.vendor || '';
+      dueInput.value = item?.due_date ? String(item.due_date).slice(0, 10) : '';
+      notesInput.value = item?.notes || '';
+
+      modalOverlay.classList.remove('hidden');
+      modalOverlay.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeModal() {
+      modalOverlay.classList.add('hidden');
+      modalOverlay.classList.remove('flex');
+    }
+
+    // ---- Events ----
+    document.querySelectorAll('.viewBtn').forEach(btn => {
+      btn.addEventListener('click', () => setView(btn.dataset.view));
+    });
+
+    document.querySelectorAll('.filterChip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.filter;
+        state.filterStatus = (state.filterStatus === f) ? null : f;
+        document.querySelectorAll('.filterChip').forEach(x => x.classList.remove('bg-blue-600','text-white','border-blue-600'));
+        if (state.filterStatus === f) btn.classList.add('bg-blue-600','text-white','border-blue-600');
+        render();
+      });
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      state.search = e.target.value.trim();
+      render();
+    });
+
+    newRequestBtn.addEventListener('click', () => openModal(null));
+    modalClose.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      try {
+        const id = requestId.value;
+        if (!id) return;
+        await deleteRequest(id);
+        closeModal();
+        await loadRequests();
+      } catch (err) {
+        console.error(err);
+        formError.textContent = 'Could not delete. Check permissions (RLS) and table name.';
+      }
+    });
+
+    requestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.textContent = '';
+
+      if (!state.client) {
+        formError.textContent = 'Supabase client not found. Check assets/scripts/supabaseClient.js.';
+        return;
+      }
+
+      const payload = {
+        id: requestId.value || undefined,
+        unit: unitInput.value.trim() || null,
+        vin: vinInput.value.trim() || null,
+        service_type: serviceInput.value.trim() || null,
+        status: statusInput.value,
+        vendor: vendorInput.value.trim() || null,
+        due_date: dueInput.value || null,
+        notes: notesInput.value.trim() || null,
+        // owner_name: set by trigger or app logic if you want
+      };
+
+      try {
+        await upsertRequest(payload);
+        closeModal();
+        await loadRequests();
+      } catch (err) {
+        console.error(err);
+        formError.textContent = 'Could not save. Check table columns + RLS policies.';
+      }
+    });
+
+    // ---- Init ----
+    document.addEventListener('DOMContentLoaded', async () => {
+      createConstellationBackground();
+      lucide.createIcons();
+
+      state.client = getClient();
+
+      // If your authManager hides nav items based on session, it will still work.
+      // This page will load data only if your Supabase client and RLS allow it.
+      await loadRequests();
+    });
+  </script>
+</body>
+</html>
