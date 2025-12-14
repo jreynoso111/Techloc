@@ -16,6 +16,7 @@
   const navIds = {
     control: 'nav-control-view',
     dashboard: 'nav-dashboard',
+    services: 'nav-services',
     login: 'nav-login',
     logout: 'nav-logout',
   };
@@ -27,6 +28,7 @@
   // Rutas protegidas
   const protectedRoutes = [
     (path) => path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
+    (path) => path.endsWith('/services-request.html') || path.endsWith('services-request.html'),
     (path) => path.includes('/admin/'),
   ];
 
@@ -95,6 +97,7 @@
     whenDomReady.then(() => {
       const controlLink = getNavElement('control');
       const dashboardLink = getNavElement('dashboard');
+      const servicesLink = getNavElement('services');
       const loginLink = getNavElement('login');
       const logoutButton = getNavElement('logout');
 
@@ -105,6 +108,8 @@
         // Lógica de visualización basada en sesión
         controlLink?.classList.remove('hidden');
         controlLink?.classList.add('md:inline-flex');
+
+        servicesLink?.classList.remove('hidden');
 
         if (canShowDashboard) {
           dashboardLink?.classList.remove('hidden');
@@ -119,6 +124,7 @@
       } else {
         controlLink?.classList.add('hidden');
         controlLink?.classList.remove('md:inline-flex');
+        servicesLink?.classList.add('hidden');
         dashboardLink?.classList.add('hidden');
         dashboardLink?.classList.remove('md:inline-flex');
         logoutButton?.classList.add('hidden');
