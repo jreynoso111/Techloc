@@ -60,6 +60,38 @@
     }
 
     .no-drag { -webkit-user-drag: none; user-drag: none; }
+
+    /* --- Gantt --- */
+    .gantt-track {
+      position: relative;
+      height: 16px;
+      border-radius: 999px;
+      background: rgba(2,6,23,.45);
+      border: 1px solid rgba(148,163,184,.18);
+      overflow: hidden;
+    }
+    .gantt-bar {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      border-radius: 999px;
+      background: rgba(59,130,246,.55);
+      border: 1px solid rgba(59,130,246,.85);
+      box-shadow: 0 0 0 1px rgba(2,6,23,.35) inset;
+    }
+    .gantt-bar.waiting { background: rgba(245,158,11,.40); border-color: rgba(245,158,11,.80); }
+    .gantt-bar.closed { background: rgba(16,185,129,.40); border-color: rgba(16,185,129,.80); }
+    .gantt-bar.open { background: rgba(148,163,184,.25); border-color: rgba(148,163,184,.55); }
+    .gantt-bar.progress { background: rgba(59,130,246,.55); border-color: rgba(59,130,246,.85); }
+
+    .gantt-gridline {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(148,163,184,.10);
+      pointer-events: none;
+    }
   </style>
 </head>
 
@@ -112,7 +144,7 @@
         <div class="space-y-1">
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Board</p>
           <h2 class="text-2xl font-black text-white">Service Requests</h2>
-          <p class="text-sm text-slate-300">Track any service requested for any vehicle — table, kanban, and saved filters.</p>
+          <p class="text-sm text-slate-300">Track any service requested for any vehicle — table, kanban, calendar, gantt, and saved filters.</p>
         </div>
 
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
@@ -120,6 +152,7 @@
             <button data-view="table" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-white bg-blue-600">Table</button>
             <button data-view="kanban" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Kanban</button>
             <button data-view="calendar" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Calendar</button>
+            <button data-view="gantt" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Gantt</button>
           </div>
 
           <button id="newRequestBtn" class="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow shadow-blue-500/20 transition hover:bg-blue-500">
@@ -138,6 +171,7 @@
       </div>
     </section>
 
+    <!-- Table -->
     <section id="tableView" class="rounded-3xl border border-slate-900 bg-slate-900/70 p-0 shadow-xl shadow-blue-900/30 overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
         <p class="text-sm font-bold text-white">All requests</p>
@@ -213,7 +247,6 @@
           <p class="text-xs text-slate-400 lg:hidden">Uses your status values.</p>
         </div>
 
-        <!-- Time filter bar -->
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-2">
             <div class="flex items-center gap-2">
@@ -262,15 +295,37 @@
       <div class="space-y-2">
         <p class="text-sm font-bold text-white">Calendar</p>
         <p class="text-sm text-slate-300">Request, work, or shipping dates summarized for quick planning.</p>
-
-        <!-- IMPORTANT: this must be a normal block container (NOT a grid),
-             because renderCalendarView injects its own grid -->
         <div id="calendarList" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- Gantt -->
+    <section id="ganttView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
+      <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div class="space-y-1">
+          <p class="text-sm font-bold text-white">Gantt</p>
+          <p class="text-sm text-slate-300">Timeline from Request → (Shipping/Work/Request). Uses current filters (including status chips + column filters).</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Scale</span>
+          <select id="ganttScale" class="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600">
+            <option value="day">Day</option>
+            <option value="week" selected>Week</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="ganttMeta" class="text-xs text-slate-400 mb-3">—</div>
+
+      <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <div id="ganttHeader" class="min-w-[980px] flex items-center justify-between text-[11px] text-slate-400 mb-3"></div>
+        <div id="ganttList" class="min-w-[980px] space-y-3"></div>
       </div>
     </section>
 
   </main>
 
+  <!-- Modal -->
   <div id="modalOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
     <div class="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
@@ -463,7 +518,6 @@
       return String(v).toLowerCase();
     }
 
-    // --- Status canonicalization (fix "invented" columns) ---
     const CANON_STATUSES = ['Open', 'In Progress', 'Waiting', 'Closed'];
 
     function canonicalizeStatus(raw) {
@@ -472,61 +526,27 @@
 
       const t = s.toLowerCase().replace(/\s+/g, ' ').trim();
 
-      // common variants -> canonical
       if (t === 'open' || t === 'new') return 'Open';
 
-      if (
-        t === 'in progress' ||
-        t === 'inprogress' ||
-        t === 'in-progress' ||
-        t === 'progress' ||
-        t === 'working'
-      ) return 'In Progress';
+      if (t === 'in progress' || t === 'inprogress' || t === 'in-progress' || t === 'progress' || t === 'working')
+        return 'In Progress';
 
-      if (
-        t === 'waiting' ||
-        t === 'on hold' ||
-        t === 'hold' ||
-        t === 'pending' ||
-        t === 'awaiting' ||
-        t === 'awaiting parts'
-      ) return 'Waiting';
+      if (t === 'waiting' || t === 'on hold' || t === 'hold' || t === 'pending' || t === 'awaiting' || t === 'awaiting parts')
+        return 'Waiting';
 
-      if (
-        t === 'closed' ||
-        t === 'done' ||
-        t === 'completed' ||
-        t === 'complete' ||
-        t === 'resolved'
-      ) return 'Closed';
+      if (t === 'closed' || t === 'done' || t === 'completed' || t === 'complete' || t === 'resolved')
+        return 'Closed';
 
-      // if it already matches one of the canonical labels (case-insensitive)
       const exact = CANON_STATUSES.find(x => x.toLowerCase() === t);
       if (exact) return exact;
 
-      // unknown: keep original (trimmed) but stable
       return s;
     }
 
-    // Time filter helpers (Kanban only)
-    function startOfDay(ts) {
-      const d = new Date(ts);
-      d.setHours(0,0,0,0);
-      return d.getTime();
-    }
-    function endOfDay(ts) {
-      const d = new Date(ts);
-      d.setHours(23,59,59,999);
-      return d.getTime();
-    }
-    function startOfMonth(ts) {
-      const d = new Date(ts);
-      return new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0).getTime();
-    }
-    function endOfMonth(ts) {
-      const d = new Date(ts);
-      return new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999).getTime();
-    }
+    function startOfDay(ts) { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+    function endOfDay(ts) { const d = new Date(ts); d.setHours(23,59,59,999); return d.getTime(); }
+    function startOfMonth(ts) { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0).getTime(); }
+    function endOfMonth(ts) { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999).getTime(); }
 
     function getRowDateTs(row, mode) {
       const req = row['request date'] || row.request_date;
@@ -536,8 +556,6 @@
       if (mode === 'request') return parseMaybeDate(req);
       if (mode === 'work') return parseMaybeDate(work);
       if (mode === 'shipping') return parseMaybeDate(ship);
-
-      // auto: use best available
       return parseMaybeDate(ship) ?? parseMaybeDate(work) ?? parseMaybeDate(req);
     }
 
@@ -567,11 +585,10 @@
       view: 'table',
       filterStatus: null,
 
-      // Kanban time filter
-      kbDateField: 'auto',     // auto | request | work | shipping
-      kbRange: 'all',          // all | today | 7d | 30d | 90d | thisMonth | custom
-      kbFrom: null,            // yyyy-mm-dd string
-      kbTo: null,              // yyyy-mm-dd string
+      kbDateField: 'auto',
+      kbRange: 'all',
+      kbFrom: null,
+      kbTo: null,
 
       client: null,
       loading: false,
@@ -596,6 +613,8 @@
     const tableView = document.getElementById('tableView');
     const kanbanView = document.getElementById('kanbanView');
     const calendarView = document.getElementById('calendarView');
+    const ganttView = document.getElementById('ganttView');
+
     const kanbanColumns = document.getElementById('kanbanColumns');
     const calendarList = document.getElementById('calendarList');
 
@@ -655,12 +674,18 @@
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteBtn');
 
-    // Kanban filter UI
+    // Kanban time filter UI
     const kbDateField = document.getElementById('kbDateField');
     const kbMeta = document.getElementById('kbMeta');
     const kbCustomWrap = document.getElementById('kbCustomWrap');
     const kbFrom = document.getElementById('kbFrom');
     const kbTo = document.getElementById('kbTo');
+
+    // Gantt UI
+    const ganttScale = document.getElementById('ganttScale');
+    const ganttMeta = document.getElementById('ganttMeta');
+    const ganttHeader = document.getElementById('ganttHeader');
+    const ganttList = document.getElementById('ganttList');
 
     const statusPill = (status) => {
       const map = {
@@ -678,7 +703,6 @@
       const companyPhone = raw?.['company phone'] ?? raw?.company_phone ?? null;
       const pocPhone = raw?.['poc phone'] ?? raw?.poc_phone ?? null;
 
-      // Make sure status is stable even if DB column naming varies
       const statusRaw = raw?.status ?? raw?.Status ?? raw?.['status'] ?? raw?.service_status ?? raw?.request_status ?? null;
       const status = canonicalizeStatus(statusRaw) || null;
 
@@ -713,11 +737,14 @@
           state.sortDir = prefs.sortDir ?? 'asc';
           state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : {};
 
-          // Kanban time filter (safe defaults if missing)
           state.kbDateField = prefs.kbDateField ?? 'auto';
           state.kbRange = prefs.kbRange ?? 'all';
           state.kbFrom = prefs.kbFrom ?? null;
           state.kbTo = prefs.kbTo ?? null;
+
+          if (prefs.ganttScale) {
+            try { ganttScale.value = prefs.ganttScale; } catch {}
+          }
         }
       } catch {}
     }
@@ -735,6 +762,8 @@
         kbRange: state.kbRange,
         kbFrom: state.kbFrom,
         kbTo: state.kbTo,
+
+        ganttScale: ganttScale?.value || 'week'
       };
       try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch {}
     }
@@ -784,12 +813,12 @@
       return (raw ?? '—');
     }
 
-    function applyKanbanTimeFilter(rows) {
-      if (state.view !== 'kanban') return rows;
+    function applyTimeFilterForViews(rows) {
+      // Apply kb time range to Kanban + Gantt (optional, but useful)
+      if (state.view !== 'kanban' && state.view !== 'gantt') return rows;
       if (!state.kbRange || state.kbRange === 'all') return rows;
 
       const now = Date.now();
-
       let fromTs = null;
       let toTs = null;
 
@@ -830,13 +859,11 @@
 
       let out = [...state.allRows];
 
-      // status chip filter
       if (state.filterStatus) {
         const target = canonicalizeStatus(state.filterStatus);
         out = out.filter(r => canonicalizeStatus(r.status) === target);
       }
 
-      // table filters
       for (const [key, val] of Object.entries(state.colFilters)) {
         const fv = String(val ?? '').trim();
         if (!fv) continue;
@@ -852,10 +879,9 @@
         }
       }
 
-      // Kanban time filter (requested)
-      out = applyKanbanTimeFilter(out);
+      // Apply time filter for Kanban + Gantt
+      out = applyTimeFilterForViews(out);
 
-      // sorting
       if (state.sortKey) {
         const key = state.sortKey;
         const d = defMap.get(key);
@@ -1170,28 +1196,23 @@
       lucide.createIcons();
     }
 
-    function renderKanbanMeta(totalBefore) {
+    function renderKanbanMeta() {
       const parts = [];
-      if (state.kbRange && state.kbRange !== 'all') {
-        parts.push(`Time: ${state.kbRange}${state.kbRange === 'custom' ? '' : ''}`);
-      } else {
-        parts.push('Time: all');
-      }
+      parts.push(`Time: ${state.kbRange || 'all'}`);
       parts.push(`Date: ${state.kbDateField}`);
       kbMeta.textContent = `${state.filteredRows.length} items • ${parts.join(' • ')}`;
     }
 
+    // ✅ Kanban with Edit button on each card
     function renderKanbanView() {
-      // Build buckets based on REAL statuses + canonicalization
       const buckets = new Map();
       for (const s of CANON_STATUSES) buckets.set(s, []);
-      const unknownMap = new Map(); // unknown status -> rows
+      const unknownMap = new Map();
 
       for (const row of state.filteredRows) {
         const canon = canonicalizeStatus(row.status);
 
         if (!canon) {
-          // treat empty as Open? better: Unspecified bucket, but don't invent column unless needed
           const key = 'Unspecified';
           if (!unknownMap.has(key)) unknownMap.set(key, []);
           unknownMap.get(key).push(row);
@@ -1205,14 +1226,10 @@
         }
       }
 
-      // Only show unknown column(s) if they truly exist
       const unknownKeys = Array.from(unknownMap.keys());
       const columnOrder = CANON_STATUSES.concat(unknownKeys.length ? ['Other'] : []);
-
       const otherItems = [];
-      if (unknownKeys.length) {
-        for (const k of unknownKeys) otherItems.push(...(unknownMap.get(k) || []));
-      }
+      if (unknownKeys.length) for (const k of unknownKeys) otherItems.push(...(unknownMap.get(k) || []));
 
       kanbanColumns.innerHTML = columnOrder.map(status => {
         const items = status === 'Other' ? otherItems : (buckets.get(status) || []);
@@ -1222,10 +1239,23 @@
           const s = canonicalizeStatus(r.status);
           return `
             <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-md shadow-blue-900/20">
-              <div class="flex items-center justify-between text-xs text-slate-400">
+              <div class="flex items-center justify-between gap-3 text-xs text-slate-400">
                 <span>${escapeHtml(primaryDate)}</span>
-                ${statusPill(s)}
+
+                <div class="flex items-center gap-2">
+                  ${statusPill(s)}
+                  <button
+                    type="button"
+                    class="kbEditBtn inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
+                    data-id="${escapeAttr(r.id)}"
+                    title="Edit"
+                  >
+                    <i data-lucide="pencil" class="h-4 w-4"></i>
+                    Edit
+                  </button>
+                </div>
               </div>
+
               <p class="mt-2 text-sm font-black text-white">${escapeHtml(r.company_name || '—')}</p>
               <p class="text-sm text-slate-300">${escapeHtml(r.unittype || '')} ${escapeHtml(r.brand || '')} ${escapeHtml(r.model || '')}</p>
               <p class="text-xs text-slate-400">Doc: ${escapeHtml(r.doc || '—')}</p>
@@ -1249,10 +1279,21 @@
           </div>
         `;
       }).join('');
+
+      // wire edit
+      kanbanColumns.querySelectorAll('.kbEditBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const item = state.allRows.find(x => String(x.id) === String(id));
+          if (item) openModal(item);
+        });
+      });
+
+      lucide.createIcons();
     }
 
     function renderCalendarView() {
-      // Work date calendar (kept as you had), but layout fixed + responsive scroll
       const events = state.filteredRows
         .map(r => {
           const rawDate = r.workdate || r['work date'];
@@ -1326,7 +1367,6 @@
         </div>
       `;
 
-      // Responsive: allow horizontal scroll on small screens
       calendarList.innerHTML = `
         ${header}
         <div class="overflow-x-auto">
@@ -1335,6 +1375,144 @@
           </div>
         </div>
       `;
+    }
+
+    // ✅ Gantt
+    function ganttStatusClass(status) {
+      const s = canonicalizeStatus(status);
+      if (s === 'Waiting') return 'waiting';
+      if (s === 'Closed') return 'closed';
+      if (s === 'In Progress') return 'progress';
+      return 'open';
+    }
+
+    function toISODate(ts) {
+      const d = new Date(ts);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function renderGanttView() {
+      // Build tasks with start/end
+      const tasks = state.filteredRows.map(r => {
+        const req = parseMaybeDate(r['request date']);
+        const work = parseMaybeDate(r.workdate);
+        const ship = parseMaybeDate(r['shipping date']);
+
+        const start = req ?? work ?? ship;
+        const end = ship ?? work ?? req;
+
+        if (start === null || end === null) return null;
+
+        const s = Math.min(start, end);
+        const e = Math.max(start, end);
+        return { row: r, start: s, end: e };
+      }).filter(Boolean);
+
+      if (!tasks.length) {
+        ganttMeta.textContent = 'No tasks with dates match current filters.';
+        ganttHeader.innerHTML = '';
+        ganttList.innerHTML = '<p class="text-sm text-slate-400">No dated items.</p>';
+        return;
+      }
+
+      // Range
+      let minTs = Infinity, maxTs = -Infinity;
+      for (const t of tasks) {
+        if (t.start < minTs) minTs = t.start;
+        if (t.end > maxTs) maxTs = t.end;
+      }
+
+      // Padding (nice edges)
+      const padDays = 3;
+      minTs = startOfDay(minTs - padDays * 86400000);
+      maxTs = endOfDay(maxTs + padDays * 86400000);
+
+      const totalMs = Math.max(1, (maxTs - minTs));
+      const totalDays = Math.max(1, Math.round(totalMs / 86400000));
+
+      ganttMeta.textContent = `${tasks.length} items • Range: ${fmtDate(toISODate(minTs))} → ${fmtDate(toISODate(maxTs))} • Scale: ${ganttScale.value}`;
+
+      // Header ticks
+      const scale = ganttScale.value; // day|week
+      const tick = (scale === 'day') ? 1 : 7;
+
+      const ticks = [];
+      for (let day = 0; day <= totalDays; day += tick) {
+        const ts = minTs + day * 86400000;
+        ticks.push({ day, label: fmtDate(toISODate(ts)) });
+      }
+
+      ganttHeader.innerHTML = `
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-slate-300">Company / Unit</span>
+          <span class="text-slate-500">Timeline</span>
+        </div>
+      `;
+
+      // Gridlines + rows
+      ganttList.innerHTML = tasks.map(t => {
+        const leftPct = ((t.start - minTs) / totalMs) * 100;
+        const widthPct = Math.max(0.8, ((t.end - t.start) / totalMs) * 100); // min width
+        const r = t.row;
+
+        const label = `${r.company_name || '—'} • ${r.unittype || ''} ${r.brand || ''} ${r.model || ''}`.trim();
+        const datesLabel = `Req: ${fmtDate(r['request date'])} • Work: ${fmtDate(r.workdate)} • Ship: ${fmtDate(r['shipping date'])}`;
+
+        // gridlines HTML
+        const gridLines = ticks.map(x => {
+          const xPct = (x.day / totalDays) * 100;
+          return `<div class="gantt-gridline" style="left:${xPct}%;"></div>`;
+        }).join('');
+
+        return `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div class="min-w-[260px]">
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-black text-white">${escapeHtml(r.company_name || '—')}</p>
+                  ${statusPill(r.status)}
+                </div>
+                <p class="text-xs text-slate-400 mt-1">${escapeHtml(datesLabel)}</p>
+                <p class="text-xs text-slate-300 mt-1">${escapeHtml(label)}</p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="ganttEditBtn inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
+                  data-id="${escapeAttr(r.id)}"
+                >
+                  <i data-lucide="pencil" class="h-4 w-4"></i>
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-3 gantt-track">
+              ${gridLines}
+              <div class="gantt-bar ${ganttStatusClass(r.status)}" style="left:${leftPct}%; width:${widthPct}%;"></div>
+            </div>
+
+            <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Doc: ${escapeHtml(r.doc || '—')}</span>
+              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">VIN: ${escapeHtml(r.shortvin || '—')}</span>
+              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">POC: ${escapeHtml(r['poc name'] || '—')}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // wire edit buttons
+      ganttList.querySelectorAll('.ganttEditBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const id = btn.dataset.id;
+          const item = state.allRows.find(x => String(x.id) === String(id));
+          if (item) openModal(item);
+        });
+      });
+
+      lucide.createIcons();
     }
 
     // Top scroll sync
@@ -1405,6 +1583,11 @@
       }
 
       if (state.view === 'calendar') renderCalendarView();
+
+      if (state.view === 'gantt') {
+        // reuse same filter controls as kanban? keep them working via saved prefs
+        renderGanttView();
+      }
     }
 
     async function requireLogin() {
@@ -1532,9 +1715,11 @@
     document.querySelectorAll('.viewBtn').forEach(btn => btn.addEventListener('click', () => {
       const view = btn.dataset.view;
       state.view = view;
+
       tableView.classList.toggle('hidden', view !== 'table');
       kanbanView.classList.toggle('hidden', view !== 'kanban');
       calendarView.classList.toggle('hidden', view !== 'calendar');
+      ganttView.classList.toggle('hidden', view !== 'gantt');
 
       document.querySelectorAll('.viewBtn').forEach(b => {
         const active = b.dataset.view === view;
@@ -1558,7 +1743,7 @@
       });
     });
 
-    // Kanban time filter events
+    // Kanban time filter events (also affect Gantt)
     kbDateField.addEventListener('change', () => {
       state.kbDateField = kbDateField.value;
       savePrefs();
@@ -1568,10 +1753,7 @@
     document.querySelectorAll('.kbRangeBtn').forEach(btn => {
       btn.addEventListener('click', () => {
         state.kbRange = btn.dataset.kbRange;
-        if (state.kbRange !== 'custom') {
-          // keep custom values but don't require them
-        } else {
-          // if empty, default to this month
+        if (state.kbRange === 'custom') {
           const now = new Date();
           const y = now.getFullYear();
           const m = String(now.getMonth()+1).padStart(2,'0');
@@ -1592,6 +1774,12 @@
       state.kbTo = kbTo.value || null;
       savePrefs();
       render();
+    });
+
+    // Gantt scale
+    ganttScale.addEventListener('change', () => {
+      savePrefs();
+      if (state.view === 'gantt') renderGanttView();
     });
 
     // Columns dropdown
@@ -1692,9 +1880,7 @@
       loadPrefs();
       wireScrollSync();
 
-      // init kanban UI with prefs
       renderKanbanFilterUI();
-
       await loadAllRequests();
     });
   </script>
