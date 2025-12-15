@@ -124,6 +124,19 @@
         </table>
       </div>
 
+      <!-- Pagination controls -->
+      <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800">
+        <button id="prevPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">
+          Previous
+        </button>
+
+        <p id="pageMeta" class="text-sm text-slate-400"></p>
+
+        <button id="nextPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">
+          Next
+        </button>
+      </div>
+
       <div id="emptyState" class="hidden px-6 py-10">
         <div class="rounded-3xl border border-slate-800 bg-slate-950/40 p-6">
           <p id="emptyTitle" class="text-sm font-bold text-white">No service requests found</p>
@@ -170,11 +183,7 @@
       <form id="requestForm" class="space-y-5 px-6 py-6">
         <input type="hidden" id="requestId" />
 
-        <!-- (form fields unchanged) -->
-        <!-- ... all your existing inputs ... -->
-
-        <!-- KEEP YOUR FORM EXACTLY AS YOU HAD IT -->
-        <!-- I’m not repeating all inputs here in the interest of space, but in YOUR file keep them exactly. -->
+        <!-- KEEP YOUR FORM INPUTS EXACTLY AS YOU ALREADY HAVE THEM -->
 
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p id="formError" class="text-sm text-red-300"></p>
@@ -194,14 +203,17 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto";
     const TABLE_NAME = "services_request";
 
+    const PAGE_SIZE = 20;
+
     function getClient() {
       if (!window.supabase?.createClient) return null;
       return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
 
+    // Phones combined in one column + keep the rest
     const TABLE_COLUMNS = [
       { key: 'company_name', label: 'Company Name' },
-      { key: 'company phone', label: 'Company Phone' },
+      { key: 'phones', label: 'Phones' },
       { key: 'doc', label: 'Doc' },
       { key: 'unittype', label: 'Unit Type' },
       { key: 'brand', label: 'Brand' },
@@ -214,7 +226,6 @@
       { key: 'shipping date', label: 'Shipping Date' },
       { key: 'quote', label: 'Quote' },
       { key: 'poc name', label: 'POC Name' },
-      { key: 'poc phone', label: 'POC Phone' },
       { key: 'confirmed', label: 'Confirmed' },
       { key: 'state', label: 'State' },
       { key: 'city', label: 'City' },
@@ -231,6 +242,9 @@
       client: null,
       lastError: null,
       lastCount: null,
+
+      page: 1,
+      total: 0,
     };
 
     // DOM
@@ -243,6 +257,10 @@
     const emptyMsg = document.getElementById('emptyMsg');
     const resultsMeta = document.getElementById('resultsMeta');
     const searchInput = document.getElementById('searchInput');
+
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageMeta = document.getElementById('pageMeta');
 
     const modalOverlay = document.getElementById('modalOverlay');
     const modalClose = document.getElementById('modalClose');
@@ -286,20 +304,24 @@
       return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${status || '—'}</span>`;
     };
 
+    // mm/dd/yy
     function fmtDate(v) {
       if (!v) return '—';
-      try {
-        const d = new Date(v);
-        return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
-      } catch {
-        return v;
-      }
+      const d = new Date(v);
+      if (isNaN(d)) return '—';
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${mm}/${dd}/${yy}`;
     }
 
     function normalizeRow(raw) {
+      const companyPhone = raw?.['company phone'] ?? raw?.company_phone ?? null;
+      const pocPhone = raw?.['poc phone'] ?? raw?.poc_phone ?? null;
+
       return {
         ...raw,
-        'company phone': raw?.['company phone'] ?? raw?.company_phone ?? null,
+        'company phone': companyPhone,
         unittype: raw?.unittype ?? raw?.unit_type ?? null,
         'model year': raw?.['model year'] ?? raw?.model_year ?? null,
         shortvin: raw?.shortvin ?? raw?.short_vin ?? null,
@@ -307,29 +329,10 @@
         workdate: raw?.workdate ?? raw?.work_date ?? null,
         'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
         'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
-        'poc phone': raw?.['poc phone'] ?? raw?.poc_phone ?? null,
+        'poc phone': pocPhone,
+
+        phones: [companyPhone, pocPhone].filter(Boolean).join(' / ') || null,
       };
-    }
-
-    function applyFilters(items) {
-      let out = [...items];
-
-      if (state.filterStatus) {
-        const target = state.filterStatus.toLowerCase();
-        out = out.filter(r => (r.status || '').toLowerCase() === target);
-      }
-
-      if (state.search) {
-        const q = state.search.toLowerCase();
-        out = out.filter(r =>
-          [
-            r.id, r.company_name, r['company phone'], r.doc, r.unittype, r.brand, r.model,
-            r['model year'], r.shortvin, r['poc name'], r['poc phone'], r.city, r.state, r.address, r.zip,
-          ].filter(Boolean).some(v => String(v).toLowerCase().includes(q))
-        );
-      }
-
-      return out;
     }
 
     function setView(view) {
@@ -348,6 +351,36 @@
       render();
     }
 
+    // Server-side filters (status + search) so pagination is correct
+    function buildQuery() {
+      let q = state.client
+        .from(TABLE_NAME)
+        .select('*', { count: 'exact' });
+
+      // status filter
+      if (state.filterStatus) {
+        q = q.eq('status', state.filterStatus);
+      }
+
+      // search (basic OR across common columns; adjust as needed)
+      if (state.search) {
+        const s = state.search.replace(/[%_]/g, '\\$&'); // escape % _
+        q = q.or([
+          `company_name.ilike.%${s}%`,
+          `doc.ilike.%${s}%`,
+          `brand.ilike.%${s}%`,
+          `model.ilike.%${s}%`,
+          `shortvin.ilike.%${s}%`,
+          `city.ilike.%${s}%`,
+          `state.ilike.%${s}%`,
+          `address.ilike.%${s}%`,
+          `zip.ilike.%${s}%`
+        ].join(','));
+      }
+
+      return q;
+    }
+
     async function loadRequests() {
       state.client = state.client || getClient();
       state.lastError = null;
@@ -362,28 +395,27 @@
       state.loading = true;
       render();
 
-      const { data, error, count } = await state.client
-        .from(TABLE_NAME)
-        .select('*', { count: 'exact' });
+      const from = (state.page - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      // NOTE: order by request_date if exists, else by id
+      let query = buildQuery()
+        .range(from, to)
+        .order('request_date', { ascending: false, nullsFirst: false });
+
+      const { data, error, count } = await query;
 
       state.lastCount = (typeof count === 'number') ? count : null;
+      state.total = state.lastCount ?? 0;
 
       if (error) {
         console.error('Supabase error:', error);
         state.lastError = error.message || String(error);
         state.items = [];
+        state.total = 0;
       } else {
-        state.items = (data || [])
-          .map(normalizeRow)
-          .sort((a, b) => new Date(b['request date'] || b.workdate || 0) - new Date(a['request date'] || a.workdate || 0));
+        state.items = (data || []).map(normalizeRow);
       }
-
-      console.log({
-        table: TABLE_NAME,
-        count_from_api: count,
-        rows_returned: data?.length,
-        error: error || null,
-      });
 
       state.loading = false;
       render();
@@ -421,9 +453,9 @@
         if (state.lastError) {
           emptyTitle.textContent = 'Could not load service requests';
           emptyMsg.textContent = state.lastError;
-        } else if (state.lastCount === 0 && !state.loading) {
-          emptyTitle.textContent = 'API returned 0 rows';
-          emptyMsg.textContent = "If you have rows in Supabase (107), this is almost certainly RLS blocking SELECT. Create a SELECT policy for anon/authenticated or disable RLS to test.";
+        } else if ((state.lastCount === 0 || state.total === 0) && !state.loading) {
+          emptyTitle.textContent = 'No matching rows';
+          emptyMsg.textContent = 'Try clearing filters/search, or check RLS policies for authenticated users.';
         } else {
           emptyTitle.textContent = 'No service requests found';
           emptyMsg.textContent = 'Create the first request, or adjust filters/search.';
@@ -440,9 +472,25 @@
 
         const cells = TABLE_COLUMNS.map(col => {
           const value = r[col.key];
+
           if (col.key === 'status') return `<td class="px-6 py-3">${statusPill(value)}</td>`;
-          if (['request date', 'workdate', 'shipping date'].includes(col.key)) return `<td class="px-6 py-3 text-slate-300">${fmtDate(value)}</td>`;
-          if (col.key === 'company_name' || col.key === 'brand' || col.key === 'model') return `<td class="px-6 py-3 font-bold text-white">${value || '—'}</td>`;
+
+          if (col.key === 'phones') {
+            return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${value || '—'}</td>`;
+          }
+
+          if (['request date', 'workdate', 'shipping date'].includes(col.key)) {
+            return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${fmtDate(value)}</td>`;
+          }
+
+          if (col.key === 'address') {
+            return `<td class="px-6 py-3 text-slate-200 min-w-[320px] max-w-[420px] whitespace-normal">${value ?? '—'}</td>`;
+          }
+
+          if (col.key === 'company_name' || col.key === 'brand' || col.key === 'model') {
+            return `<td class="px-6 py-3 font-bold text-white">${value || '—'}</td>`;
+          }
+
           return `<td class="px-6 py-3 text-slate-200">${value ?? '—'}</td>`;
         }).join('');
 
@@ -519,22 +567,26 @@
     }
 
     function render() {
-      const filtered = applyFilters(state.items);
+      const total = state.total || 0;
+      const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+      // clamp page if total changed
+      if (state.page > maxPage) state.page = maxPage;
 
       if (state.loading) {
         resultsMeta.textContent = 'Loading...';
       } else if (state.lastError) {
         resultsMeta.textContent = `Error: ${state.lastError}`;
       } else {
-        // Show both filtered and API count for clarity
-        const apiCount = (typeof state.lastCount === 'number') ? state.lastCount : null;
-        resultsMeta.textContent = apiCount !== null
-          ? `${filtered.length} shown • ${apiCount} in DB`
-          : `${filtered.length} item${filtered.length === 1 ? '' : 's'}`;
+        resultsMeta.textContent = `${state.items.length} shown • ${total} total`;
       }
 
-      if (state.view === 'table') renderTable(filtered);
-      if (state.view === 'kanban') renderKanban(filtered);
+      pageMeta.textContent = `Page ${state.page} of ${maxPage}`;
+      prevPageBtn.disabled = state.page === 1 || state.loading;
+      nextPageBtn.disabled = state.page === maxPage || state.loading;
+
+      if (state.view === 'table') renderTable(state.items);
+      if (state.view === 'kanban') renderKanban(state.items); // kanban uses current page only (by design)
     }
 
     // Modal
@@ -583,18 +635,43 @@
     });
 
     document.querySelectorAll('.filterChip').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const f = btn.dataset.filter;
         state.filterStatus = (state.filterStatus === f) ? null : f;
+
         document.querySelectorAll('.filterChip').forEach(x => x.classList.remove('bg-blue-600','text-white','border-blue-600'));
         if (state.filterStatus === f) btn.classList.add('bg-blue-600','text-white','border-blue-600');
-        render();
+
+        state.page = 1;
+        await loadRequests();
       });
     });
 
+    // debounce search
+    let searchTimer = null;
     searchInput.addEventListener('input', (e) => {
       state.search = e.target.value.trim();
-      render();
+      state.page = 1;
+
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        loadRequests();
+      }, 300);
+    });
+
+    prevPageBtn.addEventListener('click', async () => {
+      if (state.page > 1) {
+        state.page--;
+        await loadRequests();
+      }
+    });
+
+    nextPageBtn.addEventListener('click', async () => {
+      const maxPage = Math.max(1, Math.ceil((state.total || 0) / PAGE_SIZE));
+      if (state.page < maxPage) {
+        state.page++;
+        await loadRequests();
+      }
     });
 
     newRequestBtn.addEventListener('click', () => openModal(null));
