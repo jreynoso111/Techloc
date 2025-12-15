@@ -28,24 +28,19 @@
   <link rel="stylesheet" href="assets/visuals/theme.css" />
 
   <style>
-    /* Top scrollbar */
     #topScrollWrap::-webkit-scrollbar { height: 12px; }
     #topScrollWrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
     #topScrollWrap::-webkit-scrollbar-track { background: rgba(2,6,23,.35); border-radius: 999px; }
 
-    /* Table scrollbar */
     #tableScrollWrap::-webkit-scrollbar { height: 12px; width: 12px; }
     #tableScrollWrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
     #tableScrollWrap::-webkit-scrollbar-track { background: rgba(2,6,23,.35); border-radius: 999px; }
 
-    /* Drag visuals */
     th.dragging { opacity: .45; }
     th.drop-target { outline: 2px solid rgba(59,130,246,.6); outline-offset: -2px; }
 
-    /* Resizing cursor + no select */
     body.resizing { cursor: col-resize !important; user-select: none !important; }
 
-    /* Resizer handle */
     .col-resizer {
       position: absolute;
       top: 0;
@@ -64,7 +59,6 @@
       background: rgba(148,163,184,.25);
     }
 
-    /* Prevent filters row from messing with drag */
     .no-drag { -webkit-user-drag: none; user-drag: none; }
   </style>
 </head>
@@ -113,7 +107,6 @@
 
   <main class="relative z-10 flex flex-col gap-8 py-10" style="padding-left:1in; padding-right:1in;">
 
-    <!-- Header / Controls -->
     <section class="rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
       <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div class="space-y-1">
@@ -141,7 +134,6 @@
         </div>
       </div>
 
-      <!-- Quick filters -->
       <div class="mt-5 flex flex-wrap items-center gap-2 text-xs">
         <button data-filter="Open" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Open</button>
         <button data-filter="In Progress" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">In progress</button>
@@ -151,14 +143,12 @@
       </div>
     </section>
 
-    <!-- TABLE VIEW -->
     <section id="tableView" class="rounded-3xl border border-slate-900 bg-slate-900/70 p-0 shadow-xl shadow-blue-900/30 overflow-hidden">
       <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
         <p class="text-sm font-bold text-white">All requests</p>
         <p id="resultsMeta" class="text-xs text-slate-400">0 items</p>
       </div>
 
-      <!-- TOP BAR: pagination + columns dropdown + top scrollbar -->
       <div class="flex flex-col gap-3 border-b border-slate-800 px-6 py-4">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-center gap-2">
@@ -220,7 +210,6 @@
       </div>
     </section>
 
-    <!-- KANBAN VIEW -->
     <section id="kanbanView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
       <div class="mb-4 flex items-center justify-between">
         <p class="text-sm font-bold text-white">Kanban</p>
@@ -229,7 +218,6 @@
       <div class="grid gap-4 md:grid-cols-4" id="kanbanColumns"></div>
     </section>
 
-    <!-- CALENDAR VIEW -->
     <section id="calendarView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
       <div class="space-y-2">
         <p class="text-sm font-bold text-white">Calendar</p>
@@ -242,7 +230,6 @@
 
   </main>
 
-  <!-- Modal -->
   <div id="modalOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
     <div class="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
@@ -403,7 +390,6 @@
       });
     }
 
-    // --- Date formatter: mm/dd/yy ONLY ---
     function fmtDate(v) {
       if (!v) return '—';
       const d = new Date(v);
@@ -425,7 +411,7 @@
       return String(v).toLowerCase();
     }
 
-    // --- Column definitions (includes virtual phones column) ---
+    // ✅ "phones" = company phone ONLY
     const BASE_COLUMN_DEFS = [
       { key: 'company_name', label: 'Company Name', filter: 'text', defaultWidth: 220 },
       { key: 'phones', label: 'Phones', filter: 'text', defaultWidth: 200, virtual: true },
@@ -448,7 +434,6 @@
       { key: 'address', label: 'Address', filter: 'text', defaultWidth: 420, wide: true },
     ];
 
-    // --- State ---
     const state = {
       view: 'table',
       filterStatus: null,
@@ -458,23 +443,22 @@
       loading: false,
       lastError: null,
 
-      allRows: [],        // FULL dataset (for global sort/filter)
-      filteredRows: [],   // derived
+      allRows: [],
+      filteredRows: [],
       page: 1,
       total: 0,
 
       sortKey: null,
-      sortDir: 'asc', // asc | desc
+      sortDir: 'asc',
 
-      colFilters: {},     // per column
-      colOrder: [],       // keys
-      colVisible: {},     // key -> bool
-      colWidths: {},      // key -> px number
+      colFilters: {},
+      colOrder: [],
+      colVisible: {},
+      colWidths: {},
 
-      dbColumns: []       // inferred from first row keys
+      dbColumns: []
     };
 
-    // --- DOM ---
     const tableView = document.getElementById('tableView');
     const kanbanView = document.getElementById('kanbanView');
     const calendarView = document.getElementById('calendarView');
@@ -536,7 +520,6 @@
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteBtn');
 
-    // --- Pills ---
     const statusPill = (status) => {
       const map = {
         'Open': 'bg-slate-800 text-slate-100 border-slate-700',
@@ -548,12 +531,11 @@
       return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${status || '—'}</span>`;
     };
 
-    // --- Normalize row (supports snake_case OR space keys) ---
     function normalizeRow(raw) {
       const companyPhone = raw?.['company phone'] ?? raw?.company_phone ?? null;
       const pocPhone = raw?.['poc phone'] ?? raw?.poc_phone ?? null;
 
-      const out = {
+      return {
         ...raw,
         'company phone': companyPhone,
         unittype: raw?.unittype ?? raw?.unit_type ?? null,
@@ -565,19 +547,16 @@
         'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
         'poc phone': pocPhone,
 
-        phones: [companyPhone, pocPhone].filter(Boolean).join(' / ') || null,
+        // ✅ phones = company phone ONLY
+        phones: companyPhone || null,
       };
-
-      return out;
     }
 
-    // --- Preferences (order/visibility/widths) ---
     function loadPrefs() {
       try {
         const raw = localStorage.getItem(LS_KEY);
         if (!raw) return;
         const prefs = JSON.parse(raw);
-
         if (prefs && typeof prefs === 'object') {
           state.colOrder = Array.isArray(prefs.colOrder) ? prefs.colOrder : [];
           state.colVisible = prefs.colVisible && typeof prefs.colVisible === 'object' ? prefs.colVisible : {};
@@ -601,14 +580,10 @@
       try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch {}
     }
 
-    // --- Column helpers ---
     function getAllColumnDefs() {
-      // Include BASE defs + any extra db columns inferred (so dropdown can list them)
       const byKey = new Map(BASE_COLUMN_DEFS.map(c => [c.key, c]));
       for (const k of state.dbColumns) {
-        if (!byKey.has(k)) {
-          byKey.set(k, { key: k, label: k, filter: 'text', defaultWidth: 160, extra: true });
-        }
+        if (!byKey.has(k)) byKey.set(k, { key: k, label: k, filter: 'text', defaultWidth: 160, extra: true });
       }
       return Array.from(byKey.values());
     }
@@ -616,30 +591,20 @@
     function ensureColumnsInitialized() {
       const allDefs = getAllColumnDefs();
 
-      // default order: BASE defs in order, then extras
-      if (!state.colOrder.length) {
-        state.colOrder = allDefs.map(d => d.key);
-      } else {
-        // add new keys not in order
+      if (!state.colOrder.length) state.colOrder = allDefs.map(d => d.key);
+      else {
         const set = new Set(state.colOrder);
         for (const d of allDefs) if (!set.has(d.key)) state.colOrder.push(d.key);
       }
 
-      // default visibility: show BASE defs, hide extras by default (can be enabled via dropdown)
       for (const d of allDefs) {
-        if (!(d.key in state.colVisible)) {
-          state.colVisible[d.key] = !d.extra; // extras default hidden
-        }
+        if (!(d.key in state.colVisible)) state.colVisible[d.key] = !d.extra;
       }
 
-      // default widths
       for (const d of allDefs) {
-        if (!(d.key in state.colWidths)) {
-          state.colWidths[d.key] = d.defaultWidth ?? 160;
-        }
+        if (!(d.key in state.colWidths)) state.colWidths[d.key] = d.defaultWidth ?? 160;
       }
 
-      // default filters
       for (const d of allDefs) {
         if (!(d.key in state.colFilters)) state.colFilters[d.key] = '';
       }
@@ -650,13 +615,9 @@
     function getVisibleOrderedDefs() {
       const allDefs = getAllColumnDefs();
       const map = new Map(allDefs.map(d => [d.key, d]));
-      return state.colOrder
-        .map(k => map.get(k))
-        .filter(Boolean)
-        .filter(d => !!state.colVisible[d.key]);
+      return state.colOrder.map(k => map.get(k)).filter(Boolean).filter(d => !!state.colVisible[d.key]);
     }
 
-    // --- Apply filters + sort + paginate (ALL rows) ---
     function computeDerivedRows() {
       const defs = getVisibleOrderedDefs();
       const allDefs = getAllColumnDefs();
@@ -664,17 +625,14 @@
 
       let out = [...state.allRows];
 
-      // status chip quick filter
       if (state.filterStatus) {
-        const target = state.filterStatus.toLowerCase();
-        out = out.filter(r => (r.status || '').toLowerCase() === target);
+        const t = state.filterStatus.toLowerCase();
+        out = out.filter(r => (r.status || '').toLowerCase() === t);
       }
 
-      // global search
       if (state.search) {
         const q = state.search.toLowerCase();
         out = out.filter(r => {
-          // search across all visible columns (plus address etc)
           for (const d of defs) {
             const raw = r[d.key];
             const v = d.isDate ? fmtDate(raw) : raw;
@@ -684,16 +642,13 @@
         });
       }
 
-      // per-column filters (applied across ALL defs, but only visible have UI; still ok)
       for (const [key, val] of Object.entries(state.colFilters)) {
         const fv = String(val ?? '').trim();
         if (!fv) continue;
-
         const d = defMap.get(key) || { key, filter: 'text' };
 
-        if (d.filter === 'select') {
-          out = out.filter(r => String(r[key] ?? '') === fv);
-        } else {
+        if (d.filter === 'select') out = out.filter(r => String(r[key] ?? '') === fv);
+        else {
           const q = fv.toLowerCase();
           out = out.filter(r => {
             const raw = r[key];
@@ -703,7 +658,6 @@
         }
       }
 
-      // sort (across ALL rows)
       if (state.sortKey) {
         const key = state.sortKey;
         const d = defMap.get(key);
@@ -742,11 +696,9 @@
 
     function getPageRows() {
       const start = (state.page - 1) * PAGE_SIZE;
-      const end = start + PAGE_SIZE;
-      return state.filteredRows.slice(start, end);
+      return state.filteredRows.slice(start, start + PAGE_SIZE);
     }
 
-    // --- Build columns dropdown ---
     function buildColumnsMenu() {
       const allDefs = getAllColumnDefs();
 
@@ -757,11 +709,11 @@
         return `
           <label class="flex items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-slate-900/60">
             <div class="flex items-center gap-2">
-              <input type="checkbox" class="colToggle h-4 w-4 accent-blue-600" data-col="${d.key}" ${checked} />
-              <span class="text-sm text-slate-200">${label}</span>
+              <input type="checkbox" class="colToggle h-4 w-4 accent-blue-600" data-col="${escapeAttr(d.key)}" ${checked} />
+              <span class="text-sm text-slate-200">${escapeHtml(label)}</span>
               ${badge}
             </div>
-            <span class="text-[11px] text-slate-500">${d.key}</span>
+            <span class="text-[11px] text-slate-500">${escapeHtml(d.key)}</span>
           </label>
         `;
       }).join('');
@@ -776,60 +728,53 @@
       });
     }
 
-    // --- Build colgroup widths ---
     function buildColGroup(visibleDefs) {
       colGroup.innerHTML = '';
 
-      // Visible columns
+      // ✅ first col = actions
+      const colActions = document.createElement('col');
+      colActions.style.width = `140px`;
+      colGroup.appendChild(colActions);
+
       for (const d of visibleDefs) {
         const w = Math.max(80, Number(state.colWidths[d.key] || d.defaultWidth || 160));
         const col = document.createElement('col');
         col.style.width = `${w}px`;
         colGroup.appendChild(col);
       }
-
-      // Actions column fixed width
-      const colActions = document.createElement('col');
-      colActions.style.width = `140px`;
-      colGroup.appendChild(colActions);
     }
 
-    // --- Build header + filters + drag + resize + sort ---
     function buildHeaderAndFilters() {
       const visibleDefs = getVisibleOrderedDefs();
       buildColGroup(visibleDefs);
 
-      // Headers
-      headerRow.innerHTML = visibleDefs.map(d => {
+      // ✅ actions header first (not draggable/sortable)
+      headerRow.innerHTML = `
+        <th class="px-6 py-3 whitespace-nowrap text-left">Actions</th>
+      ` + visibleDefs.map(d => {
         const isActive = state.sortKey === d.key;
         const icon = isActive ? (state.sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down';
-        const thId = `th_${cssSafe(d.key)}`;
 
         return `
-          <th id="${thId}"
-              class="relative px-6 py-3 whitespace-nowrap"
+          <th class="relative px-6 py-3 whitespace-nowrap"
               draggable="true"
-              data-col-key="${escapeHtml(d.key)}">
-            <div class="flex items-center justify-between gap-3">
-              <button type="button"
-                      class="inline-flex items-center gap-2 font-bold hover:text-white transition"
-                      data-sort-key="${escapeHtml(d.key)}"
-                      title="Sort">
-                <span>${escapeHtml(d.label || d.key)}</span>
-                <i data-lucide="${icon}" class="h-4 w-4 ${isActive ? 'text-blue-300' : 'text-slate-500'}"></i>
-              </button>
-            </div>
-            <div class="col-resizer" data-resize-key="${escapeHtml(d.key)}"></div>
+              data-col-key="${escapeAttr(d.key)}">
+            <button type="button"
+                    class="inline-flex items-center gap-2 font-bold hover:text-white transition"
+                    data-sort-key="${escapeAttr(d.key)}"
+                    title="Sort">
+              <span>${escapeHtml(d.label || d.key)}</span>
+              <i data-lucide="${icon}" class="h-4 w-4 ${isActive ? 'text-blue-300' : 'text-slate-500'}"></i>
+            </button>
+            <div class="col-resizer" data-resize-key="${escapeAttr(d.key)}"></div>
           </th>
         `;
-      }).join('') + `
-        <th class="px-6 py-3 text-right whitespace-nowrap">
-          Actions
-        </th>
-      `;
+      }).join('');
 
-      // Filter row
-      filterRow.innerHTML = visibleDefs.map(d => {
+      // filters row
+      filterRow.innerHTML = `
+        <th class="px-6 py-2"></th>
+      ` + visibleDefs.map(d => {
         const v = String(state.colFilters[d.key] ?? '');
         const commonCls = `no-drag w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600`;
 
@@ -839,20 +784,17 @@
             const label = opt === '' ? 'All' : opt;
             return `<option value="${escapeAttr(opt)}" ${selected}>${escapeHtml(label)}</option>`;
           }).join('');
-          return `<th class="px-6 py-2"><select data-filter-key="${escapeHtml(d.key)}" class="${commonCls}">${opts}</select></th>`;
+          return `<th class="px-6 py-2"><select data-filter-key="${escapeAttr(d.key)}" class="${commonCls}">${opts}</select></th>`;
         }
 
         return `
           <th class="px-6 py-2">
-            <input data-filter-key="${escapeHtml(d.key)}"
-                   class="${commonCls}"
-                   placeholder="Filter..."
-                   value="${escapeAttr(v)}" />
+            <input data-filter-key="${escapeAttr(d.key)}" class="${commonCls}" placeholder="Filter..." value="${escapeAttr(v)}" />
           </th>
         `;
-      }).join('') + `<th class="px-6 py-2"></th>`;
+      }).join('');
 
-      // Sort click
+      // sort
       document.querySelectorAll('[data-sort-key]').forEach(btn => {
         btn.addEventListener('click', () => {
           const key = btn.getAttribute('data-sort-key');
@@ -863,7 +805,7 @@
         });
       });
 
-      // Filter inputs
+      // filters
       document.querySelectorAll('[data-filter-key]').forEach(el => {
         const key = el.getAttribute('data-filter-key');
         const onChange = () => {
@@ -876,17 +818,13 @@
         el.addEventListener('change', onChange);
       });
 
-      // Drag reorder
-      enableHeaderDrag(visibleDefs);
-
-      // Resize columns
+      enableHeaderDrag();
       enableHeaderResize(visibleDefs);
 
-      // icons
       lucide.createIcons();
     }
 
-    function enableHeaderDrag(visibleDefs) {
+    function enableHeaderDrag() {
       const ths = headerRow.querySelectorAll('th[data-col-key]');
       let dragKey = null;
 
@@ -916,13 +854,9 @@
         th.addEventListener('drop', (e) => {
           e.preventDefault();
           const toKey = th.dataset.colKey;
-          const fromKey = dragKey || (() => {
-            try { return e.dataTransfer.getData('text/plain'); } catch { return null; }
-          })();
-
+          const fromKey = dragKey || (() => { try { return e.dataTransfer.getData('text/plain'); } catch { return null; } })();
           if (!fromKey || !toKey || fromKey === toKey) return;
 
-          // reorder in state.colOrder
           const order = [...state.colOrder];
           const fromIdx = order.indexOf(fromKey);
           const toIdx = order.indexOf(toKey);
@@ -940,9 +874,7 @@
 
     function enableHeaderResize(visibleDefs) {
       const handles = headerRow.querySelectorAll('[data-resize-key]');
-      let activeKey = null;
-      let startX = 0;
-      let startW = 0;
+      let activeKey = null, startX = 0, startW = 0;
 
       const onMove = (e) => {
         if (!activeKey) return;
@@ -950,10 +882,11 @@
         const newW = Math.max(80, startW + dx);
         state.colWidths[activeKey] = newW;
 
-        // Update colgroup instantly
+        // ✅ colgroup index is +1 because col0 is Actions
         const idx = visibleDefs.findIndex(d => d.key === activeKey);
-        if (idx >= 0 && colGroup.children[idx]) {
-          colGroup.children[idx].style.width = `${newW}px`;
+        const colIdx = idx + 1;
+        if (idx >= 0 && colGroup.children[colIdx]) {
+          colGroup.children[colIdx].style.width = `${newW}px`;
           syncTopScrollbarWidth();
         }
       };
@@ -983,21 +916,14 @@
       });
     }
 
-    // --- Render table body ---
     function renderTableRows(rows) {
       const visibleDefs = getVisibleOrderedDefs();
-
       tableBody.innerHTML = '';
 
       if (!rows.length) {
         emptyState.classList.remove('hidden');
-        if (state.lastError) {
-          emptyTitle.textContent = 'Could not load service requests';
-          emptyMsg.textContent = state.lastError;
-        } else {
-          emptyTitle.textContent = 'No service requests found';
-          emptyMsg.textContent = 'Try adjusting filters/search.';
-        }
+        emptyTitle.textContent = state.lastError ? 'Could not load service requests' : 'No service requests found';
+        emptyMsg.textContent = state.lastError || 'Try adjusting filters/search.';
         return;
       }
 
@@ -1007,35 +933,9 @@
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-950/30';
 
-        const cells = visibleDefs.map(d => {
-          const value = r[d.key];
-
-          if (d.key === 'status') {
-            return `<td class="px-6 py-3">${statusPill(value)}</td>`;
-          }
-
-          if (d.key === 'phones') {
-            return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${escapeHtml(value || '—')}</td>`;
-          }
-
-          if (d.isDate) {
-            return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${escapeHtml(fmtDate(value))}</td>`;
-          }
-
-          if (d.key === 'address') {
-            return `<td class="px-6 py-3 text-slate-200 whitespace-normal">${escapeHtml(value ?? '—')}</td>`;
-          }
-
-          if (d.key === 'company_name' || d.key === 'brand' || d.key === 'model') {
-            return `<td class="px-6 py-3 font-bold text-white">${escapeHtml(value || '—')}</td>`;
-          }
-
-          return `<td class="px-6 py-3 text-slate-200">${escapeHtml(value ?? '—')}</td>`;
-        }).join('');
-
-        tr.innerHTML = `
-          ${cells}
-          <td class="px-6 py-3 text-right whitespace-nowrap">
+        // ✅ actions cell first
+        const actionCell = `
+          <td class="px-6 py-3 whitespace-nowrap">
             <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
                     data-id="${escapeAttr(r.id)}">
               <i data-lucide="pencil" class="h-4 w-4"></i>
@@ -1044,10 +944,21 @@
           </td>
         `;
 
+        const cells = visibleDefs.map(d => {
+          const value = r[d.key];
+
+          if (d.key === 'status') return `<td class="px-6 py-3">${statusPill(value)}</td>`;
+          if (d.isDate) return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${escapeHtml(fmtDate(value))}</td>`;
+          if (d.key === 'phones') return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${escapeHtml(value || '—')}</td>`;
+          if (d.key === 'address') return `<td class="px-6 py-3 text-slate-200 whitespace-normal">${escapeHtml(value ?? '—')}</td>`;
+          if (d.key === 'company_name' || d.key === 'brand' || d.key === 'model') return `<td class="px-6 py-3 font-bold text-white">${escapeHtml(value || '—')}</td>`;
+          return `<td class="px-6 py-3 text-slate-200">${escapeHtml(value ?? '—')}</td>`;
+        }).join('');
+
+        tr.innerHTML = actionCell + cells;
         tableBody.appendChild(tr);
       }
 
-      // Edit handlers
       document.querySelectorAll('.editBtn').forEach(btn => {
         btn.addEventListener('click', () => {
           const id = btn.dataset.id;
@@ -1059,61 +970,9 @@
       lucide.createIcons();
     }
 
-    // --- Kanban render (optional; uses filteredRows) ---
-    function renderKanban(rows) {
-      const columnsEl = document.getElementById('kanbanColumns');
-      const columns = [
-        { key: 'Open', label: 'Open' },
-        { key: 'In Progress', label: 'In Progress' },
-        { key: 'Waiting', label: 'Waiting' },
-        { key: 'Closed', label: 'Closed' },
-      ];
-
-      columnsEl.innerHTML = '';
-      for (const col of columns) {
-        const bucket = rows.filter(r => (r.status || 'Open') === col.key);
-        const wrapper = document.createElement('div');
-        wrapper.className = 'rounded-3xl border border-slate-800 bg-slate-950/40 p-4';
-        wrapper.innerHTML = `
-          <div class="mb-3 flex items-center justify-between">
-            <p class="text-sm font-black text-white">${escapeHtml(col.label)}</p>
-            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs font-bold text-slate-300">${bucket.length}</span>
-          </div>
-          <div class="space-y-3"></div>
-        `;
-        columnsEl.appendChild(wrapper);
-
-        const stack = wrapper.querySelector('div.space-y-3');
-        for (const r of bucket.slice(0, 60)) {
-          const card = document.createElement('button');
-          card.type = 'button';
-          card.className = 'w-full rounded-3xl border border-slate-800 bg-slate-900/50 p-4 text-left transition hover:bg-slate-900/70';
-          card.innerHTML = `
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-black text-white">${escapeHtml(r.company_name || 'Company —')}</p>
-                <p class="mt-1 text-xs text-slate-400">${escapeHtml(r.shortvin || 'VIN —')}</p>
-              </div>
-              <i data-lucide="chevron-right" class="h-4 w-4 text-slate-400"></i>
-            </div>
-            <p class="mt-3 text-sm text-slate-200">${escapeHtml(r.doc || 'Doc —')}</p>
-            <p class="mt-2 text-xs text-slate-400">Request: ${escapeHtml(fmtDate(r['request date']))}</p>
-          `;
-          card.addEventListener('click', () => openModal(r));
-          stack.appendChild(card);
-        }
-      }
-
-      lucide.createIcons();
-    }
-
-    // --- Top scrollbar sync ---
     let syncing = false;
-
     function syncTopScrollbarWidth() {
-      // inner width matches the table scroll width
-      const width = dataTable.scrollWidth;
-      topScrollInner.style.width = width + "px";
+      topScrollInner.style.width = (dataTable.scrollWidth) + "px";
     }
 
     function wireScrollSync() {
@@ -1123,21 +982,15 @@
         tableScrollWrap.scrollLeft = topScrollWrap.scrollLeft;
         syncing = false;
       });
-
       tableScrollWrap.addEventListener('scroll', () => {
         if (syncing) return;
         syncing = true;
         topScrollWrap.scrollLeft = tableScrollWrap.scrollLeft;
         syncing = false;
       });
-
-      // also update width on resize
-      window.addEventListener('resize', () => {
-        syncTopScrollbarWidth();
-      });
+      window.addEventListener('resize', () => syncTopScrollbarWidth());
     }
 
-    // --- UI meta + pagination ---
     function renderMeta() {
       const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
       pageMeta.textContent = `Page ${state.page} of ${maxPage}`;
@@ -1149,35 +1002,22 @@
       else resultsMeta.textContent = `${state.total} items • showing ${(state.page-1)*PAGE_SIZE + 1}-${Math.min(state.page*PAGE_SIZE, state.total)}`;
     }
 
-    // --- Main render ---
     function render() {
       ensureColumnsInitialized();
       buildColumnsMenu();
 
       computeDerivedRows();
-
       buildHeaderAndFilters();
       renderMeta();
 
-      const pageRows = getPageRows();
-
-      if (state.view === 'table') {
-        renderTableRows(pageRows);
-        // wait next tick for accurate scrollWidth
-        requestAnimationFrame(() => syncTopScrollbarWidth());
-      }
-
-      if (state.view === 'kanban') renderKanban(state.filteredRows);
+      renderTableRows(getPageRows());
+      requestAnimationFrame(() => syncTopScrollbarWidth());
     }
 
-    // --- Auth: require logged-in user to see data ---
     async function requireLogin() {
-      // If you already enforce via authManager.js, this is still safe.
       const { data } = await state.client.auth.getSession();
       const session = data?.session;
-
       if (!session) {
-        // hide table + show message
         state.lastError = "You must be logged in to view service requests.";
         state.allRows = [];
         state.filteredRows = [];
@@ -1188,22 +1028,15 @@
       return true;
     }
 
-    // --- Load ALL rows (107 is fine) ---
     async function loadAllRequests() {
       state.lastError = null;
       state.loading = true;
       render();
 
       const ok = await requireLogin();
-      if (!ok) {
-        state.loading = false;
-        render();
-        return;
-      }
+      if (!ok) { state.loading = false; render(); return; }
 
-      const { data, error } = await state.client
-        .from(TABLE_NAME)
-        .select('*'); // full dataset
+      const { data, error } = await state.client.from(TABLE_NAME).select('*');
 
       if (error) {
         state.lastError = error.message || String(error);
@@ -1214,41 +1047,17 @@
         const rows = (data || []).map(normalizeRow);
         state.allRows = rows;
 
-        // infer DB columns from first row
         const first = rows[0] || null;
         if (first) {
           const keys = Object.keys(first).filter(k => !k.startsWith('_'));
-          // keep stable ordering for db columns listing (alphabetical)
           state.dbColumns = keys.sort((a,b) => a.localeCompare(b));
-        } else {
-          state.dbColumns = [];
-        }
+        } else state.dbColumns = [];
       }
 
       state.loading = false;
       render();
     }
 
-    // --- CRUD ---
-    async function upsertRequest(payload) {
-      const { data, error } = await state.client
-        .from(TABLE_NAME)
-        .upsert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return normalizeRow(data);
-    }
-
-    async function deleteRequestRow(id) {
-      const { error } = await state.client
-        .from(TABLE_NAME)
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-    }
-
-    // --- Modal ---
     function openModal(item = null) {
       formError.textContent = '';
 
@@ -1288,24 +1097,6 @@
       modalOverlay.classList.remove('flex');
     }
 
-    // --- View switch ---
-    function setView(view) {
-      state.view = view;
-      tableView.classList.toggle('hidden', view !== 'table');
-      kanbanView.classList.toggle('hidden', view !== 'kanban');
-      calendarView.classList.toggle('hidden', view !== 'calendar');
-
-      document.querySelectorAll('.viewBtn').forEach(btn => {
-        const active = btn.dataset.view === view;
-        btn.classList.toggle('bg-blue-600', active);
-        btn.classList.toggle('text-white', active);
-        btn.classList.toggle('text-slate-300', !active);
-      });
-
-      render();
-    }
-
-    // --- Columns menu open/close ---
     function toggleColumnsMenu(force) {
       const willOpen = typeof force === 'boolean' ? force : columnsMenu.classList.contains('hidden');
       columnsMenu.classList.toggle('hidden', !willOpen);
@@ -1313,32 +1104,42 @@
       lucide.createIcons();
     }
 
-    // --- Utils ---
-    function cssSafe(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
     function escapeHtml(s){
       const v = String(s);
-      return v
-        .replaceAll('&','&amp;')
-        .replaceAll('<','&lt;')
-        .replaceAll('>','&gt;')
-        .replaceAll('"','&quot;')
-        .replaceAll("'","&#039;");
+      return v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
     }
     function escapeAttr(s){ return escapeHtml(s).replaceAll('\n',' '); }
 
-    // --- Events ---
-    document.querySelectorAll('.viewBtn').forEach(btn => {
-      btn.addEventListener('click', () => setView(btn.dataset.view));
+    // top controls
+    prevPageBtn.addEventListener('click', () => { if (state.page > 1) { state.page--; render(); } });
+    nextPageBtn.addEventListener('click', () => {
+      const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+      if (state.page < maxPage) { state.page++; render(); }
     });
+
+    document.querySelectorAll('.viewBtn').forEach(btn => btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      state.view = view;
+      tableView.classList.toggle('hidden', view !== 'table');
+      kanbanView.classList.toggle('hidden', view !== 'kanban');
+      calendarView.classList.toggle('hidden', view !== 'calendar');
+
+      document.querySelectorAll('.viewBtn').forEach(b => {
+        const active = b.dataset.view === view;
+        b.classList.toggle('bg-blue-600', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('text-slate-300', !active);
+      });
+
+      render();
+    }));
 
     document.querySelectorAll('.filterChip').forEach(btn => {
       btn.addEventListener('click', () => {
         const f = btn.dataset.filter;
         state.filterStatus = (state.filterStatus === f) ? null : f;
-
         document.querySelectorAll('.filterChip').forEach(x => x.classList.remove('bg-blue-600','text-white','border-blue-600'));
         if (state.filterStatus === f) btn.classList.add('bg-blue-600','text-white','border-blue-600');
-
         state.page = 1;
         render();
       });
@@ -1350,104 +1151,28 @@
       render();
     });
 
-    prevPageBtn.addEventListener('click', () => {
-      if (state.page > 1) {
-        state.page--;
-        render();
-      }
-    });
-
-    nextPageBtn.addEventListener('click', () => {
-      const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
-      if (state.page < maxPage) {
-        state.page++;
-        render();
-      }
-    });
-
-    newRequestBtn.addEventListener('click', () => openModal(null));
-    modalClose.addEventListener('click', closeModal);
-    modalOverlay.addEventListener('click', (e) => {
-      if (e.target === modalOverlay) closeModal();
-    });
-
-    deleteBtn.addEventListener('click', async () => {
-      try {
-        const id = requestId.value;
-        if (!id) return;
-        await deleteRequestRow(id);
-        closeModal();
-        await loadAllRequests();
-      } catch (err) {
-        console.error(err);
-        formError.textContent = 'Could not delete. Check permissions (RLS) and table name.';
-      }
-    });
-
-    requestForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      formError.textContent = '';
-
-      const payload = {
-        id: requestId.value || undefined,
-        company_name: companyNameInput.value.trim() || null,
-        'company phone': companyPhoneInput.value.trim() || null,
-        doc: docInput.value.trim() || null,
-        unittype: unitTypeInput.value.trim() || null,
-        brand: brandInput.value.trim() || null,
-        model: modelInput.value.trim() || null,
-        'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
-        shortvin: shortVinInput.value.trim() || null,
-        status: statusInput.value,
-        quote: quoteInput.value.trim() || null,
-        'request date': requestDateInput.value || null,
-        workdate: workDateInput.value || null,
-        'shipping date': shippingDateInput.value || null,
-        'poc name': pocNameInput.value.trim() || null,
-        'poc phone': pocPhoneInput.value.trim() || null,
-        confirmed: confirmedInput.value || null,
-        state: stateInput.value.trim() || null,
-        city: cityInput.value.trim() || null,
-        zip: zipInput.value.trim() || null,
-        address: addressInput.value.trim() || null,
-      };
-
-      try {
-        await upsertRequest(payload);
-        closeModal();
-        await loadAllRequests();
-      } catch (err) {
-        console.error(err);
-        formError.textContent = `Could not save. ${err?.message || 'Check table columns + RLS policies.'}`;
-      }
-    });
-
-    // Columns dropdown events
-    columnsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleColumnsMenu();
-    });
+    // Columns dropdown
+    columnsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleColumnsMenu(); });
     colsClose.addEventListener('click', () => toggleColumnsMenu(false));
     colsAll.addEventListener('click', () => {
       const allDefs = getAllColumnDefs();
       for (const d of allDefs) state.colVisible[d.key] = true;
-      savePrefs();
-      render();
-      buildColumnsMenu();
+      savePrefs(); render(); buildColumnsMenu();
     });
     colsNone.addEventListener('click', () => {
       const allDefs = getAllColumnDefs();
       for (const d of allDefs) state.colVisible[d.key] = false;
-      // keep at least one visible to avoid empty table
       state.colVisible['company_name'] = true;
-      savePrefs();
-      render();
-      buildColumnsMenu();
+      savePrefs(); render(); buildColumnsMenu();
     });
     document.addEventListener('click', () => toggleColumnsMenu(false));
     columnsMenu.addEventListener('click', (e) => e.stopPropagation());
 
-    // --- Init ---
+    // Modal events
+    newRequestBtn.addEventListener('click', () => openModal(null));
+    modalClose.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+
     document.addEventListener('DOMContentLoaded', async () => {
       createConstellationBackground();
       lucide.createIcons();
