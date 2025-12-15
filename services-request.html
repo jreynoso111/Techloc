@@ -115,12 +115,7 @@
           <p class="text-sm text-slate-300">Track any service requested for any vehicle — table, kanban, and saved filters.</p>
         </div>
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2">
-            <i data-lucide="search" class="h-4 w-4 text-slate-400"></i>
-            <input id="searchInput" type="text" placeholder="Search (VIN, unit, request, vendor...)" class="w-72 bg-transparent text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none" />
-          </div>
-
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           <div class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-1">
             <button data-view="table" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-white bg-blue-600">Table</button>
             <button data-view="kanban" class="viewBtn rounded-2xl px-3 py-2 text-xs font-bold text-slate-300 hover:text-white">Kanban</button>
@@ -205,7 +200,7 @@
       <div id="emptyState" class="hidden px-6 py-10">
         <div class="rounded-3xl border border-slate-800 bg-slate-950/40 p-6">
           <p id="emptyTitle" class="text-sm font-bold text-white">No service requests found</p>
-          <p id="emptyMsg" class="mt-1 text-sm text-slate-300">Create the first request, or adjust filters/search.</p>
+          <p id="emptyMsg" class="mt-1 text-sm text-slate-300">Create the first request, or adjust filters.</p>
         </div>
       </div>
     </section>
@@ -221,10 +216,8 @@
     <section id="calendarView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
       <div class="space-y-2">
         <p class="text-sm font-bold text-white">Calendar</p>
-        <p class="text-sm text-slate-300">We’ll wire this to the <span class="font-semibold">Due</span> date and show month/week views in Phase 3.</p>
-        <div class="rounded-3xl border border-slate-800 bg-slate-950/40 p-6 text-slate-400">
-          Calendar placeholder
-        </div>
+        <p class="text-sm text-slate-300">Request, work, or shipping dates summarized for quick planning.</p>
+        <div id="calendarList" class="grid gap-3 md:grid-cols-2"></div>
       </div>
     </section>
 
@@ -450,7 +443,6 @@
     const state = {
       view: 'table',
       filterStatus: null,
-      search: '',
 
       client: null,
       loading: false,
@@ -475,6 +467,8 @@
     const tableView = document.getElementById('tableView');
     const kanbanView = document.getElementById('kanbanView');
     const calendarView = document.getElementById('calendarView');
+    const kanbanColumns = document.getElementById('kanbanColumns');
+    const calendarList = document.getElementById('calendarList');
 
     const tableScrollWrap = document.getElementById('tableScrollWrap');
     const dataTable = document.getElementById('dataTable');
@@ -491,7 +485,6 @@
     const emptyMsg = document.getElementById('emptyMsg');
 
     const resultsMeta = document.getElementById('resultsMeta');
-    const searchInput = document.getElementById('searchInput');
     const prevPageBtn = document.getElementById('prevPage');
     const nextPageBtn = document.getElementById('nextPage');
     const pageMeta = document.getElementById('pageMeta');
@@ -648,17 +641,6 @@
       if (state.filterStatus) {
         const t = state.filterStatus.toLowerCase();
         out = out.filter(r => (r.status || '').toLowerCase() === t);
-      }
-
-      if (state.search) {
-        const q = state.search.toLowerCase();
-        out = out.filter(r => {
-          for (const d of defs) {
-            const v = displayValueFor(d, r);
-            if (v !== null && v !== undefined && String(v).toLowerCase().includes(q)) return true;
-          }
-          return false;
-        });
       }
 
       for (const [key, val] of Object.entries(state.colFilters)) {
@@ -993,6 +975,124 @@
       lucide.createIcons();
     }
 
+    function renderKanbanView() {
+      const statuses = ['Open', 'In Progress', 'Waiting', 'Closed'];
+      const buckets = new Map(statuses.map(s => [s, []]));
+      buckets.set('Other', []);
+
+      for (const row of state.filteredRows) {
+        const normalized = (row.status || '').trim().toLowerCase();
+        const match = statuses.find(s => s.toLowerCase() === normalized) || 'Other';
+        const key = buckets.has(match) ? match : 'Other';
+        buckets.get(key).push(row);
+      }
+
+      kanbanColumns.innerHTML = statuses.concat('Other').map(status => {
+        const items = buckets.get(status) || [];
+        const cards = items.map(r => {
+          const primaryDate = fmtDate(r['shipping date'] || r.workdate || r['request date']);
+          return `
+            <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-md shadow-blue-900/20">
+              <div class="flex items-center justify-between text-xs text-slate-400">
+                <span>${escapeHtml(primaryDate)}</span>
+                ${statusPill(r.status)}
+              </div>
+              <p class="mt-2 text-sm font-black text-white">${escapeHtml(r.company_name || '—')}</p>
+              <p class="text-sm text-slate-300">${escapeHtml(r.unittype || '')} ${escapeHtml(r.brand || '')} ${escapeHtml(r.model || '')}</p>
+              <p class="text-xs text-slate-400">Doc: ${escapeHtml(r.doc || '—')}</p>
+              <p class="mt-1 text-xs text-slate-400">POC: ${escapeHtml(r['poc name'] || '—')}</p>
+            </div>
+          `;
+        }).join('');
+
+        const meta = items.length === 1 ? '1 item' : `${items.length} items`;
+
+        return `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-bold text-white">${escapeHtml(status)}</p>
+              <span class="text-xs text-slate-400">${meta}</span>
+            </div>
+            <div class="mt-3 space-y-3">
+              ${cards || '<p class="text-xs text-slate-500">No items</p>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderCalendarView() {
+      const events = state.filteredRows
+        .map(r => {
+          const rawDate = r.workdate || r['work date'];
+          const ts = parseMaybeDate(rawDate);
+          return { row: r, ts, label: rawDate ? fmtDate(rawDate) : 'No date', key: rawDate ? new Date(rawDate).toISOString().slice(0, 10) : null };
+        })
+        .filter(e => e.ts !== null && e.key)
+        .sort((a, b) => a.ts - b.ts);
+
+      if (!events.length) {
+        calendarList.innerHTML = '<p class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-400">No dated requests match the current filters.</p>';
+        return;
+      }
+
+      const monthAnchor = new Date(events[0].ts);
+      const monthStart = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
+      const monthEnd = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
+
+      const start = new Date(monthStart);
+      start.setDate(start.getDate() - start.getDay());
+      const end = new Date(monthEnd);
+      end.setDate(end.getDate() + (6 - end.getDay()));
+
+      const eventsByDay = new Map();
+      for (const evt of events) {
+        if (!eventsByDay.has(evt.key)) eventsByDay.set(evt.key, []);
+        eventsByDay.get(evt.key).push(evt.row);
+      }
+
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      const cells = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const key = d.toISOString().slice(0, 10);
+        const dayEvents = eventsByDay.get(key) || [];
+        const inMonth = d.getMonth() === monthAnchor.getMonth();
+        const dateLabel = `${d.getMonth() + 1}/${d.getDate()}`;
+
+        const cards = dayEvents.map(row => {
+          return `
+            <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left space-y-1">
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>${escapeHtml(row.company_name || '—')}</span>
+                ${statusPill(row.status)}
+              </div>
+              <p class="text-xs text-slate-300">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
+              <p class="text-[11px] text-slate-400">Doc: ${escapeHtml(row.doc || '—')}</p>
+            </div>
+          `;
+        }).join('');
+
+        cells.push(`
+          <div class="rounded-2xl border ${inMonth ? 'border-slate-800 bg-slate-950/60' : 'border-slate-900 bg-slate-950/30'} p-3 space-y-2">
+            <div class="flex items-center justify-between text-xs ${inMonth ? 'text-slate-200' : 'text-slate-500'}">
+              <span class="font-semibold">${escapeHtml(dateLabel)}</span>
+              <span class="text-[11px]">${dayNames[d.getDay()]}</span>
+            </div>
+            <div class="space-y-2">${cards || '<p class="text-[11px] text-slate-500">No work scheduled</p>'}</div>
+          </div>
+        `);
+      }
+
+      calendarList.innerHTML = `
+        <div class="flex items-center justify-between pb-3">
+          <p class="text-sm text-slate-300">Work dates for ${monthAnchor.toLocaleString('default', { month: 'long' })} ${monthAnchor.getFullYear()}</p>
+          <p class="text-xs text-slate-400">Grouped by work date (Sun–Sat)</p>
+        </div>
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-7">${cells.join('')}</div>
+      `;
+    }
+
     // Top scroll sync
     let syncing = false;
     function syncTopScrollbarWidth() {
@@ -1035,8 +1135,13 @@
       buildHeaderAndFilters();
       renderMeta();
 
-      renderTableRows(getPageRows());
-      requestAnimationFrame(() => syncTopScrollbarWidth());
+      if (state.view === 'table') {
+        renderTableRows(getPageRows());
+        requestAnimationFrame(() => syncTopScrollbarWidth());
+      }
+
+      if (state.view === 'kanban') renderKanbanView();
+      if (state.view === 'calendar') renderCalendarView();
     }
 
     async function requireLogin() {
@@ -1190,13 +1295,6 @@
       });
     });
 
-    // Global search
-    searchInput.addEventListener('input', (e) => {
-      state.search = e.target.value.trim();
-      state.page = 1;
-      render();
-    });
-
     // Columns dropdown
     columnsBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleColumnsMenu(); });
     colsClose.addEventListener('click', () => toggleColumnsMenu(false));
@@ -1249,19 +1347,28 @@
           id: requestId.value || undefined,
           company_name: companyNameInput.value.trim() || null,
           'company phone': companyPhoneInput.value.trim() || null,
+          company_phone: companyPhoneInput.value.trim() || null,
           doc: docInput.value.trim() || null,
           unittype: unitTypeInput.value.trim() || null,
+          unit_type: unitTypeInput.value.trim() || null,
           brand: brandInput.value.trim() || null,
           model: modelInput.value.trim() || null,
           'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
+          model_year: modelYearInput.value ? Number(modelYearInput.value) : null,
           shortvin: shortVinInput.value.trim() || null,
+          short_vin: shortVinInput.value.trim() || null,
           status: statusInput.value,
           quote: quoteVal,
           'request date': requestDateInput.value || null,
+          request_date: requestDateInput.value || null,
           workdate: workDateInput.value || null,
+          work_date: workDateInput.value || null,
           'shipping date': shippingDateInput.value || null,
+          shipping_date: shippingDateInput.value || null,
           'poc name': pocNameInput.value.trim() || null,
+          poc_name: pocNameInput.value.trim() || null,
           'poc phone': pocPhoneInput.value.trim() || null,
+          poc_phone: pocPhoneInput.value.trim() || null,
           confirmed: confirmedInput.value || null,
           state: stateInput.value.trim() || null,
           city: cityInput.value.trim() || null,
