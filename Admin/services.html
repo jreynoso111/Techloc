@@ -32,12 +32,10 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
   <style>
-    /* ✅ PAGE: allow vertical growth (table NOT height-limited), keep everything responsive */
     html, body { width: 100%; height: auto; }
-    body { overflow-x: hidden; overflow-y: auto; } /* ✅ page can scroll vertically if needed */
+    body { overflow-x: hidden; overflow-y: auto; }
     main { width: 100%; height: auto; overflow: visible; }
 
-    /* ✅ Directory is NOT locked to viewport height anymore */
     .directory-shell {
       display: flex;
       flex-direction: column;
@@ -47,7 +45,6 @@
       min-height: 0 !important;
     }
 
-    /* Analytics must NEVER exceed card width */
     .analytics-wrap { max-width: 100%; overflow: hidden; }
     .mini-analytics {
       display: grid;
@@ -59,11 +56,7 @@
     @media (min-width: 1024px) {
       .mini-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    .mini-chart {
-      height: 150px;
-      max-width: 100%;
-      overflow: hidden;
-    }
+    .mini-chart { height: 150px; max-width: 100%; overflow: hidden; }
     .mini-chart canvas {
       width: 100% !important;
       height: 100% !important;
@@ -71,7 +64,6 @@
       max-width: 100% !important;
     }
 
-    /* ✅ Table window should NOT take remaining height / scroll vertically */
     .table-window {
       display: flex;
       flex-direction: column;
@@ -81,7 +73,6 @@
       overflow: visible;
     }
 
-    /* top horizontal scrollbar */
     .top-scrollbar-shell {
       flex: 0 0 auto;
       position: sticky;
@@ -103,10 +94,9 @@
     .top-scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     .top-scrollbar::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
-    /* ✅ TABLE SCROLLER: ONLY horizontal scroll (no internal vertical scroll) */
     #table-scroll {
-      overflow-x: auto;    /* ✅ horizontal scroll */
-      overflow-y: visible; /* ✅ no vertical limiting */
+      overflow-x: auto;
+      overflow-y: visible;
       width: 100%;
       max-width: 100%;
       border-radius: 0.75rem;
@@ -115,7 +105,6 @@
     #table-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     #table-scroll::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
-    /* Sticky header */
     thead.sticky-head th {
       position: sticky;
       top: 0;
@@ -123,7 +112,6 @@
       backdrop-filter: blur(8px);
     }
 
-    /* Column resizing handle */
     th.resizable { position: relative; user-select: none; }
     .col-resizer {
       position: absolute;
@@ -145,18 +133,15 @@
       border-radius: 999px;
     }
 
-    /* Dragging header visual */
     th.dragging { opacity: .55; }
     th.drop-target { outline: 2px dashed rgba(59,130,246,.55); outline-offset: -6px; }
 
-    /* IMPORTANT: table must size by content widths (so horizontal scroll works) */
     table.fixed-layout {
       table-layout: fixed;
-      width: max-content; /* ✅ allow wider than container */
-      min-width: 100%;    /* ✅ but never smaller than container */
+      width: max-content;
+      min-width: 100%;
     }
 
-    /* Wrap text so cells don't force massive widths */
     #services-table th, #services-table td {
       white-space: normal !important;
       overflow-wrap: anywhere;
@@ -186,7 +171,6 @@
     .compact-td { padding: 0.5rem 0.8rem; }
     .compact-text { font-size: 12.5px; line-height: 1.25rem; }
 
-    /* Stats grid */
     .stats-grid { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
   </style>
 </head>
@@ -206,10 +190,11 @@
       <form id="edit-form" class="flex flex-col gap-4 p-6">
         <input type="hidden" id="edit-id" />
 
+        <!-- Keep your fields as-is (optional: expand later) -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Company Name</label>
-            <input type="text" id="edit-company" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+            <input type="text" id="edit-company_name" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
           </div>
           <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Authorization</label>
@@ -438,7 +423,7 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
+                  <input id="search" type="search" placeholder="Search across any field"
                          class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
                   <div class="relative">
@@ -501,14 +486,12 @@
             </div>
 
             <div class="table-window">
-              <!-- TOP horizontal scrollbar -->
               <div class="top-scrollbar-shell">
                 <div id="top-scrollbar" class="top-scrollbar">
                   <div id="top-scrollbar-inner" style="height:1px;"></div>
                 </div>
               </div>
 
-              <!-- TABLE -->
               <div id="table-scroll" class="w-full border border-slate-800 bg-slate-950/25">
                 <table id="services-table" class="fixed-layout divide-y divide-slate-800 compact-text">
                   <colgroup id="colgroup"></colgroup>
@@ -528,39 +511,42 @@
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+    const SUPABASE_KEY = 'REPLACE_WITH_ENV_OR_SERVER_KEY';
 
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
-    const PAGE_CATEGORY = 'GPS Technician';
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const getField = (row, ...keys) => {
-      for (const key of keys) {
-        const value = row[key];
-        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
-      }
-      return '';
+    const getField = (row, key) => {
+      const v = row?.[key];
+      if (v === undefined || v === null) return '';
+      const s = String(v).trim();
+      return s === '' ? '' : s;
     };
 
+    // ✅ Normalize: map ALL origin columns (exact names you gave)
     const normalizeRow = (row) => ({
       id: row.id,
-      company: getField(row, 'company_name', 'Installation Company', 'Company', 'company', 'name'),
-      authorization: getField(row, 'Authorization', 'authorization'),
-      category: getField(row, 'category', 'Category'),
-      phone: getField(row, 'Phone', 'phone'),
-      contact: getField(row, 'contact', 'Contact'),
-      address: getField(row, 'address', 'Address'),
-      city: getField(row, 'City', 'city'),
-      state: getField(row, 'State', 'state', 'state_code'),
-      zip: getField(row, 'Zip', 'zip', 'zipcode', 'postal_code'),
-      email: getField(row, 'Email', 'email'),
-      notes: getField(row, 'Notes', 'notes'),
-      website: getField(row, 'website', 'Website'),
-      availability: getField(row, 'availability', 'Availability'),
-      lat: getField(row, 'lat', 'latitude', 'Lat'),
-      long: getField(row, 'long', 'lng', 'longitude', 'Lon'),
+
+      company_name: getField(row, 'company_name'),
+      region: getField(row, 'region'),
+      phone: getField(row, 'phone'),
+      contact: getField(row, 'contact'),
+      email: getField(row, 'email'),
+      website: getField(row, 'website'),
+      availability: getField(row, 'availability'),
+      notes: getField(row, 'notes'),
+      city: getField(row, 'city'),
+      state: getField(row, 'state'),
+      zip: getField(row, 'zip'),
+      category: getField(row, 'category'),
+      type: getField(row, 'type'),
+      authorization: getField(row, 'authorization'),
+      address: getField(row, 'address'),
+      status: getField(row, 'status'),
+      lat: getField(row, 'lat'),
+      long: getField(row, 'long'),
     });
 
     const els = {
@@ -605,20 +591,24 @@
       analyticsWrap: document.getElementById('analytics-wrap'),
     };
 
+    // ✅ ALL origin columns are listed here (these drive the Columns dropdown)
     const ALL_COLUMNS = [
-      { id: 'company', label: 'Company Name', key: 'company', defaultWidth: 220 },
-      { id: 'authorization', label: 'Authorization', key: 'authorization', defaultWidth: 160 },
-      { id: 'category', label: 'Category', key: 'category', defaultWidth: 170 },
+      { id: 'company_name', label: 'Company Name', key: 'company_name', defaultWidth: 240 },
+      { id: 'region', label: 'Region', key: 'region', defaultWidth: 120 },
       { id: 'phone', label: 'Phone', key: 'phone', defaultWidth: 150 },
       { id: 'contact', label: 'Contact', key: 'contact', defaultWidth: 160 },
-      { id: 'address', label: 'Address', key: 'address', defaultWidth: 260 },
-      { id: 'city', label: 'City', key: 'city', defaultWidth: 140 },
-      { id: 'state', label: 'State', key: 'state', defaultWidth: 100 },
-      { id: 'zip', label: 'Zip', key: 'zip', defaultWidth: 100 },
       { id: 'email', label: 'Email', key: 'email', defaultWidth: 240 },
-      { id: 'notes', label: 'Notes', key: 'notes', defaultWidth: 260 },
       { id: 'website', label: 'Website', key: 'website', defaultWidth: 220 },
       { id: 'availability', label: 'Availability', key: 'availability', defaultWidth: 180 },
+      { id: 'notes', label: 'Notes', key: 'notes', defaultWidth: 260 },
+      { id: 'city', label: 'City', key: 'city', defaultWidth: 140 },
+      { id: 'state', label: 'State', key: 'state', defaultWidth: 100 },
+      { id: 'zip', label: 'ZIP', key: 'zip', defaultWidth: 100 },
+      { id: 'category', label: 'Category', key: 'category', defaultWidth: 170 },
+      { id: 'type', label: 'Type', key: 'type', defaultWidth: 140 },
+      { id: 'authorization', label: 'Authorization', key: 'authorization', defaultWidth: 160 },
+      { id: 'address', label: 'Address', key: 'address', defaultWidth: 280 },
+      { id: 'status', label: 'Status', key: 'status', defaultWidth: 130 },
       { id: 'lat', label: 'Lat', key: 'lat', defaultWidth: 120 },
       { id: 'long', label: 'Long', key: 'long', defaultWidth: 120 },
     ];
@@ -639,8 +629,8 @@
       drag: { resizing: null, draggingCol: null },
     };
 
-    // ================== PERSISTENCE (per profile) ==================
-    const STORAGE_PREFIX = 'techloc_services_table_prefs_v1';
+    // ================== PERSISTENCE ==================
+    const STORAGE_PREFIX = 'techloc_services_table_prefs_v2';
     const storageKey = () => `${STORAGE_PREFIX}:${state.currentUserId}`;
     const safeParse = (raw) => { try { return JSON.parse(raw); } catch { return null; } };
 
@@ -727,7 +717,7 @@
     const updateStats = () => {
       const total = state.rows.length;
       const statesCount = new Set(state.rows.map(r => (r.state || '').trim()).filter(Boolean)).size;
-      const companiesCount = new Set(state.rows.map(r => (r.company || '').trim()).filter(Boolean)).size;
+      const companiesCount = new Set(state.rows.map(r => (r.company_name || '').trim()).filter(Boolean)).size;
 
       els.total.textContent = total;
       els.states.textContent = statesCount;
@@ -769,17 +759,17 @@
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const q = term.toLowerCase();
-      return rows.filter((row) =>
-        [row.company, row.authorization, row.category, row.phone, row.contact, row.address, row.city, row.state, row.zip, row.email, row.notes, row.website, row.availability]
-          .some((v) => String(v || '').toLowerCase().includes(q))
-      );
+
+      // ✅ Search across ALL origin columns
+      const keys = ALL_COLUMNS.map(c => c.key);
+      return rows.filter((row) => keys.some((k) => String(row[k] || '').toLowerCase().includes(q)));
     };
 
     const applyFilters = () => {
       const f = state.filters;
       let result = applySearch([...state.rows], f.search);
 
-      if (f.company !== 'all') result = result.filter(r => getText(r.company) === f.company);
+      if (f.company !== 'all') result = result.filter(r => getText(r.company_name) === f.company);
       if (f.state !== 'all') result = result.filter(r => getText(r.state) === f.state);
       if (f.category !== 'all') result = result.filter(r => getText(r.category) === f.category);
 
@@ -818,7 +808,7 @@
 
     const setColWidth = (colId, px) => {
       const min = 72;
-      const max = 800;
+      const max = 900;
       state.columnWidths[colId] = Math.max(min, Math.min(max, px));
 
       const colEl = els.colgroup.querySelector(`col[data-col="${colId}"]`);
@@ -999,8 +989,7 @@
 
           const col = ALL_COLUMNS.find(c => c.id === colId);
           const value = col ? row[col.key] : '';
-
-          if (colId === 'company') td.className = 'font-semibold text-white align-top compact-td';
+          if (colId === 'company_name') td.className = 'font-semibold text-white align-top compact-td';
           td.textContent = value || '—';
           tr.appendChild(td);
         });
@@ -1050,7 +1039,7 @@
       lucide.createIcons();
     };
 
-    // ---------------- RESIZE (drag border) ----------------
+    // ---------------- RESIZE ----------------
     const onMouseMoveResize = (e) => {
       if (!state.drag.resizing) return;
       const { colId, startX, startW } = state.drag.resizing;
@@ -1352,7 +1341,7 @@
       state.rows = (data || []).map(normalizeRow);
 
       updateStats();
-      populateSelect(els.companyFilter, state.rows.map(r => r.company), 'All companies');
+      populateSelect(els.companyFilter, state.rows.map(r => r.company_name), 'All companies');
       populateSelect(els.stateFilter, state.rows.map(r => r.state), 'All states');
       populateSelect(els.categoryFilter, state.rows.map(r => r.category), 'All categories');
 
@@ -1363,9 +1352,9 @@
     // ---------------- MODAL FUNCTIONS ----------------
     function setFormValues(row = {}) {
       document.getElementById('edit-id').value = row.id || '';
-      document.getElementById('edit-company').value = row.company || '';
+      document.getElementById('edit-company_name').value = row.company_name || '';
       document.getElementById('edit-authorization').value = row.authorization || '';
-      document.getElementById('edit-category').value = row.category || PAGE_CATEGORY;
+      document.getElementById('edit-category').value = row.category || '';
       document.getElementById('edit-phone').value = row.phone || '';
       document.getElementById('edit-contact').value = row.contact || '';
       document.getElementById('edit-email').value = row.email || '';
@@ -1397,7 +1386,7 @@
         return;
       }
       document.getElementById('modal-title').textContent = 'Add new record';
-      setFormValues({ category: PAGE_CATEGORY });
+      setFormValues({});
       els.modal.classList.remove('hidden');
       els.modal.classList.add('flex');
     }
@@ -1416,7 +1405,7 @@
         alert('Only administrators can delete records.');
         return;
       }
-      const confirmed = confirm(`Delete "${row.company}"?`);
+      const confirmed = confirm(`Delete "${row.company_name}"?`);
       if (!confirmed) return;
 
       const { error } = await supabaseClient.from(WRITE_TABLE).delete().eq('id', row.id);
@@ -1424,7 +1413,6 @@
       else refresh();
     }
 
-    // ✅ Robust save: always re-enables button + prevents double submit + timeout + logs crash
     const withTimeout = (promise, ms = 20000) => {
       let t;
       const timeout = new Promise((_, reject) => {
@@ -1444,7 +1432,7 @@
       const btn = els.editForm.querySelector('button[type="submit"]');
       const originalText = btn.textContent;
 
-      if (btn.dataset.busy === '1') return;   // ✅ prevent double click / double submit
+      if (btn.dataset.busy === '1') return;
       btn.dataset.busy = '1';
 
       btn.textContent = 'Saving...';
@@ -1454,9 +1442,9 @@
         const id = document.getElementById('edit-id').value;
 
         const payload = {
-          company_name: document.getElementById('edit-company').value,
+          company_name: document.getElementById('edit-company_name').value,
           authorization: document.getElementById('edit-authorization').value,
-          category: document.getElementById('edit-category').value || PAGE_CATEGORY,
+          category: document.getElementById('edit-category').value,
           phone: document.getElementById('edit-phone').value,
           contact: document.getElementById('edit-contact').value,
           email: document.getElementById('edit-email').value,
@@ -1469,20 +1457,12 @@
           availability: document.getElementById('edit-availability').value,
           lat: document.getElementById('edit-lat').value,
           long: document.getElementById('edit-long').value,
+          // NOTE: if you want region/type/status editable, add fields in modal + here
         };
 
         let res;
-        if (id) {
-          res = await withTimeout(
-            supabaseClient.from(WRITE_TABLE).update(payload).eq('id', id),
-            20000
-          );
-        } else {
-          res = await withTimeout(
-            supabaseClient.from(WRITE_TABLE).insert([payload]),
-            20000
-          );
-        }
+        if (id) res = await withTimeout(supabaseClient.from(WRITE_TABLE).update(payload).eq('id', id), 20000);
+        else res = await withTimeout(supabaseClient.from(WRITE_TABLE).insert([payload]), 20000);
 
         const { error } = res || {};
         if (error) {
