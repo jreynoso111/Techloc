@@ -9,6 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Minimal analytics -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
   <script src="../assets/scripts/supabaseClient.js"></script>
@@ -30,26 +32,14 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
   <style>
-    /* ===== Canvas-fit layout ===== */
-    html, body { height: 100%; }
-    body { overflow: hidden; } /* keep everything inside the viewport/canvas */
-
-    /* Main area: header + content fit */
-    main { height: calc(100vh - 73px); } /* header height ~ */
-    @media (max-width: 768px) {
-      main { height: calc(100vh - 73px); }
-    }
-
-    /* Ensure the table scroll area grows/shrinks to fill available space */
-    .table-stack {
-      display: flex;
-      flex-direction: column;
-      min-height: 0; /* critical for flex + overflow to work */
-    }
+    /* Make the table area fit the screen */
     .table-viewport {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow: auto;
+      max-height: calc(100vh - 25rem); /* header + stats + filters + pagination */
+    }
+    @media (min-width: 1024px) {
+      .table-viewport {
+        max-height: calc(100vh - 22rem);
+      }
     }
 
     /* top horizontal scrollbar */
@@ -77,13 +67,16 @@
     }
 
     /* Column resizing handle */
-    th.resizable { position: relative; user-select: none; }
+    th.resizable {
+      position: relative;
+      user-select: none;
+    }
     .col-resizer {
       position: absolute;
       right: 0;
       top: 0;
       height: 100%;
-      width: 12px;              /* a bit wider for easier grabbing */
+      width: 10px;
       cursor: col-resize;
       display: flex;
       align-items: center;
@@ -99,13 +92,15 @@
     }
 
     /* Dragging header visual */
-    th.dragging { opacity: .55; }
+    th.dragging {
+      opacity: .55;
+    }
     th.drop-target {
       outline: 2px dashed rgba(59,130,246,.55);
       outline-offset: -6px;
     }
 
-    /* Fixed layout for predictable resizing */
+    /* Keep fixed layout so resizing works predictably */
     table.fixed-layout {
       table-layout: fixed;
       width: max-content; /* enables horizontal scroll naturally */
@@ -119,7 +114,7 @@
       gap: .5rem;
       justify-content: space-between;
       width: 100%;
-      padding-right: 12px; /* leave space for resizer */
+      padding-right: 10px; /* leave space for resizer */
     }
 
     /* Column picker */
@@ -270,44 +265,47 @@
 
   <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
-  <!-- CANVAS-FIT MAIN -->
-  <main class="px-6 py-6 lg:px-10">
-    <div class="flex h-full min-h-0 flex-col gap-6 lg:flex-row">
+  <main class="px-6 py-8 lg:px-10">
+    <div class="flex flex-col gap-8 lg:flex-row">
 
       <!-- LEFT NAV -->
-      <aside class="hidden w-64 shrink-0 space-y-4 lg:flex lg:flex-col lg:sticky lg:top-6 lg:max-h-full lg:min-h-0 lg:overflow-y-auto">
+      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
           <h2 class="text-lg font-black text-white">Admin workspace</h2>
         </div>
         <nav class="flex flex-col gap-2 text-sm font-semibold">
           <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
+            Dashboard
+            <span class="text-xs font-medium text-slate-400">Overview</span>
           </a>
           <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
+            Profiles
+            <span class="text-xs font-medium text-slate-400">Access levels</span>
           </a>
           <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
-            Services <span class="text-xs font-medium text-blue-100">Technicians</span>
+            Services
+            <span class="text-xs font-medium text-blue-100">Technicians</span>
           </a>
           <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
+            Vehicles
+            <span class="text-xs font-medium text-slate-400">Fleet</span>
           </a>
           <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
+            Analytics
+            <span class="text-xs font-medium text-slate-400">Insights</span>
           </a>
         </nav>
       </aside>
 
-      <!-- MAIN CONTENT (flex column, fit canvas) -->
-      <section class="flex h-full min-h-0 flex-1 flex-col gap-6">
+      <!-- MAIN -->
+      <section class="flex-1 space-y-8">
 
-        <!-- Title / status -->
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Partner network</p>
             <h2 class="text-2xl font-black text-white">Service roster and coverage</h2>
-            <p class="text-sm text-slate-400">Resize, reorder, sort, and filter your services directory.</p>
+            <p class="text-sm text-slate-400">Search, filter, sort, reorder, resize columns, and manage your services directory.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
@@ -315,7 +313,7 @@
           </div>
         </div>
 
-        <!-- Stats -->
+        <!-- STATS -->
         <section class="grid gap-3 sm:grid-cols-3">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
             <p class="text-sm font-semibold text-slate-300">Total services</p>
@@ -331,7 +329,7 @@
           </div>
         </section>
 
-        <!-- Minimal analytics -->
+        <!-- MINIMAL ANALYTICS -->
         <section class="grid gap-3 lg:grid-cols-2">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
             <div class="flex items-center justify-between">
@@ -341,7 +339,7 @@
               </div>
               <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Bar</span>
             </div>
-            <div class="mt-4 h-44">
+            <div class="mt-4 h-56">
               <canvas id="chart-states"></canvas>
             </div>
           </div>
@@ -354,21 +352,21 @@
               </div>
               <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Doughnut</span>
             </div>
-            <div class="mt-4 h-44">
+            <div class="mt-4 h-56">
               <canvas id="chart-categories"></canvas>
             </div>
           </div>
         </section>
 
-        <!-- DIRECTORY (fills remaining height) -->
-        <section class="table-stack flex-1 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
+        <!-- DIRECTORY -->
+        <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
           <div class="flex flex-col gap-3">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
               <h3 class="text-lg font-bold text-white">Service list</h3>
             </div>
 
-            <!-- Filters / actions -->
+            <!-- FILTERS / ACTIONS -->
             <div class="flex flex-col gap-2">
               <div class="flex flex-wrap gap-2">
                 <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
@@ -384,12 +382,12 @@
 
               <div class="flex flex-wrap items-center gap-2">
                 <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
-                  class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+                       class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
                 <!-- Column picker -->
                 <div class="relative">
                   <button id="columns-btn"
-                    class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+                          class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
                     <i data-lucide="columns-3" class="h-4 w-4"></i>
                     Columns
                     <i data-lucide="chevron-down" class="h-4 w-4"></i>
@@ -409,14 +407,14 @@
                 </div>
 
                 <button id="add-record"
-                  class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
-                  data-admin-actions>
+                        class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
+                        data-admin-actions>
                   <i data-lucide="plus" class="h-4 w-4"></i>
                   New record
                 </button>
 
                 <button id="refresh-button"
-                  class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5">
+                        class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5">
                   <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
                   Refresh
                 </button>
@@ -427,33 +425,17 @@
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- TOP PAGINATION (requested) -->
-            <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p id="pagination-summary-top" class="text-sm text-slate-300">Showing 0-0 of 0</p>
-              <div class="flex items-center gap-2">
-                <button id="prev-page-top" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                  Prev
-                </button>
-                <span id="page-indicator-top" class="text-sm font-semibold text-slate-100">1 / 1</span>
-                <button id="next-page-top" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  Next
-                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- TOP HORIZONTAL SCROLLBAR -->
-            <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-2">
-              <div id="top-scrollbar" class="top-scrollbar">
-                <div id="top-scrollbar-inner" style="height:1px;"></div>
-              </div>
+          <!-- TOP HORIZONTAL SCROLLBAR -->
+          <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-2">
+            <div id="top-scrollbar" class="top-scrollbar">
+              <div id="top-scrollbar-inner" style="height:1px;"></div>
             </div>
           </div>
 
-          <!-- TABLE (fills remaining height) -->
-          <div id="table-scroll" class="table-scroll table-viewport mt-3 rounded-xl border border-slate-800">
+          <!-- TABLE -->
+          <div id="table-scroll" class="table-scroll table-viewport overflow-auto rounded-xl border border-slate-800">
             <table id="services-table" class="fixed-layout divide-y divide-slate-800 text-sm whitespace-nowrap">
               <colgroup id="colgroup"></colgroup>
               <thead id="table-head" class="sticky-head bg-slate-950/60 text-slate-300"></thead>
@@ -461,8 +443,8 @@
             </table>
           </div>
 
-          <!-- BOTTOM PAGINATION (kept) -->
-          <div class="mt-3 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <!-- PAGINATION -->
+          <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
             <div class="flex items-center gap-2">
               <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
@@ -476,7 +458,6 @@
               </button>
             </div>
           </div>
-
         </section>
       </section>
     </div>
@@ -532,36 +513,33 @@
       categoryFilter: document.getElementById('category-filter'),
       search: document.getElementById('search'),
 
-      // bottom pagination
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
 
-      // top pagination
-      paginationSummaryTop: document.getElementById('pagination-summary-top'),
-      prevPageTop: document.getElementById('prev-page-top'),
-      nextPageTop: document.getElementById('next-page-top'),
-      pageIndicatorTop: document.getElementById('page-indicator-top'),
-
       refresh: document.getElementById('refresh-button'),
       addRecord: document.getElementById('add-record'),
 
+      // table
       table: document.getElementById('services-table'),
       colgroup: document.getElementById('colgroup'),
       thead: document.getElementById('table-head'),
       tbody: document.getElementById('table-body'),
       tableScroll: document.getElementById('table-scroll'),
 
+      // top scrollbar
       topScrollbar: document.getElementById('top-scrollbar'),
       topScrollbarInner: document.getElementById('top-scrollbar-inner'),
 
+      // columns popover
       columnsBtn: document.getElementById('columns-btn'),
       columnsPopover: document.getElementById('columns-popover'),
       columnsList: document.getElementById('columns-list'),
       colsAll: document.getElementById('cols-all'),
       colsNone: document.getElementById('cols-none'),
 
+      // Modal
       modal: document.getElementById('edit-modal'),
       closeModal: document.getElementById('close-modal'),
       cancelEdit: document.getElementById('cancel-edit'),
@@ -589,18 +567,36 @@
     const state = {
       rows: [],
       currentUserRole: 'user',
-      filters: { search: '', company: 'all', state: 'all', category: 'all' },
-      sort: { key: '', dir: 'asc' },
-      pagination: { page: 1, pageSize: 20 },
 
+      filters: {
+        search: '',
+        company: 'all',
+        state: 'all',
+        category: 'all',
+      },
+
+      sort: {
+        key: '',   // matches column.id
+        dir: 'asc' // 'asc'|'desc'
+      },
+
+      pagination: {
+        page: 1,
+        pageSize: 20,
+      },
+
+      // column UX
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
       columnVisibility: Object.fromEntries([['actions', true], ...ALL_COLUMNS.map(c => [c.id, true])]),
       columnWidths: Object.fromEntries([['actions', 110], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
 
-      drag: { resizing: null, draggingCol: null }
+      drag: {
+        resizing: null, // { colId, startX, startW }
+        draggingCol: null,
+      }
     };
 
-    // ---------- AUTH ----------
+    // ---------------- AUTH ----------------
     const requireSession = async () => {
       const { data } = await supabaseClient.auth.getSession();
 
@@ -626,13 +622,14 @@
       }
     };
 
-    // ---------- HELPERS ----------
-    const getText = (v) => String(v ?? '').toLowerCase().trim();
+    // ---------------- HELPERS ----------------
+    const getText = (value) => String(value ?? '').toLowerCase().trim();
 
     const updateStats = () => {
       const total = state.rows.length;
       const statesCount = new Set(state.rows.map(r => (r.state || '').trim()).filter(Boolean)).size;
       const companiesCount = new Set(state.rows.map(r => (r.company || '').trim()).filter(Boolean)).size;
+
       els.total.textContent = total;
       els.states.textContent = statesCount;
       els.companies.textContent = companiesCount;
@@ -664,15 +661,18 @@
     const applyFilters = () => {
       const f = state.filters;
       let result = applySearch([...state.rows], f.search);
+
       if (f.company !== 'all') result = result.filter(r => getText(r.company) === f.company);
       if (f.state !== 'all') result = result.filter(r => getText(r.state) === f.state);
       if (f.category !== 'all') result = result.filter(r => getText(r.category) === f.category);
+
       return result;
     };
 
     const applySort = (rows) => {
       const { key, dir } = state.sort;
       if (!key) return rows;
+
       const col = ALL_COLUMNS.find(c => c.id === key);
       if (!col) return rows;
 
@@ -685,32 +685,32 @@
       return dir === 'asc' ? sorted : sorted.reverse();
     };
 
-    const getVisibleOrderedColumns = () => state.columnOrder.filter(id => state.columnVisibility[id]);
+    const getVisibleOrderedColumns = () => {
+      return state.columnOrder.filter(colId => state.columnVisibility[colId]);
+    };
 
-    // ---------- TABLE ----------
+    // ---------------- TABLE RENDER ----------------
     const renderColgroup = () => {
       const cols = getVisibleOrderedColumns();
       els.colgroup.innerHTML = '';
-      cols.forEach((id) => {
+      cols.forEach((colId) => {
         const colEl = document.createElement('col');
-        colEl.dataset.col = id;
-        colEl.style.width = `${state.columnWidths[id] || 140}px`;
+        colEl.setAttribute('data-col', colId);
+        colEl.style.width = `${state.columnWidths[colId] || 140}px`;
         els.colgroup.appendChild(colEl);
       });
     };
 
-    const syncTopScrollbar = () => {
-      els.topScrollbarInner.style.width = els.table.scrollWidth + 'px';
-      els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
-    };
-
     const setColWidth = (colId, px) => {
-      // allow shrinking too (requested)
-      const min = colId === 'actions' ? 86 : 60;  // smaller min
+      const min = colId === 'actions' ? 90 : 90;
       const max = 800;
       state.columnWidths[colId] = Math.max(min, Math.min(max, px));
+
+      // Update matching col in colgroup
       const colEl = els.colgroup.querySelector(`col[data-col="${colId}"]`);
       if (colEl) colEl.style.width = `${state.columnWidths[colId]}px`;
+
+      // keep top scrollbar width in sync
       syncTopScrollbar();
     };
 
@@ -720,8 +720,12 @@
     };
 
     const toggleSort = (colId) => {
-      if (state.sort.key === colId) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
-      else { state.sort.key = colId; state.sort.dir = 'asc'; }
+      if (state.sort.key === colId) {
+        state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.sort.key = colId;
+        state.sort.dir = 'asc';
+      }
       state.pagination.page = 1;
       renderTable();
     };
@@ -729,8 +733,9 @@
     const buildHeaderCell = (colId) => {
       const th = document.createElement('th');
       th.className = 'px-4 py-3 text-left font-semibold text-slate-200 resizable bg-slate-950/60';
-      th.dataset.col = colId;
+      th.setAttribute('data-col', colId);
 
+      // actions header
       if (colId === 'actions') {
         th.className = 'px-4 py-3 text-left font-semibold text-blue-300 resizable bg-slate-950/60';
         th.innerHTML = `
@@ -745,15 +750,18 @@
 
       const col = ALL_COLUMNS.find(c => c.id === colId);
       const label = col?.label || colId;
+
       th.setAttribute('draggable', 'true');
       th.innerHTML = `
         <div class="th-inner">
           <div class="flex items-center gap-2 min-w-0">
             <span class="truncate">${label}</span>
           </div>
+
           <button type="button"
                   class="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-950/50 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-blue-500 hover:text-white"
-                  data-sort-col="${colId}" title="Sort">
+                  data-sort-col="${colId}"
+                  title="Sort">
             <i data-lucide="${sortIcon(colId)}" class="h-3.5 w-3.5"></i>
           </button>
         </div>
@@ -764,37 +772,45 @@
 
     const renderHeader = () => {
       const cols = getVisibleOrderedColumns();
+
       const tr = document.createElement('tr');
-      cols.forEach(id => tr.appendChild(buildHeaderCell(id)));
+      cols.forEach((colId) => tr.appendChild(buildHeaderCell(colId)));
+
       els.thead.innerHTML = '';
       els.thead.appendChild(tr);
 
-      // drag reorder
+      // Header drag & drop
       els.thead.querySelectorAll('th[draggable="true"]').forEach((th) => {
         th.addEventListener('dragstart', (e) => {
-          state.drag.draggingCol = th.dataset.col;
+          const colId = th.dataset.col;
+          state.drag.draggingCol = colId;
           th.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', th.dataset.col);
+          e.dataTransfer.setData('text/plain', colId);
         });
+
         th.addEventListener('dragend', () => {
           th.classList.remove('dragging');
           state.drag.draggingCol = null;
           els.thead.querySelectorAll('th').forEach(x => x.classList.remove('drop-target'));
         });
+
         th.addEventListener('dragover', (e) => {
           e.preventDefault();
-          const target = th.dataset.col;
-          if (!state.drag.draggingCol || state.drag.draggingCol === target) return;
+          const targetCol = th.dataset.col;
+          if (!state.drag.draggingCol || state.drag.draggingCol === targetCol) return;
           th.classList.add('drop-target');
         });
+
         th.addEventListener('dragleave', () => th.classList.remove('drop-target'));
+
         th.addEventListener('drop', (e) => {
           e.preventDefault();
           const from = state.drag.draggingCol;
           const to = th.dataset.col;
           if (!from || !to || from === to) return;
 
+          // Only reorder among visible columns (actions can also move, but keep it allowed)
           const order = [...state.columnOrder];
           const fromIdx = order.indexOf(from);
           const toIdx = order.indexOf(to);
@@ -804,11 +820,11 @@
           order.splice(toIdx, 0, from);
           state.columnOrder = order;
 
-          renderTable();
+          renderTable(); // rerender header + body
         });
       });
 
-      // sort buttons
+      // Sort buttons
       els.thead.querySelectorAll('[data-sort-col]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -859,6 +875,7 @@
 
           const col = ALL_COLUMNS.find(c => c.id === colId);
           const value = col ? row[col.key] : '';
+
           if (colId === 'company') td.className = 'px-4 py-3 font-semibold text-white align-top';
           td.textContent = value || '—';
           tr.appendChild(td);
@@ -877,30 +894,46 @@
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
       const end = Math.min(rows.length, start + state.pagination.pageSize);
 
-      const summary = rows.length ? `Showing ${start + 1}-${end} of ${rows.length}` : 'No entries to display';
-      els.paginationSummary.textContent = summary;
-      els.paginationSummaryTop.textContent = summary;
+      els.paginationSummary.textContent = rows.length
+        ? `Showing ${start + 1}-${end} of ${rows.length}`
+        : 'No entries to display';
 
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
-      els.pageIndicatorTop.textContent = `${state.pagination.page} / ${totalPages}`;
-
-      const prevDisabled = state.pagination.page === 1 || rows.length === 0;
-      const nextDisabled = state.pagination.page >= totalPages || rows.length === 0;
-
-      els.prevPage.disabled = prevDisabled;
-      els.prevPageTop.disabled = prevDisabled;
-
-      els.nextPage.disabled = nextDisabled;
-      els.nextPageTop.disabled = nextDisabled;
+      els.prevPage.disabled = state.pagination.page === 1 || rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
 
       return { start, end, totalPages };
     };
 
-    // ---------- RESIZE (fix: allow shrinking + prevent drag conflict) ----------
+    const syncTopScrollbar = () => {
+      // make the "inner" div match actual scroll width of table scroll container content
+      const scrollWidth = els.table.scrollWidth;
+      els.topScrollbarInner.style.width = scrollWidth + 'px';
+      els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
+    };
+
+    const renderTable = () => {
+      const filtered = applyFilters();
+      const sorted = applySort(filtered);
+
+      const { start, end } = renderPagination(sorted);
+
+      renderColgroup();
+      renderHeader();
+      renderBody(sorted.slice(start, end));
+      renderColumnsPopover();
+      syncTopScrollbar();
+      renderCharts(sorted); // analytics over filtered+sorted (same set)
+
+      // keep icons correct after header sort state changes
+      lucide.createIcons();
+    };
+
+    // ---------------- RESIZE (drag border) ----------------
     const onMouseMoveResize = (e) => {
       if (!state.drag.resizing) return;
       const { colId, startX, startW } = state.drag.resizing;
-      const dx = e.clientX - startX;      // negative dx shrinks (now allowed)
+      const dx = e.clientX - startX;
       setColWidth(colId, startW + dx);
     };
 
@@ -913,6 +946,7 @@
     };
 
     const attachResizeHandles = () => {
+      // delegate from thead for new renders
       els.thead.addEventListener('mousedown', (e) => {
         const handle = e.target.closest('[data-resize]');
         if (!handle) return;
@@ -921,17 +955,22 @@
         e.stopPropagation();
 
         const colId = handle.getAttribute('data-resize');
-        state.drag.resizing = { colId, startX: e.clientX, startW: state.columnWidths[colId] || 140 };
-
-        // important: temporarily disable text selection + dragging side effects
+        state.drag.resizing = {
+          colId,
+          startX: e.clientX,
+          startW: state.columnWidths[colId] || 140,
+        };
         document.body.style.cursor = 'col-resize';
         document.addEventListener('mousemove', onMouseMoveResize);
         document.addEventListener('mouseup', stopResize);
       });
     };
 
-    // ---------- COLUMNS POPOVER ----------
+    // ---------------- COLUMN PICKER ----------------
     const renderColumnsPopover = () => {
+      const visibleIds = Object.keys(state.columnVisibility);
+
+      // Actions is always visible, but still show it as locked
       els.columnsList.innerHTML = '';
 
       const makeRow = (colId, label, locked = false) => {
@@ -970,10 +1009,12 @@
       const willShow = typeof force === 'boolean'
         ? force
         : els.columnsPopover.classList.contains('hidden');
+
       els.columnsPopover.classList.toggle('hidden', !willShow);
       if (willShow) renderColumnsPopover();
     };
 
+    // click-away
     document.addEventListener('click', (e) => {
       const inside = e.target.closest('#columns-popover') || e.target.closest('#columns-btn');
       if (!inside) toggleColumnsPopover(false);
@@ -985,18 +1026,23 @@
     });
 
     els.colsAll.addEventListener('click', () => {
-      Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = true);
+      Object.keys(state.columnVisibility).forEach((k) => {
+        state.columnVisibility[k] = true;
+      });
       state.columnVisibility.actions = true;
       renderTable();
     });
 
     els.colsNone.addEventListener('click', () => {
-      Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = false);
+      Object.keys(state.columnVisibility).forEach((k) => {
+        state.columnVisibility[k] = false;
+      });
+      // keep actions visible
       state.columnVisibility.actions = true;
       renderTable();
     });
 
-    // ---------- TOP SCROLLBAR SYNC ----------
+    // ---------------- TOP SCROLLBAR SYNC ----------------
     const attachScrollSync = () => {
       let syncing = false;
 
@@ -1014,10 +1060,10 @@
         syncing = false;
       });
 
-      window.addEventListener('resize', () => syncTopScrollbar());
+      window.addEventListener('resize', syncTopScrollbar);
     };
 
-    // ---------- CHARTS ----------
+    // ---------------- CHARTS ----------------
     let chartStates = null;
     let chartCategories = null;
 
@@ -1034,7 +1080,14 @@
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: 'rgba(226,232,240,.85)', boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+        legend: {
+          labels: {
+            color: 'rgba(226,232,240,.85)',
+            boxWidth: 10,
+            boxHeight: 10,
+            usePointStyle: true,
+          }
+        },
         tooltip: {
           backgroundColor: 'rgba(2,6,23,.95)',
           borderColor: 'rgba(51,65,85,.8)',
@@ -1044,8 +1097,14 @@
         }
       },
       scales: {
-        x: { ticks: { color: 'rgba(148,163,184,.8)' }, grid: { color: 'rgba(51,65,85,.35)' } },
-        y: { ticks: { color: 'rgba(148,163,184,.8)' }, grid: { color: 'rgba(51,65,85,.35)' } }
+        x: {
+          ticks: { color: 'rgba(148,163,184,.8)' },
+          grid: { color: 'rgba(51,65,85,.35)' }
+        },
+        y: {
+          ticks: { color: 'rgba(148,163,184,.8)' },
+          grid: { color: 'rgba(51,65,85,.35)' }
+        }
       }
     });
 
@@ -1059,15 +1118,16 @@
       const catLabels = topCats.map(([k]) => (k === '—' ? 'Unknown' : k));
       const catValues = topCats.map(([, v]) => v);
 
+      // Minimal palette (soft, consistent)
       const palette = [
-        'rgba(59,130,246,.55)',
-        'rgba(99,102,241,.55)',
-        'rgba(16,185,129,.55)',
-        'rgba(245,158,11,.55)',
-        'rgba(236,72,153,.55)',
-        'rgba(148,163,184,.45)',
-        'rgba(34,197,94,.45)',
-        'rgba(14,165,233,.45)',
+        'rgba(59,130,246,.55)',  // blue
+        'rgba(99,102,241,.55)',  // indigo
+        'rgba(16,185,129,.55)',  // emerald
+        'rgba(245,158,11,.55)',  // amber
+        'rgba(236,72,153,.55)',  // pink
+        'rgba(148,163,184,.45)', // slate
+        'rgba(34,197,94,.45)',   // green
+        'rgba(14,165,233,.45)',  // sky
       ];
 
       const ctxStates = document.getElementById('chart-states');
@@ -1091,7 +1151,10 @@
         },
         options: {
           ...makeChartOptions(),
-          scales: { ...makeChartOptions().scales, x: { ...makeChartOptions().scales.x, ticks: { ...makeChartOptions().scales.x.ticks, maxRotation: 0 } } }
+          scales: {
+            ...makeChartOptions().scales,
+            x: { ...makeChartOptions().scales.x, ticks: { ...makeChartOptions().scales.x.ticks, maxRotation: 0 } }
+          }
         }
       });
 
@@ -1113,98 +1176,28 @@
           maintainAspectRatio: false,
           cutout: '62%',
           plugins: {
-            legend: { position: 'right', labels: { color: 'rgba(226,232,240,.85)', boxWidth: 10, boxHeight: 10, usePointStyle: true } },
+            legend: {
+              position: 'right',
+              labels: {
+                color: 'rgba(226,232,240,.85)',
+                boxWidth: 10,
+                boxHeight: 10,
+                usePointStyle: true,
+              }
+            },
             tooltip: makeChartOptions().plugins.tooltip
           }
         }
       });
     };
 
-    // ---------- RENDER ----------
-    const renderTable = () => {
-      const filtered = applyFilters();
-      const sorted = applySort(filtered);
-
-      const { start, end } = renderPagination(sorted);
-
-      renderColgroup();
-      renderHeader();
-      renderBody(sorted.slice(start, end));
-
-      renderColumnsPopover();
-      syncTopScrollbar();
-      renderCharts(sorted);
-
-      lucide.createIcons();
-    };
-
-    // ---------- HEADER ----------
-    const renderHeader = () => {
-      const cols = getVisibleOrderedColumns();
-      const tr = document.createElement('tr');
-      cols.forEach((id) => tr.appendChild(buildHeaderCell(id)));
-      els.thead.innerHTML = '';
-      els.thead.appendChild(tr);
-
-      // drag reorder
-      els.thead.querySelectorAll('th[draggable="true"]').forEach((th) => {
-        th.addEventListener('dragstart', (e) => {
-          // ignore if resize in progress
-          if (state.drag.resizing) { e.preventDefault(); return; }
-          state.drag.draggingCol = th.dataset.col;
-          th.classList.add('dragging');
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', th.dataset.col);
-        });
-
-        th.addEventListener('dragend', () => {
-          th.classList.remove('dragging');
-          state.drag.draggingCol = null;
-          els.thead.querySelectorAll('th').forEach(x => x.classList.remove('drop-target'));
-        });
-
-        th.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          const target = th.dataset.col;
-          if (!state.drag.draggingCol || state.drag.draggingCol === target) return;
-          th.classList.add('drop-target');
-        });
-
-        th.addEventListener('dragleave', () => th.classList.remove('drop-target'));
-
-        th.addEventListener('drop', (e) => {
-          e.preventDefault();
-          const from = state.drag.draggingCol;
-          const to = th.dataset.col;
-          if (!from || !to || from === to) return;
-
-          const order = [...state.columnOrder];
-          const fromIdx = order.indexOf(from);
-          const toIdx = order.indexOf(to);
-          if (fromIdx === -1 || toIdx === -1) return;
-
-          order.splice(fromIdx, 1);
-          order.splice(toIdx, 0, from);
-          state.columnOrder = order;
-          renderTable();
-        });
-      });
-
-      // sort buttons
-      els.thead.querySelectorAll('[data-sort-col]').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          toggleSort(btn.getAttribute('data-sort-col'));
-        });
-      });
-
-      lucide.createIcons();
-    };
-
-    // ---------- DATA ----------
+    // ---------------- DATA FETCH ----------------
     const refresh = async () => {
       els.status.textContent = 'Loading from Supabase…';
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+
+      const { data, error } = await supabaseClient
+        .from(READ_TABLE)
+        .select('*');
 
       if (error) {
         console.error('Error fetching services:', error);
@@ -1223,7 +1216,7 @@
       renderTable();
     };
 
-    // ---------- MODAL ----------
+    // ---------------- MODAL FUNCTIONS ----------------
     function setFormValues(row = {}) {
       document.getElementById('edit-id').value = row.id || '';
       document.getElementById('edit-company').value = row.company || '';
@@ -1287,13 +1280,13 @@
       else refresh();
     }
 
+    // SAVE CHANGES
     els.editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (state.currentUserRole !== 'administrator') {
         alert('Only administrators can save changes.');
         return;
       }
-
       const id = document.getElementById('edit-id').value;
 
       const payload = {
@@ -1327,63 +1320,38 @@
       btn.disabled = false;
 
       if (error) alert('Error saving: ' + error.message);
-      else { closeEditModal(); refresh(); }
+      else {
+        closeEditModal();
+        refresh();
+      }
     });
 
-    // ---------- EVENTS ----------
+    // ---------------- EVENTS ----------------
     els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; renderTable(); });
     els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; renderTable(); });
     els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; renderTable(); });
     els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; renderTable(); });
 
-    const goPrev = () => {
+    els.prevPage.addEventListener('click', () => {
       if (state.pagination.page > 1) {
         state.pagination.page -= 1;
         renderTable();
       }
-    };
+    });
 
-    const goNext = () => {
+    els.nextPage.addEventListener('click', () => {
       const total = applySort(applyFilters()).length;
       const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
       if (state.pagination.page < totalPages) {
         state.pagination.page += 1;
         renderTable();
       }
-    };
-
-    // bottom
-    els.prevPage.addEventListener('click', goPrev);
-    els.nextPage.addEventListener('click', goNext);
-    // top
-    els.prevPageTop.addEventListener('click', goPrev);
-    els.nextPageTop.addEventListener('click', goNext);
+    });
 
     els.refresh.addEventListener('click', refresh);
     els.addRecord?.addEventListener('click', openCreateModal);
 
-    // ---------- SCROLL SYNC ----------
-    const attachScrollSync = () => {
-      let syncing = false;
-
-      els.tableScroll.addEventListener('scroll', () => {
-        if (syncing) return;
-        syncing = true;
-        els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
-        syncing = false;
-      });
-
-      els.topScrollbar.addEventListener('scroll', () => {
-        if (syncing) return;
-        syncing = true;
-        els.tableScroll.scrollLeft = els.topScrollbar.scrollLeft;
-        syncing = false;
-      });
-
-      window.addEventListener('resize', syncTopScrollbar);
-    };
-
-    // ---------- INIT ----------
+    // ---------------- INIT ----------------
     const init = async () => {
       createConstellationBackground();
       await requireSession();
