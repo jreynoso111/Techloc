@@ -981,7 +981,9 @@
       buckets.set('Other', []);
 
       for (const row of state.filteredRows) {
-        const key = buckets.has(row.status) ? row.status : 'Other';
+        const normalized = (row.status || '').trim().toLowerCase();
+        const match = statuses.find(s => s.toLowerCase() === normalized) || 'Other';
+        const key = buckets.has(match) ? match : 'Other';
         buckets.get(key).push(row);
       }
 
@@ -1022,11 +1024,11 @@
     function renderCalendarView() {
       const events = state.filteredRows
         .map(r => {
-          const rawDate = r['shipping date'] || r.workdate || r['request date'];
+          const rawDate = r.workdate || r['work date'];
           const ts = parseMaybeDate(rawDate);
-          return { row: r, ts, label: rawDate ? fmtDate(rawDate) : 'No date' };
+          return { row: r, ts, label: rawDate ? fmtDate(rawDate) : 'No date', key: rawDate ? new Date(rawDate).toISOString().slice(0, 10) : null };
         })
-        .filter(e => e.ts !== null)
+        .filter(e => e.ts !== null && e.key)
         .sort((a, b) => a.ts - b.ts);
 
       if (!events.length) {
@@ -1034,22 +1036,61 @@
         return;
       }
 
-      calendarList.innerHTML = events.map(e => {
-        const { row } = e;
-        const dateLabel = fmtDate(row['shipping date'] || row.workdate || row['request date']);
-        const typeLabel = row['shipping date'] ? 'Shipping' : row.workdate ? 'Work' : 'Request';
-        return `
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-            <div class="flex items-center justify-between text-xs text-slate-400">
-              <span class="font-semibold text-slate-200">${escapeHtml(dateLabel)}</span>
-              ${statusPill(row.status)}
+      const monthAnchor = new Date(events[0].ts);
+      const monthStart = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
+      const monthEnd = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
+
+      const start = new Date(monthStart);
+      start.setDate(start.getDate() - start.getDay());
+      const end = new Date(monthEnd);
+      end.setDate(end.getDate() + (6 - end.getDay()));
+
+      const eventsByDay = new Map();
+      for (const evt of events) {
+        if (!eventsByDay.has(evt.key)) eventsByDay.set(evt.key, []);
+        eventsByDay.get(evt.key).push(evt.row);
+      }
+
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+      const cells = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const key = d.toISOString().slice(0, 10);
+        const dayEvents = eventsByDay.get(key) || [];
+        const inMonth = d.getMonth() === monthAnchor.getMonth();
+        const dateLabel = `${d.getMonth() + 1}/${d.getDate()}`;
+
+        const cards = dayEvents.map(row => {
+          return `
+            <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left space-y-1">
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>${escapeHtml(row.company_name || '—')}</span>
+                ${statusPill(row.status)}
+              </div>
+              <p class="text-xs text-slate-300">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
+              <p class="text-[11px] text-slate-400">Doc: ${escapeHtml(row.doc || '—')}</p>
             </div>
-            <p class="mt-2 text-sm font-black text-white">${escapeHtml(row.company_name || '—')}</p>
-            <p class="text-sm text-slate-300">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
-            <p class="text-xs text-slate-400">${typeLabel} date</p>
+          `;
+        }).join('');
+
+        cells.push(`
+          <div class="rounded-2xl border ${inMonth ? 'border-slate-800 bg-slate-950/60' : 'border-slate-900 bg-slate-950/30'} p-3 space-y-2">
+            <div class="flex items-center justify-between text-xs ${inMonth ? 'text-slate-200' : 'text-slate-500'}">
+              <span class="font-semibold">${escapeHtml(dateLabel)}</span>
+              <span class="text-[11px]">${dayNames[d.getDay()]}</span>
+            </div>
+            <div class="space-y-2">${cards || '<p class="text-[11px] text-slate-500">No work scheduled</p>'}</div>
           </div>
-        `;
-      }).join('');
+        `);
+      }
+
+      calendarList.innerHTML = `
+        <div class="flex items-center justify-between pb-3">
+          <p class="text-sm text-slate-300">Work dates for ${monthAnchor.toLocaleString('default', { month: 'long' })} ${monthAnchor.getFullYear()}</p>
+          <p class="text-xs text-slate-400">Grouped by work date (Sun–Sat)</p>
+        </div>
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-7">${cells.join('')}</div>
+      `;
     }
 
     // Top scroll sync
