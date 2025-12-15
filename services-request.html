@@ -33,7 +33,7 @@
   </div>
 
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <a href="index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
           <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
@@ -69,7 +69,7 @@
     </div>
   </header>
 
-  <main class="relative z-10 mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
+  <main class="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
 
     <!-- Header / Controls -->
     <section class="rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
@@ -116,8 +116,8 @@
         <p id="resultsMeta" class="text-xs text-slate-400">0 items</p>
       </div>
 
-      <div class="overflow-auto">
-        <table class="min-w-full text-left text-sm">
+      <div class="overflow-auto px-4 pb-4">
+        <table class="min-w-[1200px] text-left text-sm">
           <thead class="sticky top-0 bg-slate-950/80 backdrop-blur">
             <tr id="tableHeaderRow" class="text-xs uppercase tracking-[0.14em] text-slate-400"></tr>
           </thead>
@@ -481,18 +481,21 @@
     async function loadRequests() {
       if (!state.client) return;
       state.loading = true;
+
       const { data, error } = await state.client
         .from('services_request')
-        .select('id, company_name, "company phone", doc, unittype, brand, model, "model year", shortvin, status, "request date", workdate, "shipping date", quote, "poc name", "poc phone", confirmed, state, city, zip, address')
-        .order('request date', { ascending: false });
+        // Use * to support both space-delimited and snake_case column names.
+        .select('*');
 
       if (error) {
         console.error(error);
-        // Soft fail: show empty state
         state.items = [];
       } else {
-        state.items = (data || []).map(normalizeRow);
+        state.items = (data || [])
+          .map(normalizeRow)
+          .sort((a, b) => new Date(b['request date'] || b.workdate || 0) - new Date(a['request date'] || a.workdate || 0));
       }
+
       state.loading = false;
       render();
     }
