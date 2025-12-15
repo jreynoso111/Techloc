@@ -32,17 +32,19 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
   <style>
-    /* ✅ Prevent the PAGE/WINDOW from horizontal scrolling */
     html, body { width: 100%; overflow-x: hidden; }
 
-    /* Make the table area fit the screen */
+    /* More compact overall spacing */
+    main { max-width: 100vw; overflow-x: hidden; }
+
+    /* Make the table area fit the screen (smaller than before) */
     .table-viewport {
-      max-height: calc(100vh - 18rem); /* header + stats + filters + pagination */
-      min-height: 320px;
+      max-height: calc(100vh - 24rem); /* tighter so it stays on screen */
+      min-height: 260px;
     }
     @media (min-width: 1024px) {
       .table-viewport {
-        max-height: calc(100vh - 16rem);
+        max-height: calc(100vh - 22rem);
       }
     }
 
@@ -96,33 +98,29 @@
     }
 
     /* Dragging header visual */
-    th.dragging {
-      opacity: .55;
-    }
+    th.dragging { opacity: .55; }
     th.drop-target {
       outline: 2px dashed rgba(59,130,246,.55);
       outline-offset: -6px;
     }
 
-    /* ✅ Keep fixed layout so resizing works predictably */
+    /* Fixed layout + no page widening */
     table.fixed-layout {
       table-layout: fixed;
       width: 100%;
       min-width: 100%;
     }
 
-    /* ✅ Make sure the scroll container never expands the viewport */
     #table-scroll {
       width: 100%;
       max-width: 100%;
-      overflow-x: auto;
-      overflow-y: auto;
+      overflow: auto;
     }
 
-    /* ✅ Wrap text instead of forcing table wider */
+    /* Wrap text (so it doesn't force the page wider) */
     #services-table th,
     #services-table td {
-      white-space: normal !important;        /* override any nowrap */
+      white-space: normal !important;
       overflow-wrap: anywhere;
       word-break: break-word;
       vertical-align: top;
@@ -135,7 +133,7 @@
       gap: .5rem;
       justify-content: space-between;
       width: 100%;
-      padding-right: 10px; /* leave space for resizer */
+      padding-right: 10px;
       min-width: 0;
     }
 
@@ -146,6 +144,24 @@
       top: calc(100% + 8px);
       width: min(320px, 92vw);
       z-index: 50;
+    }
+
+    /* Compact table density */
+    .compact-th { padding: 0.55rem 0.9rem; } /* ~py-2 px-4 but smaller */
+    .compact-td { padding: 0.55rem 0.9rem; }
+    .compact-text { font-size: 12.5px; line-height: 1.25rem; }
+
+    /* Charts: fit inside table card width + small height */
+    .mini-analytics {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: .75rem;
+    }
+    @media (min-width: 1024px) {
+      .mini-analytics { grid-template-columns: 1fr 1fr; }
+    }
+    .mini-chart {
+      height: 150px; /* smaller so it doesn't push table down */
     }
   </style>
 </head>
@@ -287,8 +303,8 @@
 
   <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
-  <main class="px-6 py-8 lg:px-10">
-    <div class="flex flex-col gap-8 lg:flex-row">
+  <main class="px-6 py-6 lg:px-10">
+    <div class="flex flex-col gap-6 lg:flex-row">
 
       <!-- LEFT NAV -->
       <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
@@ -321,9 +337,9 @@
       </aside>
 
       <!-- MAIN -->
-      <section class="flex-1 space-y-8">
+      <section class="flex-1 space-y-6">
 
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Partner network</p>
             <h2 class="text-2xl font-black text-white">Service roster and coverage</h2>
@@ -335,7 +351,7 @@
           </div>
         </div>
 
-        <!-- STATS -->
+        <!-- STATS (smaller) -->
         <section class="grid gap-3 sm:grid-cols-3">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
             <p class="text-sm font-semibold text-slate-300">Total services</p>
@@ -351,45 +367,43 @@
           </div>
         </section>
 
-        <!-- MINIMAL ANALYTICS -->
-        <section class="grid gap-3 lg:grid-cols-2">
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
-                <h3 class="text-lg font-bold text-white">Top states (filtered)</h3>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Bar</span>
-            </div>
-            <div class="mt-4 h-56">
-              <canvas id="chart-states"></canvas>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
-                <h3 class="text-lg font-bold text-white">Categories share (filtered)</h3>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Doughnut</span>
-            </div>
-            <div class="mt-4 h-56">
-              <canvas id="chart-categories"></canvas>
-            </div>
-          </div>
-        </section>
-
-        <!-- DIRECTORY -->
+        <!-- DIRECTORY (charts moved inside so they match table width) -->
         <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-          <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-2">
             <div>
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
               <h3 class="text-lg font-bold text-white">Service list</h3>
             </div>
 
+            <!-- MINI ANALYTICS (fits table width) -->
+            <div class="mini-analytics">
+              <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
+                    <h3 class="text-sm font-bold text-white">Top states (filtered)</h3>
+                  </div>
+                </div>
+                <div class="mt-3 mini-chart">
+                  <canvas id="chart-states"></canvas>
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
+                    <h3 class="text-sm font-bold text-white">Categories share (filtered)</h3>
+                  </div>
+                </div>
+                <div class="mt-3 mini-chart">
+                  <canvas id="chart-categories"></canvas>
+                </div>
+              </div>
+            </div>
+
             <!-- FILTERS / ACTIONS -->
-            <div class="flex flex-col gap-2">
+            <div class="flex flex-col gap-2 pt-1">
               <div class="flex flex-wrap gap-2">
                 <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                   <option value="all">All companies</option>
@@ -449,8 +463,8 @@
             </div>
           </div>
 
-          <!-- PAGINATION (TOP ONLY) -->
-          <div class="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <!-- PAGINATION (TOP) -->
+          <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
             <div class="flex items-center gap-2">
               <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
@@ -465,7 +479,7 @@
             </div>
           </div>
 
-          <!-- TOP HORIZONTAL SCROLLBAR -->
+          <!-- ✅ TOP HORIZONTAL SCROLLBAR -->
           <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-2">
             <div id="top-scrollbar" class="top-scrollbar">
               <div id="top-scrollbar-inner" style="height:1px;"></div>
@@ -473,9 +487,8 @@
           </div>
 
           <!-- TABLE -->
-          <div id="table-scroll" class="table-scroll table-viewport overflow-auto w-full rounded-xl border border-slate-800">
-            <!-- ✅ removed whitespace-nowrap -->
-            <table id="services-table" class="fixed-layout divide-y divide-slate-800 text-sm">
+          <div id="table-scroll" class="table-scroll table-viewport w-full rounded-xl border border-slate-800">
+            <table id="services-table" class="fixed-layout divide-y divide-slate-800 compact-text">
               <colgroup id="colgroup"></colgroup>
               <thead id="table-head" class="sticky-head bg-slate-950/60 text-slate-300"></thead>
               <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -544,25 +557,21 @@
       refresh: document.getElementById('refresh-button'),
       addRecord: document.getElementById('add-record'),
 
-      // table
       table: document.getElementById('services-table'),
       colgroup: document.getElementById('colgroup'),
       thead: document.getElementById('table-head'),
       tbody: document.getElementById('table-body'),
       tableScroll: document.getElementById('table-scroll'),
 
-      // top scrollbar
       topScrollbar: document.getElementById('top-scrollbar'),
       topScrollbarInner: document.getElementById('top-scrollbar-inner'),
 
-      // columns popover
       columnsBtn: document.getElementById('columns-btn'),
       columnsPopover: document.getElementById('columns-popover'),
       columnsList: document.getElementById('columns-list'),
       colsAll: document.getElementById('cols-all'),
       colsNone: document.getElementById('cols-none'),
 
-      // Modal
       modal: document.getElementById('edit-modal'),
       closeModal: document.getElementById('close-modal'),
       cancelEdit: document.getElementById('cancel-edit'),
@@ -590,31 +599,69 @@
     const state = {
       rows: [],
       currentUserRole: 'user',
+      currentUserId: 'anon', /* ✅ used for per-profile persistence */
 
-      filters: {
-        search: '',
-        company: 'all',
-        state: 'all',
-        category: 'all',
-      },
+      filters: { search: '', company: 'all', state: 'all', category: 'all' },
 
-      sort: {
-        key: '',
-        dir: 'asc'
-      },
+      sort: { key: '', dir: 'asc' },
 
-      pagination: {
-        page: 1,
-        pageSize: 20,
-      },
+      pagination: { page: 1, pageSize: 20 },
 
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
       columnVisibility: Object.fromEntries([['actions', true], ...ALL_COLUMNS.map(c => [c.id, true])]),
       columnWidths: Object.fromEntries([['actions', 110], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
 
-      drag: {
-        resizing: null,
-        draggingCol: null,
+      drag: { resizing: null, draggingCol: null }
+    };
+
+    // ================== PERSISTENCE (per profile) ==================
+    const STORAGE_PREFIX = 'techloc_services_table_prefs_v1';
+
+    const storageKey = () => `${STORAGE_PREFIX}:${state.currentUserId}`;
+
+    const safeParse = (raw) => {
+      try { return JSON.parse(raw); } catch { return null; }
+    };
+
+    const savePrefs = () => {
+      const payload = {
+        columnOrder: state.columnOrder,
+        columnVisibility: state.columnVisibility,
+        columnWidths: state.columnWidths
+      };
+      localStorage.setItem(storageKey(), JSON.stringify(payload));
+    };
+
+    const loadPrefs = () => {
+      const raw = localStorage.getItem(storageKey());
+      const prefs = raw ? safeParse(raw) : null;
+      if (!prefs) return;
+
+      // Only accept known columns
+      const validCols = new Set(['actions', ...ALL_COLUMNS.map(c => c.id)]);
+
+      if (Array.isArray(prefs.columnOrder)) {
+        const cleaned = prefs.columnOrder.filter(c => validCols.has(c));
+        // Ensure all columns exist (append missing)
+        const missing = [...validCols].filter(c => !cleaned.includes(c));
+        state.columnOrder = [...cleaned, ...missing];
+      }
+
+      if (prefs.columnVisibility && typeof prefs.columnVisibility === 'object') {
+        const next = { ...state.columnVisibility };
+        for (const [k, v] of Object.entries(prefs.columnVisibility)) {
+          if (validCols.has(k)) next[k] = !!v;
+        }
+        next.actions = true; // keep actions always visible
+        state.columnVisibility = next;
+      }
+
+      if (prefs.columnWidths && typeof prefs.columnWidths === 'object') {
+        const next = { ...state.columnWidths };
+        for (const [k, v] of Object.entries(prefs.columnWidths)) {
+          if (validCols.has(k) && Number.isFinite(+v)) next[k] = +v;
+        }
+        state.columnWidths = next;
       }
     };
 
@@ -623,6 +670,8 @@
       const { data } = await supabaseClient.auth.getSession();
 
       if (data?.session) {
+        state.currentUserId = data.session.user.id;
+
         if (window.currentUserRole) {
           state.currentUserRole = window.currentUserRole;
         } else {
@@ -635,7 +684,11 @@
         }
       } else {
         state.currentUserRole = 'anon';
+        state.currentUserId = 'anon';
       }
+
+      // ✅ load persisted prefs after we know the user id
+      loadPrefs();
 
       const isAdmin = state.currentUserRole === 'administrator';
       if (els.addRecord) {
@@ -754,6 +807,7 @@
       }
 
       syncTopScrollbar();
+      savePrefs(); /* ✅ persist */
     };
 
     const sortIcon = (colId) => {
@@ -774,7 +828,7 @@
 
     const buildHeaderCell = (colId) => {
       const th = document.createElement('th');
-      th.className = 'px-4 py-3 text-left font-semibold text-slate-200 resizable bg-slate-950/60';
+      th.className = 'text-left font-semibold text-slate-200 resizable bg-slate-950/60 compact-th';
       th.setAttribute('data-col', colId);
 
       const startingWidth = state.columnWidths[colId] || 140;
@@ -782,7 +836,7 @@
       th.style.minWidth = `${startingWidth}px`;
 
       if (colId === 'actions') {
-        th.className = 'px-4 py-3 text-left font-semibold text-blue-300 resizable bg-slate-950/60';
+        th.className = 'text-left font-semibold text-blue-300 resizable bg-slate-950/60 compact-th';
         th.style.width = `${state.columnWidths[colId] || 110}px`;
         th.style.minWidth = `${state.columnWidths[colId] || 110}px`;
         th.innerHTML = `
@@ -819,7 +873,6 @@
 
     const renderHeader = () => {
       const cols = getVisibleOrderedColumns();
-
       const tr = document.createElement('tr');
       cols.forEach((colId) => tr.appendChild(buildHeaderCell(colId)));
 
@@ -866,10 +919,12 @@
           order.splice(toIdx, 0, from);
           state.columnOrder = order;
 
+          savePrefs(); /* ✅ persist */
           renderTable();
         });
       });
 
+      // Sort buttons
       els.thead.querySelectorAll('[data-sort-col]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -893,11 +948,10 @@
 
         cols.forEach((colId) => {
           const td = document.createElement('td');
-          // ✅ ensure body wraps
-          td.className = 'px-4 py-3 align-top text-slate-200';
+          td.className = 'align-top text-slate-200 compact-td';
 
           if (colId === 'actions') {
-            td.className = 'px-4 py-3 text-center align-top';
+            td.className = 'text-center align-top compact-td';
             if (canEdit) {
               const editBtn = document.createElement('button');
               editBtn.className = 'mr-2 text-blue-400 transition hover:text-blue-300 hover:scale-110';
@@ -922,7 +976,7 @@
           const col = ALL_COLUMNS.find(c => c.id === colId);
           const value = col ? row[col.key] : '';
 
-          if (colId === 'company') td.className = 'px-4 py-3 font-semibold text-white align-top';
+          if (colId === 'company') td.className = 'font-semibold text-white align-top compact-td';
           td.textContent = value || '—';
           tr.appendChild(td);
         });
@@ -952,8 +1006,9 @@
     };
 
     const syncTopScrollbar = () => {
-      const scrollWidth = els.table.scrollWidth;
-      els.topScrollbarInner.style.width = scrollWidth + 'px';
+      // inner width matches scroll width of table content
+      els.topScrollbarInner.style.width = els.table.scrollWidth + 'px';
+      // keep positions aligned
       els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
     };
 
@@ -990,7 +1045,6 @@
     };
 
     const attachResizeHandles = () => {
-      // ✅ FIX: do NOT read width from <col> (it returns 0). Read from TH/state.
       els.thead.addEventListener('mousedown', (e) => {
         const handle = e.target.closest('[data-resize]');
         if (!handle) return;
@@ -1006,11 +1060,7 @@
           ? state.columnWidths[colId]
           : (thWidth || 140);
 
-        state.drag.resizing = {
-          colId,
-          startX: e.clientX,
-          startW: startWidth,
-        };
+        state.drag.resizing = { colId, startX: e.clientX, startW: startWidth };
 
         document.body.style.cursor = 'col-resize';
         document.addEventListener('mousemove', onMouseMoveResize);
@@ -1041,6 +1091,8 @@
 
         input.addEventListener('change', () => {
           state.columnVisibility[colId] = input.checked;
+          state.columnVisibility.actions = true;
+          savePrefs(); /* ✅ persist */
           renderTable();
         });
 
@@ -1076,12 +1128,14 @@
     els.colsAll.addEventListener('click', () => {
       Object.keys(state.columnVisibility).forEach((k) => { state.columnVisibility[k] = true; });
       state.columnVisibility.actions = true;
+      savePrefs();
       renderTable();
     });
 
     els.colsNone.addEventListener('click', () => {
       Object.keys(state.columnVisibility).forEach((k) => { state.columnVisibility[k] = false; });
       state.columnVisibility.actions = true;
+      savePrefs();
       renderTable();
     });
 
@@ -1103,7 +1157,13 @@
         syncing = false;
       });
 
-      window.addEventListener('resize', syncTopScrollbar);
+      // keep scrollbar width correct when layout changes
+      window.addEventListener('resize', () => {
+        syncTopScrollbar();
+        // also ensure charts reflow inside their smaller containers
+        if (chartStates) chartStates.resize();
+        if (chartCategories) chartCategories.resize();
+      });
     };
 
     // ---------------- CHARTS ----------------
@@ -1245,6 +1305,9 @@
           }
         }
       });
+
+      // ✅ after charts render, ensure scrollbar reflects any layout changes
+      requestAnimationFrame(syncTopScrollbar);
     };
 
     // ---------------- DATA FETCH ----------------
@@ -1389,19 +1452,13 @@
     els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; renderTable(); });
 
     els.prevPage.addEventListener('click', () => {
-      if (state.pagination.page > 1) {
-        state.pagination.page -= 1;
-        renderTable();
-      }
+      if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); }
     });
 
     els.nextPage.addEventListener('click', () => {
       const total = applySort(applyFilters()).length;
       const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
-      if (state.pagination.page < totalPages) {
-        state.pagination.page += 1;
-        renderTable();
-      }
+      if (state.pagination.page < totalPages) { state.pagination.page += 1; renderTable(); }
     });
 
     els.refresh.addEventListener('click', refresh);
