@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TechLoc • Service Control</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
@@ -27,21 +28,44 @@
   <link rel="stylesheet" href="assets/visuals/theme.css" />
 
   <style>
-    /* scrollbars */
+    /* Top scrollbar */
     #topScrollWrap::-webkit-scrollbar { height: 12px; }
     #topScrollWrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
     #topScrollWrap::-webkit-scrollbar-track { background: rgba(2,6,23,.35); border-radius: 999px; }
 
-    #tableScrollWrap::-webkit-scrollbar { height: 12px; }
+    /* Table scrollbar */
+    #tableScrollWrap::-webkit-scrollbar { height: 12px; width: 12px; }
     #tableScrollWrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
     #tableScrollWrap::-webkit-scrollbar-track { background: rgba(2,6,23,.35); border-radius: 999px; }
 
-    /* drag visuals */
+    /* Drag visuals */
     th.dragging { opacity: .45; }
     th.drop-target { outline: 2px solid rgba(59,130,246,.6); outline-offset: -2px; }
 
-    /* prevent text selection while resizing */
+    /* Resizing cursor + no select */
     body.resizing { cursor: col-resize !important; user-select: none !important; }
+
+    /* Resizer handle */
+    .col-resizer {
+      position: absolute;
+      top: 0;
+      right: -2px;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+    }
+    .col-resizer::after{
+      content:"";
+      position:absolute;
+      right:3px;
+      top:20%;
+      width:1px;
+      height:60%;
+      background: rgba(148,163,184,.25);
+    }
+
+    /* Prevent filters row from messing with drag */
+    .no-drag { -webkit-user-drag: none; user-drag: none; }
   </style>
 </head>
 
@@ -134,14 +158,13 @@
         <p id="resultsMeta" class="text-xs text-slate-400">0 items</p>
       </div>
 
-      <!-- TOP CONTROLS (pagination + columns dropdown) -->
+      <!-- TOP BAR: pagination + columns dropdown + top scrollbar -->
       <div class="flex flex-col gap-3 border-b border-slate-800 px-6 py-4">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="flex items-center gap-2">
             <button id="prevPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Previous</button>
             <button id="nextPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Next</button>
 
-            <!-- Columns dropdown -->
             <div class="relative ml-2">
               <button id="columnsBtn" type="button"
                 class="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/40 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-800">
@@ -163,7 +186,7 @@
                 <div class="max-h-80 overflow-auto px-2 py-2" id="columnsList"></div>
 
                 <div class="border-t border-slate-800 px-4 py-3 flex items-center justify-between">
-                  <p class="text-xs text-slate-400">Tip: drag headers to reorder • drag edge to resize</p>
+                  <p class="text-xs text-slate-400">Drag headers to reorder • Drag edge to resize</p>
                   <button id="colsClose" type="button" class="rounded-xl border border-slate-700 px-3 py-1 text-xs font-bold hover:bg-slate-800">Close</button>
                 </div>
               </div>
@@ -173,15 +196,14 @@
           <p id="pageMeta" class="text-sm text-slate-400"></p>
         </div>
 
-        <!-- TOP HORIZONTAL SCROLLBAR -->
         <div id="topScrollWrap" class="overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-800 bg-slate-950/40">
           <div id="topScrollInner" class="h-4"></div>
         </div>
       </div>
 
-      <!-- Table scroll area -->
       <div id="tableScrollWrap" class="overflow-auto px-4 pb-4">
-        <table id="dataTable" class="min-w-[1400px] w-full text-left text-sm">
+        <table id="dataTable" class="min-w-[1400px] w-full text-left text-sm" style="table-layout: fixed;">
+          <colgroup id="colGroup"></colgroup>
           <thead class="sticky top-0 bg-slate-950/80 backdrop-blur">
             <tr id="tableHeaderRow" class="text-xs uppercase tracking-[0.14em] text-slate-400"></tr>
             <tr id="tableFilterRow" class="text-[11px] text-slate-300"></tr>
@@ -368,4 +390,1074 @@
     import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     const SUPABASE_URL = "https://ewgtclzscwbokxmzxbcu.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIm
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto";
+    const TABLE_NAME = "services_request";
+    const PAGE_SIZE = 20;
+
+    const LS_KEY = "tl_services_table_prefs_v3";
+
+    function getClient() {
+      if (!window.supabase?.createClient) return null;
+      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      });
+    }
+
+    // --- Date formatter: mm/dd/yy ONLY ---
+    function fmtDate(v) {
+      if (!v) return '—';
+      const d = new Date(v);
+      if (isNaN(d)) return '—';
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yy = String(d.getFullYear()).slice(-2);
+      return `${mm}/${dd}/${yy}`;
+    }
+
+    function parseMaybeDate(v) {
+      if (!v) return null;
+      const d = new Date(v);
+      return isNaN(d) ? null : d.getTime();
+    }
+
+    function normStr(v) {
+      if (v === null || v === undefined) return "";
+      return String(v).toLowerCase();
+    }
+
+    // --- Column definitions (includes virtual phones column) ---
+    const BASE_COLUMN_DEFS = [
+      { key: 'company_name', label: 'Company Name', filter: 'text', defaultWidth: 220 },
+      { key: 'phones', label: 'Phones', filter: 'text', defaultWidth: 200, virtual: true },
+      { key: 'doc', label: 'Doc', filter: 'text', defaultWidth: 160 },
+      { key: 'unittype', label: 'Unit Type', filter: 'text', defaultWidth: 140 },
+      { key: 'brand', label: 'Brand', filter: 'text', defaultWidth: 140 },
+      { key: 'model', label: 'Model', filter: 'text', defaultWidth: 140 },
+      { key: 'model year', label: 'Model Year', filter: 'text', defaultWidth: 120 },
+      { key: 'shortvin', label: 'Short VIN', filter: 'text', defaultWidth: 120 },
+      { key: 'status', label: 'Status', filter: 'select', options: ['', 'Open', 'In Progress', 'Waiting', 'Closed'], defaultWidth: 150 },
+      { key: 'request date', label: 'Request Date', filter: 'text', isDate: true, defaultWidth: 140 },
+      { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true, defaultWidth: 140 },
+      { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true, defaultWidth: 150 },
+      { key: 'quote', label: 'Quote', filter: 'text', defaultWidth: 120 },
+      { key: 'poc name', label: 'POC Name', filter: 'text', defaultWidth: 170 },
+      { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'Yes', 'No'], defaultWidth: 140 },
+      { key: 'state', label: 'State', filter: 'text', defaultWidth: 90 },
+      { key: 'city', label: 'City', filter: 'text', defaultWidth: 140 },
+      { key: 'zip', label: 'ZIP', filter: 'text', defaultWidth: 100 },
+      { key: 'address', label: 'Address', filter: 'text', defaultWidth: 420, wide: true },
+    ];
+
+    // --- State ---
+    const state = {
+      view: 'table',
+      filterStatus: null,
+      search: '',
+
+      client: null,
+      loading: false,
+      lastError: null,
+
+      allRows: [],        // FULL dataset (for global sort/filter)
+      filteredRows: [],   // derived
+      page: 1,
+      total: 0,
+
+      sortKey: null,
+      sortDir: 'asc', // asc | desc
+
+      colFilters: {},     // per column
+      colOrder: [],       // keys
+      colVisible: {},     // key -> bool
+      colWidths: {},      // key -> px number
+
+      dbColumns: []       // inferred from first row keys
+    };
+
+    // --- DOM ---
+    const tableView = document.getElementById('tableView');
+    const kanbanView = document.getElementById('kanbanView');
+    const calendarView = document.getElementById('calendarView');
+
+    const tableScrollWrap = document.getElementById('tableScrollWrap');
+    const dataTable = document.getElementById('dataTable');
+    const colGroup = document.getElementById('colGroup');
+    const headerRow = document.getElementById('tableHeaderRow');
+    const filterRow = document.getElementById('tableFilterRow');
+    const tableBody = document.getElementById('tableBody');
+
+    const topScrollWrap = document.getElementById('topScrollWrap');
+    const topScrollInner = document.getElementById('topScrollInner');
+
+    const emptyState = document.getElementById('emptyState');
+    const emptyTitle = document.getElementById('emptyTitle');
+    const emptyMsg = document.getElementById('emptyMsg');
+
+    const resultsMeta = document.getElementById('resultsMeta');
+    const searchInput = document.getElementById('searchInput');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageMeta = document.getElementById('pageMeta');
+
+    const columnsBtn = document.getElementById('columnsBtn');
+    const columnsMenu = document.getElementById('columnsMenu');
+    const columnsList = document.getElementById('columnsList');
+    const colsAll = document.getElementById('colsAll');
+    const colsNone = document.getElementById('colsNone');
+    const colsClose = document.getElementById('colsClose');
+
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalClose = document.getElementById('modalClose');
+    const newRequestBtn = document.getElementById('newRequestBtn');
+    const requestForm = document.getElementById('requestForm');
+
+    const requestId = document.getElementById('requestId');
+    const companyNameInput = document.getElementById('companyNameInput');
+    const companyPhoneInput = document.getElementById('companyPhoneInput');
+    const docInput = document.getElementById('docInput');
+    const unitTypeInput = document.getElementById('unitTypeInput');
+    const brandInput = document.getElementById('brandInput');
+    const modelInput = document.getElementById('modelInput');
+    const modelYearInput = document.getElementById('modelYearInput');
+    const shortVinInput = document.getElementById('shortVinInput');
+    const statusInput = document.getElementById('statusInput');
+    const quoteInput = document.getElementById('quoteInput');
+    const requestDateInput = document.getElementById('requestDateInput');
+    const workDateInput = document.getElementById('workDateInput');
+    const shippingDateInput = document.getElementById('shippingDateInput');
+    const pocNameInput = document.getElementById('pocNameInput');
+    const pocPhoneInput = document.getElementById('pocPhoneInput');
+    const confirmedInput = document.getElementById('confirmedInput');
+    const stateInput = document.getElementById('stateInput');
+    const cityInput = document.getElementById('cityInput');
+    const zipInput = document.getElementById('zipInput');
+    const addressInput = document.getElementById('addressInput');
+    const formError = document.getElementById('formError');
+    const modalTitle = document.getElementById('modalTitle');
+    const deleteBtn = document.getElementById('deleteBtn');
+
+    // --- Pills ---
+    const statusPill = (status) => {
+      const map = {
+        'Open': 'bg-slate-800 text-slate-100 border-slate-700',
+        'In Progress': 'bg-blue-600/20 text-blue-200 border-blue-700/40',
+        'Waiting': 'bg-amber-600/20 text-amber-200 border-amber-700/40',
+        'Closed': 'bg-emerald-600/20 text-emerald-200 border-emerald-700/40',
+      };
+      const cls = map[status] || 'bg-slate-800 text-slate-100 border-slate-700';
+      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${status || '—'}</span>`;
+    };
+
+    // --- Normalize row (supports snake_case OR space keys) ---
+    function normalizeRow(raw) {
+      const companyPhone = raw?.['company phone'] ?? raw?.company_phone ?? null;
+      const pocPhone = raw?.['poc phone'] ?? raw?.poc_phone ?? null;
+
+      const out = {
+        ...raw,
+        'company phone': companyPhone,
+        unittype: raw?.unittype ?? raw?.unit_type ?? null,
+        'model year': raw?.['model year'] ?? raw?.model_year ?? null,
+        shortvin: raw?.shortvin ?? raw?.short_vin ?? null,
+        'request date': raw?.['request date'] ?? raw?.request_date ?? null,
+        workdate: raw?.workdate ?? raw?.work_date ?? null,
+        'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
+        'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
+        'poc phone': pocPhone,
+
+        phones: [companyPhone, pocPhone].filter(Boolean).join(' / ') || null,
+      };
+
+      return out;
+    }
+
+    // --- Preferences (order/visibility/widths) ---
+    function loadPrefs() {
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (!raw) return;
+        const prefs = JSON.parse(raw);
+
+        if (prefs && typeof prefs === 'object') {
+          state.colOrder = Array.isArray(prefs.colOrder) ? prefs.colOrder : [];
+          state.colVisible = prefs.colVisible && typeof prefs.colVisible === 'object' ? prefs.colVisible : {};
+          state.colWidths = prefs.colWidths && typeof prefs.colWidths === 'object' ? prefs.colWidths : {};
+          state.sortKey = prefs.sortKey ?? null;
+          state.sortDir = prefs.sortDir ?? 'asc';
+          state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : {};
+        }
+      } catch {}
+    }
+
+    function savePrefs() {
+      const prefs = {
+        colOrder: state.colOrder,
+        colVisible: state.colVisible,
+        colWidths: state.colWidths,
+        sortKey: state.sortKey,
+        sortDir: state.sortDir,
+        colFilters: state.colFilters,
+      };
+      try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch {}
+    }
+
+    // --- Column helpers ---
+    function getAllColumnDefs() {
+      // Include BASE defs + any extra db columns inferred (so dropdown can list them)
+      const byKey = new Map(BASE_COLUMN_DEFS.map(c => [c.key, c]));
+      for (const k of state.dbColumns) {
+        if (!byKey.has(k)) {
+          byKey.set(k, { key: k, label: k, filter: 'text', defaultWidth: 160, extra: true });
+        }
+      }
+      return Array.from(byKey.values());
+    }
+
+    function ensureColumnsInitialized() {
+      const allDefs = getAllColumnDefs();
+
+      // default order: BASE defs in order, then extras
+      if (!state.colOrder.length) {
+        state.colOrder = allDefs.map(d => d.key);
+      } else {
+        // add new keys not in order
+        const set = new Set(state.colOrder);
+        for (const d of allDefs) if (!set.has(d.key)) state.colOrder.push(d.key);
+      }
+
+      // default visibility: show BASE defs, hide extras by default (can be enabled via dropdown)
+      for (const d of allDefs) {
+        if (!(d.key in state.colVisible)) {
+          state.colVisible[d.key] = !d.extra; // extras default hidden
+        }
+      }
+
+      // default widths
+      for (const d of allDefs) {
+        if (!(d.key in state.colWidths)) {
+          state.colWidths[d.key] = d.defaultWidth ?? 160;
+        }
+      }
+
+      // default filters
+      for (const d of allDefs) {
+        if (!(d.key in state.colFilters)) state.colFilters[d.key] = '';
+      }
+
+      savePrefs();
+    }
+
+    function getVisibleOrderedDefs() {
+      const allDefs = getAllColumnDefs();
+      const map = new Map(allDefs.map(d => [d.key, d]));
+      return state.colOrder
+        .map(k => map.get(k))
+        .filter(Boolean)
+        .filter(d => !!state.colVisible[d.key]);
+    }
+
+    // --- Apply filters + sort + paginate (ALL rows) ---
+    function computeDerivedRows() {
+      const defs = getVisibleOrderedDefs();
+      const allDefs = getAllColumnDefs();
+      const defMap = new Map(allDefs.map(d => [d.key, d]));
+
+      let out = [...state.allRows];
+
+      // status chip quick filter
+      if (state.filterStatus) {
+        const target = state.filterStatus.toLowerCase();
+        out = out.filter(r => (r.status || '').toLowerCase() === target);
+      }
+
+      // global search
+      if (state.search) {
+        const q = state.search.toLowerCase();
+        out = out.filter(r => {
+          // search across all visible columns (plus address etc)
+          for (const d of defs) {
+            const raw = r[d.key];
+            const v = d.isDate ? fmtDate(raw) : raw;
+            if (v !== null && v !== undefined && String(v).toLowerCase().includes(q)) return true;
+          }
+          return false;
+        });
+      }
+
+      // per-column filters (applied across ALL defs, but only visible have UI; still ok)
+      for (const [key, val] of Object.entries(state.colFilters)) {
+        const fv = String(val ?? '').trim();
+        if (!fv) continue;
+
+        const d = defMap.get(key) || { key, filter: 'text' };
+
+        if (d.filter === 'select') {
+          out = out.filter(r => String(r[key] ?? '') === fv);
+        } else {
+          const q = fv.toLowerCase();
+          out = out.filter(r => {
+            const raw = r[key];
+            const v = d.isDate ? fmtDate(raw) : raw;
+            return normStr(v).includes(q);
+          });
+        }
+      }
+
+      // sort (across ALL rows)
+      if (state.sortKey) {
+        const key = state.sortKey;
+        const d = defMap.get(key);
+        const dir = state.sortDir === 'desc' ? -1 : 1;
+
+        out.sort((a, b) => {
+          const av = a[key];
+          const bv = b[key];
+
+          if (d?.isDate) {
+            const at = parseMaybeDate(av) ?? -Infinity;
+            const bt = parseMaybeDate(bv) ?? -Infinity;
+            return (at - bt) * dir;
+          }
+
+          const an = Number(av);
+          const bn = Number(bv);
+          const aIsNum = av !== null && av !== '' && av !== undefined && !isNaN(an);
+          const bIsNum = bv !== null && bv !== '' && bv !== undefined && !isNaN(bn);
+          if (aIsNum && bIsNum) return (an - bn) * dir;
+
+          const as = normStr(av);
+          const bs = normStr(bv);
+          if (as < bs) return -1 * dir;
+          if (as > bs) return  1 * dir;
+          return 0;
+        });
+      }
+
+      state.filteredRows = out;
+      state.total = out.length;
+
+      const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+      if (state.page > maxPage) state.page = maxPage;
+    }
+
+    function getPageRows() {
+      const start = (state.page - 1) * PAGE_SIZE;
+      const end = start + PAGE_SIZE;
+      return state.filteredRows.slice(start, end);
+    }
+
+    // --- Build columns dropdown ---
+    function buildColumnsMenu() {
+      const allDefs = getAllColumnDefs();
+
+      columnsList.innerHTML = allDefs.map(d => {
+        const checked = state.colVisible[d.key] ? 'checked' : '';
+        const label = d.label || d.key;
+        const badge = d.extra ? '<span class="ml-2 rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-400">DB</span>' : '';
+        return `
+          <label class="flex items-center justify-between gap-3 rounded-xl px-3 py-2 hover:bg-slate-900/60">
+            <div class="flex items-center gap-2">
+              <input type="checkbox" class="colToggle h-4 w-4 accent-blue-600" data-col="${d.key}" ${checked} />
+              <span class="text-sm text-slate-200">${label}</span>
+              ${badge}
+            </div>
+            <span class="text-[11px] text-slate-500">${d.key}</span>
+          </label>
+        `;
+      }).join('');
+
+      columnsList.querySelectorAll('.colToggle').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const key = cb.dataset.col;
+          state.colVisible[key] = cb.checked;
+          savePrefs();
+          render();
+        });
+      });
+    }
+
+    // --- Build colgroup widths ---
+    function buildColGroup(visibleDefs) {
+      colGroup.innerHTML = '';
+
+      // Visible columns
+      for (const d of visibleDefs) {
+        const w = Math.max(80, Number(state.colWidths[d.key] || d.defaultWidth || 160));
+        const col = document.createElement('col');
+        col.style.width = `${w}px`;
+        colGroup.appendChild(col);
+      }
+
+      // Actions column fixed width
+      const colActions = document.createElement('col');
+      colActions.style.width = `140px`;
+      colGroup.appendChild(colActions);
+    }
+
+    // --- Build header + filters + drag + resize + sort ---
+    function buildHeaderAndFilters() {
+      const visibleDefs = getVisibleOrderedDefs();
+      buildColGroup(visibleDefs);
+
+      // Headers
+      headerRow.innerHTML = visibleDefs.map(d => {
+        const isActive = state.sortKey === d.key;
+        const icon = isActive ? (state.sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down';
+        const thId = `th_${cssSafe(d.key)}`;
+
+        return `
+          <th id="${thId}"
+              class="relative px-6 py-3 whitespace-nowrap"
+              draggable="true"
+              data-col-key="${escapeHtml(d.key)}">
+            <div class="flex items-center justify-between gap-3">
+              <button type="button"
+                      class="inline-flex items-center gap-2 font-bold hover:text-white transition"
+                      data-sort-key="${escapeHtml(d.key)}"
+                      title="Sort">
+                <span>${escapeHtml(d.label || d.key)}</span>
+                <i data-lucide="${icon}" class="h-4 w-4 ${isActive ? 'text-blue-300' : 'text-slate-500'}"></i>
+              </button>
+            </div>
+            <div class="col-resizer" data-resize-key="${escapeHtml(d.key)}"></div>
+          </th>
+        `;
+      }).join('') + `
+        <th class="px-6 py-3 text-right whitespace-nowrap">
+          Actions
+        </th>
+      `;
+
+      // Filter row
+      filterRow.innerHTML = visibleDefs.map(d => {
+        const v = String(state.colFilters[d.key] ?? '');
+        const commonCls = `no-drag w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600`;
+
+        if (d.filter === 'select') {
+          const opts = (d.options || ['']).map(opt => {
+            const selected = String(opt) === String(v) ? 'selected' : '';
+            const label = opt === '' ? 'All' : opt;
+            return `<option value="${escapeAttr(opt)}" ${selected}>${escapeHtml(label)}</option>`;
+          }).join('');
+          return `<th class="px-6 py-2"><select data-filter-key="${escapeHtml(d.key)}" class="${commonCls}">${opts}</select></th>`;
+        }
+
+        return `
+          <th class="px-6 py-2">
+            <input data-filter-key="${escapeHtml(d.key)}"
+                   class="${commonCls}"
+                   placeholder="Filter..."
+                   value="${escapeAttr(v)}" />
+          </th>
+        `;
+      }).join('') + `<th class="px-6 py-2"></th>`;
+
+      // Sort click
+      document.querySelectorAll('[data-sort-key]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.getAttribute('data-sort-key');
+          if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+          else { state.sortKey = key; state.sortDir = 'asc'; }
+          savePrefs();
+          render();
+        });
+      });
+
+      // Filter inputs
+      document.querySelectorAll('[data-filter-key]').forEach(el => {
+        const key = el.getAttribute('data-filter-key');
+        const onChange = () => {
+          state.colFilters[key] = el.value;
+          state.page = 1;
+          savePrefs();
+          render();
+        };
+        el.addEventListener('input', onChange);
+        el.addEventListener('change', onChange);
+      });
+
+      // Drag reorder
+      enableHeaderDrag(visibleDefs);
+
+      // Resize columns
+      enableHeaderResize(visibleDefs);
+
+      // icons
+      lucide.createIcons();
+    }
+
+    function enableHeaderDrag(visibleDefs) {
+      const ths = headerRow.querySelectorAll('th[data-col-key]');
+      let dragKey = null;
+
+      ths.forEach(th => {
+        th.addEventListener('dragstart', (e) => {
+          dragKey = th.dataset.colKey;
+          th.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', dragKey); } catch {}
+        });
+
+        th.addEventListener('dragend', () => {
+          dragKey = null;
+          ths.forEach(x => x.classList.remove('dragging', 'drop-target'));
+        });
+
+        th.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          const overKey = th.dataset.colKey;
+          if (!dragKey || dragKey === overKey) return;
+          th.classList.add('drop-target');
+          e.dataTransfer.dropEffect = 'move';
+        });
+
+        th.addEventListener('dragleave', () => th.classList.remove('drop-target'));
+
+        th.addEventListener('drop', (e) => {
+          e.preventDefault();
+          const toKey = th.dataset.colKey;
+          const fromKey = dragKey || (() => {
+            try { return e.dataTransfer.getData('text/plain'); } catch { return null; }
+          })();
+
+          if (!fromKey || !toKey || fromKey === toKey) return;
+
+          // reorder in state.colOrder
+          const order = [...state.colOrder];
+          const fromIdx = order.indexOf(fromKey);
+          const toIdx = order.indexOf(toKey);
+          if (fromIdx === -1 || toIdx === -1) return;
+
+          order.splice(fromIdx, 1);
+          order.splice(toIdx, 0, fromKey);
+          state.colOrder = order;
+
+          savePrefs();
+          render();
+        });
+      });
+    }
+
+    function enableHeaderResize(visibleDefs) {
+      const handles = headerRow.querySelectorAll('[data-resize-key]');
+      let activeKey = null;
+      let startX = 0;
+      let startW = 0;
+
+      const onMove = (e) => {
+        if (!activeKey) return;
+        const dx = (e.clientX - startX);
+        const newW = Math.max(80, startW + dx);
+        state.colWidths[activeKey] = newW;
+
+        // Update colgroup instantly
+        const idx = visibleDefs.findIndex(d => d.key === activeKey);
+        if (idx >= 0 && colGroup.children[idx]) {
+          colGroup.children[idx].style.width = `${newW}px`;
+          syncTopScrollbarWidth();
+        }
+      };
+
+      const onUp = () => {
+        if (!activeKey) return;
+        document.body.classList.remove('resizing');
+        activeKey = null;
+        savePrefs();
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        syncTopScrollbarWidth();
+      };
+
+      handles.forEach(h => {
+        h.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const key = h.dataset.resizeKey;
+          activeKey = key;
+          startX = e.clientX;
+          startW = Number(state.colWidths[key] || 160);
+          document.body.classList.add('resizing');
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        });
+      });
+    }
+
+    // --- Render table body ---
+    function renderTableRows(rows) {
+      const visibleDefs = getVisibleOrderedDefs();
+
+      tableBody.innerHTML = '';
+
+      if (!rows.length) {
+        emptyState.classList.remove('hidden');
+        if (state.lastError) {
+          emptyTitle.textContent = 'Could not load service requests';
+          emptyMsg.textContent = state.lastError;
+        } else {
+          emptyTitle.textContent = 'No service requests found';
+          emptyMsg.textContent = 'Try adjusting filters/search.';
+        }
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      for (const r of rows) {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-950/30';
+
+        const cells = visibleDefs.map(d => {
+          const value = r[d.key];
+
+          if (d.key === 'status') {
+            return `<td class="px-6 py-3">${statusPill(value)}</td>`;
+          }
+
+          if (d.key === 'phones') {
+            return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${escapeHtml(value || '—')}</td>`;
+          }
+
+          if (d.isDate) {
+            return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${escapeHtml(fmtDate(value))}</td>`;
+          }
+
+          if (d.key === 'address') {
+            return `<td class="px-6 py-3 text-slate-200 whitespace-normal">${escapeHtml(value ?? '—')}</td>`;
+          }
+
+          if (d.key === 'company_name' || d.key === 'brand' || d.key === 'model') {
+            return `<td class="px-6 py-3 font-bold text-white">${escapeHtml(value || '—')}</td>`;
+          }
+
+          return `<td class="px-6 py-3 text-slate-200">${escapeHtml(value ?? '—')}</td>`;
+        }).join('');
+
+        tr.innerHTML = `
+          ${cells}
+          <td class="px-6 py-3 text-right whitespace-nowrap">
+            <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
+                    data-id="${escapeAttr(r.id)}">
+              <i data-lucide="pencil" class="h-4 w-4"></i>
+              Edit
+            </button>
+          </td>
+        `;
+
+        tableBody.appendChild(tr);
+      }
+
+      // Edit handlers
+      document.querySelectorAll('.editBtn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.id;
+          const item = state.allRows.find(x => String(x.id) === String(id));
+          if (item) openModal(item);
+        });
+      });
+
+      lucide.createIcons();
+    }
+
+    // --- Kanban render (optional; uses filteredRows) ---
+    function renderKanban(rows) {
+      const columnsEl = document.getElementById('kanbanColumns');
+      const columns = [
+        { key: 'Open', label: 'Open' },
+        { key: 'In Progress', label: 'In Progress' },
+        { key: 'Waiting', label: 'Waiting' },
+        { key: 'Closed', label: 'Closed' },
+      ];
+
+      columnsEl.innerHTML = '';
+      for (const col of columns) {
+        const bucket = rows.filter(r => (r.status || 'Open') === col.key);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'rounded-3xl border border-slate-800 bg-slate-950/40 p-4';
+        wrapper.innerHTML = `
+          <div class="mb-3 flex items-center justify-between">
+            <p class="text-sm font-black text-white">${escapeHtml(col.label)}</p>
+            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs font-bold text-slate-300">${bucket.length}</span>
+          </div>
+          <div class="space-y-3"></div>
+        `;
+        columnsEl.appendChild(wrapper);
+
+        const stack = wrapper.querySelector('div.space-y-3');
+        for (const r of bucket.slice(0, 60)) {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'w-full rounded-3xl border border-slate-800 bg-slate-900/50 p-4 text-left transition hover:bg-slate-900/70';
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-black text-white">${escapeHtml(r.company_name || 'Company —')}</p>
+                <p class="mt-1 text-xs text-slate-400">${escapeHtml(r.shortvin || 'VIN —')}</p>
+              </div>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-slate-400"></i>
+            </div>
+            <p class="mt-3 text-sm text-slate-200">${escapeHtml(r.doc || 'Doc —')}</p>
+            <p class="mt-2 text-xs text-slate-400">Request: ${escapeHtml(fmtDate(r['request date']))}</p>
+          `;
+          card.addEventListener('click', () => openModal(r));
+          stack.appendChild(card);
+        }
+      }
+
+      lucide.createIcons();
+    }
+
+    // --- Top scrollbar sync ---
+    let syncing = false;
+
+    function syncTopScrollbarWidth() {
+      // inner width matches the table scroll width
+      const width = dataTable.scrollWidth;
+      topScrollInner.style.width = width + "px";
+    }
+
+    function wireScrollSync() {
+      topScrollWrap.addEventListener('scroll', () => {
+        if (syncing) return;
+        syncing = true;
+        tableScrollWrap.scrollLeft = topScrollWrap.scrollLeft;
+        syncing = false;
+      });
+
+      tableScrollWrap.addEventListener('scroll', () => {
+        if (syncing) return;
+        syncing = true;
+        topScrollWrap.scrollLeft = tableScrollWrap.scrollLeft;
+        syncing = false;
+      });
+
+      // also update width on resize
+      window.addEventListener('resize', () => {
+        syncTopScrollbarWidth();
+      });
+    }
+
+    // --- UI meta + pagination ---
+    function renderMeta() {
+      const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+      pageMeta.textContent = `Page ${state.page} of ${maxPage}`;
+      prevPageBtn.disabled = state.page === 1 || state.loading;
+      nextPageBtn.disabled = state.page === maxPage || state.loading;
+
+      if (state.loading) resultsMeta.textContent = 'Loading...';
+      else if (state.lastError) resultsMeta.textContent = `Error: ${state.lastError}`;
+      else resultsMeta.textContent = `${state.total} items • showing ${(state.page-1)*PAGE_SIZE + 1}-${Math.min(state.page*PAGE_SIZE, state.total)}`;
+    }
+
+    // --- Main render ---
+    function render() {
+      ensureColumnsInitialized();
+      buildColumnsMenu();
+
+      computeDerivedRows();
+
+      buildHeaderAndFilters();
+      renderMeta();
+
+      const pageRows = getPageRows();
+
+      if (state.view === 'table') {
+        renderTableRows(pageRows);
+        // wait next tick for accurate scrollWidth
+        requestAnimationFrame(() => syncTopScrollbarWidth());
+      }
+
+      if (state.view === 'kanban') renderKanban(state.filteredRows);
+    }
+
+    // --- Auth: require logged-in user to see data ---
+    async function requireLogin() {
+      // If you already enforce via authManager.js, this is still safe.
+      const { data } = await state.client.auth.getSession();
+      const session = data?.session;
+
+      if (!session) {
+        // hide table + show message
+        state.lastError = "You must be logged in to view service requests.";
+        state.allRows = [];
+        state.filteredRows = [];
+        state.total = 0;
+        render();
+        return false;
+      }
+      return true;
+    }
+
+    // --- Load ALL rows (107 is fine) ---
+    async function loadAllRequests() {
+      state.lastError = null;
+      state.loading = true;
+      render();
+
+      const ok = await requireLogin();
+      if (!ok) {
+        state.loading = false;
+        render();
+        return;
+      }
+
+      const { data, error } = await state.client
+        .from(TABLE_NAME)
+        .select('*'); // full dataset
+
+      if (error) {
+        state.lastError = error.message || String(error);
+        state.allRows = [];
+        state.filteredRows = [];
+        state.total = 0;
+      } else {
+        const rows = (data || []).map(normalizeRow);
+        state.allRows = rows;
+
+        // infer DB columns from first row
+        const first = rows[0] || null;
+        if (first) {
+          const keys = Object.keys(first).filter(k => !k.startsWith('_'));
+          // keep stable ordering for db columns listing (alphabetical)
+          state.dbColumns = keys.sort((a,b) => a.localeCompare(b));
+        } else {
+          state.dbColumns = [];
+        }
+      }
+
+      state.loading = false;
+      render();
+    }
+
+    // --- CRUD ---
+    async function upsertRequest(payload) {
+      const { data, error } = await state.client
+        .from(TABLE_NAME)
+        .upsert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      return normalizeRow(data);
+    }
+
+    async function deleteRequestRow(id) {
+      const { error } = await state.client
+        .from(TABLE_NAME)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+
+    // --- Modal ---
+    function openModal(item = null) {
+      formError.textContent = '';
+
+      const isEdit = !!item;
+      modalTitle.textContent = isEdit ? 'Edit request' : 'New request';
+      deleteBtn.classList.toggle('hidden', !isEdit);
+
+      requestId.value = item?.id || '';
+      companyNameInput.value = item?.company_name || '';
+      companyPhoneInput.value = item?.['company phone'] || '';
+      docInput.value = item?.doc || '';
+      unitTypeInput.value = item?.unittype || '';
+      brandInput.value = item?.brand || '';
+      modelInput.value = item?.model || '';
+      modelYearInput.value = item?.['model year'] || '';
+      shortVinInput.value = item?.shortvin || '';
+      statusInput.value = item?.status || 'Open';
+      quoteInput.value = item?.quote || '';
+      requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
+      workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
+      shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : '';
+      pocNameInput.value = item?.['poc name'] || '';
+      pocPhoneInput.value = item?.['poc phone'] || '';
+      confirmedInput.value = item?.confirmed ?? '';
+      stateInput.value = item?.state || '';
+      cityInput.value = item?.city || '';
+      zipInput.value = item?.zip || '';
+      addressInput.value = item?.address || '';
+
+      modalOverlay.classList.remove('hidden');
+      modalOverlay.classList.add('flex');
+      lucide.createIcons();
+    }
+
+    function closeModal() {
+      modalOverlay.classList.add('hidden');
+      modalOverlay.classList.remove('flex');
+    }
+
+    // --- View switch ---
+    function setView(view) {
+      state.view = view;
+      tableView.classList.toggle('hidden', view !== 'table');
+      kanbanView.classList.toggle('hidden', view !== 'kanban');
+      calendarView.classList.toggle('hidden', view !== 'calendar');
+
+      document.querySelectorAll('.viewBtn').forEach(btn => {
+        const active = btn.dataset.view === view;
+        btn.classList.toggle('bg-blue-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('text-slate-300', !active);
+      });
+
+      render();
+    }
+
+    // --- Columns menu open/close ---
+    function toggleColumnsMenu(force) {
+      const willOpen = typeof force === 'boolean' ? force : columnsMenu.classList.contains('hidden');
+      columnsMenu.classList.toggle('hidden', !willOpen);
+      if (willOpen) buildColumnsMenu();
+      lucide.createIcons();
+    }
+
+    // --- Utils ---
+    function cssSafe(s){ return String(s).replace(/[^a-zA-Z0-9_-]/g, '_'); }
+    function escapeHtml(s){
+      const v = String(s);
+      return v
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+    function escapeAttr(s){ return escapeHtml(s).replaceAll('\n',' '); }
+
+    // --- Events ---
+    document.querySelectorAll('.viewBtn').forEach(btn => {
+      btn.addEventListener('click', () => setView(btn.dataset.view));
+    });
+
+    document.querySelectorAll('.filterChip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const f = btn.dataset.filter;
+        state.filterStatus = (state.filterStatus === f) ? null : f;
+
+        document.querySelectorAll('.filterChip').forEach(x => x.classList.remove('bg-blue-600','text-white','border-blue-600'));
+        if (state.filterStatus === f) btn.classList.add('bg-blue-600','text-white','border-blue-600');
+
+        state.page = 1;
+        render();
+      });
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      state.search = e.target.value.trim();
+      state.page = 1;
+      render();
+    });
+
+    prevPageBtn.addEventListener('click', () => {
+      if (state.page > 1) {
+        state.page--;
+        render();
+      }
+    });
+
+    nextPageBtn.addEventListener('click', () => {
+      const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+      if (state.page < maxPage) {
+        state.page++;
+        render();
+      }
+    });
+
+    newRequestBtn.addEventListener('click', () => openModal(null));
+    modalClose.addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+
+    deleteBtn.addEventListener('click', async () => {
+      try {
+        const id = requestId.value;
+        if (!id) return;
+        await deleteRequestRow(id);
+        closeModal();
+        await loadAllRequests();
+      } catch (err) {
+        console.error(err);
+        formError.textContent = 'Could not delete. Check permissions (RLS) and table name.';
+      }
+    });
+
+    requestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.textContent = '';
+
+      const payload = {
+        id: requestId.value || undefined,
+        company_name: companyNameInput.value.trim() || null,
+        'company phone': companyPhoneInput.value.trim() || null,
+        doc: docInput.value.trim() || null,
+        unittype: unitTypeInput.value.trim() || null,
+        brand: brandInput.value.trim() || null,
+        model: modelInput.value.trim() || null,
+        'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
+        shortvin: shortVinInput.value.trim() || null,
+        status: statusInput.value,
+        quote: quoteInput.value.trim() || null,
+        'request date': requestDateInput.value || null,
+        workdate: workDateInput.value || null,
+        'shipping date': shippingDateInput.value || null,
+        'poc name': pocNameInput.value.trim() || null,
+        'poc phone': pocPhoneInput.value.trim() || null,
+        confirmed: confirmedInput.value || null,
+        state: stateInput.value.trim() || null,
+        city: cityInput.value.trim() || null,
+        zip: zipInput.value.trim() || null,
+        address: addressInput.value.trim() || null,
+      };
+
+      try {
+        await upsertRequest(payload);
+        closeModal();
+        await loadAllRequests();
+      } catch (err) {
+        console.error(err);
+        formError.textContent = `Could not save. ${err?.message || 'Check table columns + RLS policies.'}`;
+      }
+    });
+
+    // Columns dropdown events
+    columnsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleColumnsMenu();
+    });
+    colsClose.addEventListener('click', () => toggleColumnsMenu(false));
+    colsAll.addEventListener('click', () => {
+      const allDefs = getAllColumnDefs();
+      for (const d of allDefs) state.colVisible[d.key] = true;
+      savePrefs();
+      render();
+      buildColumnsMenu();
+    });
+    colsNone.addEventListener('click', () => {
+      const allDefs = getAllColumnDefs();
+      for (const d of allDefs) state.colVisible[d.key] = false;
+      // keep at least one visible to avoid empty table
+      state.colVisible['company_name'] = true;
+      savePrefs();
+      render();
+      buildColumnsMenu();
+    });
+    document.addEventListener('click', () => toggleColumnsMenu(false));
+    columnsMenu.addEventListener('click', (e) => e.stopPropagation());
+
+    // --- Init ---
+    document.addEventListener('DOMContentLoaded', async () => {
+      createConstellationBackground();
+      lucide.createIcons();
+
+      state.client = getClient();
+      loadPrefs();
+      wireScrollSync();
+
+      await loadAllRequests();
+    });
+  </script>
+</body>
+</html>
