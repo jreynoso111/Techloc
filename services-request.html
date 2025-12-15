@@ -298,7 +298,7 @@
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Quote</span>
-            <input id="quoteInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            <input id="quoteInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="e.g. 1200" />
           </label>
         </div>
 
@@ -381,7 +381,7 @@
     const TABLE_NAME = "services_request";
     const PAGE_SIZE = 20;
 
-    const LS_KEY = "tl_services_table_prefs_v3";
+    const LS_KEY = "tl_services_table_prefs_v4";
 
     function getClient() {
       if (!window.supabase?.createClient) return null;
@@ -390,6 +390,7 @@
       });
     }
 
+    // ✅ mm/dd/yy only for date cols
     function fmtDate(v) {
       if (!v) return '—';
       const d = new Date(v);
@@ -398,6 +399,18 @@
       const dd = String(d.getDate()).padStart(2, '0');
       const yy = String(d.getFullYear()).slice(-2);
       return `${mm}/${dd}/${yy}`;
+    }
+
+    // ✅ USD formatting for quote
+    function fmtUSD(value) {
+      if (value === null || value === undefined || value === '') return '—';
+      const n = Number(value);
+      if (isNaN(n)) return String(value);
+      return n.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+      });
     }
 
     function parseMaybeDate(v) {
@@ -425,7 +438,7 @@
       { key: 'request date', label: 'Request Date', filter: 'text', isDate: true, defaultWidth: 140 },
       { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true, defaultWidth: 140 },
       { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true, defaultWidth: 150 },
-      { key: 'quote', label: 'Quote', filter: 'text', defaultWidth: 120 },
+      { key: 'quote', label: 'Quote', filter: 'text', isMoney: true, defaultWidth: 140 },
       { key: 'poc name', label: 'POC Name', filter: 'text', defaultWidth: 170 },
       { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'Yes', 'No'], defaultWidth: 140 },
       { key: 'state', label: 'State', filter: 'text', defaultWidth: 90 },
@@ -528,7 +541,7 @@
         'Closed': 'bg-emerald-600/20 text-emerald-200 border-emerald-700/40',
       };
       const cls = map[status] || 'bg-slate-800 text-slate-100 border-slate-700';
-      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${status || '—'}</span>`;
+      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${escapeHtml(status || '—')}</span>`;
     };
 
     function normalizeRow(raw) {
@@ -618,6 +631,13 @@
       return state.colOrder.map(k => map.get(k)).filter(Boolean).filter(d => !!state.colVisible[d.key]);
     }
 
+    function displayValueFor(def, row) {
+      const raw = row?.[def.key];
+      if (def.isDate) return fmtDate(raw);
+      if (def.isMoney) return fmtUSD(raw);
+      return (raw ?? '—');
+    }
+
     function computeDerivedRows() {
       const defs = getVisibleOrderedDefs();
       const allDefs = getAllColumnDefs();
@@ -634,8 +654,7 @@
         const q = state.search.toLowerCase();
         out = out.filter(r => {
           for (const d of defs) {
-            const raw = r[d.key];
-            const v = d.isDate ? fmtDate(raw) : raw;
+            const v = displayValueFor(d, r);
             if (v !== null && v !== undefined && String(v).toLowerCase().includes(q)) return true;
           }
           return false;
@@ -651,9 +670,8 @@
         else {
           const q = fv.toLowerCase();
           out = out.filter(r => {
-            const raw = r[key];
-            const v = d.isDate ? fmtDate(raw) : raw;
-            return normStr(v).includes(q);
+            const view = displayValueFor(d, r);
+            return normStr(view).includes(q);
           });
         }
       }
@@ -671,6 +689,15 @@
             const at = parseMaybeDate(av) ?? -Infinity;
             const bt = parseMaybeDate(bv) ?? -Infinity;
             return (at - bt) * dir;
+          }
+
+          // money sorts numeric
+          if (d?.isMoney) {
+            const an = Number(av);
+            const bn = Number(bv);
+            const aOk = av !== null && av !== '' && av !== undefined && !isNaN(an);
+            const bOk = bv !== null && bv !== '' && bv !== undefined && !isNaN(bn);
+            if (aOk && bOk) return (an - bn) * dir;
           }
 
           const an = Number(av);
@@ -731,7 +758,7 @@
     function buildColGroup(visibleDefs) {
       colGroup.innerHTML = '';
 
-      // ✅ first col = actions
+      // first col = actions
       const colActions = document.createElement('col');
       colActions.style.width = `140px`;
       colGroup.appendChild(colActions);
@@ -748,7 +775,6 @@
       const visibleDefs = getVisibleOrderedDefs();
       buildColGroup(visibleDefs);
 
-      // ✅ actions header first (not draggable/sortable)
       headerRow.innerHTML = `
         <th class="px-6 py-3 whitespace-nowrap text-left">Actions</th>
       ` + visibleDefs.map(d => {
@@ -771,7 +797,6 @@
         `;
       }).join('');
 
-      // filters row
       filterRow.innerHTML = `
         <th class="px-6 py-2"></th>
       ` + visibleDefs.map(d => {
@@ -794,7 +819,6 @@
         `;
       }).join('');
 
-      // sort
       document.querySelectorAll('[data-sort-key]').forEach(btn => {
         btn.addEventListener('click', () => {
           const key = btn.getAttribute('data-sort-key');
@@ -805,7 +829,6 @@
         });
       });
 
-      // filters
       document.querySelectorAll('[data-filter-key]').forEach(el => {
         const key = el.getAttribute('data-filter-key');
         const onChange = () => {
@@ -882,9 +905,8 @@
         const newW = Math.max(80, startW + dx);
         state.colWidths[activeKey] = newW;
 
-        // ✅ colgroup index is +1 because col0 is Actions
         const idx = visibleDefs.findIndex(d => d.key === activeKey);
-        const colIdx = idx + 1;
+        const colIdx = idx + 1; // +1 because first col is actions
         if (idx >= 0 && colGroup.children[colIdx]) {
           colGroup.children[colIdx].style.width = `${newW}px`;
           syncTopScrollbarWidth();
@@ -933,7 +955,7 @@
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-950/30';
 
-        // ✅ actions cell first
+        // actions cell first
         const actionCell = `
           <td class="px-6 py-3 whitespace-nowrap">
             <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
@@ -949,6 +971,7 @@
 
           if (d.key === 'status') return `<td class="px-6 py-3">${statusPill(value)}</td>`;
           if (d.isDate) return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${escapeHtml(fmtDate(value))}</td>`;
+          if (d.isMoney) return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap font-semibold text-right">${escapeHtml(fmtUSD(value))}</td>`;
           if (d.key === 'phones') return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${escapeHtml(value || '—')}</td>`;
           if (d.key === 'address') return `<td class="px-6 py-3 text-slate-200 whitespace-normal">${escapeHtml(value ?? '—')}</td>`;
           if (d.key === 'company_name' || d.key === 'brand' || d.key === 'model') return `<td class="px-6 py-3 font-bold text-white">${escapeHtml(value || '—')}</td>`;
@@ -970,6 +993,7 @@
       lucide.createIcons();
     }
 
+    // Top scroll sync
     let syncing = false;
     function syncTopScrollbarWidth() {
       topScrollInner.style.width = (dataTable.scrollWidth) + "px";
@@ -999,6 +1023,7 @@
 
       if (state.loading) resultsMeta.textContent = 'Loading...';
       else if (state.lastError) resultsMeta.textContent = `Error: ${state.lastError}`;
+      else if (state.total === 0) resultsMeta.textContent = '0 items';
       else resultsMeta.textContent = `${state.total} items • showing ${(state.page-1)*PAGE_SIZE + 1}-${Math.min(state.page*PAGE_SIZE, state.total)}`;
     }
 
@@ -1058,6 +1083,24 @@
       render();
     }
 
+    async function upsertRequest(payload) {
+      const { data, error } = await state.client
+        .from(TABLE_NAME)
+        .upsert(payload)
+        .select()
+        .single();
+      if (error) throw error;
+      return normalizeRow(data);
+    }
+
+    async function deleteRequestRow(id) {
+      const { error } = await state.client
+        .from(TABLE_NAME)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+
     function openModal(item = null) {
       formError.textContent = '';
 
@@ -1075,7 +1118,7 @@
       modelYearInput.value = item?.['model year'] || '';
       shortVinInput.value = item?.shortvin || '';
       statusInput.value = item?.status || 'Open';
-      quoteInput.value = item?.quote || '';
+      quoteInput.value = item?.quote ?? '';
       requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
       workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
       shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : '';
@@ -1110,13 +1153,14 @@
     }
     function escapeAttr(s){ return escapeHtml(s).replaceAll('\n',' '); }
 
-    // top controls
+    // Pagination
     prevPageBtn.addEventListener('click', () => { if (state.page > 1) { state.page--; render(); } });
     nextPageBtn.addEventListener('click', () => {
       const maxPage = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
       if (state.page < maxPage) { state.page++; render(); }
     });
 
+    // Views
     document.querySelectorAll('.viewBtn').forEach(btn => btn.addEventListener('click', () => {
       const view = btn.dataset.view;
       state.view = view;
@@ -1134,6 +1178,7 @@
       render();
     }));
 
+    // Status chips
     document.querySelectorAll('.filterChip').forEach(btn => {
       btn.addEventListener('click', () => {
         const f = btn.dataset.filter;
@@ -1145,6 +1190,7 @@
       });
     });
 
+    // Global search
     searchInput.addEventListener('input', (e) => {
       state.search = e.target.value.trim();
       state.page = 1;
@@ -1168,10 +1214,69 @@
     document.addEventListener('click', () => toggleColumnsMenu(false));
     columnsMenu.addEventListener('click', (e) => e.stopPropagation());
 
-    // Modal events
+    // Modal
     newRequestBtn.addEventListener('click', () => openModal(null));
     modalClose.addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
+
+    deleteBtn.addEventListener('click', async () => {
+      try {
+        const id = requestId.value;
+        if (!id) return;
+        const ok = await requireLogin();
+        if (!ok) return;
+        await deleteRequestRow(id);
+        closeModal();
+        await loadAllRequests();
+      } catch (err) {
+        console.error(err);
+        formError.textContent = `Could not delete. ${err?.message || 'Check RLS policies.'}`;
+      }
+    });
+
+    requestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.textContent = '';
+
+      try {
+        const ok = await requireLogin();
+        if (!ok) return;
+
+        const quoteRaw = quoteInput.value.trim();
+        const quoteVal = quoteRaw === '' ? null : (isNaN(Number(quoteRaw)) ? quoteRaw : Number(quoteRaw));
+
+        const payload = {
+          id: requestId.value || undefined,
+          company_name: companyNameInput.value.trim() || null,
+          'company phone': companyPhoneInput.value.trim() || null,
+          doc: docInput.value.trim() || null,
+          unittype: unitTypeInput.value.trim() || null,
+          brand: brandInput.value.trim() || null,
+          model: modelInput.value.trim() || null,
+          'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
+          shortvin: shortVinInput.value.trim() || null,
+          status: statusInput.value,
+          quote: quoteVal,
+          'request date': requestDateInput.value || null,
+          workdate: workDateInput.value || null,
+          'shipping date': shippingDateInput.value || null,
+          'poc name': pocNameInput.value.trim() || null,
+          'poc phone': pocPhoneInput.value.trim() || null,
+          confirmed: confirmedInput.value || null,
+          state: stateInput.value.trim() || null,
+          city: cityInput.value.trim() || null,
+          zip: zipInput.value.trim() || null,
+          address: addressInput.value.trim() || null,
+        };
+
+        await upsertRequest(payload);
+        closeModal();
+        await loadAllRequests();
+      } catch (err) {
+        console.error(err);
+        formError.textContent = `Could not save. ${err?.message || 'Check RLS policies + table columns.'}`;
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', async () => {
       createConstellationBackground();
