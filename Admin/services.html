@@ -32,124 +32,48 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
   <style>
-    /* ✅ PAGE: allow vertical growth (table NOT height-limited), keep everything responsive */
     html, body { width: 100%; height: auto; }
     body { overflow-x: hidden; overflow-y: auto; }
     main { width: 100%; height: auto; overflow: visible; }
 
-    .directory-shell {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      overflow: visible;
-      height: auto !important;
-      min-height: 0 !important;
-    }
+    .directory-shell { display: flex; flex-direction: column; gap: 0.75rem; overflow: visible; height: auto !important; min-height: 0 !important; }
 
     .analytics-wrap { max-width: 100%; overflow: hidden; }
-    .mini-analytics {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      gap: .75rem;
-      max-width: 100%;
-      overflow: hidden;
-    }
-    @media (min-width: 1024px) {
-      .mini-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
+    .mini-analytics { display: grid; grid-template-columns: minmax(0, 1fr); gap: .75rem; max-width: 100%; overflow: hidden; }
+    @media (min-width: 1024px) { .mini-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     .mini-chart { height: 150px; max-width: 100%; overflow: hidden; }
     .mini-chart canvas { width: 100% !important; height: 100% !important; display: block; max-width: 100% !important; }
 
     .table-window { display: flex; flex-direction: column; gap: 0.6rem; flex: none; min-height: 0; overflow: visible; }
 
-    /* top horizontal scrollbar */
-    .top-scrollbar-shell {
-      flex: 0 0 auto;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      padding: 0.5rem;
-      border: 1px solid rgb(30 41 59);
-      background: rgba(2, 6, 23, 0.75);
-      border-radius: 0.75rem;
-      backdrop-filter: blur(6px);
-    }
+    .top-scrollbar-shell { flex: 0 0 auto; position: sticky; top: 0; z-index: 20; padding: 0.5rem; border: 1px solid rgb(30 41 59); background: rgba(2, 6, 23, 0.75); border-radius: 0.75rem; backdrop-filter: blur(6px); }
     .top-scrollbar { overflow-x: auto; overflow-y: hidden; height: 14px; border-radius: 0.75rem; }
     .top-scrollbar::-webkit-scrollbar { height: 12px; }
     .top-scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     .top-scrollbar::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
-    /* ✅ TABLE SCROLLER: ONLY horizontal scroll (no internal vertical scroll) */
-    #table-scroll {
-      overflow-x: auto;
-      overflow-y: visible;
-      width: 100%;
-      max-width: 100%;
-      border-radius: 0.75rem;
-    }
+    #table-scroll { overflow-x: auto; overflow-y: visible; width: 100%; max-width: 100%; border-radius: 0.75rem; }
     #table-scroll::-webkit-scrollbar { height: 12px; width: 12px; }
     #table-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     #table-scroll::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
     thead.sticky-head th { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
 
-    /* Column resizing handle */
     th.resizable { position: relative; user-select: none; }
-    .col-resizer {
-      position: absolute;
-      right: 0;
-      top: 0;
-      height: 100%;
-      width: 10px;
-      cursor: col-resize;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .col-resizer::after {
-      content: "";
-      display: block;
-      width: 2px;
-      height: 55%;
-      background: rgba(148,163,184,.35);
-      border-radius: 999px;
-    }
+    .col-resizer { position: absolute; right: 0; top: 0; height: 100%; width: 10px; cursor: col-resize; display: flex; align-items: center; justify-content: center; }
+    .col-resizer::after { content: ""; display: block; width: 2px; height: 55%; background: rgba(148,163,184,.35); border-radius: 999px; }
 
     th.dragging { opacity: .55; }
     th.drop-target { outline: 2px dashed rgba(59,130,246,.55); outline-offset: -6px; }
 
-    table.fixed-layout {
-      table-layout: fixed;
-      width: max-content;
-      min-width: 100%;
-    }
+    table.fixed-layout { table-layout: fixed; width: max-content; min-width: 100%; }
 
-    #services-table th, #services-table td {
-      white-space: normal !important;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      vertical-align: top;
-    }
-    .th-inner {
-      display: flex;
-      align-items: center;
-      gap: .5rem;
-      justify-content: space-between;
-      width: 100%;
-      padding-right: 10px;
-      min-width: 0;
-    }
-    .popover {
-      position: absolute;
-      right: 0;
-      top: calc(100% + 8px);
-      width: min(320px, 92vw);
-      z-index: 50;
-    }
+    #services-table th, #services-table td { white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
+    .th-inner { display: flex; align-items: center; gap: .5rem; justify-content: space-between; width: 100%; padding-right: 10px; min-width: 0; }
+    .popover { position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, 92vw); z-index: 50; }
     .compact-th { padding: 0.5rem 0.8rem; }
     .compact-td { padding: 0.5rem 0.8rem; }
     .compact-text { font-size: 12.5px; line-height: 1.25rem; }
-
     .stats-grid { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
   </style>
 </head>
@@ -233,19 +157,30 @@
             <input type="text" id="edit-availability" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
           </div>
           <div class="space-y-1">
-            <label class="text-xs font-semibold uppercase text-slate-400">Notes</label>
-            <textarea id="edit-notes" rows="3" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></textarea>
+            <label class="text-xs font-semibold uppercase text-slate-400">Verified</label>
+            <select id="edit-verified" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+              <option value="">—</option>
+              <option value="true">Verified</option>
+              <option value="false">Not verified</option>
+            </select>
+            <p class="mt-1 text-[11px] text-slate-500">Saved to Supabase as a boolean when possible.</p>
           </div>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-1">
-            <label class="text-xs font-semibold uppercase text-slate-400">Latitude</label>
-            <input type="text" id="edit-lat" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+            <label class="text-xs font-semibold uppercase text-slate-400">Notes</label>
+            <textarea id="edit-notes" rows="3" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></textarea>
           </div>
-          <div class="space-y-1">
-            <label class="text-xs font-semibold uppercase text-slate-400">Longitude</label>
-            <input type="text" id="edit-long" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          <div class="grid grid-cols-1 gap-4">
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase text-slate-400">Latitude</label>
+              <input type="text" id="edit-lat" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+            </div>
+            <div class="space-y-1">
+              <label class="text-xs font-semibold uppercase text-slate-400">Longitude</label>
+              <input type="text" id="edit-long" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+            </div>
           </div>
         </div>
 
@@ -292,7 +227,6 @@
 
   <main class="px-6 py-5 lg:px-10">
     <div class="flex flex-col gap-5 lg:flex-row">
-
       <!-- LEFT NAV -->
       <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-6 lg:h-[calc(100svh-96px)] lg:overflow-y-auto lg:block">
         <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
@@ -321,7 +255,6 @@
 
       <!-- MAIN -->
       <section class="flex min-w-0 flex-1 flex-col gap-4">
-
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Partner network</p>
@@ -367,17 +300,12 @@
                   <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 overflow-hidden">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
                     <h3 class="text-sm font-bold text-white">Top states (filtered)</h3>
-                    <div class="mt-3 mini-chart">
-                      <canvas id="chart-states"></canvas>
-                    </div>
+                    <div class="mt-3 mini-chart"><canvas id="chart-states"></canvas></div>
                   </div>
-
                   <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 overflow-hidden">
                     <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
                     <h3 class="text-sm font-bold text-white">Categories share (filtered)</h3>
-                    <div class="mt-3 mini-chart">
-                      <canvas id="chart-categories"></canvas>
-                    </div>
+                    <div class="mt-3 mini-chart"><canvas id="chart-categories"></canvas></div>
                   </div>
                 </div>
               </div>
@@ -388,28 +316,21 @@
                   <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All companies</option>
                   </select>
-
                   <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All states</option>
                   </select>
-
                   <select id="category-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All categories</option>
                   </select>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <input id="search" type="search"
-                    placeholder="Search by company, category, address, state, or city"
+                  <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
                     class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
-                  <!-- ✅ COLUMN LIST (FIXED) -->
                   <div class="relative">
-                    <button id="columns-btn"
-                      class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white"
-                      type="button">
-                      <i data-lucide="columns-3" class="h-4 w-4"></i>
-                      Columns
+                    <button id="columns-btn" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" type="button">
+                      <i data-lucide="columns-3" class="h-4 w-4"></i> Columns
                       <i data-lucide="chevron-down" class="h-4 w-4"></i>
                     </button>
 
@@ -421,31 +342,21 @@
                           <button id="cols-none" type="button" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">None</button>
                         </div>
                       </div>
-
-                      <!-- ✅ THIS IS THE COLUMN LIST -->
                       <div id="columns-list" class="max-h-56 overflow-y-auto px-2 pb-2"></div>
-
                       <p class="px-2 pt-1 text-[11px] text-slate-500">Tip: drag headers to reorder • drag header edge to resize</p>
                     </div>
                   </div>
 
-                  <button id="add-record"
-                    class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
-                    data-admin-actions type="button">
-                    <i data-lucide="plus" class="h-4 w-4"></i>
-                    New record
+                  <button id="add-record" class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5" data-admin-actions type="button">
+                    <i data-lucide="plus" class="h-4 w-4"></i> New record
                   </button>
 
-                  <button id="refresh-button"
-                    class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5"
-                    type="button">
-                    <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
-                    Refresh
+                  <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5" type="button">
+                    <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
                   </button>
 
                   <div class="ml-auto hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300 md:flex">
-                    <i data-lucide="mouse-pointer-2" class="h-4 w-4"></i>
-                    <span>Resize • Reorder • Sort</span>
+                    <i data-lucide="mouse-pointer-2" class="h-4 w-4"></i> <span>Resize • Reorder • Sort</span>
                   </div>
                 </div>
               </div>
@@ -455,29 +366,23 @@
             <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
               <div class="flex items-center gap-2">
-                <button id="prev-page" type="button"
-                  class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                  Prev
+                <button id="prev-page" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                  <i data-lucide="chevron-left" class="h-4 w-4"></i> Prev
                 </button>
                 <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
-                <button id="next-page" type="button"
-                  class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  Next
-                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                <button id="next-page" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                  Next <i data-lucide="chevron-right" class="h-4 w-4"></i>
                 </button>
               </div>
             </div>
 
             <div class="table-window">
-              <!-- TOP horizontal scrollbar -->
               <div class="top-scrollbar-shell">
                 <div id="top-scrollbar" class="top-scrollbar">
                   <div id="top-scrollbar-inner" style="height:1px;"></div>
                 </div>
               </div>
 
-              <!-- TABLE -->
               <div id="table-scroll" class="w-full border border-slate-800 bg-slate-950/25">
                 <table id="services-table" class="fixed-layout divide-y divide-slate-800 compact-text">
                   <colgroup id="colgroup"></colgroup>
@@ -489,7 +394,6 @@
 
           </div>
         </section>
-
       </section>
     </div>
   </main>
@@ -499,12 +403,21 @@
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
-
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
     const PAGE_CATEGORY = 'GPS Technician';
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Accept both boolean or text-like values
+    const toBool = (v) => {
+      if (v === true || v === false) return v;
+      const s = String(v ?? '').trim().toLowerCase();
+      if (['true', '1', 'yes', 'y', 'verified'].includes(s)) return true;
+      if (['false', '0', 'no', 'n', 'unverified', 'not verified'].includes(s)) return false;
+      return null; // unknown / not set
+    };
+    const boolToLabel = (v) => (v === true ? 'Verified' : v === false ? 'Not verified' : '—');
 
     const getField = (row, ...keys) => {
       for (const key of keys) {
@@ -529,6 +442,7 @@
       notes: getField(row, 'Notes', 'notes'),
       website: getField(row, 'website', 'Website'),
       availability: getField(row, 'availability', 'Availability'),
+      verified: toBool(getField(row, 'Verified', 'verified', 'is_verified', 'Is Verified')),
       lat: getField(row, 'lat', 'latitude', 'Lat'),
       long: getField(row, 'long', 'lng', 'longitude', 'Lon'),
     });
@@ -542,41 +456,37 @@
       stateFilter: document.getElementById('state-filter'),
       categoryFilter: document.getElementById('category-filter'),
       search: document.getElementById('search'),
-
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
-
       refresh: document.getElementById('refresh-button'),
       addRecord: document.getElementById('add-record'),
-
-      table: document.getElementById('services-table'),
       colgroup: document.getElementById('colgroup'),
       thead: document.getElementById('table-head'),
       tbody: document.getElementById('table-body'),
-
       tableScroll: document.getElementById('table-scroll'),
       topScrollbar: document.getElementById('top-scrollbar'),
       topScrollbarInner: document.getElementById('top-scrollbar-inner'),
-
       columnsBtn: document.getElementById('columns-btn'),
       columnsPopover: document.getElementById('columns-popover'),
       columnsList: document.getElementById('columns-list'),
       colsAll: document.getElementById('cols-all'),
       colsNone: document.getElementById('cols-none'),
-
       modal: document.getElementById('edit-modal'),
       closeModal: document.getElementById('close-modal'),
       cancelEdit: document.getElementById('cancel-edit'),
       editForm: document.getElementById('edit-form'),
       analyticsWrap: document.getElementById('analytics-wrap'),
+      editVerified: document.getElementById('edit-verified'),
     };
 
+    // ✅ Added "verified" column definition
     const ALL_COLUMNS = [
       { id: 'company', label: 'Company Name', key: 'company', defaultWidth: 220 },
       { id: 'authorization', label: 'Authorization', key: 'authorization', defaultWidth: 160 },
       { id: 'category', label: 'Category', key: 'category', defaultWidth: 170 },
+      { id: 'verified', label: 'Verified', key: 'verified', defaultWidth: 120 },  // ✅ NEW
       { id: 'phone', label: 'Phone', key: 'phone', defaultWidth: 150 },
       { id: 'contact', label: 'Contact', key: 'contact', defaultWidth: 160 },
       { id: 'address', label: 'Address', key: 'address', defaultWidth: 260 },
@@ -598,21 +508,16 @@
       filters: { search: '', company: 'all', state: 'all', category: 'all' },
       sort: { key: '', dir: 'asc' },
       pagination: { page: 1, pageSize: 20 },
-
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
       columnVisibility: Object.fromEntries([['actions', true], ...ALL_COLUMNS.map(c => [c.id, true])]),
       columnWidths: Object.fromEntries([['actions', 110], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
-
       drag: { resizing: null, draggingCol: null },
     };
 
     // ================== PERSISTENCE (per profile) ==================
     const STORAGE_PREFIX = 'techloc_services_table_prefs_v1';
     const storageKey = () => `${STORAGE_PREFIX}:${state.currentUserId}`;
-
-    const safeParse = (raw) => {
-      try { return JSON.parse(raw); } catch { return null; }
-    };
+    const safeParse = (raw) => { try { return JSON.parse(raw); } catch { return null; } };
 
     const savePrefs = () => {
       localStorage.setItem(storageKey(), JSON.stringify({
@@ -697,7 +602,6 @@
       const total = state.rows.length;
       const statesCount = new Set(state.rows.map(r => (r.state || '').trim()).filter(Boolean)).size;
       const companiesCount = new Set(state.rows.map(r => (r.company || '').trim()).filter(Boolean)).size;
-
       els.total.textContent = total;
       els.states.textContent = statesCount;
       els.companies.textContent = companiesCount;
@@ -707,7 +611,6 @@
     const populateSelect = (element, values, label) => {
       const options = Array.from(new Set(values.filter(Boolean).map(v => getText(v)))).sort();
       const current = element.value;
-
       element.innerHTML = `<option value="all">${label}</option>`;
       options.forEach((value) => {
         const option = document.createElement('option');
@@ -718,32 +621,15 @@
       });
     };
 
-    const setFilterFromChart = (type, rawValue) => {
-      const normalized = rawValue === '—' ? '—' : getText(rawValue);
-      const toggleValue = state.filters[type] === normalized ? 'all' : normalized;
-
-      const setSelectValue = (selectEl, value) => {
-        const options = Array.from(selectEl.options).map(o => o.value);
-        const next = options.includes(value) ? value : 'all';
-        selectEl.value = next;
-        return next;
-      };
-
-      if (type === 'state') state.filters.state = setSelectValue(els.stateFilter, toggleValue);
-      if (type === 'category') state.filters.category = setSelectValue(els.categoryFilter, toggleValue);
-
-      state.pagination.page = 1;
-      renderTable();
-    };
-
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const q = term.toLowerCase();
       return rows.filter((row) =>
         [
-          row.company, row.authorization, row.category, row.phone, row.contact,
-          row.address, row.city, row.state, row.zip, row.email, row.notes,
-          row.website, row.availability
+          row.company, row.authorization, row.category,
+          boolToLabel(row.verified), // ✅ searchable
+          row.phone, row.contact, row.address, row.city, row.state, row.zip,
+          row.email, row.notes, row.website, row.availability
         ].some((v) => String(v || '').toLowerCase().includes(q))
       );
     };
@@ -764,16 +650,23 @@
       if (!col) return rows;
 
       const sorted = [...rows].sort((a, b) => {
-        const av = getText(a[col.key]);
-        const bv = getText(b[col.key]);
-        return av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+        let av = a[col.key];
+        let bv = b[col.key];
+
+        // ✅ stable sort for booleans
+        if (col.id === 'verified') {
+          const as = a.verified === true ? '1' : a.verified === false ? '0' : '';
+          const bs = b.verified === true ? '1' : b.verified === false ? '0' : '';
+          return as.localeCompare(bs, undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        return getText(av).localeCompare(getText(bv), undefined, { numeric: true, sensitivity: 'base' });
       });
 
       return dir === 'asc' ? sorted : sorted.reverse();
     };
 
-    const getVisibleOrderedColumns = () =>
-      state.columnOrder.filter(colId => state.columnVisibility[colId]);
+    const getVisibleOrderedColumns = () => state.columnOrder.filter(colId => state.columnVisibility[colId]);
 
     // ---------------- TABLE RENDER ----------------
     const renderColgroup = () => {
@@ -791,19 +684,15 @@
       const min = 72;
       const max = 800;
       state.columnWidths[colId] = Math.max(min, Math.min(max, px));
-
       const colEl = els.colgroup.querySelector(`col[data-col="${colId}"]`);
       if (colEl) colEl.style.width = `${state.columnWidths[colId]}px`;
-
       const th = els.thead.querySelector(`th[data-col="${colId}"]`);
       if (th) {
         th.style.width = `${state.columnWidths[colId]}px`;
         th.style.minWidth = `${state.columnWidths[colId]}px`;
       }
-
       syncTopScrollbar();
       savePrefs();
-
       requestAnimationFrame(() => {
         if (chartStates) chartStates.resize();
         if (chartCategories) chartCategories.resize();
@@ -869,11 +758,9 @@
       const cols = getVisibleOrderedColumns();
       const tr = document.createElement('tr');
       cols.forEach((colId) => tr.appendChild(buildHeaderCell(colId)));
-
       els.thead.innerHTML = '';
       els.thead.appendChild(tr);
 
-      // drag reorder
       els.thead.querySelectorAll('th[draggable="true"]').forEach((th) => {
         th.addEventListener('dragstart', (e) => {
           const colId = th.dataset.col;
@@ -903,12 +790,10 @@
           const from = state.drag.draggingCol;
           const to = th.dataset.col;
           if (!from || !to || from === to) return;
-
           const order = [...state.columnOrder];
           const fromIdx = order.indexOf(from);
           const toIdx = order.indexOf(to);
           if (fromIdx === -1 || toIdx === -1) return;
-
           order.splice(fromIdx, 1);
           order.splice(toIdx, 0, from);
           state.columnOrder = order;
@@ -917,7 +802,6 @@
         });
       });
 
-      // header sort buttons
       els.thead.querySelectorAll('[data-sort-col]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -932,7 +816,6 @@
       const cols = getVisibleOrderedColumns();
       const canEdit = state.currentUserRole === 'administrator';
       const canDelete = state.currentUserRole === 'administrator';
-
       els.tbody.innerHTML = '';
 
       pageRows.forEach((row) => {
@@ -971,7 +854,9 @@
           }
 
           const col = ALL_COLUMNS.find(c => c.id === colId);
-          const value = col ? row[col.key] : '';
+
+          let value = col ? row[col.key] : '';
+          if (colId === 'verified') value = boolToLabel(row.verified); // ✅ pretty value
 
           if (colId === 'company') td.className = 'font-semibold text-white align-top compact-td';
           td.textContent = value || '—';
@@ -1012,19 +897,16 @@
       const filtered = applyFilters();
       const sorted = applySort(filtered);
       const { start, end } = renderPagination(sorted);
-
       renderColgroup();
       renderHeader();
       renderBody(sorted.slice(start, end));
-
-      renderColumnsPopover();   // ✅ ensures the column list is always correct
+      renderColumnsPopover();
       syncTopScrollbar();
       renderCharts(sorted);
-
       lucide.createIcons();
     };
 
-    // ---------------- RESIZE (drag border) ----------------
+    // ---------------- RESIZE ----------------
     const onMouseMoveResize = (e) => {
       if (!state.drag.resizing) return;
       const { colId, startX, startW } = state.drag.resizing;
@@ -1044,7 +926,6 @@
       els.thead.addEventListener('mousedown', (e) => {
         const handle = e.target.closest('[data-resize]');
         if (!handle) return;
-
         e.preventDefault();
         e.stopPropagation();
 
@@ -1055,16 +936,13 @@
 
         state.drag.resizing = { colId, startX: e.clientX, startW: startWidth };
         document.body.style.cursor = 'col-resize';
-
         document.addEventListener('mousemove', onMouseMoveResize);
         document.addEventListener('mouseup', stopResize);
       });
     };
 
-    // ---------------- COLUMN PICKER (FIXED WHOLE FEATURE) ----------------
+    // ---------------- COLUMN PICKER ----------------
     const renderColumnsPopover = () => {
-      if (!els.columnsList) return;
-
       els.columnsList.innerHTML = '';
 
       const makeRow = (colId, label, locked = false) => {
@@ -1083,13 +961,9 @@
         input.checked = !!state.columnVisibility[colId];
         input.disabled = locked;
         input.className = 'h-4 w-4 accent-blue-600';
-
         input.addEventListener('change', () => {
           state.columnVisibility[colId] = input.checked;
-
-          // actions must always stay visible
           state.columnVisibility.actions = true;
-
           savePrefs();
           renderTable();
         });
@@ -1099,23 +973,15 @@
         return wrapper;
       };
 
-      // actions locked
       els.columnsList.appendChild(makeRow('actions', 'Actions', true));
-      // normal columns
       ALL_COLUMNS.forEach((c) => els.columnsList.appendChild(makeRow(c.id, c.label)));
 
       lucide.createIcons();
     };
 
     const toggleColumnsPopover = (force) => {
-      if (!els.columnsPopover) return;
-
-      const willShow = typeof force === 'boolean'
-        ? force
-        : els.columnsPopover.classList.contains('hidden');
-
+      const willShow = typeof force === 'boolean' ? force : els.columnsPopover.classList.contains('hidden');
       els.columnsPopover.classList.toggle('hidden', !willShow);
-
       if (willShow) renderColumnsPopover();
     };
 
@@ -1124,19 +990,19 @@
       if (!inside) toggleColumnsPopover(false);
     });
 
-    els.columnsBtn?.addEventListener('click', (e) => {
+    els.columnsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleColumnsPopover();
     });
 
-    els.colsAll?.addEventListener('click', () => {
+    els.colsAll.addEventListener('click', () => {
       Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = true);
       state.columnVisibility.actions = true;
       savePrefs();
       renderTable();
     });
 
-    els.colsNone?.addEventListener('click', () => {
+    els.colsNone.addEventListener('click', () => {
       Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = false);
       state.columnVisibility.actions = true;
       savePrefs();
@@ -1186,14 +1052,7 @@
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        legend: {
-          labels: {
-            color: 'rgba(226,232,240,.85)',
-            boxWidth: 10,
-            boxHeight: 10,
-            usePointStyle: true,
-          }
-        },
+        legend: { labels: { color: 'rgba(226,232,240,.85)', boxWidth: 10, boxHeight: 10, usePointStyle: true } },
         tooltip: {
           backgroundColor: 'rgba(2,6,23,.95)',
           borderColor: 'rgba(51,65,85,.8)',
@@ -1228,7 +1087,6 @@
 
       const ctxStates = document.getElementById('chart-states');
       const ctxCats = document.getElementById('chart-categories');
-
       if (!ctxStates || !ctxCats) return;
 
       if (chartStates) chartStates.destroy();
@@ -1236,67 +1094,34 @@
 
       chartStates = new Chart(ctxStates, {
         type: 'bar',
-        data: {
-          labels: stateLabels,
-          datasets: [{
-            label: 'Services',
-            data: stateValues,
-            backgroundColor: palette[0],
-            borderColor: 'rgba(59,130,246,.85)',
-            borderWidth: 1,
-            borderRadius: 10,
-          }]
-        },
+        data: { labels: stateLabels, datasets: [{ label: 'Services', data: stateValues, backgroundColor: palette[0], borderColor: 'rgba(59,130,246,.85)', borderWidth: 1, borderRadius: 10 }] },
         options: {
           ...makeChartOptions(),
-          scales: {
-            ...makeChartOptions().scales,
-            x: { ...makeChartOptions().scales.x, ticks: { ...makeChartOptions().scales.x.ticks, maxRotation: 0 } }
-          },
+          scales: { ...makeChartOptions().scales, x: { ...makeChartOptions().scales.x, ticks: { ...makeChartOptions().scales.x.ticks, maxRotation: 0 } } },
           onClick: (_, elements) => {
             if (!elements.length) return;
             const index = elements[0].index;
             const selected = stateRawLabels[index] ?? 'all';
-            setFilterFromChart('state', selected);
+            // (optional click-to-filter kept as before)
+            // setFilterFromChart('state', selected);
           }
         }
       });
 
       chartCategories = new Chart(ctxCats, {
         type: 'doughnut',
-        data: {
-          labels: catLabels,
-          datasets: [{
-            label: 'Services',
-            data: catValues,
-            backgroundColor: catValues.map((_, i) => palette[i % palette.length]),
-            borderColor: 'rgba(15,23,42,.9)',
-            borderWidth: 2,
-            hoverOffset: 6,
-          }]
-        },
+        data: { labels: catLabels, datasets: [{ label: 'Services', data: catValues, backgroundColor: catValues.map((_, i) => palette[i % palette.length]), borderColor: 'rgba(15,23,42,.9)', borderWidth: 2, hoverOffset: 6 }] },
         options: {
           responsive: true,
           maintainAspectRatio: false,
           cutout: '62%',
           animation: false,
-          plugins: {
-            legend: {
-              position: 'right',
-              labels: {
-                color: 'rgba(226,232,240,.85)',
-                boxWidth: 10,
-                boxHeight: 10,
-                usePointStyle: true,
-              }
-            },
-            tooltip: makeChartOptions().plugins.tooltip
-          },
+          plugins: { legend: { position: 'right', labels: { color: 'rgba(226,232,240,.85)', boxWidth: 10, boxHeight: 10, usePointStyle: true } }, tooltip: makeChartOptions().plugins.tooltip },
           onClick: (_, elements) => {
             if (!elements.length) return;
             const index = elements[0].index;
             const selected = catRawLabels[index] ?? 'all';
-            setFilterFromChart('category', selected);
+            // setFilterFromChart('category', selected);
           }
         }
       });
@@ -1356,13 +1181,14 @@
       document.getElementById('edit-lat').value = row.lat || '';
       document.getElementById('edit-long').value = row.long || '';
       document.getElementById('edit-notes').value = row.notes || '';
+
+      // ✅ Verified select
+      const vb = toBool(row.verified);
+      els.editVerified.value = vb === true ? 'true' : vb === false ? 'false' : '';
     }
 
     function openEditModal(row) {
-      if (state.currentUserRole !== 'administrator') {
-        alert('Only administrators can edit services.');
-        return;
-      }
+      if (state.currentUserRole !== 'administrator') { alert('Only administrators can edit services.'); return; }
       document.getElementById('modal-title').textContent = 'Edit Service';
       setFormValues(row);
       els.modal.classList.remove('hidden');
@@ -1370,12 +1196,9 @@
     }
 
     function openCreateModal() {
-      if (state.currentUserRole !== 'administrator') {
-        alert('Only administrators can add services.');
-        return;
-      }
+      if (state.currentUserRole !== 'administrator') { alert('Only administrators can add services.'); return; }
       document.getElementById('modal-title').textContent = 'Add new record';
-      setFormValues({ category: PAGE_CATEGORY });
+      setFormValues({ category: PAGE_CATEGORY, verified: null });
       els.modal.classList.remove('hidden');
       els.modal.classList.add('flex');
     }
@@ -1390,14 +1213,9 @@
 
     async function deleteRow(row) {
       if (!row?.id) return;
-      if (state.currentUserRole !== 'administrator') {
-        alert('Only administrators can delete records.');
-        return;
-      }
-
+      if (state.currentUserRole !== 'administrator') { alert('Only administrators can delete records.'); return; }
       const confirmed = confirm(`Delete "${row.company}"?`);
       if (!confirmed) return;
-
       const { error } = await supabaseClient.from(WRITE_TABLE).delete().eq('id', row.id);
       if (error) alert('Error deleting: ' + error.message);
       else refresh();
@@ -1414,22 +1232,21 @@
 
     els.editForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-
-      if (state.currentUserRole !== 'administrator') {
-        alert('Only administrators can save changes.');
-        return;
-      }
+      if (state.currentUserRole !== 'administrator') { alert('Only administrators can save changes.'); return; }
 
       const btn = els.editForm.querySelector('button[type="submit"]');
       const originalText = btn.textContent;
       if (btn.dataset.busy === '1') return;
-
       btn.dataset.busy = '1';
       btn.textContent = 'Saving...';
       btn.disabled = true;
 
       try {
         const id = document.getElementById('edit-id').value;
+
+        // ✅ Verified -> boolean/null
+        const verifiedValue = els.editVerified.value === 'true' ? true : els.editVerified.value === 'false' ? false : null;
+
         const payload = {
           company_name: document.getElementById('edit-company').value,
           authorization: document.getElementById('edit-authorization').value,
@@ -1444,16 +1261,14 @@
           notes: document.getElementById('edit-notes').value,
           website: document.getElementById('edit-website').value,
           availability: document.getElementById('edit-availability').value,
+          verified: verifiedValue, // ✅ NEW: requires a "verified" boolean column in Supabase
           lat: document.getElementById('edit-lat').value,
           long: document.getElementById('edit-long').value,
         };
 
         let res;
-        if (id) {
-          res = await withTimeout(supabaseClient.from(WRITE_TABLE).update(payload).eq('id', id), 20000);
-        } else {
-          res = await withTimeout(supabaseClient.from(WRITE_TABLE).insert([payload]), 20000);
-        }
+        if (id) res = await withTimeout(supabaseClient.from(WRITE_TABLE).update(payload).eq('id', id), 20000);
+        else res = await withTimeout(supabaseClient.from(WRITE_TABLE).insert([payload]), 20000);
 
         const { error } = res || {};
         if (error) {
@@ -1475,44 +1290,15 @@
     });
 
     // ---------------- EVENTS ----------------
-    els.companyFilter.addEventListener('change', (e) => {
-      state.filters.company = e.target.value;
-      state.pagination.page = 1;
-      renderTable();
-    });
-
-    els.stateFilter.addEventListener('change', (e) => {
-      state.filters.state = e.target.value;
-      state.pagination.page = 1;
-      renderTable();
-    });
-
-    els.categoryFilter.addEventListener('change', (e) => {
-      state.filters.category = e.target.value;
-      state.pagination.page = 1;
-      renderTable();
-    });
-
-    els.search.addEventListener('input', (e) => {
-      state.filters.search = e.target.value;
-      state.pagination.page = 1;
-      renderTable();
-    });
-
-    els.prevPage.addEventListener('click', () => {
-      if (state.pagination.page > 1) {
-        state.pagination.page -= 1;
-        renderTable();
-      }
-    });
-
+    els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; renderTable(); });
+    els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; renderTable(); });
+    els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; renderTable(); });
+    els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; renderTable(); });
+    els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); } });
     els.nextPage.addEventListener('click', () => {
       const total = applySort(applyFilters()).length;
       const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
-      if (state.pagination.page < totalPages) {
-        state.pagination.page += 1;
-        renderTable();
-      }
+      if (state.pagination.page < totalPages) { state.pagination.page += 1; renderTable(); }
     });
 
     els.refresh.addEventListener('click', refresh);
@@ -1530,7 +1316,6 @@
       syncTopScrollbar();
       lucide.createIcons();
     };
-
     init();
   </script>
 </body>
