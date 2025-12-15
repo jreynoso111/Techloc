@@ -32,6 +32,9 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
   <style>
+    /* ✅ Prevent the PAGE/WINDOW from horizontal scrolling */
+    html, body { width: 100%; overflow-x: hidden; }
+
     /* Make the table area fit the screen */
     .table-viewport {
       max-height: calc(100vh - 18rem); /* header + stats + filters + pagination */
@@ -101,16 +104,28 @@
       outline-offset: -6px;
     }
 
-    /* Keep fixed layout so resizing works predictably */
+    /* ✅ Keep fixed layout so resizing works predictably */
     table.fixed-layout {
       table-layout: fixed;
-      width: max-content; /* grow with columns */
-      min-width: 100%; /* but never shrink below the viewport */
+      width: 100%;
+      min-width: 100%;
     }
 
-    /* Keep the scroll container constrained to the viewport */
+    /* ✅ Make sure the scroll container never expands the viewport */
     #table-scroll {
-      max-width: 100vw;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: auto;
+    }
+
+    /* ✅ Wrap text instead of forcing table wider */
+    #services-table th,
+    #services-table td {
+      white-space: normal !important;        /* override any nowrap */
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      vertical-align: top;
     }
 
     /* Header content layout */
@@ -121,6 +136,7 @@
       justify-content: space-between;
       width: 100%;
       padding-right: 10px; /* leave space for resizer */
+      min-width: 0;
     }
 
     /* Column picker */
@@ -386,8 +402,8 @@
                 </select>
               </div>
 
-            <div class="flex flex-wrap items-center gap-2">
-              <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
+              <div class="flex flex-wrap items-center gap-2">
+                <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
                        class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
                 <!-- Column picker -->
@@ -458,7 +474,8 @@
 
           <!-- TABLE -->
           <div id="table-scroll" class="table-scroll table-viewport overflow-auto w-full rounded-xl border border-slate-800">
-            <table id="services-table" class="fixed-layout divide-y divide-slate-800 text-sm whitespace-nowrap">
+            <!-- ✅ removed whitespace-nowrap -->
+            <table id="services-table" class="fixed-layout divide-y divide-slate-800 text-sm">
               <colgroup id="colgroup"></colgroup>
               <thead id="table-head" class="sticky-head bg-slate-950/60 text-slate-300"></thead>
               <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
@@ -582,8 +599,8 @@
       },
 
       sort: {
-        key: '',   // matches column.id
-        dir: 'asc' // 'asc'|'desc'
+        key: '',
+        dir: 'asc'
       },
 
       pagination: {
@@ -591,13 +608,12 @@
         pageSize: 20,
       },
 
-      // column UX
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
       columnVisibility: Object.fromEntries([['actions', true], ...ALL_COLUMNS.map(c => [c.id, true])]),
       columnWidths: Object.fromEntries([['actions', 110], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
 
       drag: {
-        resizing: null, // { colId, startX, startW }
+        resizing: null,
         draggingCol: null,
       }
     };
@@ -709,9 +725,7 @@
       return dir === 'asc' ? sorted : sorted.reverse();
     };
 
-    const getVisibleOrderedColumns = () => {
-      return state.columnOrder.filter(colId => state.columnVisibility[colId]);
-    };
+    const getVisibleOrderedColumns = () => state.columnOrder.filter(colId => state.columnVisibility[colId]);
 
     // ---------------- TABLE RENDER ----------------
     const renderColgroup = () => {
@@ -726,22 +740,19 @@
     };
 
     const setColWidth = (colId, px) => {
-      const min = colId === 'actions' ? 72 : 72;
+      const min = 72;
       const max = 800;
       state.columnWidths[colId] = Math.max(min, Math.min(max, px));
 
-      // Update matching col in colgroup
       const colEl = els.colgroup.querySelector(`col[data-col="${colId}"]`);
       if (colEl) colEl.style.width = `${state.columnWidths[colId]}px`;
 
-      // Match header cell immediately for visual feedback
       const th = els.thead.querySelector(`th[data-col="${colId}"]`);
       if (th) {
         th.style.width = `${state.columnWidths[colId]}px`;
         th.style.minWidth = `${state.columnWidths[colId]}px`;
       }
 
-      // keep top scrollbar width in sync
       syncTopScrollbar();
     };
 
@@ -765,11 +776,11 @@
       const th = document.createElement('th');
       th.className = 'px-4 py-3 text-left font-semibold text-slate-200 resizable bg-slate-950/60';
       th.setAttribute('data-col', colId);
+
       const startingWidth = state.columnWidths[colId] || 140;
       th.style.width = `${startingWidth}px`;
       th.style.minWidth = `${startingWidth}px`;
 
-      // actions header
       if (colId === 'actions') {
         th.className = 'px-4 py-3 text-left font-semibold text-blue-300 resizable bg-slate-950/60';
         th.style.width = `${state.columnWidths[colId] || 110}px`;
@@ -846,7 +857,6 @@
           const to = th.dataset.col;
           if (!from || !to || from === to) return;
 
-          // Only reorder among visible columns (actions can also move, but keep it allowed)
           const order = [...state.columnOrder];
           const fromIdx = order.indexOf(from);
           const toIdx = order.indexOf(to);
@@ -856,11 +866,10 @@
           order.splice(toIdx, 0, from);
           state.columnOrder = order;
 
-          renderTable(); // rerender header + body
+          renderTable();
         });
       });
 
-      // Sort buttons
       els.thead.querySelectorAll('[data-sort-col]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -884,6 +893,7 @@
 
         cols.forEach((colId) => {
           const td = document.createElement('td');
+          // ✅ ensure body wraps
           td.className = 'px-4 py-3 align-top text-slate-200';
 
           if (colId === 'actions') {
@@ -942,7 +952,6 @@
     };
 
     const syncTopScrollbar = () => {
-      // make the "inner" div match actual scroll width of table scroll container content
       const scrollWidth = els.table.scrollWidth;
       els.topScrollbarInner.style.width = scrollWidth + 'px';
       els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
@@ -959,9 +968,8 @@
       renderBody(sorted.slice(start, end));
       renderColumnsPopover();
       syncTopScrollbar();
-      renderCharts(sorted); // analytics over filtered+sorted (same set)
+      renderCharts(sorted);
 
-      // keep icons correct after header sort state changes
       lucide.createIcons();
     };
 
@@ -982,7 +990,7 @@
     };
 
     const attachResizeHandles = () => {
-      // delegate from thead for new renders
+      // ✅ FIX: do NOT read width from <col> (it returns 0). Read from TH/state.
       els.thead.addEventListener('mousedown', (e) => {
         const handle = e.target.closest('[data-resize]');
         if (!handle) return;
@@ -991,13 +999,19 @@
         e.stopPropagation();
 
         const colId = handle.getAttribute('data-resize');
-        const colEl = els.colgroup.querySelector(`col[data-col="${colId}"]`);
-        const startWidth = colEl ? colEl.getBoundingClientRect().width : (state.columnWidths[colId] || 140);
+        const th = handle.closest('th');
+        const thWidth = th ? parseFloat(getComputedStyle(th).width) : 0;
+
+        const startWidth = Number.isFinite(state.columnWidths[colId])
+          ? state.columnWidths[colId]
+          : (thWidth || 140);
+
         state.drag.resizing = {
           colId,
           startX: e.clientX,
           startW: startWidth,
         };
+
         document.body.style.cursor = 'col-resize';
         document.addEventListener('mousemove', onMouseMoveResize);
         document.addEventListener('mouseup', stopResize);
@@ -1006,9 +1020,6 @@
 
     // ---------------- COLUMN PICKER ----------------
     const renderColumnsPopover = () => {
-      const visibleIds = Object.keys(state.columnVisibility);
-
-      // Actions is always visible, but still show it as locked
       els.columnsList.innerHTML = '';
 
       const makeRow = (colId, label, locked = false) => {
@@ -1052,7 +1063,6 @@
       if (willShow) renderColumnsPopover();
     };
 
-    // click-away
     document.addEventListener('click', (e) => {
       const inside = e.target.closest('#columns-popover') || e.target.closest('#columns-btn');
       if (!inside) toggleColumnsPopover(false);
@@ -1064,18 +1074,13 @@
     });
 
     els.colsAll.addEventListener('click', () => {
-      Object.keys(state.columnVisibility).forEach((k) => {
-        state.columnVisibility[k] = true;
-      });
+      Object.keys(state.columnVisibility).forEach((k) => { state.columnVisibility[k] = true; });
       state.columnVisibility.actions = true;
       renderTable();
     });
 
     els.colsNone.addEventListener('click', () => {
-      Object.keys(state.columnVisibility).forEach((k) => {
-        state.columnVisibility[k] = false;
-      });
-      // keep actions visible
+      Object.keys(state.columnVisibility).forEach((k) => { state.columnVisibility[k] = false; });
       state.columnVisibility.actions = true;
       renderTable();
     });
@@ -1158,16 +1163,15 @@
       const catLabels = topCats.map(([k]) => (k === '—' ? 'Unknown' : k));
       const catValues = topCats.map(([, v]) => v);
 
-      // Minimal palette (soft, consistent)
       const palette = [
-        'rgba(59,130,246,.55)',  // blue
-        'rgba(99,102,241,.55)',  // indigo
-        'rgba(16,185,129,.55)',  // emerald
-        'rgba(245,158,11,.55)',  // amber
-        'rgba(236,72,153,.55)',  // pink
-        'rgba(148,163,184,.45)', // slate
-        'rgba(34,197,94,.45)',   // green
-        'rgba(14,165,233,.45)',  // sky
+        'rgba(59,130,246,.55)',
+        'rgba(99,102,241,.55)',
+        'rgba(16,185,129,.55)',
+        'rgba(245,158,11,.55)',
+        'rgba(236,72,153,.55)',
+        'rgba(148,163,184,.45)',
+        'rgba(34,197,94,.45)',
+        'rgba(14,165,233,.45)',
       ];
 
       const ctxStates = document.getElementById('chart-states');
