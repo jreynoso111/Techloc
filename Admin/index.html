@@ -184,8 +184,6 @@
           </div>
         </section>
 
-
-
         <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
           <div class="flex items-center justify-between">
             <div>
@@ -284,14 +282,101 @@
     const supabaseClient = getSupabaseClient();
 
     const ADMIN_ROLE = 'administrator';
-
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
-    const formatRelativeTime = (dateString) => {
-      if (!dateString) return 'Unknown';
-      const date = new Date(dateString);
-      if (Number.isNaN(date.getTime())) return 'Unknown';
-      return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }).format(date);
+    // ---- Vehicles column whitelist (MUST MATCH YOUR ACTUAL TABLE COLUMN NAMES EXACTLY) ----
+    const VEHICLES_COLUMNS = new Set([
+      'deal status',
+      'customer id',
+      'unit type',
+      'model year',
+      'model',
+      'shortvin',
+      'inv. prep. stat.',
+      'phys_loc',
+      'deal completion',
+      'gps fix',
+      'gps fix reason',
+      'pt status',
+      'pt serial',
+      'encore serial',
+      'moving',
+      'pt last read',
+      'state loc',
+      'pt city',
+      'pt zipcode',
+      'lat',
+      'long',
+    ]);
+
+    const toNumber = (value) => {
+      if (value === undefined || value === null) return null;
+      const cleaned = typeof value === 'string' ? value.replace(/,/g, '').trim() : value;
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const normalizeRow = (row = {}) =>
+      Object.entries(row).reduce((acc, [key, val]) => {
+        const normalizedKey = (key || '').toString().trim().toLowerCase();
+        acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
+        return acc;
+      }, {});
+
+    const cleanValue = (value) => {
+      if (value === undefined || value === null) return null;
+      const stringValue = typeof value === 'string' ? value.trim() : value;
+      if (`${stringValue}`.trim() === '') return null;
+      return stringValue;
+    };
+
+    const pickAllowed = (obj) =>
+      Object.fromEntries(
+        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMNS.has(k) && v !== undefined)
+      );
+
+    // Accept common CSV header variations (case-insensitive). Output keys MUST match DB columns exactly.
+    const getCsv = (row, ...possibleHeaders) => {
+      for (const header of possibleHeaders) {
+        const v = row[header.toLowerCase()];
+        if (v !== undefined && v !== null && `${v}`.trim() !== '') return v;
+      }
+      return '';
+    };
+
+    const mapVehicleRow = (row) => {
+      const r = normalizeRow(row);
+
+      const raw = {
+        'deal status': cleanValue(getCsv(r, 'deal status', 'deal_status', 'dealstatus')),
+        'customer id': cleanValue(getCsv(r, 'customer id', 'customer_id', 'customerid')),
+        'unit type': cleanValue(getCsv(r, 'unit type', 'unit_type', 'unittype')),
+        'model year': cleanValue(getCsv(r, 'model year', 'model_year', 'modelyear')),
+        'model': cleanValue(getCsv(r, 'model')),
+        'shortvin': cleanValue(getCsv(r, 'shortvin', 'short vin', 'short_vin')),
+        'inv. prep. stat.': cleanValue(getCsv(r, 'inv. prep. stat.', 'inv prep stat', 'inv_prep_stat', 'inv prep. stat.')),
+        'phys_loc': cleanValue(getCsv(r, 'phys_loc', 'phys loc', 'physloc', 'physical loc', 'physical location')),
+        'deal completion': cleanValue(getCsv(r, 'deal completion', 'deal_completion', 'dealcompletion')),
+        'gps fix': cleanValue(getCsv(r, 'gps fix', 'gps_fix')),
+        'gps fix reason': cleanValue(getCsv(r, 'gps fix reason', 'gps_fix_reason')),
+        'pt status': cleanValue(getCsv(r, 'pt status', 'pt_status')),
+        'pt serial': cleanValue(getCsv(r, 'pt serial', 'pt_serial')),
+        'encore serial': cleanValue(getCsv(r, 'encore serial', 'encore_serial')),
+        'moving': cleanValue(getCsv(r, 'moving')),
+        'pt last read': cleanValue(getCsv(r, 'pt last read', 'pt_last_read')),
+        'state loc': cleanValue(getCsv(r, 'state loc', 'state_loc')),
+        'pt city': cleanValue(getCsv(r, 'pt city', 'pt_city')),
+        'pt zipcode': cleanValue(getCsv(r, 'pt zipcode', 'pt zip code', 'pt_zipcode')),
+        'lat': toNumber(getCsv(r, 'lat', 'latitude')),
+        'long': toNumber(getCsv(r, 'long', 'lng', 'longitude')),
+      };
+
+      return pickAllowed(raw);
+    };
+
+    const isRlsBlocked = (error) => {
+      const message = (error?.message || '').toLowerCase();
+      return message.includes('row-level') || message.includes('rls') || message.includes('permission');
     };
 
     // --- FETCH FUNCTION: Queries Real Tables (Not Storage) ---
@@ -302,23 +387,15 @@
       }
 
       try {
-        // 1. Get Count (Head only, fast)
         const { count, error: countError } = await supabaseClient
           .from(dataset.table)
           .select('*', { count: 'exact', head: true });
 
         if (countError) {
           console.warn(`Could not fetch stats for ${dataset.table}`, countError);
-          return {
-            rows: 0,
-            columns: 0,
-            lastUpdated: null,
-            restricted: true,
-            message: countError.message || 'Restricted',
-          };
+          return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: countError.message || 'Restricted' };
         }
 
-        // 2. Get 1 row to count columns and check for 'created_at'
         const { data, error: dataError } = await supabaseClient
           .from(dataset.table)
           .select('*')
@@ -326,13 +403,7 @@
 
         if (dataError) {
           console.warn(`Could not read sample row for ${dataset.table}`, dataError);
-          return {
-            rows: count || 0,
-            columns: 0,
-            lastUpdated: null,
-            restricted: true,
-            message: dataError.message || 'Restricted',
-          };
+          return { rows: count || 0, columns: 0, lastUpdated: null, restricted: true, message: dataError.message || 'Restricted' };
         }
 
         let columnCount = 0;
@@ -340,7 +411,6 @@
 
         if (data && data.length > 0) {
           columnCount = Object.keys(data[0]).length;
-          // Try to find a date field for "Last Updated"
           lastUpdated = data[0].created_at || data[0].updated_at || null;
         }
 
@@ -392,7 +462,6 @@
       els.title.textContent = dataset.title;
       els.description.textContent = dataset.description;
 
-      // Fetch Real Data
       const stats = await getTableStats(dataset);
 
       els.rows.textContent = stats.rows ? stats.rows.toLocaleString() : '--';
@@ -412,71 +481,6 @@
       }
 
       return { card: clone, stats: { ...stats, table: dataset.displayName } };
-    };
-
-    const toNumber = (value) => {
-      const num = Number(value);
-      return Number.isFinite(num) ? num : null;
-    };
-
-    const normalizeRow = (row = {}) =>
-      Object.entries(row).reduce((acc, [key, val]) => {
-        const normalizedKey = (key || '').toString().trim().toLowerCase();
-        acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
-        return acc;
-      }, {});
-
-    const getFirstValue = (row, ...keys) => {
-      const normalized = row || {};
-      for (const key of keys) {
-        const value = normalized[key.toLowerCase()];
-        if (value !== undefined && `${value}`.trim() !== '') {
-          return value;
-        }
-      }
-      return '';
-    };
-
-    const cleanValue = (value) => {
-      if (value === undefined || value === null) return null;
-      const stringValue = typeof value === 'string' ? value.trim() : value;
-      if (`${stringValue}`.trim() === '') return null;
-      return stringValue;
-    };
-
-    const mapVehicleRow = (row) => {
-      const normalized = normalizeRow(row);
-
-      return {
-        deal_status: cleanValue(getFirstValue(normalized, 'deal status', 'deal_status', 'dealstatus')),
-        customer_id: cleanValue(getFirstValue(normalized, 'customer id', 'customer_id', 'customerid')),
-        unit_type: cleanValue(getFirstValue(normalized, 'unit type', 'unit_type', 'unittype')),
-        model_year: cleanValue(getFirstValue(normalized, 'model year', 'model_year', 'modelyear')),
-        model: cleanValue(getFirstValue(normalized, 'model')),
-        shortvin: cleanValue(getFirstValue(normalized, 'shortvin', 'short vin', 'short_vin')),
-        inv_prep_stat: cleanValue(
-          getFirstValue(normalized, 'inv. prep. stat.', 'inv prep stat', 'inv_prep_stat', 'inv prep. stat.')
-        ),
-        phys_loc: cleanValue(getFirstValue(normalized, 'phys_loc', 'phys loc', 'physloc', 'physical loc', 'physical location')),
-        deal_completion: cleanValue(getFirstValue(normalized, 'deal completion', 'deal_completion', 'dealcompletion')),
-        gps_fix: cleanValue(getFirstValue(normalized, 'gps fix', 'gps_fix')),
-        gps_fix_reason: cleanValue(getFirstValue(normalized, 'gps fix reason', 'gps_fix_reason')),
-        pt_status: cleanValue(getFirstValue(normalized, 'pt status', 'pt_status')),
-        pt_serial: cleanValue(getFirstValue(normalized, 'pt serial', 'pt_serial')),
-        encore_serial: cleanValue(getFirstValue(normalized, 'encore serial', 'encore_serial')),
-        moving: cleanValue(getFirstValue(normalized, 'moving')),
-        pt_last_read: cleanValue(getFirstValue(normalized, 'pt last read', 'pt_last_read')),
-        state_loc: cleanValue(getFirstValue(normalized, 'state loc', 'state_loc')),
-        pt_city: cleanValue(getFirstValue(normalized, 'pt city', 'pt_city')),
-        pt_zipcode: cleanValue(getFirstValue(normalized, 'pt zipcode', 'pt zip code', 'pt_zipcode')),
-        lat: toNumber(getFirstValue(normalized, 'lat', 'latitude')),
-        long: toNumber(getFirstValue(normalized, 'long', 'lng', 'longitude')),
-      };
-    };
-
-    const isRlsBlocked = (error) => {
-      const message = (error?.message || '').toLowerCase();
-      return message.includes('row-level') || message.includes('rls') || message.includes('permission');
     };
 
     const uploadCsvRows = async (rows, parseErrors = 0) => {
@@ -501,7 +505,8 @@
 
       const { data, error } = await supabaseClient
         .from('vehicles')
-        .upsert(mapped, { onConflict: 'shortvin', ignoreDuplicates: false });
+        .upsert(mapped, { onConflict: 'shortvin', ignoreDuplicates: false })
+        .select('shortvin');
 
       if (error) {
         console.error('Supabase upsert error:', { message: error.message, details: error.details, hint: error.hint });
@@ -525,6 +530,7 @@
       const form = document.getElementById('csv-upload-form');
       const fileInput = document.getElementById('csv-file');
       const submitBtn = document.getElementById('upload-button');
+
       const requireAdmin = () => {
         const allowed = isAdminUser();
         if (fileInput) fileInput.disabled = !allowed;
@@ -538,16 +544,17 @@
       if (!form || !fileInput || !submitBtn) return;
 
       const syncAccess = () => requireAdmin();
-
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
+
         if (!requireAdmin()) {
           alert('Only administrators can upload vehicle data.');
           return;
         }
+
         const file = fileInput.files?.[0];
         if (!file) {
           alert('Please select a CSV file to upload.');
@@ -563,9 +570,7 @@
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
-              if (parseErrors) {
-                console.warn('CSV parse warnings:', results.errors);
-              }
+              if (parseErrors) console.warn('CSV parse warnings:', results.errors);
               await uploadCsvRows(results.data || [], parseErrors);
             } catch (err) {
               console.error('Upload failed:', err);
@@ -577,6 +582,7 @@
             }
           },
           error: (err) => {
+            console.error('CSV parse error:', err);
             alert('CSV parse error: ' + err.message);
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
@@ -594,14 +600,13 @@
       for (const dataset of DATASETS) {
         const { card, stats } = await renderDatasetCard(dataset);
         container.appendChild(card);
-        totalRows += stats.rows;
-        if(stats.rows > 0) activities.push(stats);
+        totalRows += stats.rows || 0;
+        if ((stats.rows || 0) > 0 && !stats.restricted) activities.push(stats);
       }
 
-      // Update Top Summary
       document.getElementById('dataset-count').textContent = DATASETS.length;
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
-      
+
       renderActivityLog(activities);
       lucide.createIcons();
     };
