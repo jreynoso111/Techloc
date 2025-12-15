@@ -37,18 +37,51 @@
     /* More compact overall spacing */
     main { max-width: 100vw; overflow-x: hidden; }
 
-    /* Make the table area fit the screen (smaller than before) */
+    /* Directory shell keeps the table inside the viewport */
+    .directory-shell {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      overflow: hidden;
+    }
+    @media (min-width: 1024px) {
+      .directory-shell {
+        height: calc(100vh - 220px);
+        max-height: calc(100vh - 180px);
+        min-height: 540px;
+      }
+    }
+
+    /* Make the table area fit the screen */
+    .table-window {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      flex: 1;
+      min-height: 0;
+    }
     .table-viewport {
-      max-height: calc(100vh - 24rem); /* tighter so it stays on screen */
+      flex: 1;
       min-height: 260px;
+      max-height: calc(100vh - 24rem);
     }
     @media (min-width: 1024px) {
       .table-viewport {
-        max-height: calc(100vh - 22rem);
+        max-height: none;
       }
     }
 
     /* top horizontal scrollbar */
+    .top-scrollbar-shell {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 0.5rem;
+      border: 1px solid rgb(30 41 59);
+      background: rgba(2, 6, 23, 0.75);
+      border-radius: 0.75rem;
+      backdrop-filter: blur(6px);
+    }
     .top-scrollbar {
       overflow-x: auto;
       overflow-y: hidden;
@@ -60,6 +93,10 @@
     .top-scrollbar::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
     /* table scrollbars */
+    .table-scroll {
+      flex: 1;
+      min-height: 0;
+    }
     .table-scroll::-webkit-scrollbar { height: 12px; width: 12px; }
     .table-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     .table-scroll::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
@@ -154,14 +191,18 @@
     /* Charts: fit inside table card width + small height */
     .mini-analytics {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
       gap: .75rem;
     }
     @media (min-width: 1024px) {
-      .mini-analytics { grid-template-columns: 1fr 1fr; }
+      .mini-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .mini-chart {
       height: 150px; /* smaller so it doesn't push table down */
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     }
   </style>
 </head>
@@ -352,7 +393,7 @@
         </div>
 
         <!-- STATS (smaller) -->
-        <section class="grid gap-3 sm:grid-cols-3">
+        <section class="grid stats-grid gap-3 sm:grid-cols-3">
           <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
             <p class="text-sm font-semibold text-slate-300">Total services</p>
             <p id="tech-total" class="text-3xl font-black text-white">-</p>
@@ -368,131 +409,135 @@
         </section>
 
         <!-- DIRECTORY (charts moved inside so they match table width) -->
-        <section class="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-          <div class="flex flex-col gap-2">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
-              <h3 class="text-lg font-bold text-white">Service list</h3>
-            </div>
+        <section class="directory-shell rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
+          <div class="flex h-full flex-col gap-3">
+            <div class="flex flex-col gap-2">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
+                <h3 class="text-lg font-bold text-white">Service list</h3>
+              </div>
 
-            <!-- MINI ANALYTICS (fits table width) -->
-            <div class="mini-analytics">
-              <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
-                    <h3 class="text-sm font-bold text-white">Top states (filtered)</h3>
+              <!-- MINI ANALYTICS (fits table width) -->
+              <div class="mini-analytics">
+                <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
+                      <h3 class="text-sm font-bold text-white">Top states (filtered)</h3>
+                    </div>
+                  </div>
+                  <div class="mt-3 mini-chart">
+                    <canvas id="chart-states"></canvas>
                   </div>
                 </div>
-                <div class="mt-3 mini-chart">
-                  <canvas id="chart-states"></canvas>
-                </div>
-              </div>
 
-              <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
-                    <h3 class="text-sm font-bold text-white">Categories share (filtered)</h3>
+                <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Analytics</p>
+                      <h3 class="text-sm font-bold text-white">Categories share (filtered)</h3>
+                    </div>
+                  </div>
+                  <div class="mt-3 mini-chart">
+                    <canvas id="chart-categories"></canvas>
                   </div>
                 </div>
-                <div class="mt-3 mini-chart">
-                  <canvas id="chart-categories"></canvas>
+              </div>
+
+              <!-- FILTERS / ACTIONS -->
+              <div class="flex flex-col gap-2 pt-1">
+                <div class="flex flex-wrap gap-2">
+                  <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                    <option value="all">All companies</option>
+                  </select>
+                  <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                    <option value="all">All states</option>
+                  </select>
+                  <select id="category-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
+                    <option value="all">All categories</option>
+                  </select>
                 </div>
-              </div>
-            </div>
 
-            <!-- FILTERS / ACTIONS -->
-            <div class="flex flex-col gap-2 pt-1">
-              <div class="flex flex-wrap gap-2">
-                <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-                  <option value="all">All companies</option>
-                </select>
-                <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-                  <option value="all">All states</option>
-                </select>
-                <select id="category-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-                  <option value="all">All categories</option>
-                </select>
-              </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
+                         class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
-              <div class="flex flex-wrap items-center gap-2">
-                <input id="search" type="search" placeholder="Search by company, category, address, state, or city"
-                       class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+                  <!-- Column picker -->
+                  <div class="relative">
+                    <button id="columns-btn"
+                            class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+                      <i data-lucide="columns-3" class="h-4 w-4"></i>
+                      Columns
+                      <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                    </button>
 
-                <!-- Column picker -->
-                <div class="relative">
-                  <button id="columns-btn"
-                          class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-                    <i data-lucide="columns-3" class="h-4 w-4"></i>
-                    Columns
-                    <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                    <div id="columns-popover" class="popover hidden rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
+                      <div class="flex items-center justify-between px-2 pb-2">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Visible columns</p>
+                        <div class="flex items-center gap-2">
+                          <button id="cols-all" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">All</button>
+                          <button id="cols-none" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">None</button>
+                        </div>
+                      </div>
+                      <div id="columns-list" class="max-h-56 overflow-y-auto px-2 pb-2"></div>
+                      <p class="px-2 pt-1 text-[11px] text-slate-500">Tip: drag headers to reorder • drag header edge to resize</p>
+                    </div>
+                  </div>
+
+                  <button id="add-record"
+                          class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
+                          data-admin-actions>
+                    <i data-lucide="plus" class="h-4 w-4"></i>
+                    New record
                   </button>
 
-                  <div id="columns-popover" class="popover hidden rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
-                    <div class="flex items-center justify-between px-2 pb-2">
-                      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Visible columns</p>
-                      <div class="flex items-center gap-2">
-                        <button id="cols-all" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">All</button>
-                        <button id="cols-none" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">None</button>
-                      </div>
-                    </div>
-                    <div id="columns-list" class="max-h-56 overflow-y-auto px-2 pb-2"></div>
-                    <p class="px-2 pt-1 text-[11px] text-slate-500">Tip: drag headers to reorder • drag header edge to resize</p>
+                  <button id="refresh-button"
+                          class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5">
+                    <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
+                    Refresh
+                  </button>
+
+                  <div class="ml-auto hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300 md:flex">
+                    <i data-lucide="mouse-pointer-2" class="h-4 w-4"></i>
+                    <span>Resize • Reorder • Sort</span>
                   </div>
-                </div>
-
-                <button id="add-record"
-                        class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
-                        data-admin-actions>
-                  <i data-lucide="plus" class="h-4 w-4"></i>
-                  New record
-                </button>
-
-                <button id="refresh-button"
-                        class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5">
-                  <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
-                  Refresh
-                </button>
-
-                <div class="ml-auto hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300 md:flex">
-                  <i data-lucide="mouse-pointer-2" class="h-4 w-4"></i>
-                  <span>Resize • Reorder • Sort</span>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- PAGINATION (TOP) -->
-          <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
-            <div class="flex items-center gap-2">
-              <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                <i data-lucide="chevron-left" class="h-4 w-4"></i>
-                Prev
-              </button>
-              <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
-              <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                Next
-                <i data-lucide="chevron-right" class="h-4 w-4"></i>
-              </button>
+            <!-- PAGINATION (TOP) -->
+            <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
+              <div class="flex items-center gap-2">
+                <button id="prev-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                  <i data-lucide="chevron-left" class="h-4 w-4"></i>
+                  Prev
+                </button>
+                <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
+                <button id="next-page" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                  Next
+                  <i data-lucide="chevron-right" class="h-4 w-4"></i>
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- ✅ TOP HORIZONTAL SCROLLBAR -->
-          <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-2">
-            <div id="top-scrollbar" class="top-scrollbar">
-              <div id="top-scrollbar-inner" style="height:1px;"></div>
+            <div class="table-window">
+              <!-- ✅ TOP HORIZONTAL SCROLLBAR -->
+              <div class="top-scrollbar-shell">
+                <div id="top-scrollbar" class="top-scrollbar">
+                  <div id="top-scrollbar-inner" style="height:1px;"></div>
+                </div>
+              </div>
+
+              <!-- TABLE -->
+              <div id="table-scroll" class="table-scroll table-viewport w-full rounded-xl border border-slate-800">
+                <table id="services-table" class="fixed-layout divide-y divide-slate-800 compact-text">
+                  <colgroup id="colgroup"></colgroup>
+                  <thead id="table-head" class="sticky-head bg-slate-950/60 text-slate-300"></thead>
+                  <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
+                </table>
+              </div>
             </div>
-          </div>
-
-          <!-- TABLE -->
-          <div id="table-scroll" class="table-scroll table-viewport w-full rounded-xl border border-slate-800">
-            <table id="services-table" class="fixed-layout divide-y divide-slate-800 compact-text">
-              <colgroup id="colgroup"></colgroup>
-              <thead id="table-head" class="sticky-head bg-slate-950/60 text-slate-300"></thead>
-              <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
-            </table>
           </div>
         </section>
       </section>
@@ -696,6 +741,15 @@
         els.addRecord.disabled = !isAdmin;
       }
     };
+
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      const nextUserId = session?.user?.id || 'anon';
+      if (nextUserId === state.currentUserId) return;
+
+      state.currentUserId = nextUserId;
+      loadPrefs();
+      renderTable();
+    });
 
     // ---------------- HELPERS ----------------
     const getText = (value) => String(value ?? '').toLowerCase().trim();
@@ -1446,6 +1500,8 @@
     });
 
     // ---------------- EVENTS ----------------
+    window.addEventListener('beforeunload', savePrefs);
+
     els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; renderTable(); });
     els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; renderTable(); });
     els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; renderTable(); });
