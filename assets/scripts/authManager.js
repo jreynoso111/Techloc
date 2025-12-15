@@ -24,6 +24,7 @@
   const getNavElement = (key) => document.getElementById(navIds[key]);
 
   const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
+  const roleAllowsServiceRequests = (role) => String(role || '').toLowerCase() === 'administrator';
 
   // Rutas protegidas
   const protectedRoutes = [
@@ -31,6 +32,11 @@
     (path) => path.endsWith('/services-request.html') || path.endsWith('services-request.html'),
     (path) => path.includes('/admin/'),
   ];
+
+  const isServiceRequestPath = () => {
+    const path = window.location.pathname.toLowerCase();
+    return path.endsWith('/services-request.html') || path.endsWith('services-request.html');
+  };
 
   const mapsTo = (page) => {
     const normalizedPage = page.startsWith('/') ? page.slice(1) : page;
@@ -103,13 +109,18 @@
 
       const isSuspended = status === 'suspended';
       const canShowDashboard = hasSession && !isSuspended && roleAllowsDashboard(role);
+      const canShowServices = hasSession && !isSuspended && roleAllowsServiceRequests(role);
 
       if (hasSession && !isSuspended) {
         // Lógica de visualización basada en sesión
         controlLink?.classList.remove('hidden');
         controlLink?.classList.add('md:inline-flex');
 
-        servicesLink?.classList.remove('hidden');
+        if (canShowServices) {
+          servicesLink?.classList.remove('hidden');
+        } else {
+          servicesLink?.classList.add('hidden');
+        }
 
         if (canShowDashboard) {
           dashboardLink?.classList.remove('hidden');
@@ -169,6 +180,11 @@
     }
 
     if (hasSession && isAdminPath && !roleAllowsDashboard(role)) {
+      window.location.replace(mapsTo('index.html'));
+      return;
+    }
+
+    if (hasSession && isServiceRequestPath() && !roleAllowsServiceRequests(role)) {
       window.location.replace(mapsTo('index.html'));
       return;
     }
