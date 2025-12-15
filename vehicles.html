@@ -1693,7 +1693,21 @@
       const listContainer = document.getElementById('tech-list');
       listContainer.innerHTML = '';
 
-      const displayList = selectedTechId !== null ? techList.filter(t => t.id === selectedTechId) : techList;
+      const origin = clientLocation || getCurrentOrigin();
+      const sortedList = origin
+        ? techList
+            .map(t => ({ ...t, distance: getDistance(origin.lat, origin.lng, t.lat, t.lng) }))
+            .sort((a, b) => a.distance - b.distance)
+        : [...techList];
+
+      const selectedTech = selectedTechId !== null
+        ? sortedList.find(t => t.id === selectedTechId) || techList.find(t => t.id === selectedTechId)
+        : null;
+
+      const displayList = selectedTech
+        ? [selectedTech, ...sortedList.filter(t => t.id !== selectedTech.id)]
+        : sortedList;
+
       const displayKey = displayList.map(t => t.id).join('|');
       const shouldRenderMarkers = techSidebarVisible && displayKey !== renderedTechIds;
 
@@ -1736,7 +1750,7 @@
         const card = document.createElement('div');
         card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
 
-        const distanceLabel = clientLocation ? `${Math.round(getDistance(clientLocation.lat, clientLocation.lng, tech.lat, tech.lng))} mi` : '';
+        const distanceLabel = origin ? `${Math.round(getDistance(origin.lat, origin.lng, tech.lat, tech.lng))} mi` : '';
 
         card.innerHTML = `
           <div class="flex justify-between items-start gap-3">
@@ -1805,6 +1819,15 @@
         const vehicle = vehicles.find(v => v.id === selectedVehicleId && hasValidCoords(v));
         if (vehicle) return vehicle;
       }
+
+      if (selectedTechId !== null) {
+        const tech = technicians.find(t => t.id === selectedTechId && hasValidCoords(t));
+        if (tech) return tech;
+      }
+
+      const selectedPartner = Object.values(selectedServiceByType).find(Boolean);
+      if (selectedPartner && hasValidCoords(selectedPartner)) return selectedPartner;
+
       if (lastOriginPoint) return lastOriginPoint;
       if (lastClientLocation) return lastClientLocation;
       return null;
@@ -1829,24 +1852,29 @@
 
       const totalPartners = partners.length;
       const filteredPartners = applyServiceFilter(partners, type);
-      const origin = getCurrentOrigin();
+      const selectedService = getSelectedService(type);
+      const origin = getCurrentOrigin() || selectedService;
       const sorted = origin
-        ? filteredPartners.map(p => ({
-            ...p,
-            distance: map.distance([origin.lat, origin.lng], [p.lat, p.lng]) / 1609.34
-          })).sort((a, b) => a.distance - b.distance)
-        : filteredPartners;
+        ? filteredPartners
+            .map(p => ({
+              ...p,
+              distance: map.distance([origin.lat, origin.lng], [p.lat, p.lng]) / 1609.34
+            }))
+            .sort((a, b) => a.distance - b.distance)
+        : [...filteredPartners];
 
-      updateServiceCount(type, totalPartners, sorted.length);
+      const prioritized = selectedService
+        ? [sorted.find(p => p.id === selectedService.id) || selectedService, ...sorted.filter(p => p.id !== selectedService.id)]
+        : sorted;
 
-      if (!sorted.length) {
+      updateServiceCount(type, totalPartners, prioritized.length);
+
+      if (!prioritized.length) {
         container.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No partners available.</div>`;
         return;
       }
 
-      const selectedService = getSelectedService(type);
-
-      sorted.slice(0, 75).forEach((partner, idx) => {
+      prioritized.slice(0, 75).forEach((partner, idx) => {
         const unauthorized = isUnauthorizedPartner(partner);
         const markerColor = getPartnerColor(partner, accentColor);
         const marker = L.marker([partner.lat, partner.lng], {
@@ -1868,7 +1896,7 @@
           e.originalEvent.handledByMarker = true;
           sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
           selectedServiceByType[type] = partner;
-          const originPoint = getCurrentOrigin();
+          const originPoint = getCurrentOrigin() || partner;
           if (originPoint) {
             showServicesFromOrigin(originPoint, { forceType: type });
           }
@@ -1906,16 +1934,16 @@
           ` : ''}
         `;
 
-        card.addEventListener('click', () => {
-          sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
-          map.panTo([partner.lat, partner.lng]);
-          selectedServiceByType[type] = partner;
-          const originPoint = getCurrentOrigin();
-          if (originPoint) {
-            showServicesFromOrigin(originPoint, { forceType: type });
-          }
-          renderPartnerUI(partners, options);
-        });
+          card.addEventListener('click', () => {
+            sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+            map.panTo([partner.lat, partner.lng]);
+            selectedServiceByType[type] = partner;
+            const originPoint = getCurrentOrigin() || partner;
+            if (originPoint) {
+              showServicesFromOrigin(originPoint, { forceType: type });
+            }
+            renderPartnerUI(partners, options);
+          });
 
         const editBtn = card.querySelector('[data-edit-service]');
         if (editBtn) {
@@ -2456,19 +2484,22 @@
     }
 
     function getTechList(baseList = technicians) {
+      const origin = getCurrentOrigin();
+
+      const sorted = origin
+        ? baseList
+            .map(t => ({ ...t, distance: getDistance(origin.lat, origin.lng, t.lat, t.lng) }))
+            .sort((a, b) => a.distance - b.distance)
+        : [...baseList];
+
       if (selectedTechId !== null) {
-        return baseList.filter(t => t.id === selectedTechId);
+        const selectedTech = sorted.find(t => t.id === selectedTechId) || baseList.find(t => t.id === selectedTechId);
+        if (selectedTech) {
+          return [selectedTech, ...sorted.filter(t => t.id !== selectedTech.id)];
+        }
       }
 
-      if (selectedVehicleId !== null) {
-        const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-        if (!vehicle) return baseList;
-        return baseList
-          .map(t => ({ ...t, distance: getDistance(vehicle.lat, vehicle.lng, t.lat, t.lng) }))
-          .sort((a, b) => a.distance - b.distance);
-      }
-
-      return baseList;
+      return sorted;
     }
 
     function findNearestTechnician(point, maxDistanceMeters = 40000) {
