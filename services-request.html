@@ -33,7 +33,7 @@
   </div>
 
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+    <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
       <a href="index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
           <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
@@ -47,8 +47,17 @@
       <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
         <a id="nav-home" href="index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
         <a id="nav-control-view" href="vehicles.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control View</a>
-        <a id="nav-services" href="services.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Services</a>
-        <a id="nav-dashboard" href="Admin/index.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Dashboard</a>
+        <a id="nav-services" href="services-request.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Service Requests</a>
+        <a
+          id="nav-dashboard"
+          href="Admin/index.html"
+          data-dashboard-link
+          aria-hidden="true"
+          tabindex="-1"
+          class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex"
+        >
+          Dashboard
+        </a>
         <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About</a>
         <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
       </nav>
@@ -60,7 +69,7 @@
     </div>
   </header>
 
-  <main class="relative z-10 mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
+  <main class="relative z-10 mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
 
     <!-- Header / Controls -->
     <section class="rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
@@ -92,10 +101,10 @@
 
       <!-- Quick filters -->
       <div class="mt-5 flex flex-wrap items-center gap-2 text-xs">
-        <button data-filter="open" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Open</button>
-        <button data-filter="in_progress" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">In progress</button>
-        <button data-filter="waiting" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Waiting</button>
-        <button data-filter="closed" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Closed</button>
+        <button data-filter="Open" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Open</button>
+        <button data-filter="In Progress" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">In progress</button>
+        <button data-filter="Waiting" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Waiting</button>
+        <button data-filter="Closed" class="filterChip rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 font-semibold text-slate-200 hover:bg-slate-800/60">Closed</button>
         <span class="ml-2 text-slate-500">Tip: these map to your status values.</span>
       </div>
     </section>
@@ -107,20 +116,10 @@
         <p id="resultsMeta" class="text-xs text-slate-400">0 items</p>
       </div>
 
-      <div class="overflow-auto">
-        <table class="min-w-full text-left text-sm">
+      <div class="overflow-auto px-4 pb-4">
+        <table class="min-w-[1200px] text-left text-sm">
           <thead class="sticky top-0 bg-slate-950/80 backdrop-blur">
-            <tr class="text-xs uppercase tracking-[0.14em] text-slate-400">
-              <th class="px-6 py-3">Status</th>
-              <th class="px-6 py-3">Unit</th>
-              <th class="px-6 py-3">VIN</th>
-              <th class="px-6 py-3">Service</th>
-              <th class="px-6 py-3">Vendor</th>
-              <th class="px-6 py-3">Requested</th>
-              <th class="px-6 py-3">Due</th>
-              <th class="px-6 py-3">Owner</th>
-              <th class="px-6 py-3 text-right">Actions</th>
-            </tr>
+            <tr id="tableHeaderRow" class="text-xs uppercase tracking-[0.14em] text-slate-400"></tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-800">
             <!-- rows injected here -->
@@ -173,50 +172,125 @@
         </button>
       </div>
 
-      <form id="requestForm" class="space-y-5 px-6 py-6">
-        <input type="hidden" id="requestId" />
+        <form id="requestForm" class="space-y-5 px-6 py-6">
+          <input type="hidden" id="requestId" />
 
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="space-y-2">
-            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Unit</span>
-            <input id="unitInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="e.g. KS3791" />
-          </label>
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Company Name</span>
+              <input id="companyNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Business name" />
+            </label>
 
-          <label class="space-y-2">
-            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">VIN</span>
-            <input id="vinInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Vehicle VIN" />
-          </label>
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Company Phone</span>
+              <input id="companyPhoneInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="(555) 555-1234" />
+            </label>
 
-          <label class="space-y-2">
-            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Service type</span>
-            <input id="serviceInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="GPS install, locksmith, tow, inspection..." />
-          </label>
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Doc</span>
+              <input id="docInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Document / WO #" />
+            </label>
 
-          <label class="space-y-2">
-            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Status</span>
-            <select id="statusInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-              <option value="Open">Open</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Waiting">Waiting</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </label>
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Unit Type</span>
+              <input id="unitTypeInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Truck, car, trailer..." />
+            </label>
 
-          <label class="space-y-2">
-            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Vendor</span>
-            <input id="vendorInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Company / technician" />
-          </label>
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Brand</span>
+              <input id="brandInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Ford" />
+            </label>
 
-          <label class="space-y-2">
-            <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Due date</span>
-            <input id="dueInput" type="date" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
-          </label>
-        </div>
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Model</span>
+              <input id="modelInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="F-150" />
+            </label>
 
-        <label class="space-y-2 block">
-          <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Notes</span>
-          <textarea id="notesInput" rows="3" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Add instructions, contact info, address, etc."></textarea>
-        </label>
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Model Year</span>
+              <input id="modelYearInput" type="number" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="2024" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Short VIN</span>
+              <input id="shortVinInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Last 6" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Status</span>
+              <select id="statusInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Waiting">Waiting</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Quote</span>
+              <input id="quoteInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="$500" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-3">
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Request Date</span>
+              <input id="requestDateInput" type="date" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Work Date</span>
+              <input id="workDateInput" type="date" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Shipping Date</span>
+              <input id="shippingDateInput" type="date" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-3">
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">POC Name</span>
+              <input id="pocNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Contact person" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">POC Phone</span>
+              <input id="pocPhoneInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="(555) 000-0000" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Confirmed</span>
+              <select id="confirmedInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                <option value="">Pending</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">State</span>
+              <input id="stateInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="CA" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">City</span>
+              <input id="cityInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Los Angeles" />
+            </label>
+
+            <label class="space-y-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">ZIP</span>
+              <input id="zipInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="90001" />
+            </label>
+
+            <label class="space-y-2 md:col-span-2">
+              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Address</span>
+              <input id="addressInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="123 Main St" />
+            </label>
+          </div>
 
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p id="formError" class="text-sm text-red-300"></p>
@@ -243,6 +317,31 @@
       return null;
     }
 
+    // Update this list to control which Supabase columns are shown in the table.
+    const TABLE_COLUMNS = [
+      { key: 'id', label: 'ID' },
+      { key: 'company_name', label: 'Company Name' },
+      { key: 'company phone', label: 'Company Phone' },
+      { key: 'doc', label: 'Doc' },
+      { key: 'unittype', label: 'Unit Type' },
+      { key: 'brand', label: 'Brand' },
+      { key: 'model', label: 'Model' },
+      { key: 'model year', label: 'Model Year' },
+      { key: 'shortvin', label: 'Short VIN' },
+      { key: 'status', label: 'Status' },
+      { key: 'request date', label: 'Request Date' },
+      { key: 'workdate', label: 'Work Date' },
+      { key: 'shipping date', label: 'Shipping Date' },
+      { key: 'quote', label: 'Quote' },
+      { key: 'poc name', label: 'POC Name' },
+      { key: 'poc phone', label: 'POC Phone' },
+      { key: 'confirmed', label: 'Confirmed' },
+      { key: 'state', label: 'State' },
+      { key: 'city', label: 'City' },
+      { key: 'zip', label: 'ZIP' },
+      { key: 'address', label: 'Address' },
+    ];
+
     const state = {
       view: 'table',
       filterStatus: null,
@@ -267,13 +366,26 @@
     const requestForm = document.getElementById('requestForm');
 
     const requestId = document.getElementById('requestId');
-    const unitInput = document.getElementById('unitInput');
-    const vinInput = document.getElementById('vinInput');
-    const serviceInput = document.getElementById('serviceInput');
+    const companyNameInput = document.getElementById('companyNameInput');
+    const companyPhoneInput = document.getElementById('companyPhoneInput');
+    const docInput = document.getElementById('docInput');
+    const unitTypeInput = document.getElementById('unitTypeInput');
+    const brandInput = document.getElementById('brandInput');
+    const modelInput = document.getElementById('modelInput');
+    const modelYearInput = document.getElementById('modelYearInput');
+    const shortVinInput = document.getElementById('shortVinInput');
     const statusInput = document.getElementById('statusInput');
-    const vendorInput = document.getElementById('vendorInput');
-    const dueInput = document.getElementById('dueInput');
-    const notesInput = document.getElementById('notesInput');
+    const quoteInput = document.getElementById('quoteInput');
+    const requestDateInput = document.getElementById('requestDateInput');
+    const workDateInput = document.getElementById('workDateInput');
+    const shippingDateInput = document.getElementById('shippingDateInput');
+    const pocNameInput = document.getElementById('pocNameInput');
+    const pocPhoneInput = document.getElementById('pocPhoneInput');
+    const confirmedInput = document.getElementById('confirmedInput');
+    const stateInput = document.getElementById('stateInput');
+    const cityInput = document.getElementById('cityInput');
+    const zipInput = document.getElementById('zipInput');
+    const addressInput = document.getElementById('addressInput');
     const formError = document.getElementById('formError');
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteBtn');
@@ -300,16 +412,47 @@
       }
     }
 
+    function normalizeRow(raw) {
+      return {
+        ...raw,
+        'company phone': raw?.['company phone'] ?? raw?.company_phone ?? null,
+        unittype: raw?.unittype ?? raw?.unit_type ?? null,
+        'model year': raw?.['model year'] ?? raw?.model_year ?? null,
+        shortvin: raw?.shortvin ?? raw?.short_vin ?? null,
+        'request date': raw?.['request date'] ?? raw?.request_date ?? null,
+        workdate: raw?.workdate ?? raw?.work_date ?? null,
+        'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
+        'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
+        'poc phone': raw?.['poc phone'] ?? raw?.poc_phone ?? null,
+      };
+    }
+
     function applyFilters(items) {
       let out = [...items];
       if (state.filterStatus) {
-        const target = state.filterStatus;
+        const target = state.filterStatus.toLowerCase();
         out = out.filter(r => (r.status || '').toLowerCase() === target);
       }
       if (state.search) {
         const q = state.search.toLowerCase();
         out = out.filter(r =>
-          [r.unit, r.vin, r.service_type, r.vendor, r.notes].filter(Boolean).some(v => String(v).toLowerCase().includes(q))
+          [
+            r.id,
+            r.company_name,
+            r['company phone'],
+            r.doc,
+            r.unittype,
+            r.brand,
+            r.model,
+            r['model year'],
+            r.shortvin,
+            r['poc name'],
+            r['poc phone'],
+            r.city,
+            r.state,
+            r.address,
+            r.zip,
+          ].filter(Boolean).some(v => String(v).toLowerCase().includes(q))
         );
       }
       return out;
@@ -332,49 +475,55 @@
     }
 
     // ---- Data (MVP) ----
-    // Expected table (recommended): public.service_requests
-    // Columns (minimum): id (uuid), created_at, unit, vin, service_type, status, vendor, due_date, notes, owner_name
+    // Expected table: public.services_request
+    // Columns: id, company_name, company phone, doc, unittype, brand, model, model year, shortvin, status,
+    // request date, workdate, shipping date, quote, poc name, poc phone, confirmed, state, city, zip, address
     async function loadRequests() {
       if (!state.client) return;
       state.loading = true;
-      // NOTE: Adjust the select list to match your table columns.
+
       const { data, error } = await state.client
-        .from('service_requests')
-        .select('id, created_at, unit, vin, service_type, status, vendor, due_date, notes, owner_name')
-        .order('created_at', { ascending: false });
+        .from('services_request')
+        // Use * to support both space-delimited and snake_case column names.
+        .select('*');
 
       if (error) {
         console.error(error);
-        // Soft fail: show empty state
         state.items = [];
       } else {
-        state.items = data || [];
+        state.items = (data || [])
+          .map(normalizeRow)
+          .sort((a, b) => new Date(b['request date'] || b.workdate || 0) - new Date(a['request date'] || a.workdate || 0));
       }
+
       state.loading = false;
       render();
     }
 
-    async function upsertRequest(payload) {
-      const { data, error } = await state.client
-        .from('service_requests')
-        .upsert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    }
+      async function upsertRequest(payload) {
+        const { data, error } = await state.client
+          .from('services_request')
+          .upsert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        return normalizeRow(data);
+      }
 
-    async function deleteRequest(id) {
-      const { error } = await state.client
-        .from('service_requests')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-    }
+      async function deleteRequest(id) {
+        const { error } = await state.client
+          .from('services_request')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+      }
 
     // ---- Render ----
     function renderTable(items) {
       tableBody.innerHTML = '';
+
+      const headerRow = document.querySelector('#tableHeaderRow');
+      headerRow.innerHTML = TABLE_COLUMNS.map(col => `<th class="px-6 py-3">${col.label}</th>`).join('') + '<th class="px-6 py-3 text-right">Actions</th>';
 
       if (!items.length) {
         emptyState.classList.remove('hidden');
@@ -385,15 +534,16 @@
       for (const r of items) {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-950/30';
+        const cells = TABLE_COLUMNS.map(col => {
+          const value = r[col.key];
+          if (col.key === 'status') return `<td class="px-6 py-3">${statusPill(value)}</td>`;
+          if (['request date', 'workdate', 'shipping date'].includes(col.key)) return `<td class="px-6 py-3 text-slate-300">${fmtDate(value)}</td>`;
+          if (col.key === 'company_name' || col.key === 'brand' || col.key === 'model') return `<td class="px-6 py-3 font-bold text-white">${value || '—'}</td>`;
+          return `<td class="px-6 py-3 text-slate-200">${value ?? '—'}</td>`;
+        }).join('');
+
         tr.innerHTML = `
-          <td class="px-6 py-3">${statusPill(r.status)}</td>
-          <td class="px-6 py-3 font-bold text-white">${r.unit || '—'}</td>
-          <td class="px-6 py-3 text-slate-200">${r.vin || '—'}</td>
-          <td class="px-6 py-3 text-slate-200">${r.service_type || '—'}</td>
-          <td class="px-6 py-3 text-slate-300">${r.vendor || '—'}</td>
-          <td class="px-6 py-3 text-slate-400">${fmtDate(r.created_at)}</td>
-          <td class="px-6 py-3 text-slate-300">${fmtDate(r.due_date)}</td>
-          <td class="px-6 py-3 text-slate-300">${r.owner_name || '—'}</td>
+          ${cells}
           <td class="px-6 py-3 text-right">
             <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800" data-id="${r.id}">
               <i data-lucide="pencil" class="h-4 w-4"></i>
@@ -448,13 +598,13 @@
           card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-sm font-black text-white">${r.unit || 'Unit —'}</p>
-                <p class="mt-1 text-xs text-slate-400">${r.vin || 'VIN —'}</p>
+                <p class="text-sm font-black text-white">${r.company_name || 'Company —'}</p>
+                <p class="mt-1 text-xs text-slate-400">${r.shortvin || 'VIN —'}</p>
               </div>
               <i data-lucide="chevron-right" class="h-4 w-4 text-slate-400"></i>
             </div>
-            <p class="mt-3 text-sm text-slate-200">${r.service_type || 'Service —'}</p>
-            <p class="mt-2 text-xs text-slate-400">Due: ${fmtDate(r.due_date)}</p>
+            <p class="mt-3 text-sm text-slate-200">${r.doc || 'Doc —'}</p>
+            <p class="mt-2 text-xs text-slate-400">Request: ${fmtDate(r['request date'])}</p>
           `;
           card.addEventListener('click', () => openModal(r));
           stack.appendChild(card);
@@ -482,13 +632,26 @@
       deleteBtn.classList.toggle('hidden', !isEdit);
 
       requestId.value = item?.id || '';
-      unitInput.value = item?.unit || '';
-      vinInput.value = item?.vin || '';
-      serviceInput.value = item?.service_type || '';
+      companyNameInput.value = item?.company_name || '';
+      companyPhoneInput.value = item?.['company phone'] || '';
+      docInput.value = item?.doc || '';
+      unitTypeInput.value = item?.unittype || '';
+      brandInput.value = item?.brand || '';
+      modelInput.value = item?.model || '';
+      modelYearInput.value = item?.['model year'] || '';
+      shortVinInput.value = item?.shortvin || '';
       statusInput.value = item?.status || 'Open';
-      vendorInput.value = item?.vendor || '';
-      dueInput.value = item?.due_date ? String(item.due_date).slice(0, 10) : '';
-      notesInput.value = item?.notes || '';
+      quoteInput.value = item?.quote || '';
+      requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
+      workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
+      shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : '';
+      pocNameInput.value = item?.['poc name'] || '';
+      pocPhoneInput.value = item?.['poc phone'] || '';
+      confirmedInput.value = item?.confirmed ?? '';
+      stateInput.value = item?.state || '';
+      cityInput.value = item?.city || '';
+      zipInput.value = item?.zip || '';
+      addressInput.value = item?.address || '';
 
       modalOverlay.classList.remove('hidden');
       modalOverlay.classList.add('flex');
@@ -550,14 +713,26 @@
 
       const payload = {
         id: requestId.value || undefined,
-        unit: unitInput.value.trim() || null,
-        vin: vinInput.value.trim() || null,
-        service_type: serviceInput.value.trim() || null,
+        company_name: companyNameInput.value.trim() || null,
+        'company phone': companyPhoneInput.value.trim() || null,
+        doc: docInput.value.trim() || null,
+        unittype: unitTypeInput.value.trim() || null,
+        brand: brandInput.value.trim() || null,
+        model: modelInput.value.trim() || null,
+        'model year': modelYearInput.value.trim() || null,
+        shortvin: shortVinInput.value.trim() || null,
         status: statusInput.value,
-        vendor: vendorInput.value.trim() || null,
-        due_date: dueInput.value || null,
-        notes: notesInput.value.trim() || null,
-        // owner_name: set by trigger or app logic if you want
+        quote: quoteInput.value.trim() || null,
+        'request date': requestDateInput.value || null,
+        workdate: workDateInput.value || null,
+        'shipping date': shippingDateInput.value || null,
+        'poc name': pocNameInput.value.trim() || null,
+        'poc phone': pocPhoneInput.value.trim() || null,
+        confirmed: confirmedInput.value || null,
+        state: stateInput.value.trim() || null,
+        city: cityInput.value.trim() || null,
+        zip: zipInput.value.trim() || null,
+        address: addressInput.value.trim() || null,
       };
 
       try {
