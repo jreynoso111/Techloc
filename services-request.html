@@ -23,7 +23,26 @@
       },
     };
   </script>
+
   <link rel="stylesheet" href="assets/visuals/theme.css" />
+
+  <style>
+    /* scrollbars */
+    #topScrollWrap::-webkit-scrollbar { height: 12px; }
+    #topScrollWrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
+    #topScrollWrap::-webkit-scrollbar-track { background: rgba(2,6,23,.35); border-radius: 999px; }
+
+    #tableScrollWrap::-webkit-scrollbar { height: 12px; }
+    #tableScrollWrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
+    #tableScrollWrap::-webkit-scrollbar-track { background: rgba(2,6,23,.35); border-radius: 999px; }
+
+    /* drag visuals */
+    th.dragging { opacity: .45; }
+    th.drop-target { outline: 2px solid rgba(59,130,246,.6); outline-offset: -2px; }
+
+    /* prevent text selection while resizing */
+    body.resizing { cursor: col-resize !important; user-select: none !important; }
+  </style>
 </head>
 
 <body class="min-h-screen bg-slate-950 text-slate-50">
@@ -32,7 +51,6 @@
   </div>
 
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-    <!-- 1 inch side padding -->
     <div class="flex items-center justify-between py-4" style="padding-left:1in; padding-right:1in;">
       <a href="index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
@@ -69,7 +87,6 @@
     </div>
   </header>
 
-  <!-- 1 inch side padding -->
   <main class="relative z-10 flex flex-col gap-8 py-10" style="padding-left:1in; padding-right:1in;">
 
     <!-- Header / Controls -->
@@ -117,25 +134,60 @@
         <p id="resultsMeta" class="text-xs text-slate-400">0 items</p>
       </div>
 
-      <div class="overflow-auto px-4 pb-4">
-        <table class="min-w-[1400px] w-full text-left text-sm">
+      <!-- TOP CONTROLS (pagination + columns dropdown) -->
+      <div class="flex flex-col gap-3 border-b border-slate-800 px-6 py-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="flex items-center gap-2">
+            <button id="prevPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Previous</button>
+            <button id="nextPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">Next</button>
+
+            <!-- Columns dropdown -->
+            <div class="relative ml-2">
+              <button id="columnsBtn" type="button"
+                class="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/40 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-slate-800">
+                <i data-lucide="columns-2" class="h-4 w-4"></i>
+                Columns
+                <i data-lucide="chevron-down" class="h-4 w-4 text-slate-400"></i>
+              </button>
+
+              <div id="columnsMenu"
+                class="hidden absolute left-0 mt-2 w-80 rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden z-50">
+                <div class="flex items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
+                  <p class="text-xs font-black uppercase tracking-[0.14em] text-slate-300">Show / Hide Columns</p>
+                  <div class="flex items-center gap-2">
+                    <button id="colsAll" type="button" class="text-xs font-bold text-blue-200 hover:text-white">All</button>
+                    <button id="colsNone" type="button" class="text-xs font-bold text-slate-300 hover:text-white">None</button>
+                  </div>
+                </div>
+
+                <div class="max-h-80 overflow-auto px-2 py-2" id="columnsList"></div>
+
+                <div class="border-t border-slate-800 px-4 py-3 flex items-center justify-between">
+                  <p class="text-xs text-slate-400">Tip: drag headers to reorder • drag edge to resize</p>
+                  <button id="colsClose" type="button" class="rounded-xl border border-slate-700 px-3 py-1 text-xs font-bold hover:bg-slate-800">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p id="pageMeta" class="text-sm text-slate-400"></p>
+        </div>
+
+        <!-- TOP HORIZONTAL SCROLLBAR -->
+        <div id="topScrollWrap" class="overflow-x-auto overflow-y-hidden rounded-2xl border border-slate-800 bg-slate-950/40">
+          <div id="topScrollInner" class="h-4"></div>
+        </div>
+      </div>
+
+      <!-- Table scroll area -->
+      <div id="tableScrollWrap" class="overflow-auto px-4 pb-4">
+        <table id="dataTable" class="min-w-[1400px] w-full text-left text-sm">
           <thead class="sticky top-0 bg-slate-950/80 backdrop-blur">
             <tr id="tableHeaderRow" class="text-xs uppercase tracking-[0.14em] text-slate-400"></tr>
             <tr id="tableFilterRow" class="text-[11px] text-slate-300"></tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-800"></tbody>
         </table>
-      </div>
-
-      <!-- Pagination -->
-      <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800">
-        <button id="prevPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">
-          Previous
-        </button>
-        <p id="pageMeta" class="text-sm text-slate-400"></p>
-        <button id="nextPage" class="rounded-xl border border-slate-700 px-4 py-2 text-sm disabled:opacity-40">
-          Next
-        </button>
       </div>
 
       <div id="emptyState" class="hidden px-6 py-10">
@@ -155,7 +207,7 @@
       <div class="grid gap-4 md:grid-cols-4" id="kanbanColumns"></div>
     </section>
 
-    <!-- CALENDAR VIEW (stub for now) -->
+    <!-- CALENDAR VIEW -->
     <section id="calendarView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
       <div class="space-y-2">
         <p class="text-sm font-bold text-white">Calendar</p>
@@ -168,7 +220,7 @@
 
   </main>
 
-  <!-- Modal: New / Edit Request -->
+  <!-- Modal -->
   <div id="modalOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
     <div class="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl">
       <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
@@ -187,42 +239,42 @@
         <div class="grid gap-4 md:grid-cols-2">
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Company Name</span>
-            <input id="companyNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Business name" />
+            <input id="companyNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Company Phone</span>
-            <input id="companyPhoneInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="(555) 555-1234" />
+            <input id="companyPhoneInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Doc</span>
-            <input id="docInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Document / WO #" />
+            <input id="docInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Unit Type</span>
-            <input id="unitTypeInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Truck, car, trailer..." />
+            <input id="unitTypeInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Brand</span>
-            <input id="brandInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Ford" />
+            <input id="brandInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Model</span>
-            <input id="modelInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="F-150" />
+            <input id="modelInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Model Year</span>
-            <input id="modelYearInput" type="number" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="2024" />
+            <input id="modelYearInput" type="number" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Short VIN</span>
-            <input id="shortVinInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Last 6" />
+            <input id="shortVinInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
@@ -237,7 +289,7 @@
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Quote</span>
-            <input id="quoteInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="$500" />
+            <input id="quoteInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
         </div>
 
@@ -261,12 +313,12 @@
         <div class="grid gap-4 md:grid-cols-3">
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">POC Name</span>
-            <input id="pocNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Contact person" />
+            <input id="pocNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">POC Phone</span>
-            <input id="pocPhoneInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="(555) 000-0000" />
+            <input id="pocPhoneInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
@@ -282,22 +334,22 @@
         <div class="grid gap-4 md:grid-cols-2">
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">State</span>
-            <input id="stateInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="CA" />
+            <input id="stateInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">City</span>
-            <input id="cityInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="Los Angeles" />
+            <input id="cityInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">ZIP</span>
-            <input id="zipInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="90001" />
+            <input id="zipInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
 
           <label class="space-y-2 md:col-span-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Address</span>
-            <input id="addressInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" placeholder="123 Main St" />
+            <input id="addressInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
           </label>
         </div>
 
@@ -316,691 +368,4 @@
     import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     const SUPABASE_URL = "https://ewgtclzscwbokxmzxbcu.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto";
-    const TABLE_NAME = "services_request";
-    const PAGE_SIZE = 20;
-
-    function getClient() {
-      if (!window.supabase?.createClient) return null;
-      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
-
-    // Phones in one cell + address wider + sort/filter per column
-    const TABLE_COLUMNS = [
-      { key: 'company_name', label: 'Company Name', filter: 'text' },
-      { key: 'phones', label: 'Phones', filter: 'text' },
-      { key: 'doc', label: 'Doc', filter: 'text' },
-      { key: 'unittype', label: 'Unit Type', filter: 'text' },
-      { key: 'brand', label: 'Brand', filter: 'text' },
-      { key: 'model', label: 'Model', filter: 'text' },
-      { key: 'model year', label: 'Model Year', filter: 'text' },
-      { key: 'shortvin', label: 'Short VIN', filter: 'text' },
-      { key: 'status', label: 'Status', filter: 'select', options: ['', 'Open', 'In Progress', 'Waiting', 'Closed'] },
-      { key: 'request date', label: 'Request Date', filter: 'text', isDate: true },
-      { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true },
-      { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true },
-      { key: 'quote', label: 'Quote', filter: 'text' },
-      { key: 'poc name', label: 'POC Name', filter: 'text' },
-      { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'Yes', 'No'] },
-      { key: 'state', label: 'State', filter: 'text' },
-      { key: 'city', label: 'City', filter: 'text' },
-      { key: 'zip', label: 'ZIP', filter: 'text' },
-      { key: 'address', label: 'Address', filter: 'text' },
-    ];
-
-    const state = {
-      view: 'table',
-      filterStatus: null,
-      search: '',
-      items: [],
-      loading: false,
-      client: null,
-      lastError: null,
-      total: 0,
-      page: 1,
-
-      sortKey: null,
-      sortDir: 'asc', // asc | desc
-      colFilters: {}, // key -> value
-    };
-
-    // DOM
-    const tableView = document.getElementById('tableView');
-    const kanbanView = document.getElementById('kanbanView');
-    const calendarView = document.getElementById('calendarView');
-    const tableBody = document.getElementById('tableBody');
-    const headerRow = document.getElementById('tableHeaderRow');
-    const filterRow = document.getElementById('tableFilterRow');
-
-    const emptyState = document.getElementById('emptyState');
-    const emptyTitle = document.getElementById('emptyTitle');
-    const emptyMsg = document.getElementById('emptyMsg');
-
-    const resultsMeta = document.getElementById('resultsMeta');
-    const searchInput = document.getElementById('searchInput');
-
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
-    const pageMeta = document.getElementById('pageMeta');
-
-    const modalOverlay = document.getElementById('modalOverlay');
-    const modalClose = document.getElementById('modalClose');
-    const newRequestBtn = document.getElementById('newRequestBtn');
-    const requestForm = document.getElementById('requestForm');
-
-    const requestId = document.getElementById('requestId');
-    const companyNameInput = document.getElementById('companyNameInput');
-    const companyPhoneInput = document.getElementById('companyPhoneInput');
-    const docInput = document.getElementById('docInput');
-    const unitTypeInput = document.getElementById('unitTypeInput');
-    const brandInput = document.getElementById('brandInput');
-    const modelInput = document.getElementById('modelInput');
-    const modelYearInput = document.getElementById('modelYearInput');
-    const shortVinInput = document.getElementById('shortVinInput');
-    const statusInput = document.getElementById('statusInput');
-    const quoteInput = document.getElementById('quoteInput');
-    const requestDateInput = document.getElementById('requestDateInput');
-    const workDateInput = document.getElementById('workDateInput');
-    const shippingDateInput = document.getElementById('shippingDateInput');
-    const pocNameInput = document.getElementById('pocNameInput');
-    const pocPhoneInput = document.getElementById('pocPhoneInput');
-    const confirmedInput = document.getElementById('confirmedInput');
-    const stateInput = document.getElementById('stateInput');
-    const cityInput = document.getElementById('cityInput');
-    const zipInput = document.getElementById('zipInput');
-    const addressInput = document.getElementById('addressInput');
-    const formError = document.getElementById('formError');
-    const modalTitle = document.getElementById('modalTitle');
-    const deleteBtn = document.getElementById('deleteBtn');
-
-    // helpers
-    const statusPill = (status) => {
-      const map = {
-        'Open': 'bg-slate-800 text-slate-100 border-slate-700',
-        'In Progress': 'bg-blue-600/20 text-blue-200 border-blue-700/40',
-        'Waiting': 'bg-amber-600/20 text-amber-200 border-amber-700/40',
-        'Closed': 'bg-emerald-600/20 text-emerald-200 border-emerald-700/40',
-      };
-      const cls = map[status] || 'bg-slate-800 text-slate-100 border-slate-700';
-      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${status || '—'}</span>`;
-    };
-
-    // ✅ mm/dd/yy ONLY for request date / workdate / shipping date
-    function fmtDate(v) {
-      if (!v) return '—';
-      const d = new Date(v);
-      if (isNaN(d)) return '—';
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      const yy = String(d.getFullYear()).slice(-2);
-      return `${mm}/${dd}/${yy}`;
-    }
-
-    function normalizeRow(raw) {
-      const companyPhone = raw?.['company phone'] ?? raw?.company_phone ?? null;
-      const pocPhone = raw?.['poc phone'] ?? raw?.poc_phone ?? null;
-
-      return {
-        ...raw,
-        'company phone': companyPhone,
-        unittype: raw?.unittype ?? raw?.unit_type ?? null,
-        'model year': raw?.['model year'] ?? raw?.model_year ?? null,
-        shortvin: raw?.shortvin ?? raw?.short_vin ?? null,
-        'request date': raw?.['request date'] ?? raw?.request_date ?? null,
-        workdate: raw?.workdate ?? raw?.work_date ?? null,
-        'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
-        'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
-        'poc phone': pocPhone,
-
-        phones: [companyPhone, pocPhone].filter(Boolean).join(' / ') || null,
-      };
-    }
-
-    function parseMaybeDate(v) {
-      if (!v) return null;
-      const d = new Date(v);
-      return isNaN(d) ? null : d.getTime();
-    }
-
-    function normalizeForCompare(v) {
-      if (v === null || v === undefined) return '';
-      return String(v).toLowerCase();
-    }
-
-    function applyAllClientFiltersSort(items) {
-      let out = [...items];
-
-      // Status chip filter (board quick filter)
-      if (state.filterStatus) {
-        const target = state.filterStatus.toLowerCase();
-        out = out.filter(r => (r.status || '').toLowerCase() === target);
-      }
-
-      // Top search box
-      if (state.search) {
-        const q = state.search.toLowerCase();
-        out = out.filter(r =>
-          [
-            r.company_name,
-            r.phones,
-            r.doc,
-            r.unittype,
-            r.brand,
-            r.model,
-            r['model year'],
-            r.shortvin,
-            r.status,
-            fmtDate(r['request date']),
-            fmtDate(r.workdate),
-            fmtDate(r['shipping date']),
-            r.quote,
-            r['poc name'],
-            r.confirmed,
-            r.state,
-            r.city,
-            r.zip,
-            r.address,
-          ].filter(Boolean).some(v => String(v).toLowerCase().includes(q))
-        );
-      }
-
-      // Per-column filters
-      for (const col of TABLE_COLUMNS) {
-        const fv = (state.colFilters[col.key] ?? '').toString().trim();
-        if (!fv) continue;
-
-        if (col.filter === 'select') {
-          out = out.filter(r => String(r[col.key] ?? '') === fv);
-          continue;
-        }
-
-        const q = fv.toLowerCase();
-        out = out.filter(r => {
-          const raw = r[col.key];
-          if (col.isDate) {
-            const f = fmtDate(raw).toLowerCase();
-            return f.includes(q);
-          }
-          return normalizeForCompare(raw).includes(q);
-        });
-      }
-
-      // Sort
-      if (state.sortKey) {
-        const key = state.sortKey;
-        const col = TABLE_COLUMNS.find(c => c.key === key);
-        const dir = state.sortDir === 'desc' ? -1 : 1;
-
-        out.sort((a, b) => {
-          const av = a[key];
-          const bv = b[key];
-
-          // date sort for date cols
-          if (col?.isDate) {
-            const at = parseMaybeDate(av) ?? -Infinity;
-            const bt = parseMaybeDate(bv) ?? -Infinity;
-            return (at - bt) * dir;
-          }
-
-          // numeric if looks numeric
-          const an = Number(av);
-          const bn = Number(bv);
-          const aIsNum = !isNaN(an) && av !== null && av !== '' && av !== undefined;
-          const bIsNum = !isNaN(bn) && bv !== null && bv !== '' && bv !== undefined;
-
-          if (aIsNum && bIsNum) return (an - bn) * dir;
-
-          const as = normalizeForCompare(av);
-          const bs = normalizeForCompare(bv);
-          if (as < bs) return -1 * dir;
-          if (as > bs) return  1 * dir;
-          return 0;
-        });
-      }
-
-      return out;
-    }
-
-    function setView(view) {
-      state.view = view;
-      tableView.classList.toggle('hidden', view !== 'table');
-      kanbanView.classList.toggle('hidden', view !== 'kanban');
-      calendarView.classList.toggle('hidden', view !== 'calendar');
-
-      document.querySelectorAll('.viewBtn').forEach(btn => {
-        const active = btn.dataset.view === view;
-        btn.classList.toggle('bg-blue-600', active);
-        btn.classList.toggle('text-white', active);
-        btn.classList.toggle('text-slate-300', !active);
-      });
-
-      render();
-    }
-
-    async function loadRequests() {
-      state.client = state.client || getClient();
-      state.lastError = null;
-
-      if (!state.client) {
-        state.lastError = 'Supabase client not found. Check the supabase-js CDN script.';
-        render();
-        return;
-      }
-
-      state.loading = true;
-      render();
-
-      const from = (state.page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-
-      const { data, error, count } = await state.client
-        .from(TABLE_NAME)
-        .select('*', { count: 'exact' })
-        .range(from, to);
-
-      if (error) {
-        console.error('Supabase error:', error);
-        state.lastError = error.message || String(error);
-        state.items = [];
-        state.total = 0;
-      } else {
-        state.total = typeof count === 'number' ? count : 0;
-        state.items = (data || []).map(normalizeRow);
-      }
-
-      state.loading = false;
-      render();
-    }
-
-    async function upsertRequest(payload) {
-      const { data, error } = await state.client
-        .from(TABLE_NAME)
-        .upsert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return normalizeRow(data);
-    }
-
-    async function deleteRequestRow(id) {
-      const { error } = await state.client
-        .from(TABLE_NAME)
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-    }
-
-    function buildHeaderAndFilters() {
-      // header with sort buttons
-      headerRow.innerHTML =
-        TABLE_COLUMNS.map(col => {
-          const isActive = state.sortKey === col.key;
-          const icon = isActive
-            ? (state.sortDir === 'asc' ? 'chevron-up' : 'chevron-down')
-            : 'chevrons-up-down';
-
-          return `
-            <th class="px-6 py-3 whitespace-nowrap">
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 font-bold hover:text-white transition"
-                data-sort-key="${col.key}"
-                title="Sort"
-              >
-                <span>${col.label}</span>
-                <i data-lucide="${icon}" class="h-4 w-4 ${isActive ? 'text-blue-300' : 'text-slate-500'}"></i>
-              </button>
-            </th>
-          `;
-        }).join('') +
-        '<th class="px-6 py-3 text-right whitespace-nowrap">Actions</th>';
-
-      // filter row (inputs/selects)
-      filterRow.innerHTML =
-        TABLE_COLUMNS.map(col => {
-          const v = state.colFilters[col.key] ?? '';
-          const commonCls = `w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600`;
-          if (col.filter === 'select') {
-            const opts = (col.options || []).map(opt => {
-              const selected = String(opt) === String(v) ? 'selected' : '';
-              const label = opt === '' ? 'All' : opt;
-              return `<option value="${opt}" ${selected}>${label}</option>`;
-            }).join('');
-            return `<th class="px-6 py-2"><select data-filter-key="${col.key}" class="${commonCls}">${opts}</select></th>`;
-          }
-          return `
-            <th class="px-6 py-2">
-              <input
-                data-filter-key="${col.key}"
-                class="${commonCls}"
-                placeholder="Filter..."
-                value="${String(v).replaceAll('"','&quot;')}"
-              />
-            </th>
-          `;
-        }).join('') + `<th class="px-6 py-2"></th>`;
-
-      // bind sort clicks
-      document.querySelectorAll('[data-sort-key]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const key = btn.getAttribute('data-sort-key');
-          if (state.sortKey === key) {
-            state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
-          } else {
-            state.sortKey = key;
-            state.sortDir = 'asc';
-          }
-          render();
-        });
-      });
-
-      // bind filter inputs
-      document.querySelectorAll('[data-filter-key]').forEach(el => {
-        const key = el.getAttribute('data-filter-key');
-        el.addEventListener('input', () => {
-          state.colFilters[key] = el.value;
-          render();
-        });
-        el.addEventListener('change', () => {
-          state.colFilters[key] = el.value;
-          render();
-        });
-      });
-    }
-
-    function renderTable(items) {
-      tableBody.innerHTML = '';
-
-      if (!items.length) {
-        emptyState.classList.remove('hidden');
-
-        if (state.lastError) {
-          emptyTitle.textContent = 'Could not load service requests';
-          emptyMsg.textContent = state.lastError;
-        } else {
-          emptyTitle.textContent = 'No service requests found';
-          emptyMsg.textContent = 'Try adjusting filters/search.';
-        }
-        lucide.createIcons();
-        return;
-      }
-
-      emptyState.classList.add('hidden');
-
-      for (const r of items) {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-950/30';
-
-        const cells = TABLE_COLUMNS.map(col => {
-          const value = r[col.key];
-
-          if (col.key === 'status') {
-            return `<td class="px-6 py-3">${statusPill(value)}</td>`;
-          }
-
-          if (col.key === 'phones') {
-            return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${value || '—'}</td>`;
-          }
-
-          if (['request date', 'workdate', 'shipping date'].includes(col.key)) {
-            return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${fmtDate(value)}</td>`;
-          }
-
-          if (col.key === 'address') {
-            return `<td class="px-6 py-3 text-slate-200 min-w-[360px] max-w-[520px] whitespace-normal">${value ?? '—'}</td>`;
-          }
-
-          if (col.key === 'company_name' || col.key === 'brand' || col.key === 'model') {
-            return `<td class="px-6 py-3 font-bold text-white">${value || '—'}</td>`;
-          }
-
-          return `<td class="px-6 py-3 text-slate-200">${value ?? '—'}</td>`;
-        }).join('');
-
-        tr.innerHTML = `
-          ${cells}
-          <td class="px-6 py-3 text-right whitespace-nowrap">
-            <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800" data-id="${r.id}">
-              <i data-lucide="pencil" class="h-4 w-4"></i>
-              Edit
-            </button>
-          </td>
-        `;
-
-        tableBody.appendChild(tr);
-      }
-
-      document.querySelectorAll('.editBtn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.id;
-          const item = state.items.find(x => String(x.id) === String(id));
-          if (item) openModal(item);
-        });
-      });
-
-      lucide.createIcons();
-    }
-
-    function renderKanban(items) {
-      const columnsEl = document.getElementById('kanbanColumns');
-      const columns = [
-        { key: 'Open', label: 'Open' },
-        { key: 'In Progress', label: 'In Progress' },
-        { key: 'Waiting', label: 'Waiting' },
-        { key: 'Closed', label: 'Closed' },
-      ];
-
-      columnsEl.innerHTML = '';
-
-      for (const col of columns) {
-        const bucket = items.filter(r => (r.status || 'Open') === col.key);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'rounded-3xl border border-slate-800 bg-slate-950/40 p-4';
-        wrapper.innerHTML = `
-          <div class="mb-3 flex items-center justify-between">
-            <p class="text-sm font-black text-white">${col.label}</p>
-            <span class="rounded-full border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs font-bold text-slate-300">${bucket.length}</span>
-          </div>
-          <div class="space-y-3" id="col-${col.key.replace(/\s/g,'-')}"></div>
-        `;
-        columnsEl.appendChild(wrapper);
-
-        const stack = wrapper.querySelector('div[id^="col-"]');
-        for (const r of bucket) {
-          const card = document.createElement('button');
-          card.type = 'button';
-          card.className = 'w-full rounded-3xl border border-slate-800 bg-slate-900/50 p-4 text-left transition hover:bg-slate-900/70';
-          card.innerHTML = `
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-black text-white">${r.company_name || 'Company —'}</p>
-                <p class="mt-1 text-xs text-slate-400">${r.shortvin || 'VIN —'}</p>
-              </div>
-              <i data-lucide="chevron-right" class="h-4 w-4 text-slate-400"></i>
-            </div>
-            <p class="mt-3 text-sm text-slate-200">${r.doc || 'Doc —'}</p>
-            <p class="mt-2 text-xs text-slate-400">Request: ${fmtDate(r['request date'])}</p>
-          `;
-          card.addEventListener('click', () => openModal(r));
-          stack.appendChild(card);
-        }
-      }
-
-      lucide.createIcons();
-    }
-
-    function render() {
-      buildHeaderAndFilters();
-
-      const maxPage = Math.max(1, Math.ceil((state.total || 0) / PAGE_SIZE));
-      if (state.page > maxPage) state.page = maxPage;
-
-      const filteredSorted = applyAllClientFiltersSort(state.items);
-
-      if (state.loading) {
-        resultsMeta.textContent = 'Loading...';
-      } else if (state.lastError) {
-        resultsMeta.textContent = `Error: ${state.lastError}`;
-      } else {
-        resultsMeta.textContent = `${filteredSorted.length} shown • ${state.total} total`;
-      }
-
-      pageMeta.textContent = `Page ${state.page} of ${maxPage}`;
-      prevPageBtn.disabled = state.page === 1 || state.loading;
-      nextPageBtn.disabled = state.page === maxPage || state.loading;
-
-      if (state.view === 'table') renderTable(filteredSorted);
-      if (state.view === 'kanban') renderKanban(filteredSorted);
-    }
-
-    // Modal
-    function openModal(item = null) {
-      formError.textContent = '';
-
-      const isEdit = !!item;
-      modalTitle.textContent = isEdit ? 'Edit request' : 'New request';
-      deleteBtn.classList.toggle('hidden', !isEdit);
-
-      requestId.value = item?.id || '';
-      companyNameInput.value = item?.company_name || '';
-      companyPhoneInput.value = item?.['company phone'] || '';
-      docInput.value = item?.doc || '';
-      unitTypeInput.value = item?.unittype || '';
-      brandInput.value = item?.brand || '';
-      modelInput.value = item?.model || '';
-      modelYearInput.value = item?.['model year'] || '';
-      shortVinInput.value = item?.shortvin || '';
-      statusInput.value = item?.status || 'Open';
-      quoteInput.value = item?.quote || '';
-      requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
-      workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
-      shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : '';
-      pocNameInput.value = item?.['poc name'] || '';
-      pocPhoneInput.value = item?.['poc phone'] || '';
-      confirmedInput.value = item?.confirmed ?? '';
-      stateInput.value = item?.state || '';
-      cityInput.value = item?.city || '';
-      zipInput.value = item?.zip || '';
-      addressInput.value = item?.address || '';
-
-      modalOverlay.classList.remove('hidden');
-      modalOverlay.classList.add('flex');
-      lucide.createIcons();
-    }
-
-    function closeModal() {
-      modalOverlay.classList.add('hidden');
-      modalOverlay.classList.remove('flex');
-    }
-
-    // Events
-    document.querySelectorAll('.viewBtn').forEach(btn => {
-      btn.addEventListener('click', () => setView(btn.dataset.view));
-    });
-
-    document.querySelectorAll('.filterChip').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const f = btn.dataset.filter;
-        state.filterStatus = (state.filterStatus === f) ? null : f;
-        document.querySelectorAll('.filterChip').forEach(x => x.classList.remove('bg-blue-600','text-white','border-blue-600'));
-        if (state.filterStatus === f) btn.classList.add('bg-blue-600','text-white','border-blue-600');
-        render();
-      });
-    });
-
-    searchInput.addEventListener('input', (e) => {
-      state.search = e.target.value.trim();
-      render();
-    });
-
-    prevPageBtn.addEventListener('click', async () => {
-      if (state.page > 1) {
-        state.page--;
-        await loadRequests();
-      }
-    });
-
-    nextPageBtn.addEventListener('click', async () => {
-      const maxPage = Math.max(1, Math.ceil((state.total || 0) / PAGE_SIZE));
-      if (state.page < maxPage) {
-        state.page++;
-        await loadRequests();
-      }
-    });
-
-    newRequestBtn.addEventListener('click', () => openModal(null));
-    modalClose.addEventListener('click', closeModal);
-    modalOverlay.addEventListener('click', (e) => {
-      if (e.target === modalOverlay) closeModal();
-    });
-
-    deleteBtn.addEventListener('click', async () => {
-      try {
-        const id = requestId.value;
-        if (!id) return;
-        await deleteRequestRow(id);
-        closeModal();
-        await loadRequests();
-      } catch (err) {
-        console.error(err);
-        formError.textContent = 'Could not delete. Check permissions (RLS) and table name.';
-      }
-    });
-
-    requestForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      formError.textContent = '';
-
-      if (!state.client) {
-        formError.textContent = 'Supabase client not found. Check that supabase-js loaded.';
-        return;
-      }
-
-      const payload = {
-        id: requestId.value || undefined,
-        company_name: companyNameInput.value.trim() || null,
-        'company phone': companyPhoneInput.value.trim() || null,
-        doc: docInput.value.trim() || null,
-        unittype: unitTypeInput.value.trim() || null,
-        brand: brandInput.value.trim() || null,
-        model: modelInput.value.trim() || null,
-        'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
-        shortvin: shortVinInput.value.trim() || null,
-        status: statusInput.value,
-        quote: quoteInput.value.trim() || null,
-        'request date': requestDateInput.value || null,
-        workdate: workDateInput.value || null,
-        'shipping date': shippingDateInput.value || null,
-        'poc name': pocNameInput.value.trim() || null,
-        'poc phone': pocPhoneInput.value.trim() || null,
-        confirmed: confirmedInput.value || null,
-        state: stateInput.value.trim() || null,
-        city: cityInput.value.trim() || null,
-        zip: zipInput.value.trim() || null,
-        address: addressInput.value.trim() || null,
-      };
-
-      try {
-        await upsertRequest(payload);
-        closeModal();
-        await loadRequests();
-      } catch (err) {
-        console.error(err);
-        formError.textContent = `Could not save. ${err?.message || 'Check table columns + RLS policies.'}`;
-      }
-    });
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      createConstellationBackground();
-      lucide.createIcons();
-
-      // init filter defaults
-      TABLE_COLUMNS.forEach(c => state.colFilters[c.key] = '');
-
-      state.client = getClient();
-      await loadRequests();
-    });
-  </script>
-</body>
-</html>
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIm
