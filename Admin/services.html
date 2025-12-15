@@ -32,6 +32,7 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
   <style>
+    /* ✅ PAGE: allow vertical growth (table NOT height-limited), keep everything responsive */
     html, body { width: 100%; height: auto; }
     body { overflow-x: hidden; overflow-y: auto; }
     main { width: 100%; height: auto; overflow: visible; }
@@ -57,22 +58,11 @@
       .mini-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .mini-chart { height: 150px; max-width: 100%; overflow: hidden; }
-    .mini-chart canvas {
-      width: 100% !important;
-      height: 100% !important;
-      display: block;
-      max-width: 100% !important;
-    }
+    .mini-chart canvas { width: 100% !important; height: 100% !important; display: block; max-width: 100% !important; }
 
-    .table-window {
-      display: flex;
-      flex-direction: column;
-      gap: 0.6rem;
-      flex: none;
-      min-height: 0;
-      overflow: visible;
-    }
+    .table-window { display: flex; flex-direction: column; gap: 0.6rem; flex: none; min-height: 0; overflow: visible; }
 
+    /* top horizontal scrollbar */
     .top-scrollbar-shell {
       flex: 0 0 auto;
       position: sticky;
@@ -84,16 +74,12 @@
       border-radius: 0.75rem;
       backdrop-filter: blur(6px);
     }
-    .top-scrollbar {
-      overflow-x: auto;
-      overflow-y: hidden;
-      height: 14px;
-      border-radius: 0.75rem;
-    }
+    .top-scrollbar { overflow-x: auto; overflow-y: hidden; height: 14px; border-radius: 0.75rem; }
     .top-scrollbar::-webkit-scrollbar { height: 12px; }
     .top-scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     .top-scrollbar::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
+    /* ✅ TABLE SCROLLER: ONLY horizontal scroll (no internal vertical scroll) */
     #table-scroll {
       overflow-x: auto;
       overflow-y: visible;
@@ -105,13 +91,9 @@
     #table-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
     #table-scroll::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
 
-    thead.sticky-head th {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      backdrop-filter: blur(8px);
-    }
+    thead.sticky-head th { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
 
+    /* Column resizing handle */
     th.resizable { position: relative; user-select: none; }
     .col-resizer {
       position: absolute;
@@ -148,7 +130,6 @@
       word-break: break-word;
       vertical-align: top;
     }
-
     .th-inner {
       display: flex;
       align-items: center;
@@ -158,7 +139,6 @@
       padding-right: 10px;
       min-width: 0;
     }
-
     .popover {
       position: absolute;
       right: 0;
@@ -166,7 +146,6 @@
       width: min(320px, 92vw);
       z-index: 50;
     }
-
     .compact-th { padding: 0.5rem 0.8rem; }
     .compact-td { padding: 0.5rem 0.8rem; }
     .compact-text { font-size: 12.5px; line-height: 1.25rem; }
@@ -176,7 +155,6 @@
 </head>
 
 <body class="min-h-screen bg-slate-950 text-slate-50 relative">
-
   <!-- EDIT MODAL -->
   <div id="edit-modal" class="fixed inset-0 z-50 hidden flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
     <div class="w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black">
@@ -190,11 +168,10 @@
       <form id="edit-form" class="flex flex-col gap-4 p-6">
         <input type="hidden" id="edit-id" />
 
-        <!-- Keep your fields as-is (optional: expand later) -->
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Company Name</label>
-            <input type="text" id="edit-company_name" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
+            <input type="text" id="edit-company" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" />
           </div>
           <div class="space-y-1">
             <label class="text-xs font-semibold uppercase text-slate-400">Authorization</label>
@@ -322,26 +299,22 @@
           <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
           <h2 class="text-lg font-black text-white">Admin workspace</h2>
         </div>
+
         <nav class="flex flex-col gap-2 text-sm font-semibold">
           <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Dashboard
-            <span class="text-xs font-medium text-slate-400">Overview</span>
+            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
           </a>
           <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Profiles
-            <span class="text-xs font-medium text-slate-400">Access levels</span>
+            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
           </a>
           <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
-            Services
-            <span class="text-xs font-medium text-blue-100">Technicians</span>
+            Services <span class="text-xs font-medium text-blue-100">Technicians</span>
           </a>
           <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Vehicles
-            <span class="text-xs font-medium text-slate-400">Fleet</span>
+            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
           </a>
           <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Analytics
-            <span class="text-xs font-medium text-slate-400">Insights</span>
+            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
           </a>
         </nav>
       </aside>
@@ -355,6 +328,7 @@
             <h2 class="text-2xl font-black text-white">Service roster and coverage</h2>
             <p class="text-sm text-slate-400">Search, filter, sort, reorder, resize columns, and manage your services directory.</p>
           </div>
+
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
             <span id="dataset-status">Connecting…</span>
@@ -414,21 +388,26 @@
                   <select id="company-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All companies</option>
                   </select>
+
                   <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All states</option>
                   </select>
+
                   <select id="category-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All categories</option>
                   </select>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
-                  <input id="search" type="search" placeholder="Search across any field"
-                         class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
+                  <input id="search" type="search"
+                    placeholder="Search by company, category, address, state, or city"
+                    class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
+                  <!-- ✅ COLUMN LIST (FIXED) -->
                   <div class="relative">
                     <button id="columns-btn"
-                            class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+                      class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white"
+                      type="button">
                       <i data-lucide="columns-3" class="h-4 w-4"></i>
                       Columns
                       <i data-lucide="chevron-down" class="h-4 w-4"></i>
@@ -442,21 +421,24 @@
                           <button id="cols-none" type="button" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">None</button>
                         </div>
                       </div>
+
+                      <!-- ✅ THIS IS THE COLUMN LIST -->
                       <div id="columns-list" class="max-h-56 overflow-y-auto px-2 pb-2"></div>
+
                       <p class="px-2 pt-1 text-[11px] text-slate-500">Tip: drag headers to reorder • drag header edge to resize</p>
                     </div>
                   </div>
 
                   <button id="add-record"
-                          class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
-                          data-admin-actions type="button">
+                    class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 shadow shadow-emerald-600/30 transition hover:-translate-y-0.5"
+                    data-admin-actions type="button">
                     <i data-lucide="plus" class="h-4 w-4"></i>
                     New record
                   </button>
 
                   <button id="refresh-button"
-                          class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5"
-                          type="button">
+                    class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5"
+                    type="button">
                     <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
                     Refresh
                   </button>
@@ -473,12 +455,14 @@
             <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
               <div class="flex items-center gap-2">
-                <button id="prev-page" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <button id="prev-page" type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
                   <i data-lucide="chevron-left" class="h-4 w-4"></i>
                   Prev
                 </button>
                 <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
-                <button id="next-page" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <button id="next-page" type="button"
+                  class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
                   Next
                   <i data-lucide="chevron-right" class="h-4 w-4"></i>
                 </button>
@@ -486,12 +470,14 @@
             </div>
 
             <div class="table-window">
+              <!-- TOP horizontal scrollbar -->
               <div class="top-scrollbar-shell">
                 <div id="top-scrollbar" class="top-scrollbar">
                   <div id="top-scrollbar-inner" style="height:1px;"></div>
                 </div>
               </div>
 
+              <!-- TABLE -->
               <div id="table-scroll" class="w-full border border-slate-800 bg-slate-950/25">
                 <table id="services-table" class="fixed-layout divide-y divide-slate-800 compact-text">
                   <colgroup id="colgroup"></colgroup>
@@ -503,6 +489,7 @@
 
           </div>
         </section>
+
       </section>
     </div>
   </main>
@@ -511,42 +498,39 @@
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
-    const SUPABASE_KEY = 'REPLACE_WITH_ENV_OR_SERVER_KEY';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
 
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
+    const PAGE_CATEGORY = 'GPS Technician';
 
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const getField = (row, key) => {
-      const v = row?.[key];
-      if (v === undefined || v === null) return '';
-      const s = String(v).trim();
-      return s === '' ? '' : s;
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row[key];
+        if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+      }
+      return '';
     };
 
-    // ✅ Normalize: map ALL origin columns (exact names you gave)
     const normalizeRow = (row) => ({
       id: row.id,
-
-      company_name: getField(row, 'company_name'),
-      region: getField(row, 'region'),
-      phone: getField(row, 'phone'),
-      contact: getField(row, 'contact'),
-      email: getField(row, 'email'),
-      website: getField(row, 'website'),
-      availability: getField(row, 'availability'),
-      notes: getField(row, 'notes'),
-      city: getField(row, 'city'),
-      state: getField(row, 'state'),
-      zip: getField(row, 'zip'),
-      category: getField(row, 'category'),
-      type: getField(row, 'type'),
-      authorization: getField(row, 'authorization'),
-      address: getField(row, 'address'),
-      status: getField(row, 'status'),
-      lat: getField(row, 'lat'),
-      long: getField(row, 'long'),
+      company: getField(row, 'company_name', 'Installation Company', 'Company', 'company', 'name'),
+      authorization: getField(row, 'Authorization', 'authorization'),
+      category: getField(row, 'category', 'Category'),
+      phone: getField(row, 'Phone', 'phone'),
+      contact: getField(row, 'contact', 'Contact'),
+      address: getField(row, 'address', 'Address'),
+      city: getField(row, 'City', 'city'),
+      state: getField(row, 'State', 'state', 'state_code'),
+      zip: getField(row, 'Zip', 'zip', 'zipcode', 'postal_code'),
+      email: getField(row, 'Email', 'email'),
+      notes: getField(row, 'Notes', 'notes'),
+      website: getField(row, 'website', 'Website'),
+      availability: getField(row, 'availability', 'Availability'),
+      lat: getField(row, 'lat', 'latitude', 'Lat'),
+      long: getField(row, 'long', 'lng', 'longitude', 'Lon'),
     });
 
     const els = {
@@ -554,7 +538,6 @@
       total: document.getElementById('tech-total'),
       states: document.getElementById('tech-states'),
       companies: document.getElementById('tech-companies'),
-
       companyFilter: document.getElementById('company-filter'),
       stateFilter: document.getElementById('state-filter'),
       categoryFilter: document.getElementById('category-filter'),
@@ -572,8 +555,8 @@
       colgroup: document.getElementById('colgroup'),
       thead: document.getElementById('table-head'),
       tbody: document.getElementById('table-body'),
-      tableScroll: document.getElementById('table-scroll'),
 
+      tableScroll: document.getElementById('table-scroll'),
       topScrollbar: document.getElementById('top-scrollbar'),
       topScrollbarInner: document.getElementById('top-scrollbar-inner'),
 
@@ -587,28 +570,23 @@
       closeModal: document.getElementById('close-modal'),
       cancelEdit: document.getElementById('cancel-edit'),
       editForm: document.getElementById('edit-form'),
-
       analyticsWrap: document.getElementById('analytics-wrap'),
     };
 
-    // ✅ ALL origin columns are listed here (these drive the Columns dropdown)
     const ALL_COLUMNS = [
-      { id: 'company_name', label: 'Company Name', key: 'company_name', defaultWidth: 240 },
-      { id: 'region', label: 'Region', key: 'region', defaultWidth: 120 },
+      { id: 'company', label: 'Company Name', key: 'company', defaultWidth: 220 },
+      { id: 'authorization', label: 'Authorization', key: 'authorization', defaultWidth: 160 },
+      { id: 'category', label: 'Category', key: 'category', defaultWidth: 170 },
       { id: 'phone', label: 'Phone', key: 'phone', defaultWidth: 150 },
       { id: 'contact', label: 'Contact', key: 'contact', defaultWidth: 160 },
-      { id: 'email', label: 'Email', key: 'email', defaultWidth: 240 },
-      { id: 'website', label: 'Website', key: 'website', defaultWidth: 220 },
-      { id: 'availability', label: 'Availability', key: 'availability', defaultWidth: 180 },
-      { id: 'notes', label: 'Notes', key: 'notes', defaultWidth: 260 },
+      { id: 'address', label: 'Address', key: 'address', defaultWidth: 260 },
       { id: 'city', label: 'City', key: 'city', defaultWidth: 140 },
       { id: 'state', label: 'State', key: 'state', defaultWidth: 100 },
-      { id: 'zip', label: 'ZIP', key: 'zip', defaultWidth: 100 },
-      { id: 'category', label: 'Category', key: 'category', defaultWidth: 170 },
-      { id: 'type', label: 'Type', key: 'type', defaultWidth: 140 },
-      { id: 'authorization', label: 'Authorization', key: 'authorization', defaultWidth: 160 },
-      { id: 'address', label: 'Address', key: 'address', defaultWidth: 280 },
-      { id: 'status', label: 'Status', key: 'status', defaultWidth: 130 },
+      { id: 'zip', label: 'Zip', key: 'zip', defaultWidth: 100 },
+      { id: 'email', label: 'Email', key: 'email', defaultWidth: 240 },
+      { id: 'notes', label: 'Notes', key: 'notes', defaultWidth: 260 },
+      { id: 'website', label: 'Website', key: 'website', defaultWidth: 220 },
+      { id: 'availability', label: 'Availability', key: 'availability', defaultWidth: 180 },
       { id: 'lat', label: 'Lat', key: 'lat', defaultWidth: 120 },
       { id: 'long', label: 'Long', key: 'long', defaultWidth: 120 },
     ];
@@ -617,7 +595,6 @@
       rows: [],
       currentUserRole: 'user',
       currentUserId: 'anon',
-
       filters: { search: '', company: 'all', state: 'all', category: 'all' },
       sort: { key: '', dir: 'asc' },
       pagination: { page: 1, pageSize: 20 },
@@ -629,10 +606,13 @@
       drag: { resizing: null, draggingCol: null },
     };
 
-    // ================== PERSISTENCE ==================
-    const STORAGE_PREFIX = 'techloc_services_table_prefs_v2';
+    // ================== PERSISTENCE (per profile) ==================
+    const STORAGE_PREFIX = 'techloc_services_table_prefs_v1';
     const storageKey = () => `${STORAGE_PREFIX}:${state.currentUserId}`;
-    const safeParse = (raw) => { try { return JSON.parse(raw); } catch { return null; } };
+
+    const safeParse = (raw) => {
+      try { return JSON.parse(raw); } catch { return null; }
+    };
 
     const savePrefs = () => {
       localStorage.setItem(storageKey(), JSON.stringify({
@@ -678,7 +658,6 @@
 
       if (data?.session) {
         state.currentUserId = data.session.user.id;
-
         if (window.currentUserRole) {
           state.currentUserRole = window.currentUserRole;
         } else {
@@ -717,7 +696,7 @@
     const updateStats = () => {
       const total = state.rows.length;
       const statesCount = new Set(state.rows.map(r => (r.state || '').trim()).filter(Boolean)).size;
-      const companiesCount = new Set(state.rows.map(r => (r.company_name || '').trim()).filter(Boolean)).size;
+      const companiesCount = new Set(state.rows.map(r => (r.company || '').trim()).filter(Boolean)).size;
 
       els.total.textContent = total;
       els.states.textContent = statesCount;
@@ -728,6 +707,7 @@
     const populateSelect = (element, values, label) => {
       const options = Array.from(new Set(values.filter(Boolean).map(v => getText(v)))).sort();
       const current = element.value;
+
       element.innerHTML = `<option value="all">${label}</option>`;
       options.forEach((value) => {
         const option = document.createElement('option');
@@ -759,27 +739,27 @@
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const q = term.toLowerCase();
-
-      // ✅ Search across ALL origin columns
-      const keys = ALL_COLUMNS.map(c => c.key);
-      return rows.filter((row) => keys.some((k) => String(row[k] || '').toLowerCase().includes(q)));
+      return rows.filter((row) =>
+        [
+          row.company, row.authorization, row.category, row.phone, row.contact,
+          row.address, row.city, row.state, row.zip, row.email, row.notes,
+          row.website, row.availability
+        ].some((v) => String(v || '').toLowerCase().includes(q))
+      );
     };
 
     const applyFilters = () => {
       const f = state.filters;
       let result = applySearch([...state.rows], f.search);
-
-      if (f.company !== 'all') result = result.filter(r => getText(r.company_name) === f.company);
+      if (f.company !== 'all') result = result.filter(r => getText(r.company) === f.company);
       if (f.state !== 'all') result = result.filter(r => getText(r.state) === f.state);
       if (f.category !== 'all') result = result.filter(r => getText(r.category) === f.category);
-
       return result;
     };
 
     const applySort = (rows) => {
       const { key, dir } = state.sort;
       if (!key) return rows;
-
       const col = ALL_COLUMNS.find(c => c.id === key);
       if (!col) return rows;
 
@@ -792,7 +772,8 @@
       return dir === 'asc' ? sorted : sorted.reverse();
     };
 
-    const getVisibleOrderedColumns = () => state.columnOrder.filter(colId => state.columnVisibility[colId]);
+    const getVisibleOrderedColumns = () =>
+      state.columnOrder.filter(colId => state.columnVisibility[colId]);
 
     // ---------------- TABLE RENDER ----------------
     const renderColgroup = () => {
@@ -808,7 +789,7 @@
 
     const setColWidth = (colId, px) => {
       const min = 72;
-      const max = 900;
+      const max = 800;
       state.columnWidths[colId] = Math.max(min, Math.min(max, px));
 
       const colEl = els.colgroup.querySelector(`col[data-col="${colId}"]`);
@@ -873,10 +854,9 @@
           <div class="flex items-center gap-2 min-w-0">
             <span class="truncate">${label}</span>
           </div>
-
           <button type="button"
-                  class="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-950/50 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-blue-500 hover:text-white"
-                  data-sort-col="${colId}" title="Sort">
+            class="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-950/50 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-blue-500 hover:text-white"
+            data-sort-col="${colId}" title="Sort">
             <i data-lucide="${sortIcon(colId)}" class="h-3.5 w-3.5"></i>
           </button>
         </div>
@@ -893,6 +873,7 @@
       els.thead.innerHTML = '';
       els.thead.appendChild(tr);
 
+      // drag reorder
       els.thead.querySelectorAll('th[draggable="true"]').forEach((th) => {
         th.addEventListener('dragstart', (e) => {
           const colId = th.dataset.col;
@@ -931,12 +912,12 @@
           order.splice(fromIdx, 1);
           order.splice(toIdx, 0, from);
           state.columnOrder = order;
-
           savePrefs();
           renderTable();
         });
       });
 
+      // header sort buttons
       els.thead.querySelectorAll('[data-sort-col]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -964,6 +945,7 @@
 
           if (colId === 'actions') {
             td.className = 'text-center align-top compact-td';
+
             if (canEdit) {
               const editBtn = document.createElement('button');
               editBtn.type = 'button';
@@ -983,14 +965,17 @@
             } else {
               td.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
             }
+
             tr.appendChild(td);
             return;
           }
 
           const col = ALL_COLUMNS.find(c => c.id === colId);
           const value = col ? row[col.key] : '';
-          if (colId === 'company_name') td.className = 'font-semibold text-white align-top compact-td';
+
+          if (colId === 'company') td.className = 'font-semibold text-white align-top compact-td';
           td.textContent = value || '—';
+
           tr.appendChild(td);
         });
 
@@ -1026,20 +1011,20 @@
     const renderTable = () => {
       const filtered = applyFilters();
       const sorted = applySort(filtered);
-
       const { start, end } = renderPagination(sorted);
 
       renderColgroup();
       renderHeader();
       renderBody(sorted.slice(start, end));
-      renderColumnsPopover();
+
+      renderColumnsPopover();   // ✅ ensures the column list is always correct
       syncTopScrollbar();
       renderCharts(sorted);
 
       lucide.createIcons();
     };
 
-    // ---------------- RESIZE ----------------
+    // ---------------- RESIZE (drag border) ----------------
     const onMouseMoveResize = (e) => {
       if (!state.drag.resizing) return;
       const { colId, startX, startW } = state.drag.resizing;
@@ -1066,21 +1051,20 @@
         const colId = handle.getAttribute('data-resize');
         const th = handle.closest('th');
         const thWidth = th ? parseFloat(getComputedStyle(th).width) : 0;
-
-        const startWidth = Number.isFinite(state.columnWidths[colId])
-          ? state.columnWidths[colId]
-          : (thWidth || 140);
+        const startWidth = Number.isFinite(state.columnWidths[colId]) ? state.columnWidths[colId] : (thWidth || 140);
 
         state.drag.resizing = { colId, startX: e.clientX, startW: startWidth };
-
         document.body.style.cursor = 'col-resize';
+
         document.addEventListener('mousemove', onMouseMoveResize);
         document.addEventListener('mouseup', stopResize);
       });
     };
 
-    // ---------------- COLUMN PICKER ----------------
+    // ---------------- COLUMN PICKER (FIXED WHOLE FEATURE) ----------------
     const renderColumnsPopover = () => {
+      if (!els.columnsList) return;
+
       els.columnsList.innerHTML = '';
 
       const makeRow = (colId, label, locked = false) => {
@@ -1102,7 +1086,10 @@
 
         input.addEventListener('change', () => {
           state.columnVisibility[colId] = input.checked;
+
+          // actions must always stay visible
           state.columnVisibility.actions = true;
+
           savePrefs();
           renderTable();
         });
@@ -1112,17 +1099,23 @@
         return wrapper;
       };
 
+      // actions locked
       els.columnsList.appendChild(makeRow('actions', 'Actions', true));
+      // normal columns
       ALL_COLUMNS.forEach((c) => els.columnsList.appendChild(makeRow(c.id, c.label)));
+
       lucide.createIcons();
     };
 
     const toggleColumnsPopover = (force) => {
+      if (!els.columnsPopover) return;
+
       const willShow = typeof force === 'boolean'
         ? force
         : els.columnsPopover.classList.contains('hidden');
 
       els.columnsPopover.classList.toggle('hidden', !willShow);
+
       if (willShow) renderColumnsPopover();
     };
 
@@ -1131,20 +1124,20 @@
       if (!inside) toggleColumnsPopover(false);
     });
 
-    els.columnsBtn.addEventListener('click', (e) => {
+    els.columnsBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleColumnsPopover();
     });
 
-    els.colsAll.addEventListener('click', () => {
-      Object.keys(state.columnVisibility).forEach((k) => { state.columnVisibility[k] = true; });
+    els.colsAll?.addEventListener('click', () => {
+      Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = true);
       state.columnVisibility.actions = true;
       savePrefs();
       renderTable();
     });
 
-    els.colsNone.addEventListener('click', () => {
-      Object.keys(state.columnVisibility).forEach((k) => { state.columnVisibility[k] = false; });
+    els.colsNone?.addEventListener('click', () => {
+      Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = false);
       state.columnVisibility.actions = true;
       savePrefs();
       renderTable();
@@ -1228,18 +1221,15 @@
       const catValues = topCats.map(([, v]) => v);
 
       const palette = [
-        'rgba(59,130,246,.55)',
-        'rgba(99,102,241,.55)',
-        'rgba(16,185,129,.55)',
-        'rgba(245,158,11,.55)',
-        'rgba(236,72,153,.55)',
-        'rgba(148,163,184,.45)',
-        'rgba(34,197,94,.45)',
-        'rgba(14,165,233,.45)',
+        'rgba(59,130,246,.55)', 'rgba(99,102,241,.55)', 'rgba(16,185,129,.55)',
+        'rgba(245,158,11,.55)', 'rgba(236,72,153,.55)', 'rgba(148,163,184,.45)',
+        'rgba(34,197,94,.45)', 'rgba(14,165,233,.45)',
       ];
 
       const ctxStates = document.getElementById('chart-states');
       const ctxCats = document.getElementById('chart-categories');
+
+      if (!ctxStates || !ctxCats) return;
 
       if (chartStates) chartStates.destroy();
       if (chartCategories) chartCategories.destroy();
@@ -1330,7 +1320,6 @@
     // ---------------- DATA FETCH ----------------
     const refresh = async () => {
       els.status.textContent = 'Loading from Supabase…';
-
       const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
       if (error) {
         console.error('Error fetching services:', error);
@@ -1341,7 +1330,7 @@
       state.rows = (data || []).map(normalizeRow);
 
       updateStats();
-      populateSelect(els.companyFilter, state.rows.map(r => r.company_name), 'All companies');
+      populateSelect(els.companyFilter, state.rows.map(r => r.company), 'All companies');
       populateSelect(els.stateFilter, state.rows.map(r => r.state), 'All states');
       populateSelect(els.categoryFilter, state.rows.map(r => r.category), 'All categories');
 
@@ -1352,9 +1341,9 @@
     // ---------------- MODAL FUNCTIONS ----------------
     function setFormValues(row = {}) {
       document.getElementById('edit-id').value = row.id || '';
-      document.getElementById('edit-company_name').value = row.company_name || '';
+      document.getElementById('edit-company').value = row.company || '';
       document.getElementById('edit-authorization').value = row.authorization || '';
-      document.getElementById('edit-category').value = row.category || '';
+      document.getElementById('edit-category').value = row.category || PAGE_CATEGORY;
       document.getElementById('edit-phone').value = row.phone || '';
       document.getElementById('edit-contact').value = row.contact || '';
       document.getElementById('edit-email').value = row.email || '';
@@ -1386,7 +1375,7 @@
         return;
       }
       document.getElementById('modal-title').textContent = 'Add new record';
-      setFormValues({});
+      setFormValues({ category: PAGE_CATEGORY });
       els.modal.classList.remove('hidden');
       els.modal.classList.add('flex');
     }
@@ -1405,7 +1394,8 @@
         alert('Only administrators can delete records.');
         return;
       }
-      const confirmed = confirm(`Delete "${row.company_name}"?`);
+
+      const confirmed = confirm(`Delete "${row.company}"?`);
       if (!confirmed) return;
 
       const { error } = await supabaseClient.from(WRITE_TABLE).delete().eq('id', row.id);
@@ -1413,10 +1403,11 @@
       else refresh();
     }
 
+    // ✅ Robust save
     const withTimeout = (promise, ms = 20000) => {
       let t;
       const timeout = new Promise((_, reject) => {
-        t = setTimeout(() => reject(new Error(`Request timed out after ${ms/1000}s`)), ms);
+        t = setTimeout(() => reject(new Error(`Request timed out after ${ms / 1000}s`)), ms);
       });
       return Promise.race([promise, timeout]).finally(() => clearTimeout(t));
     };
@@ -1431,20 +1422,18 @@
 
       const btn = els.editForm.querySelector('button[type="submit"]');
       const originalText = btn.textContent;
-
       if (btn.dataset.busy === '1') return;
-      btn.dataset.busy = '1';
 
+      btn.dataset.busy = '1';
       btn.textContent = 'Saving...';
       btn.disabled = true;
 
       try {
         const id = document.getElementById('edit-id').value;
-
         const payload = {
-          company_name: document.getElementById('edit-company_name').value,
+          company_name: document.getElementById('edit-company').value,
           authorization: document.getElementById('edit-authorization').value,
-          category: document.getElementById('edit-category').value,
+          category: document.getElementById('edit-category').value || PAGE_CATEGORY,
           phone: document.getElementById('edit-phone').value,
           contact: document.getElementById('edit-contact').value,
           email: document.getElementById('edit-email').value,
@@ -1457,12 +1446,14 @@
           availability: document.getElementById('edit-availability').value,
           lat: document.getElementById('edit-lat').value,
           long: document.getElementById('edit-long').value,
-          // NOTE: if you want region/type/status editable, add fields in modal + here
         };
 
         let res;
-        if (id) res = await withTimeout(supabaseClient.from(WRITE_TABLE).update(payload).eq('id', id), 20000);
-        else res = await withTimeout(supabaseClient.from(WRITE_TABLE).insert([payload]), 20000);
+        if (id) {
+          res = await withTimeout(supabaseClient.from(WRITE_TABLE).update(payload).eq('id', id), 20000);
+        } else {
+          res = await withTimeout(supabaseClient.from(WRITE_TABLE).insert([payload]), 20000);
+        }
 
         const { error } = res || {};
         if (error) {
@@ -1484,19 +1475,44 @@
     });
 
     // ---------------- EVENTS ----------------
-    els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; renderTable(); });
-    els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; renderTable(); });
-    els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; renderTable(); });
-    els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; renderTable(); });
+    els.companyFilter.addEventListener('change', (e) => {
+      state.filters.company = e.target.value;
+      state.pagination.page = 1;
+      renderTable();
+    });
+
+    els.stateFilter.addEventListener('change', (e) => {
+      state.filters.state = e.target.value;
+      state.pagination.page = 1;
+      renderTable();
+    });
+
+    els.categoryFilter.addEventListener('change', (e) => {
+      state.filters.category = e.target.value;
+      state.pagination.page = 1;
+      renderTable();
+    });
+
+    els.search.addEventListener('input', (e) => {
+      state.filters.search = e.target.value;
+      state.pagination.page = 1;
+      renderTable();
+    });
 
     els.prevPage.addEventListener('click', () => {
-      if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); }
+      if (state.pagination.page > 1) {
+        state.pagination.page -= 1;
+        renderTable();
+      }
     });
 
     els.nextPage.addEventListener('click', () => {
       const total = applySort(applyFilters()).length;
       const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
-      if (state.pagination.page < totalPages) { state.pagination.page += 1; renderTable(); }
+      if (state.pagination.page < totalPages) {
+        state.pagination.page += 1;
+        renderTable();
+      }
     });
 
     els.refresh.addEventListener('click', refresh);
@@ -1506,15 +1522,12 @@
     const init = async () => {
       createConstellationBackground();
       await requireSession();
-
       attachResizeHandles();
       attachScrollSync();
       attachAnalyticsResizeObserver();
-
       await refresh();
       renderColumnsPopover();
       syncTopScrollbar();
-
       lucide.createIcons();
     };
 
