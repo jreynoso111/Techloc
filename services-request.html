@@ -205,19 +205,67 @@
       </div>
     </section>
 
+    <!-- Kanban -->
     <section id="kanbanView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
-      <div class="mb-4 flex items-center justify-between">
-        <p class="text-sm font-bold text-white">Kanban</p>
-        <p class="text-xs text-slate-400">Drag & drop can be added next (Phase 2).</p>
+      <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-bold text-white">Kanban</p>
+          <p class="text-xs text-slate-400 lg:hidden">Uses your status values.</p>
+        </div>
+
+        <!-- Time filter bar -->
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+          <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-2">
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Date</span>
+              <select id="kbDateField" class="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600">
+                <option value="auto">Auto</option>
+                <option value="request">Request date</option>
+                <option value="work">Work date</option>
+                <option value="shipping">Shipping date</option>
+              </select>
+            </div>
+
+            <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button data-kb-range="today" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">Today</button>
+              <button data-kb-range="7d" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">7d</button>
+              <button data-kb-range="30d" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">30d</button>
+              <button data-kb-range="90d" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">90d</button>
+              <button data-kb-range="thisMonth" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">This month</button>
+              <button data-kb-range="all" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">All</button>
+              <button data-kb-range="custom" class="kbRangeBtn rounded-full border border-slate-800 bg-slate-950/30 px-3 py-1 text-xs font-bold text-slate-200 hover:bg-slate-800/60">Custom</button>
+            </div>
+
+            <div id="kbCustomWrap" class="hidden w-full flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:w-auto">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">From</span>
+                <input id="kbFrom" type="date" class="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">To</span>
+                <input id="kbTo" type="date" class="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <p id="kbMeta" class="text-xs text-slate-400">—</p>
+        </div>
       </div>
+
       <div class="grid gap-4 md:grid-cols-4" id="kanbanColumns"></div>
     </section>
 
+    <!-- Calendar -->
     <section id="calendarView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
       <div class="space-y-2">
         <p class="text-sm font-bold text-white">Calendar</p>
         <p class="text-sm text-slate-300">Request, work, or shipping dates summarized for quick planning.</p>
-        <div id="calendarList" class="grid gap-3 md:grid-cols-2"></div>
+
+        <!-- IMPORTANT: this must be a normal block container (NOT a grid),
+             because renderCalendarView injects its own grid -->
+        <div id="calendarList" class="space-y-3"></div>
       </div>
     </section>
 
@@ -383,7 +431,6 @@
       });
     }
 
-    // ✅ mm/dd/yy only for date cols
     function fmtDate(v) {
       if (!v) return '—';
       const d = new Date(v);
@@ -394,7 +441,6 @@
       return `${mm}/${dd}/${yy}`;
     }
 
-    // ✅ USD formatting for quote
     function fmtUSD(value) {
       if (value === null || value === undefined || value === '') return '—';
       const n = Number(value);
@@ -417,7 +463,84 @@
       return String(v).toLowerCase();
     }
 
-    // ✅ "phones" = company phone ONLY
+    // --- Status canonicalization (fix "invented" columns) ---
+    const CANON_STATUSES = ['Open', 'In Progress', 'Waiting', 'Closed'];
+
+    function canonicalizeStatus(raw) {
+      const s = String(raw ?? '').trim();
+      if (!s) return null;
+
+      const t = s.toLowerCase().replace(/\s+/g, ' ').trim();
+
+      // common variants -> canonical
+      if (t === 'open' || t === 'new') return 'Open';
+
+      if (
+        t === 'in progress' ||
+        t === 'inprogress' ||
+        t === 'in-progress' ||
+        t === 'progress' ||
+        t === 'working'
+      ) return 'In Progress';
+
+      if (
+        t === 'waiting' ||
+        t === 'on hold' ||
+        t === 'hold' ||
+        t === 'pending' ||
+        t === 'awaiting' ||
+        t === 'awaiting parts'
+      ) return 'Waiting';
+
+      if (
+        t === 'closed' ||
+        t === 'done' ||
+        t === 'completed' ||
+        t === 'complete' ||
+        t === 'resolved'
+      ) return 'Closed';
+
+      // if it already matches one of the canonical labels (case-insensitive)
+      const exact = CANON_STATUSES.find(x => x.toLowerCase() === t);
+      if (exact) return exact;
+
+      // unknown: keep original (trimmed) but stable
+      return s;
+    }
+
+    // Time filter helpers (Kanban only)
+    function startOfDay(ts) {
+      const d = new Date(ts);
+      d.setHours(0,0,0,0);
+      return d.getTime();
+    }
+    function endOfDay(ts) {
+      const d = new Date(ts);
+      d.setHours(23,59,59,999);
+      return d.getTime();
+    }
+    function startOfMonth(ts) {
+      const d = new Date(ts);
+      return new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0).getTime();
+    }
+    function endOfMonth(ts) {
+      const d = new Date(ts);
+      return new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999).getTime();
+    }
+
+    function getRowDateTs(row, mode) {
+      const req = row['request date'] || row.request_date;
+      const work = row.workdate || row['work date'] || row.work_date;
+      const ship = row['shipping date'] || row.shipping_date;
+
+      if (mode === 'request') return parseMaybeDate(req);
+      if (mode === 'work') return parseMaybeDate(work);
+      if (mode === 'shipping') return parseMaybeDate(ship);
+
+      // auto: use best available
+      return parseMaybeDate(ship) ?? parseMaybeDate(work) ?? parseMaybeDate(req);
+    }
+
     const BASE_COLUMN_DEFS = [
       { key: 'company_name', label: 'Company Name', filter: 'text', defaultWidth: 220 },
       { key: 'phones', label: 'Phones', filter: 'text', defaultWidth: 200, virtual: true },
@@ -443,6 +566,12 @@
     const state = {
       view: 'table',
       filterStatus: null,
+
+      // Kanban time filter
+      kbDateField: 'auto',     // auto | request | work | shipping
+      kbRange: 'all',          // all | today | 7d | 30d | 90d | thisMonth | custom
+      kbFrom: null,            // yyyy-mm-dd string
+      kbTo: null,              // yyyy-mm-dd string
 
       client: null,
       loading: false,
@@ -526,6 +655,13 @@
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteBtn');
 
+    // Kanban filter UI
+    const kbDateField = document.getElementById('kbDateField');
+    const kbMeta = document.getElementById('kbMeta');
+    const kbCustomWrap = document.getElementById('kbCustomWrap');
+    const kbFrom = document.getElementById('kbFrom');
+    const kbTo = document.getElementById('kbTo');
+
     const statusPill = (status) => {
       const map = {
         'Open': 'bg-slate-800 text-slate-100 border-slate-700',
@@ -533,27 +669,33 @@
         'Waiting': 'bg-amber-600/20 text-amber-200 border-amber-700/40',
         'Closed': 'bg-emerald-600/20 text-emerald-200 border-emerald-700/40',
       };
-      const cls = map[status] || 'bg-slate-800 text-slate-100 border-slate-700';
-      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${escapeHtml(status || '—')}</span>`;
+      const canonical = canonicalizeStatus(status);
+      const cls = map[canonical] || 'bg-slate-800 text-slate-100 border-slate-700';
+      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${escapeHtml(canonical || '—')}</span>`;
     };
 
     function normalizeRow(raw) {
       const companyPhone = raw?.['company phone'] ?? raw?.company_phone ?? null;
       const pocPhone = raw?.['poc phone'] ?? raw?.poc_phone ?? null;
 
+      // Make sure status is stable even if DB column naming varies
+      const statusRaw = raw?.status ?? raw?.Status ?? raw?.['status'] ?? raw?.service_status ?? raw?.request_status ?? null;
+      const status = canonicalizeStatus(statusRaw) || null;
+
       return {
         ...raw,
+        status,
+
         'company phone': companyPhone,
         unittype: raw?.unittype ?? raw?.unit_type ?? null,
         'model year': raw?.['model year'] ?? raw?.model_year ?? null,
         shortvin: raw?.shortvin ?? raw?.short_vin ?? null,
         'request date': raw?.['request date'] ?? raw?.request_date ?? null,
-        workdate: raw?.workdate ?? raw?.work_date ?? null,
+        workdate: raw?.workdate ?? raw?.work_date ?? raw?.['work date'] ?? null,
         'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
         'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
         'poc phone': pocPhone,
 
-        // ✅ phones = company phone ONLY
         phones: companyPhone || null,
       };
     }
@@ -570,6 +712,12 @@
           state.sortKey = prefs.sortKey ?? null;
           state.sortDir = prefs.sortDir ?? 'asc';
           state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : {};
+
+          // Kanban time filter (safe defaults if missing)
+          state.kbDateField = prefs.kbDateField ?? 'auto';
+          state.kbRange = prefs.kbRange ?? 'all';
+          state.kbFrom = prefs.kbFrom ?? null;
+          state.kbTo = prefs.kbTo ?? null;
         }
       } catch {}
     }
@@ -582,6 +730,11 @@
         sortKey: state.sortKey,
         sortDir: state.sortDir,
         colFilters: state.colFilters,
+
+        kbDateField: state.kbDateField,
+        kbRange: state.kbRange,
+        kbFrom: state.kbFrom,
+        kbTo: state.kbTo,
       };
       try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch {}
     }
@@ -631,18 +784,59 @@
       return (raw ?? '—');
     }
 
+    function applyKanbanTimeFilter(rows) {
+      if (state.view !== 'kanban') return rows;
+      if (!state.kbRange || state.kbRange === 'all') return rows;
+
+      const now = Date.now();
+
+      let fromTs = null;
+      let toTs = null;
+
+      if (state.kbRange === 'today') {
+        fromTs = startOfDay(now);
+        toTs = endOfDay(now);
+      } else if (state.kbRange === '7d') {
+        fromTs = startOfDay(now - 6 * 24*60*60*1000);
+        toTs = endOfDay(now);
+      } else if (state.kbRange === '30d') {
+        fromTs = startOfDay(now - 29 * 24*60*60*1000);
+        toTs = endOfDay(now);
+      } else if (state.kbRange === '90d') {
+        fromTs = startOfDay(now - 89 * 24*60*60*1000);
+        toTs = endOfDay(now);
+      } else if (state.kbRange === 'thisMonth') {
+        fromTs = startOfMonth(now);
+        toTs = endOfMonth(now);
+      } else if (state.kbRange === 'custom') {
+        const f = state.kbFrom ? parseMaybeDate(state.kbFrom) : null;
+        const t = state.kbTo ? parseMaybeDate(state.kbTo) : null;
+        fromTs = f !== null ? startOfDay(f) : null;
+        toTs = t !== null ? endOfDay(t) : null;
+      }
+
+      return rows.filter(r => {
+        const ts = getRowDateTs(r, state.kbDateField);
+        if (ts === null) return false;
+        if (fromTs !== null && ts < fromTs) return false;
+        if (toTs !== null && ts > toTs) return false;
+        return true;
+      });
+    }
+
     function computeDerivedRows() {
-      const defs = getVisibleOrderedDefs();
       const allDefs = getAllColumnDefs();
       const defMap = new Map(allDefs.map(d => [d.key, d]));
 
       let out = [...state.allRows];
 
+      // status chip filter
       if (state.filterStatus) {
-        const t = state.filterStatus.toLowerCase();
-        out = out.filter(r => (r.status || '').toLowerCase() === t);
+        const target = canonicalizeStatus(state.filterStatus);
+        out = out.filter(r => canonicalizeStatus(r.status) === target);
       }
 
+      // table filters
       for (const [key, val] of Object.entries(state.colFilters)) {
         const fv = String(val ?? '').trim();
         if (!fv) continue;
@@ -658,6 +852,10 @@
         }
       }
 
+      // Kanban time filter (requested)
+      out = applyKanbanTimeFilter(out);
+
+      // sorting
       if (state.sortKey) {
         const key = state.sortKey;
         const d = defMap.get(key);
@@ -673,7 +871,6 @@
             return (at - bt) * dir;
           }
 
-          // money sorts numeric
           if (d?.isMoney) {
             const an = Number(av);
             const bn = Number(bv);
@@ -740,7 +937,6 @@
     function buildColGroup(visibleDefs) {
       colGroup.innerHTML = '';
 
-      // first col = actions
       const colActions = document.createElement('col');
       colActions.style.width = `140px`;
       colGroup.appendChild(colActions);
@@ -888,7 +1084,7 @@
         state.colWidths[activeKey] = newW;
 
         const idx = visibleDefs.findIndex(d => d.key === activeKey);
-        const colIdx = idx + 1; // +1 because first col is actions
+        const colIdx = idx + 1;
         if (idx >= 0 && colGroup.children[colIdx]) {
           colGroup.children[colIdx].style.width = `${newW}px`;
           syncTopScrollbarWidth();
@@ -937,7 +1133,6 @@
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-950/30';
 
-        // actions cell first
         const actionCell = `
           <td class="px-6 py-3 whitespace-nowrap">
             <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
@@ -975,32 +1170,67 @@
       lucide.createIcons();
     }
 
+    function renderKanbanMeta(totalBefore) {
+      const parts = [];
+      if (state.kbRange && state.kbRange !== 'all') {
+        parts.push(`Time: ${state.kbRange}${state.kbRange === 'custom' ? '' : ''}`);
+      } else {
+        parts.push('Time: all');
+      }
+      parts.push(`Date: ${state.kbDateField}`);
+      kbMeta.textContent = `${state.filteredRows.length} items • ${parts.join(' • ')}`;
+    }
+
     function renderKanbanView() {
-      const statuses = ['Open', 'In Progress', 'Waiting', 'Closed'];
-      const buckets = new Map(statuses.map(s => [s, []]));
-      buckets.set('Other', []);
+      // Build buckets based on REAL statuses + canonicalization
+      const buckets = new Map();
+      for (const s of CANON_STATUSES) buckets.set(s, []);
+      const unknownMap = new Map(); // unknown status -> rows
 
       for (const row of state.filteredRows) {
-        const normalized = (row.status || '').trim().toLowerCase();
-        const match = statuses.find(s => s.toLowerCase() === normalized) || 'Other';
-        const key = buckets.has(match) ? match : 'Other';
-        buckets.get(key).push(row);
+        const canon = canonicalizeStatus(row.status);
+
+        if (!canon) {
+          // treat empty as Open? better: Unspecified bucket, but don't invent column unless needed
+          const key = 'Unspecified';
+          if (!unknownMap.has(key)) unknownMap.set(key, []);
+          unknownMap.get(key).push(row);
+          continue;
+        }
+
+        if (buckets.has(canon)) buckets.get(canon).push(row);
+        else {
+          if (!unknownMap.has(canon)) unknownMap.set(canon, []);
+          unknownMap.get(canon).push(row);
+        }
       }
 
-      kanbanColumns.innerHTML = statuses.concat('Other').map(status => {
-        const items = buckets.get(status) || [];
+      // Only show unknown column(s) if they truly exist
+      const unknownKeys = Array.from(unknownMap.keys());
+      const columnOrder = CANON_STATUSES.concat(unknownKeys.length ? ['Other'] : []);
+
+      const otherItems = [];
+      if (unknownKeys.length) {
+        for (const k of unknownKeys) otherItems.push(...(unknownMap.get(k) || []));
+      }
+
+      kanbanColumns.innerHTML = columnOrder.map(status => {
+        const items = status === 'Other' ? otherItems : (buckets.get(status) || []);
+
         const cards = items.map(r => {
           const primaryDate = fmtDate(r['shipping date'] || r.workdate || r['request date']);
+          const s = canonicalizeStatus(r.status);
           return `
             <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-md shadow-blue-900/20">
               <div class="flex items-center justify-between text-xs text-slate-400">
                 <span>${escapeHtml(primaryDate)}</span>
-                ${statusPill(r.status)}
+                ${statusPill(s)}
               </div>
               <p class="mt-2 text-sm font-black text-white">${escapeHtml(r.company_name || '—')}</p>
               <p class="text-sm text-slate-300">${escapeHtml(r.unittype || '')} ${escapeHtml(r.brand || '')} ${escapeHtml(r.model || '')}</p>
               <p class="text-xs text-slate-400">Doc: ${escapeHtml(r.doc || '—')}</p>
               <p class="mt-1 text-xs text-slate-400">POC: ${escapeHtml(r['poc name'] || '—')}</p>
+              ${status === 'Other' && unknownKeys.length ? `<p class="mt-2 text-[11px] text-slate-500">Other includes: ${escapeHtml(unknownKeys.join(', '))}</p>` : ''}
             </div>
           `;
         }).join('');
@@ -1022,11 +1252,12 @@
     }
 
     function renderCalendarView() {
+      // Work date calendar (kept as you had), but layout fixed + responsive scroll
       const events = state.filteredRows
         .map(r => {
           const rawDate = r.workdate || r['work date'];
           const ts = parseMaybeDate(rawDate);
-          return { row: r, ts, label: rawDate ? fmtDate(rawDate) : 'No date', key: rawDate ? new Date(rawDate).toISOString().slice(0, 10) : null };
+          return { row: r, ts, key: rawDate ? new Date(rawDate).toISOString().slice(0, 10) : null };
         })
         .filter(e => e.ts !== null && e.key)
         .sort((a, b) => a.ts - b.ts);
@@ -1064,11 +1295,11 @@
           return `
             <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3 text-left space-y-1">
               <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span>${escapeHtml(row.company_name || '—')}</span>
+                <span class="truncate max-w-[140px]">${escapeHtml(row.company_name || '—')}</span>
                 ${statusPill(row.status)}
               </div>
-              <p class="text-xs text-slate-300">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
-              <p class="text-[11px] text-slate-400">Doc: ${escapeHtml(row.doc || '—')}</p>
+              <p class="text-xs text-slate-300 truncate">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
+              <p class="text-[11px] text-slate-400 truncate">Doc: ${escapeHtml(row.doc || '—')}</p>
             </div>
           `;
         }).join('');
@@ -1079,17 +1310,30 @@
               <span class="font-semibold">${escapeHtml(dateLabel)}</span>
               <span class="text-[11px]">${dayNames[d.getDay()]}</span>
             </div>
-            <div class="space-y-2">${cards || '<p class="text-[11px] text-slate-500">No work scheduled</p>'}</div>
+            <div class="space-y-2 max-h-48 overflow-auto pr-1">
+              ${cards || '<p class="text-[11px] text-slate-500">No work scheduled</p>'}
+            </div>
           </div>
         `);
       }
 
-      calendarList.innerHTML = `
-        <div class="flex items-center justify-between pb-3">
-          <p class="text-sm text-slate-300">Work dates for ${monthAnchor.toLocaleString('default', { month: 'long' })} ${monthAnchor.getFullYear()}</p>
+      const header = `
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p class="text-sm text-slate-200 font-bold">
+            Work dates for ${monthAnchor.toLocaleString('default', { month: 'long' })} ${monthAnchor.getFullYear()}
+          </p>
           <p class="text-xs text-slate-400">Grouped by work date (Sun–Sat)</p>
         </div>
-        <div class="grid grid-cols-1 gap-2 md:grid-cols-7">${cells.join('')}</div>
+      `;
+
+      // Responsive: allow horizontal scroll on small screens
+      calendarList.innerHTML = `
+        ${header}
+        <div class="overflow-x-auto">
+          <div class="min-w-[980px] grid grid-cols-7 gap-2">
+            ${cells.join('')}
+          </div>
+        </div>
       `;
     }
 
@@ -1127,6 +1371,20 @@
       else resultsMeta.textContent = `${state.total} items • showing ${(state.page-1)*PAGE_SIZE + 1}-${Math.min(state.page*PAGE_SIZE, state.total)}`;
     }
 
+    function renderKanbanFilterUI() {
+      kbDateField.value = state.kbDateField;
+      document.querySelectorAll('.kbRangeBtn').forEach(btn => {
+        const active = btn.dataset.kbRange === state.kbRange;
+        btn.classList.toggle('bg-blue-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('border-blue-600', active);
+      });
+
+      kbCustomWrap.classList.toggle('hidden', state.kbRange !== 'custom');
+      kbFrom.value = state.kbFrom || '';
+      kbTo.value = state.kbTo || '';
+    }
+
     function render() {
       ensureColumnsInitialized();
       buildColumnsMenu();
@@ -1140,7 +1398,12 @@
         requestAnimationFrame(() => syncTopScrollbarWidth());
       }
 
-      if (state.view === 'kanban') renderKanbanView();
+      if (state.view === 'kanban') {
+        renderKanbanFilterUI();
+        renderKanbanView();
+        renderKanbanMeta();
+      }
+
       if (state.view === 'calendar') renderCalendarView();
     }
 
@@ -1222,7 +1485,7 @@
       modelInput.value = item?.model || '';
       modelYearInput.value = item?.['model year'] || '';
       shortVinInput.value = item?.shortvin || '';
-      statusInput.value = item?.status || 'Open';
+      statusInput.value = canonicalizeStatus(item?.status) || 'Open';
       quoteInput.value = item?.quote ?? '';
       requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
       workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
@@ -1293,6 +1556,42 @@
         state.page = 1;
         render();
       });
+    });
+
+    // Kanban time filter events
+    kbDateField.addEventListener('change', () => {
+      state.kbDateField = kbDateField.value;
+      savePrefs();
+      render();
+    });
+
+    document.querySelectorAll('.kbRangeBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.kbRange = btn.dataset.kbRange;
+        if (state.kbRange !== 'custom') {
+          // keep custom values but don't require them
+        } else {
+          // if empty, default to this month
+          const now = new Date();
+          const y = now.getFullYear();
+          const m = String(now.getMonth()+1).padStart(2,'0');
+          if (!state.kbFrom) state.kbFrom = `${y}-${m}-01`;
+          if (!state.kbTo) state.kbTo = `${y}-${m}-${String(new Date(y, now.getMonth()+1, 0).getDate()).padStart(2,'0')}`;
+        }
+        savePrefs();
+        render();
+      });
+    });
+
+    kbFrom.addEventListener('change', () => {
+      state.kbFrom = kbFrom.value || null;
+      savePrefs();
+      render();
+    });
+    kbTo.addEventListener('change', () => {
+      state.kbTo = kbTo.value || null;
+      savePrefs();
+      render();
     });
 
     // Columns dropdown
@@ -1392,6 +1691,9 @@
       state.client = getClient();
       loadPrefs();
       wireScrollSync();
+
+      // init kanban UI with prefs
+      renderKanbanFilterUI();
 
       await loadAllRequests();
     });
