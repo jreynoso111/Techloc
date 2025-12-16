@@ -1267,22 +1267,17 @@
     };
 
     const normalizeBlacklistEntry = (row, idx = 0) => {
-      const stateCode = toStateCode(getField(row, 'state', 'State')) || 'US';
-      const city = getField(row, 'city', 'City');
-      const zip = getField(row, 'zip', 'Zip');
-      const rawLat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
-      const rawLng = parseFloat(getField(row, 'long', 'Long', 'lng', 'Lng', 'longitude', 'Longitude'));
-      const fallbackLatLng = Number.isFinite(rawLat) && Number.isFinite(rawLng) ? { lat: rawLat, lng: rawLng } : null;
-
-      const { coords } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng });
+      // Use explicit lat/long columns from Supabase (no geocoding fallbacks)
+      const lat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
+      const lng = parseFloat(getField(row, 'long', 'Long', 'lng', 'Lng', 'longitude', 'Longitude'));
 
       return {
         id: row?.id ?? `blacklist-${idx}`,
         company: getField(row, 'company_name', 'Company', 'company', 'name'),
         assocUnit: getField(row, 'Assoc.Unit', 'assoc_unit', 'AssocUnit'),
         note: getField(row, 'Note', 'note', 'notes', 'Notes'),
-        lat: coords.lat,
-        lng: coords.lng,
+        lat,
+        lng,
       };
     };
 
@@ -1601,13 +1596,19 @@
         return;
       }
 
-      try {
-        const { data, error } = await supabaseClient.from(TABLES.blacklist).select('*');
-        if (error) throw error;
-        blacklistSites = (data || []).map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
-        renderBlacklistSites();
-      } catch (err) {
-        console.warn(`Blacklist load warning: ${err.message}`);
+      const blacklistTables = ['Seervices_Blacklist', 'Services_Blacklist'];
+      for (const tableName of blacklistTables) {
+        try {
+          const { data, error } = await supabaseClient.from(tableName).select('*');
+          if (error) throw error;
+          if (Array.isArray(data)) {
+            blacklistSites = data.map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
+            renderBlacklistSites();
+            return;
+          }
+        } catch (err) {
+          console.warn(`Blacklist load warning from ${tableName}: ${err.message}`);
+        }
       }
     }
 
