@@ -174,6 +174,16 @@
       100% { color: #fef3c7; text-shadow: 0 2px 5px rgba(15, 23, 42, 0.35); }
     }
 
+    .hotspot-pin {
+      display: inline-flex;
+      width: 16px;
+      height: 16px;
+      border-radius: 9999px;
+      background: #ef4444;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 6px rgba(248, 113, 113, 0.2), 0 14px 24px rgba(0, 0, 0, 0.45);
+    }
+
     .vehicle-dot {
       filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
       stroke-linecap: round;
@@ -345,13 +355,19 @@
             </div>
           </div>
           <div class="space-y-2 pt-1 sm:pl-4 sm:pt-0">
-            <p class="text-[11px] font-bold text-slate-100">Vehicles</p>
+            <p class="text-[11px] font-bold text-slate-100">Vehicles & Hotspots</p>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
               <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-red-200"></span> GPS Fix: All</div>
               <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-emerald-400 border border-emerald-200"></span> Fully Working</div>
               <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-amber-500 border border-amber-300"></span> Other GPS states</div>
               <div class="flex items-center gap-2"><span class="vehicle-cross-badge">✕</span> Not moving (moving = -1)</div>
               <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
+              <div class="flex items-center gap-2">
+                <span class="relative inline-flex h-3.5 w-3.5 items-center justify-center">
+                  <span class="absolute inset-0 rounded-full border border-red-400/70 bg-red-500/20"></span>
+                </span>
+                Hotspot coverage area
+              </div>
             </div>
           </div>
         </div>
@@ -885,8 +901,9 @@
       'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
     };
 
-    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer, tireLayer, inspectorLayer;
+    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer, tireLayer, inspectorLayer, hotspotLayer;
     let technicians = [];
+    let hotspots = [];
     let towingCompanies = [];
     let resellers = [];
     let repairShops = [];
@@ -935,6 +952,9 @@
       dealMin: 0,
       dealMax: 100,
     };
+
+    const MILES_TO_METERS = 1609.34;
+    const HOTSPOT_RADIUS_MILES = 50;
     const selectedServiceByType = {};
     const locationCache = new Map();
 
@@ -959,7 +979,8 @@
 
     const TABLES = {
       services: SERVICE_TABLE,
-      vehicles: 'vehicles'
+      vehicles: 'vehicles',
+      hotspots: 'Hotspots'
     };
 
     const setServiceHeaders = (category, data = []) => {
@@ -1192,6 +1213,28 @@
       };
     };
 
+    const normalizeHotspot = (row, idx = 0) => {
+      const stateCode = toStateCode(getField(row, 'state', 'State')) || 'US';
+      const city = getField(row, 'city', 'City');
+      const zip = getField(row, 'zip', 'Zip');
+      const rawLat = parseFloat(getField(row, 'lat', 'Lat'));
+      const rawLng = parseFloat(getField(row, 'long', 'Long', 'lng', 'Lng', 'longitude', 'Longitude'));
+      const rawRadius = parseFloat(getField(row, 'radius', 'Radius'));
+      const fallbackLatLng = Number.isFinite(rawLat) && Number.isFinite(rawLng) ? { lat: rawLat, lng: rawLng } : null;
+
+      const { coords } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng });
+
+      return {
+        id: row?.id ?? `hotspot-${idx}`,
+        city: city || '',
+        state: stateCode,
+        zip: zip || '',
+        lat: coords.lat,
+        lng: coords.lng,
+        radiusMiles: Number.isFinite(rawRadius) ? rawRadius : HOTSPOT_RADIUS_MILES,
+      };
+    };
+
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
 
     const getLocationNote = (accuracy = '') => {
@@ -1296,6 +1339,7 @@
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
+      hotspotLayer = L.layerGroup().addTo(map);
       techLayer = L.layerGroup().addTo(map);
       vehicleLayer = L.layerGroup().addTo(map);
       targetLayer = L.layerGroup().addTo(map);
@@ -1424,6 +1468,48 @@
           </div>
         `;
         iconLib.createIcons();
+      }
+    }
+
+    function renderHotspots() {
+      if (!hotspotLayer) return;
+      hotspotLayer.clearLayers();
+
+      hotspots.filter(hasValidCoords).forEach((hotspot) => {
+        const circle = L.circle([hotspot.lat, hotspot.lng], {
+          radius: hotspot.radiusMiles * MILES_TO_METERS,
+          color: '#ef4444',
+          weight: 1.5,
+          fillColor: '#ef4444',
+          fillOpacity: 0.18,
+          opacity: 0.7,
+        }).addTo(hotspotLayer);
+
+        circle?.bringToBack?.();
+
+        const locationText = [hotspot.city, hotspot.state, hotspot.zip].filter(Boolean).join(', ');
+        circle.bindPopup(`
+          <div class="text-xs text-slate-100 space-y-1">
+            <p class="font-bold text-white text-sm">Hotspot</p>
+            <p class="text-[11px] text-slate-300">${locationText || 'Location unavailable'}</p>
+            <p class="text-[11px] text-red-300">Coverage radius: ${hotspot.radiusMiles} miles</p>
+          </div>
+        `);
+      });
+    }
+
+    async function loadHotspots() {
+      if (!supabaseClient) {
+        console.warn('Supabase unavailable: skipping hotspot load.');
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient.from(TABLES.hotspots).select('*');
+        if (error) throw error;
+        hotspots = (data || []).map((row, idx) => normalizeHotspot(row, idx)).filter(hasValidCoords);
+        renderHotspots();
+      } catch (err) {
+        console.warn(`Hotspot load warning: ${err.message}`);
       }
     }
 
@@ -1812,28 +1898,13 @@
             </div>
           </div>
           ${tech.zip ? `<p class="text-[10px] text-slate-500 mt-1">${tech.zip}</p>` : ''}
-          ${isAdminUser() ? `
-            <div class="mt-2 flex justify-end">
-              <button data-edit-tech class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">
-                <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
-                Edit
-              </button>
-            </div>
-          ` : ''}
+          
         `;
 
         card.addEventListener('click', () => {
           map.panTo([tech.lat, tech.lng]);
           applySelection(null, tech.id);
         });
-
-        const editBtn = card.querySelector('[data-edit-tech]');
-        if (editBtn) {
-          editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openServiceEditModal(tech);
-          });
-        }
 
         listContainer.appendChild(card);
       });
@@ -1972,14 +2043,7 @@
             ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300"><i data-lucide="navigation" class="h-3 w-3"></i><span class="font-semibold text-slate-100">${Math.round(partner.distance)} mi</span></div>` : ''}
             ${partner.notes ? `<div class="col-span-2 text-[10px] text-slate-400 leading-tight">${partner.notes}</div>` : ''}
           </div>
-          ${isAdminUser() ? `
-            <div class="mt-2 flex justify-end">
-              <button data-edit-service class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">
-                <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
-                Edit
-              </button>
-            </div>
-          ` : ''}
+          
         `;
 
           card.addEventListener('click', () => {
@@ -1992,14 +2056,6 @@
             }
             renderPartnerUI(partners, options);
           });
-
-        const editBtn = card.querySelector('[data-edit-service]');
-        if (editBtn) {
-          editBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            openServiceEditModal(partner);
-          });
-        }
 
         container.appendChild(card);
       });
@@ -2172,13 +2228,7 @@
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
-            <div class="pt-1 flex items-center justify-between gap-2">
-              ${isAdminUser() ? `
-                <button data-edit-vehicle class="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
-                  <i data-lucide="pencil" class="h-3.5 w-3.5"></i>
-                  Edit
-                </button>
-              ` : '<span></span>'}
+            <div class="pt-1 flex items-center justify-end gap-2">
               <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 <i data-lucide="info" class="h-3.5 w-3.5"></i>
                 See more
@@ -2202,14 +2252,6 @@
             viewMoreBtn.addEventListener('click', (e) => {
               e.stopPropagation();
               openVehicleModal(vehicle);
-            });
-          }
-
-          const editBtn = card.querySelector('[data-edit-vehicle]');
-          if (editBtn) {
-            editBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              openVehicleEditModal(vehicle);
             });
           }
 
@@ -3597,6 +3639,7 @@
       iconLib.createIcons();
       initMap();
       loadTechnicians();
+      loadHotspots();
       loadVehicles();
       loadTowingCompanies();
       loadResellers();
