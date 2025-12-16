@@ -190,6 +190,24 @@
       stroke-linejoin: round;
     }
 
+    .blacklist-marker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #ef4444;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1;
+      text-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      animation: blacklist-pulse 1.2s ease-in-out infinite alternate;
+      transform: translateY(-2px);
+    }
+
+    @keyframes blacklist-pulse {
+      0% { color: #ef4444; text-shadow: 0 6px 16px rgba(239, 68, 68, 0.35); }
+      100% { color: #facc15; text-shadow: 0 6px 16px rgba(250, 204, 21, 0.35); }
+    }
+
     .service-icon-wrapper {
       position: relative;
       display: inline-flex;
@@ -332,6 +350,10 @@
       <button id="open-dispatcher-sidebar" class="sidebar-toggle-btn">Dispatchers</button>
       <button id="open-tire-sidebar" class="sidebar-toggle-btn">Tire Services</button>
       <button id="open-inspector-sidebar" class="sidebar-toggle-btn">Inspectors</button>
+    </div>
+    <div id="map-visibility-group" class="pointer-events-none absolute top-4 left-1/2 z-[500] -translate-x-1/2 transform flex flex-wrap justify-center gap-2">
+      <button id="toggle-hotspots" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Hotspot Areas</button>
+      <button id="toggle-blacklist" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Blacklist Marks</button>
     </div>
     <div id="right-toggle-group" class="sidebar-toggle-group right-3 items-end">
       <button id="open-right-sidebar" class="sidebar-toggle-btn text-[11px]">Show Vehicles</button>
@@ -901,8 +923,9 @@
       'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
     };
 
-    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer, tireLayer, inspectorLayer, hotspotLayer;
+    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer, tireLayer, inspectorLayer, hotspotLayer, blacklistLayer;
     let technicians = [];
+    let blacklistSites = [];
     let hotspots = [];
     let towingCompanies = [];
     let resellers = [];
@@ -914,6 +937,8 @@
     let vehicles = [];
     let vehicleHeaders = [];
     let vehicleMarkersVisible = true;
+    let hotspotsVisible = true;
+    let blacklistMarkersVisible = true;
     const serviceHeadersByCategory = {};
     let editingService = null;
     let editingVehicleId = null;
@@ -980,7 +1005,8 @@
     const TABLES = {
       services: SERVICE_TABLE,
       vehicles: 'vehicles',
-      hotspots: 'Hotspots'
+      hotspots: 'Hotspots',
+      blacklist: 'Seervices_Blacklist'
     };
 
     const setServiceHeaders = (category, data = []) => {
@@ -1235,6 +1261,21 @@
       };
     };
 
+    const normalizeBlacklistEntry = (row, idx = 0) => {
+      // Use explicit lat/long columns from Supabase (no geocoding fallbacks)
+      const lat = parseFloat(getField(row, 'lat', 'Lat', 'latitude', 'Latitude'));
+      const lng = parseFloat(getField(row, 'long', 'Long', 'lng', 'Lng', 'longitude', 'Longitude'));
+
+      return {
+        id: row?.id ?? `blacklist-${idx}`,
+        company: getField(row, 'company_name', 'Company', 'company', 'name'),
+        assocUnit: getField(row, 'Assoc.Unit', 'assoc_unit', 'AssocUnit'),
+        note: getField(row, 'Note', 'note', 'notes', 'Notes'),
+        lat,
+        lng,
+      };
+    };
+
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
 
     const getLocationNote = (accuracy = '') => {
@@ -1340,6 +1381,7 @@
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       hotspotLayer = L.layerGroup().addTo(map);
+      blacklistLayer = L.layerGroup().addTo(map);
       techLayer = L.layerGroup().addTo(map);
       vehicleLayer = L.layerGroup().addTo(map);
       targetLayer = L.layerGroup().addTo(map);
@@ -1478,9 +1520,9 @@
       hotspots.filter(hasValidCoords).forEach((hotspot) => {
         const circle = L.circle([hotspot.lat, hotspot.lng], {
           radius: hotspot.radiusMiles * MILES_TO_METERS,
-          color: '#ef4444',
+          color: '#22c55e',
           weight: 1.5,
-          fillColor: '#ef4444',
+          fillColor: '#22c55e',
           fillOpacity: 0.18,
           opacity: 0.7,
         }).addTo(hotspotLayer);
@@ -1492,7 +1534,37 @@
           <div class="text-xs text-slate-100 space-y-1">
             <p class="font-bold text-white text-sm">Hotspot</p>
             <p class="text-[11px] text-slate-300">${locationText || 'Location unavailable'}</p>
-            <p class="text-[11px] text-red-300">Coverage radius: ${hotspot.radiusMiles} miles</p>
+            <p class="text-[11px] text-emerald-300">Coverage radius: ${hotspot.radiusMiles} miles</p>
+          </div>
+        `);
+      });
+    }
+
+    const createBlacklistIcon = () => L.divIcon({
+      className: 'blacklist-triangle-icon',
+      html: `<div class="blacklist-marker">!</div>`,
+      iconSize: [18, 24],
+      iconAnchor: [9, 20],
+      popupAnchor: [0, -18]
+    });
+
+    function renderBlacklistSites() {
+      if (!blacklistLayer) return;
+      blacklistLayer.clearLayers();
+
+      blacklistSites.filter(hasValidCoords).forEach((entry) => {
+        const marker = L.marker([entry.lat, entry.lng], { icon: createBlacklistIcon() }).addTo(blacklistLayer);
+        marker.on('click', (e) => { e.originalEvent.handledByMarker = true; });
+
+        marker.bindPopup(`
+          <div class="text-xs text-slate-100 space-y-1">
+            <p class="font-bold text-amber-200 flex items-center gap-2 text-sm">
+              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/60">!</span>
+              Device removal location
+            </p>
+            <p class="text-[11px] text-slate-300"><span class="text-slate-400">Company:</span> ${escapeHTML(entry.company || 'Unknown')}</p>
+            ${entry.assocUnit ? `<p class="text-[11px] text-slate-300"><span class="text-slate-400">Assoc. Unit:</span> ${escapeHTML(entry.assocUnit)}</p>` : ''}
+            ${entry.note ? `<p class="text-[11px] text-amber-200 font-semibold">${escapeHTML(entry.note)}</p>` : ''}
           </div>
         `);
       });
@@ -1510,6 +1582,28 @@
         renderHotspots();
       } catch (err) {
         console.warn(`Hotspot load warning: ${err.message}`);
+      }
+    }
+
+    async function loadBlacklistSites() {
+      if (!supabaseClient) {
+        console.warn('Supabase unavailable: skipping blacklist load.');
+        return;
+      }
+
+      const blacklistTables = ['Seervices_Blacklist', 'Services_Blacklist'];
+      for (const tableName of blacklistTables) {
+        try {
+          const { data, error } = await supabaseClient.from(tableName).select('*');
+          if (error) throw error;
+          if (Array.isArray(data)) {
+            blacklistSites = data.map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
+            renderBlacklistSites();
+            return;
+          }
+        } catch (err) {
+          console.warn(`Blacklist load warning from ${tableName}: ${err.message}`);
+        }
       }
     }
 
@@ -2100,6 +2194,68 @@
       if (dispatcherSidebarVisible) updateDispatcherUI(dispatchers);
       if (tireSidebarVisible) updateTireUI(tirePartners);
       if (inspectorSidebarVisible) updateInspectorUI(inspectors);
+    }
+
+    function updateHotspotToggle() {
+      const toggle = document.getElementById('toggle-hotspots');
+      if (!toggle) return;
+
+      toggle.textContent = hotspotsVisible ? 'Hide Hotspot Areas' : 'Show Hotspot Areas';
+      toggle.classList.toggle('active', hotspotsVisible);
+      toggle.setAttribute('aria-pressed', hotspotsVisible ? 'true' : 'false');
+    }
+
+    function setHotspotsVisible(visible) {
+      hotspotsVisible = !!visible;
+      updateHotspotToggle();
+
+      if (!hotspotLayer || !map) return;
+      if (!hotspotsVisible) {
+        if (map.hasLayer(hotspotLayer)) map.removeLayer(hotspotLayer);
+        return;
+      }
+
+      if (!map.hasLayer(hotspotLayer)) hotspotLayer.addTo(map);
+      renderHotspots();
+    }
+
+    function setupHotspotToggle() {
+      const toggle = document.getElementById('toggle-hotspots');
+      if (!toggle) return;
+
+      toggle.addEventListener('click', () => setHotspotsVisible(!hotspotsVisible));
+      updateHotspotToggle();
+    }
+
+    function updateBlacklistToggle() {
+      const toggle = document.getElementById('toggle-blacklist');
+      if (!toggle) return;
+
+      toggle.textContent = blacklistMarkersVisible ? 'Hide Blacklist Marks' : 'Show Blacklist Marks';
+      toggle.classList.toggle('active', blacklistMarkersVisible);
+      toggle.setAttribute('aria-pressed', blacklistMarkersVisible ? 'true' : 'false');
+    }
+
+    function setBlacklistVisible(visible) {
+      blacklistMarkersVisible = !!visible;
+      updateBlacklistToggle();
+
+      if (!blacklistLayer || !map) return;
+      if (!blacklistMarkersVisible) {
+        if (map.hasLayer(blacklistLayer)) map.removeLayer(blacklistLayer);
+        return;
+      }
+
+      if (!map.hasLayer(blacklistLayer)) blacklistLayer.addTo(map);
+      renderBlacklistSites();
+    }
+
+    function setupBlacklistToggle() {
+      const toggle = document.getElementById('toggle-blacklist');
+      if (!toggle) return;
+
+      toggle.addEventListener('click', () => setBlacklistVisible(!blacklistMarkersVisible));
+      updateBlacklistToggle();
     }
 
     function updateVehicleMarkerToggle() {
@@ -3640,6 +3796,7 @@
       initMap();
       loadTechnicians();
       loadHotspots();
+      loadBlacklistSites();
       loadVehicles();
       loadTowingCompanies();
       loadResellers();
@@ -3650,6 +3807,8 @@
       loadInspectors();
       setupResizableSidebars();
       setupSidebarToggles();
+      setupHotspotToggle();
+      setupBlacklistToggle();
       setupVehicleMarkerToggle();
       bindVehicleFilterHandlers();
       syncVehicleFilterInputs();
