@@ -92,6 +92,11 @@
       background: rgba(148,163,184,.10);
       pointer-events: none;
     }
+
+    /* VIN combobox dropdown */
+    .combo-menu::-webkit-scrollbar { width: 10px; }
+    .combo-menu::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
+    .combo-menu::-webkit-scrollbar-track { background: rgba(2,6,23,.25); border-radius: 999px; }
   </style>
 </head>
 
@@ -327,217 +332,194 @@
 
   <!-- Modal -->
   <div id="modalOverlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
-    <!-- IMPORTANT: max-h + flex-col to keep it inside screen -->
-    <div class="w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden max-h-[calc(100vh-2rem)] flex flex-col">
-      <!-- Header stays visible -->
-      <div class="flex items-center justify-between border-b border-slate-800 px-6 py-4">
+    <!-- NOTE: max-w-5xl + compact paddings to fit on one screen -->
+    <div class="w-full max-w-5xl rounded-3xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-slate-800 px-5 py-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Service request</p>
-          <h3 id="modalTitle" class="text-lg font-black text-white">New request</h3>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200">Service request</p>
+          <h3 id="modalTitle" class="text-base font-black text-white">New request</h3>
+          <p class="text-xs text-slate-400 mt-0.5">Pick a VIN to auto-fill vehicle details. POC is the client contact.</p>
         </div>
         <button id="modalClose" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-2 text-slate-200 hover:bg-slate-800">
           <i data-lucide="x" class="h-5 w-5"></i>
         </button>
       </div>
 
-      <!-- Body scrolls -->
-      <form id="requestForm" class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+      <form id="requestForm" class="space-y-4 px-5 py-4">
         <input type="hidden" id="requestId" />
 
-        <!-- Vehicle -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-sm font-black text-white">Vehicle</p>
-            <p class="text-xs text-slate-400">Select VIN/Short VIN to auto-fill details</p>
+        <!-- Compact grid (12 cols) -->
+        <div class="grid grid-cols-12 gap-3">
+
+          <!-- Vehicle (VIN search + auto-fill) -->
+          <div class="col-span-12">
+            <p class="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Vehicle</p>
           </div>
 
-          <div class="mt-4 grid gap-4 md:grid-cols-2">
-            <label class="space-y-2 md:col-span-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Short VIN (search)</span>
-              <input id="shortVinInput" list="vinOptions"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="Type to search… e.g. 1FTFW1…" autocomplete="off" />
-              <datalist id="vinOptions"></datalist>
-              <p id="vinHint" class="text-[11px] text-slate-500">Start typing to search your Vehicles table.</p>
-            </label>
+          <label class="col-span-12 md:col-span-4 space-y-1 relative">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Short VIN</span>
+            <input id="shortVinInput" autocomplete="off"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              placeholder="Search VIN..." />
+            <div id="vinMenu" class="combo-menu hidden absolute left-0 right-0 mt-2 max-h-56 overflow-auto rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl z-50"></div>
+            <p id="vinHint" class="text-[11px] text-slate-500">Type to search. Select a VIN to fill Brand/Model/Year/Unit type.</p>
+          </label>
 
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Unit Type</span>
-              <input id="unitTypeInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Unit Type</span>
+            <input id="unitTypeInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
 
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Model Year</span>
-              <input id="modelYearInput" type="number"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Brand</span>
+            <input id="brandInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
 
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Brand</span>
-              <input id="brandInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Model</span>
+            <input id="modelInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
 
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Model</span>
-              <input id="modelInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Model Year</span>
+            <input id="modelYearInput" type="number"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <!-- Request details -->
+          <div class="col-span-12 mt-1">
+            <p class="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Request details</p>
           </div>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Company Name</span>
+            <input id="companyNameInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Company Phone</span>
+            <input id="companyPhoneInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Status</span>
+            <select id="statusInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Waiting">Waiting</option>
+              <option value="Closed">Closed</option>
+            </select>
+          </label>
+
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Quote</span>
+            <input id="quoteInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              placeholder="e.g. 1200" />
+          </label>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Category</span>
+            <select id="categoryInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="">Loading…</option>
+            </select>
+          </label>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Doc</span>
+            <input id="docInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-4 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Request Date</span>
+            <input id="requestDateInput" type="date"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-4 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Work Date</span>
+            <input id="workDateInput" type="date"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-4 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Shipping Date</span>
+            <input id="shippingDateInput" type="date"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <!-- Client Contact (POC) -->
+          <div class="col-span-12 mt-1">
+            <p class="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Client contact</p>
+          </div>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">POC Name</span>
+            <input id="pocNameInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">POC Phone</span>
+            <input id="pocPhoneInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-12 md:col-span-4 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Confirmed</span>
+            <select id="confirmedInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="">Pending</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </label>
+
+          <!-- Service Destination -->
+          <div class="col-span-12 mt-1">
+            <p class="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">Service destination</p>
+          </div>
+
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">State</span>
+            <input id="stateInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-6 md:col-span-3 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">City</span>
+            <input id="cityInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-6 md:col-span-2 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">ZIP</span>
+            <input id="zipInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+          </label>
+
+          <label class="col-span-12 md:col-span-5 space-y-1">
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Address</span>
+            <input id="addressInput"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              placeholder="Destination where service will be provided" />
+          </label>
+
         </div>
 
-        <!-- Customer + Doc -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-          <p class="text-sm font-black text-white">Customer</p>
-
-          <div class="mt-4 grid gap-4 md:grid-cols-2">
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Customer Company Name</span>
-              <input id="companyNameInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Customer Company Phone</span>
-              <input id="companyPhoneInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2 md:col-span-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Doc / Reference</span>
-              <input id="docInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="Invoice, ticket, reference, etc." />
-            </label>
-          </div>
-        </div>
-
-        <!-- Service -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-          <p class="text-sm font-black text-white">Service</p>
-
-          <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Status</span>
-              <select id="statusInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-                <option value="Open">Open</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Waiting">Waiting</option>
-                <option value="Closed">Closed</option>
-              </select>
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Quote</span>
-              <input id="quoteInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="e.g. 1200" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Confirmed</span>
-              <select id="confirmedInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
-                <option value="">Pending</option>
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Request Date</span>
-              <input id="requestDateInput" type="date"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Work Date</span>
-              <input id="workDateInput" type="date"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Shipping Date</span>
-              <input id="shippingDateInput" type="date"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-          </div>
-        </div>
-
-        <!-- Customer POC -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-          <p class="text-sm font-black text-white">Customer POC (Client-side)</p>
-
-          <div class="mt-4 grid gap-4 md:grid-cols-2">
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">POC Name</span>
-              <input id="pocNameInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">POC Phone</span>
-              <input id="pocPhoneInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-          </div>
-        </div>
-
-        <!-- Service Destination -->
-        <div class="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-          <p class="text-sm font-black text-white">Service Destination</p>
-          <p class="text-xs text-slate-400 mt-1">Where the service will be provided (not tied to company info)</p>
-
-          <div class="mt-4 grid gap-4 md:grid-cols-3">
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">State</span>
-              <input id="stateInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">City</span>
-              <input id="cityInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">ZIP</span>
-              <input id="zipInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-            </label>
-
-            <label class="space-y-2 md:col-span-3">
-              <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Address</span>
-              <input id="addressInput"
-                class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                placeholder="Street, lot, dock, etc." />
-            </label>
-          </div>
-        </div>
-
-        <!-- Sticky footer inside form -->
-        <div class="sticky bottom-0 -mx-6 border-t border-slate-800 bg-slate-950/95 backdrop-blur px-6 py-4">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p id="formError" class="text-sm text-red-300"></p>
-            <div class="flex items-center gap-2 justify-end">
-              <button type="button" id="deleteBtn"
-                class="hidden rounded-2xl border border-red-800 bg-red-950/40 px-4 py-2 text-sm font-black text-red-200 hover:bg-red-950/70">
-                Delete
-              </button>
-              <button type="button" id="modalCancel"
-                class="rounded-2xl border border-slate-700 bg-slate-950/40 px-5 py-2 text-sm font-black text-slate-200 hover:bg-slate-800">
-                Cancel
-              </button>
-              <button type="submit"
-                class="rounded-2xl bg-blue-600 px-5 py-2 text-sm font-black text-white hover:bg-blue-500">
-                Save
-              </button>
-            </div>
+        <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+          <p id="formError" class="text-sm text-red-300"></p>
+          <div class="flex items-center gap-2">
+            <button type="button" id="deleteBtn" class="hidden rounded-2xl border border-red-800 bg-red-950/40 px-4 py-2 text-sm font-black text-red-200 hover:bg-red-950/70">Delete</button>
+            <button type="submit" class="rounded-2xl bg-blue-600 px-5 py-2 text-sm font-black text-white hover:bg-blue-500">Save</button>
           </div>
         </div>
       </form>
@@ -549,11 +531,14 @@
 
     const SUPABASE_URL = "https://ewgtclzscwbokxmzxbcu.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto";
+
     const TABLE_NAME = "services_request";
     const VEHICLES_TABLE = "vehicles";
+    const CATEGORIES_TABLE = "services_categories";
+    const SERVICES_TABLE = "services";
     const PAGE_SIZE = 20;
 
-    const LS_KEY = "tl_services_table_prefs_v4";
+    const LS_KEY = "tl_services_table_prefs_v5";
 
     function getClient() {
       if (!window.supabase?.createClient) return null;
@@ -576,11 +561,7 @@
       if (value === null || value === undefined || value === '') return '—';
       const n = Number(value);
       if (isNaN(n)) return String(value);
-      return n.toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 2,
-      });
+      return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
     }
 
     function parseMaybeDate(v) {
@@ -589,30 +570,20 @@
       return isNaN(d) ? null : d.getTime();
     }
 
-    function normStr(v) {
-      if (v === null || v === undefined) return "";
-      return String(v).toLowerCase();
-    }
+    function normStr(v) { return (v === null || v === undefined) ? "" : String(v).toLowerCase(); }
 
     const CANON_STATUSES = ['Open', 'In Progress', 'Waiting', 'Closed'];
 
     function canonicalizeStatus(raw) {
       const s = String(raw ?? '').trim();
       if (!s) return null;
-
       const t = s.toLowerCase().replace(/\s+/g, ' ').trim();
-
       if (t === 'open' || t === 'new') return 'Open';
-      if (t === 'in progress' || t === 'inprogress' || t === 'in-progress' || t === 'progress' || t === 'working')
-        return 'In Progress';
-      if (t === 'waiting' || t === 'on hold' || t === 'hold' || t === 'pending' || t === 'awaiting' || t === 'awaiting parts')
-        return 'Waiting';
-      if (t === 'closed' || t === 'done' || t === 'completed' || t === 'complete' || t === 'resolved')
-        return 'Closed';
-
+      if (t === 'in progress' || t === 'inprogress' || t === 'in-progress' || t === 'progress' || t === 'working') return 'In Progress';
+      if (t === 'waiting' || t === 'on hold' || t === 'hold' || t === 'pending' || t === 'awaiting' || t === 'awaiting parts') return 'Waiting';
+      if (t === 'closed' || t === 'done' || t === 'completed' || t === 'complete' || t === 'resolved') return 'Closed';
       const exact = CANON_STATUSES.find(x => x.toLowerCase() === t);
-      if (exact) return exact;
-      return s;
+      return exact || s;
     }
 
     function startOfDay(ts) { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
@@ -624,7 +595,6 @@
       const req = row['request date'] || row.request_date;
       const work = row.workdate || row['work date'] || row.work_date;
       const ship = row['shipping date'] || row.shipping_date;
-
       if (mode === 'request') return parseMaybeDate(req);
       if (mode === 'work') return parseMaybeDate(work);
       if (mode === 'shipping') return parseMaybeDate(ship);
@@ -641,6 +611,8 @@
       { key: 'model year', label: 'Model Year', filter: 'text', defaultWidth: 120 },
       { key: 'shortvin', label: 'Short VIN', filter: 'text', defaultWidth: 120 },
       { key: 'status', label: 'Status', filter: 'select', options: ['', 'Open', 'In Progress', 'Waiting', 'Closed'], defaultWidth: 150 },
+      { key: 'category', label: 'Category', filter: 'text', defaultWidth: 160 },
+      { key: 'servicecategory', label: 'Category', filter: 'text', defaultWidth: 160 }, /* in case you use servicecategory column */
       { key: 'request date', label: 'Request Date', filter: 'text', isDate: true, defaultWidth: 140 },
       { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true, defaultWidth: 140 },
       { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true, defaultWidth: 150 },
@@ -681,10 +653,10 @@
 
       dbColumns: [],
 
-      // Vehicles cache for VIN search/autofill
-      vehiclesLoaded: false,
+      vehicles: [],           // cached vehicles list
       vehiclesByVin: new Map(),
-      vehiclesList: [],
+      categories: [],         // cached categories
+      modalVinSelected: false // for UI hints
     };
 
     const tableView = document.getElementById('tableView');
@@ -723,7 +695,6 @@
 
     const modalOverlay = document.getElementById('modalOverlay');
     const modalClose = document.getElementById('modalClose');
-    const modalCancel = document.getElementById('modalCancel');
     const newRequestBtn = document.getElementById('newRequestBtn');
     const requestForm = document.getElementById('requestForm');
 
@@ -736,6 +707,9 @@
     const modelInput = document.getElementById('modelInput');
     const modelYearInput = document.getElementById('modelYearInput');
     const shortVinInput = document.getElementById('shortVinInput');
+    const vinMenu = document.getElementById('vinMenu');
+    const vinHint = document.getElementById('vinHint');
+
     const statusInput = document.getElementById('statusInput');
     const quoteInput = document.getElementById('quoteInput');
     const requestDateInput = document.getElementById('requestDateInput');
@@ -748,12 +722,11 @@
     const cityInput = document.getElementById('cityInput');
     const zipInput = document.getElementById('zipInput');
     const addressInput = document.getElementById('addressInput');
+    const categoryInput = document.getElementById('categoryInput');
+
     const formError = document.getElementById('formError');
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteBtn');
-
-    const vinOptions = document.getElementById('vinOptions');
-    const vinHint = document.getElementById('vinHint');
 
     // Kanban time filter UI
     const kbDateField = document.getElementById('kbDateField');
@@ -767,6 +740,12 @@
     const ganttMeta = document.getElementById('ganttMeta');
     const ganttHeader = document.getElementById('ganttHeader');
     const ganttList = document.getElementById('ganttList');
+
+    function escapeHtml(s){
+      const v = String(s);
+      return v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
+    }
+    function escapeAttr(s){ return escapeHtml(s).replaceAll('\n',' '); }
 
     const statusPill = (status) => {
       const map = {
@@ -787,20 +766,24 @@
       const statusRaw = raw?.status ?? raw?.Status ?? raw?.['status'] ?? raw?.service_status ?? raw?.request_status ?? null;
       const status = canonicalizeStatus(statusRaw) || null;
 
+      const shortvin = raw?.shortvin ?? raw?.short_vin ?? null;
+
+      const category = raw?.category ?? raw?.servicecategory ?? raw?.service_category ?? null;
+
       return {
         ...raw,
         status,
+        category,
 
         'company phone': companyPhone,
         unittype: raw?.unittype ?? raw?.unit_type ?? null,
         'model year': raw?.['model year'] ?? raw?.model_year ?? null,
-        shortvin: raw?.shortvin ?? raw?.short_vin ?? null,
+        shortvin,
         'request date': raw?.['request date'] ?? raw?.request_date ?? null,
         workdate: raw?.workdate ?? raw?.work_date ?? raw?.['work date'] ?? null,
         'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
         'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
         'poc phone': pocPhone,
-
         phones: companyPhone || null,
       };
     }
@@ -854,6 +837,7 @@
       for (const k of state.dbColumns) {
         if (!byKey.has(k)) byKey.set(k, { key: k, label: k, filter: 'text', defaultWidth: 160, extra: true });
       }
+      // If both category & servicecategory exist, show only one label in list (avoid duplicates)
       return Array.from(byKey.values());
     }
 
@@ -952,10 +936,7 @@
         if (d.filter === 'select') out = out.filter(r => String(r[key] ?? '') === fv);
         else {
           const q = fv.toLowerCase();
-          out = out.filter(r => {
-            const view = displayValueFor(d, r);
-            return normStr(view).includes(q);
-          });
+          out = out.filter(r => normStr(displayValueFor(d, r)).includes(q));
         }
       }
 
@@ -1012,7 +993,6 @@
 
     function buildColumnsMenu() {
       const allDefs = getAllColumnDefs();
-
       columnsList.innerHTML = allDefs.map(d => {
         const checked = state.colVisible[d.key] ? 'checked' : '';
         const label = d.label || d.key;
@@ -1289,14 +1269,12 @@
 
       for (const row of state.filteredRows) {
         const canon = canonicalizeStatus(row.status);
-
         if (!canon) {
           const key = 'Unspecified';
           if (!unknownMap.has(key)) unknownMap.set(key, []);
           unknownMap.get(key).push(row);
           continue;
         }
-
         if (buckets.has(canon)) buckets.get(canon).push(row);
         else {
           if (!unknownMap.has(canon)) unknownMap.set(canon, []);
@@ -1311,7 +1289,6 @@
 
       kanbanColumns.innerHTML = columnOrder.map(status => {
         const items = status === 'Other' ? otherItems : (buckets.get(status) || []);
-
         const cards = items.map(r => {
           const primaryDate = fmtDate(r['shipping date'] || r.workdate || r['request date']);
           const s = canonicalizeStatus(r.status);
@@ -1336,8 +1313,8 @@
 
               <p class="mt-2 text-sm font-black text-white">${escapeHtml(r.company_name || '—')}</p>
               <p class="text-sm text-slate-300">${escapeHtml(r.unittype || '')} ${escapeHtml(r.brand || '')} ${escapeHtml(r.model || '')}</p>
-              <p class="text-xs text-slate-400">Doc: ${escapeHtml(r.doc || '—')}</p>
-              <p class="mt-1 text-xs text-slate-400">Customer POC: ${escapeHtml(r['poc name'] || '—')}</p>
+              <p class="text-xs text-slate-400">VIN: ${escapeHtml(r.shortvin || '—')} • Cat: ${escapeHtml(r.category || '—')}</p>
+              <p class="mt-1 text-xs text-slate-400">POC: ${escapeHtml(r['poc name'] || '—')}</p>
               ${status === 'Other' && unknownKeys.length ? `<p class="mt-2 text-[11px] text-slate-500">Other includes: ${escapeHtml(unknownKeys.join(', '))}</p>` : ''}
             </div>
           `;
@@ -1417,7 +1394,7 @@
                 ${statusPill(row.status)}
               </div>
               <p class="text-xs text-slate-300 truncate">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
-              <p class="text-[11px] text-slate-400 truncate">Doc: ${escapeHtml(row.doc || '—')}</p>
+              <p class="text-[11px] text-slate-400 truncate">VIN: ${escapeHtml(row.shortvin || '—')} • Cat: ${escapeHtml(row.category || '—')}</p>
             </div>
           `;
         }).join('');
@@ -1472,12 +1449,9 @@
         const req = parseMaybeDate(r['request date']);
         const work = parseMaybeDate(r.workdate);
         const ship = parseMaybeDate(r['shipping date']);
-
         const start = req ?? work ?? ship;
         const end = ship ?? work ?? req;
-
         if (start === null || end === null) return null;
-
         const s = Math.min(start, end);
         const e = Math.max(start, end);
         return { row: r, start: s, end: e };
@@ -1566,7 +1540,8 @@
             <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
               <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Doc: ${escapeHtml(r.doc || '—')}</span>
               <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">VIN: ${escapeHtml(r.shortvin || '—')}</span>
-              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Customer POC: ${escapeHtml(r['poc name'] || '—')}</span>
+              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Cat: ${escapeHtml(r.category || '—')}</span>
+              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">POC: ${escapeHtml(r['poc name'] || '—')}</span>
             </div>
           </div>
         `;
@@ -1586,9 +1561,7 @@
 
     // Top scroll sync
     let syncing = false;
-    function syncTopScrollbarWidth() {
-      topScrollInner.style.width = (dataTable.scrollWidth) + "px";
-    }
+    function syncTopScrollbarWidth() { topScrollInner.style.width = (dataTable.scrollWidth) + "px"; }
 
     function wireScrollSync() {
       topScrollWrap.addEventListener('scroll', () => {
@@ -1653,9 +1626,7 @@
 
       if (state.view === 'calendar') renderCalendarView();
 
-      if (state.view === 'gantt') {
-        renderGanttView();
-      }
+      if (state.view === 'gantt') renderGanttView();
     }
 
     async function requireLogin() {
@@ -1695,111 +1666,185 @@
         if (first) {
           const keys = Object.keys(first).filter(k => !k.startsWith('_'));
           state.dbColumns = keys.sort((a,b) => a.localeCompare(b));
-        } else {
-          // keep whatever we already know, otherwise empty
-          if (!Array.isArray(state.dbColumns)) state.dbColumns = [];
-        }
+        } else state.dbColumns = [];
       }
 
       state.loading = false;
       render();
     }
 
-    // === Vehicles VIN Search + Autofill ===
-    function pickField(obj, keys) {
-      for (const k of keys) {
-        if (obj && obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
-      }
-      return null;
-    }
-
-    function normalizeVehicle(v) {
-      const shortVin = pickField(v, ['short_vin', 'shortvin', 'shortVin', 'ShortVIN', 'vin_short', 'vin']) || null;
-      return {
-        ...v,
-        shortVin: shortVin ? String(shortVin) : null,
-        unitType: pickField(v, ['unit_type', 'unittype', 'unitType', 'UnitType']) || null,
-        brand: pickField(v, ['brand', 'Brand']) || null,
-        model: pickField(v, ['model', 'Model']) || null,
-        modelYear: pickField(v, ['model_year', 'model year', 'ModelYear', 'year']) || null,
-      };
-    }
-
-    function renderVinDatalist() {
-      if (!vinOptions) return;
-      vinOptions.innerHTML = state.vehiclesList.slice(0, 5000).map(v => {
-        const label = [v.brand, v.model, v.modelYear].filter(Boolean).join(' ');
-        const txt = label ? ` — ${label}` : '';
-        return `<option value="${escapeAttr(v.shortVin)}">${escapeHtml(v.shortVin)}${escapeHtml(txt)}</option>`;
-      }).join('');
-      if (vinHint) vinHint.textContent = state.vehiclesList.length
-        ? `Loaded ${state.vehiclesList.length} vehicles. Pick one to auto-fill.`
-        : `No vehicles loaded yet.`;
-    }
-
-    function applyVehicleAutofill(shortVin) {
-      const key = String(shortVin || '').trim();
-      if (!key) return;
-      const v = state.vehiclesByVin.get(key);
-      if (!v) return;
-
-      // Only fill if empty (so user can override)
-      if (!unitTypeInput.value.trim() && v.unitType) unitTypeInput.value = v.unitType;
-      if (!brandInput.value.trim() && v.brand) brandInput.value = v.brand;
-      if (!modelInput.value.trim() && v.model) modelInput.value = v.model;
-      if (!String(modelYearInput.value || '').trim() && v.modelYear) modelYearInput.value = v.modelYear;
-    }
-
-    async function loadVehiclesOnce() {
-      if (state.vehiclesLoaded) return;
-      state.vehiclesLoaded = true;
-
-      try {
-        const ok = await requireLogin();
-        if (!ok) return;
-
-        // Try a broad select; if your RLS blocks it, you'll see hint.
-        const { data, error } = await state.client
-          .from(VEHICLES_TABLE)
-          .select('*');
-
-        if (error) {
-          console.warn('Vehicles load error:', error);
-          if (vinHint) vinHint.textContent = `Could not load vehicles for VIN search. (${error.message || 'RLS?'} )`;
-          return;
-        }
-
-        const list = (data || []).map(normalizeVehicle).filter(v => v.shortVin);
-        state.vehiclesList = list.sort((a,b) => String(a.shortVin).localeCompare(String(b.shortVin)));
-
-        state.vehiclesByVin.clear();
-        for (const v of state.vehiclesList) state.vehiclesByVin.set(String(v.shortVin), v);
-
-        renderVinDatalist();
-      } catch (e) {
-        console.warn('Vehicles load exception:', e);
-        if (vinHint) vinHint.textContent = `Could not load vehicles for VIN search.`;
-      }
-    }
-
     async function upsertRequest(payload) {
-      const { data, error } = await state.client
-        .from(TABLE_NAME)
-        .upsert(payload)
-        .select()
-        .single();
+      const { data, error } = await state.client.from(TABLE_NAME).upsert(payload).select().single();
       if (error) throw error;
       return normalizeRow(data);
     }
 
     async function deleteRequestRow(id) {
-      const { error } = await state.client
-        .from(TABLE_NAME)
-        .delete()
-        .eq('id', id);
+      const { error } = await state.client.from(TABLE_NAME).delete().eq('id', id);
       if (error) throw error;
     }
 
+    /* ---------------------------
+       VIN + Categories (dynamic)
+    ----------------------------*/
+
+    function mapVehicleRow(v) {
+      const short = v?.short_vin ?? v?.shortvin ?? v?.shortVin ?? v?.vin_short ?? v?.vin ?? null;
+      const unit = v?.unit_type ?? v?.unittype ?? v?.unitType ?? null;
+      const brand = v?.brand ?? null;
+      const model = v?.model ?? null;
+      const year = v?.model_year ?? v?.['model year'] ?? v?.year ?? null;
+      return { short_vin: short, unit_type: unit, brand, model, model_year: year };
+    }
+
+    async function loadVehiclesCache() {
+      const ok = await requireLogin();
+      if (!ok) return;
+
+      // Pull minimal fields. If some columns don't exist, you can adjust these names.
+      const { data, error } = await state.client
+        .from(VEHICLES_TABLE)
+        .select('short_vin, shortvin, unit_type, unittype, brand, model, model_year, "model year"');
+
+      if (error) {
+        console.warn('Vehicles load error:', error);
+        state.vehicles = [];
+        state.vehiclesByVin = new Map();
+        return;
+      }
+
+      const list = (data || [])
+        .map(mapVehicleRow)
+        .filter(x => x.short_vin);
+
+      list.sort((a,b) => String(a.short_vin).localeCompare(String(b.short_vin)));
+
+      state.vehicles = list;
+      state.vehiclesByVin = new Map(list.map(v => [String(v.short_vin).toUpperCase(), v]));
+    }
+
+    async function loadCategories() {
+      const ok = await requireLogin();
+      if (!ok) return;
+
+      // 1) Try services_categories
+      let cats = [];
+      try {
+        const r1 = await state.client.from(CATEGORIES_TABLE).select('category');
+        if (!r1.error) {
+          cats = (r1.data || [])
+            .map(x => x?.category)
+            .filter(Boolean)
+            .map(x => String(x).trim())
+            .filter(Boolean);
+        }
+      } catch {}
+
+      // 2) Fallback: services table distinct-ish (client-side unique)
+      if (!cats.length) {
+        try {
+          const r2 = await state.client.from(SERVICES_TABLE).select('category');
+          if (!r2.error) {
+            cats = (r2.data || [])
+              .map(x => x?.category)
+              .filter(Boolean)
+              .map(x => String(x).trim())
+              .filter(Boolean);
+          }
+        } catch {}
+      }
+
+      const uniq = Array.from(new Set(cats)).sort((a,b) => a.localeCompare(b));
+      state.categories = uniq;
+      renderCategoriesSelect();
+    }
+
+    function renderCategoriesSelect(selected = '') {
+      const opts = [''].concat(state.categories || []);
+      categoryInput.innerHTML = opts.map(v => {
+        const label = v === '' ? '— Select category —' : v;
+        const sel = String(v) === String(selected) ? 'selected' : '';
+        return `<option value="${escapeAttr(v)}" ${sel}>${escapeHtml(label)}</option>`;
+      }).join('');
+    }
+
+    /* ---------------------------
+       VIN combobox UI
+    ----------------------------*/
+    function closeVinMenu() { vinMenu.classList.add('hidden'); }
+    function openVinMenu() { if (vinMenu.innerHTML.trim()) vinMenu.classList.remove('hidden'); }
+
+    function renderVinMenu(filterText = '') {
+      const q = String(filterText || '').trim().toLowerCase();
+      const list = state.vehicles || [];
+
+      const filtered = q
+        ? list.filter(v => {
+            const s = `${v.short_vin} ${v.brand || ''} ${v.model || ''} ${v.model_year || ''} ${v.unit_type || ''}`.toLowerCase();
+            return s.includes(q);
+          })
+        : list.slice(0, 50);
+
+      if (!filtered.length) {
+        vinMenu.innerHTML = `<div class="px-3 py-2 text-sm text-slate-400">No matches.</div>`;
+        openVinMenu();
+        return;
+      }
+
+      vinMenu.innerHTML = filtered.slice(0, 60).map(v => {
+        const meta = `${v.brand || '—'} • ${v.model || '—'} • ${v.model_year || '—'} • ${v.unit_type || '—'}`;
+        return `
+          <button type="button"
+            class="w-full text-left px-3 py-2 hover:bg-slate-900/60 border-b border-slate-800 last:border-b-0"
+            data-vin="${escapeAttr(v.short_vin)}">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-sm font-black text-white">${escapeHtml(v.short_vin)}</span>
+              <span class="text-[11px] text-slate-500 truncate">${escapeHtml(meta)}</span>
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      vinMenu.querySelectorAll('button[data-vin]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const vin = btn.dataset.vin;
+          pickVin(vin);
+          closeVinMenu();
+        });
+      });
+
+      openVinMenu();
+    }
+
+    function pickVin(vin) {
+      const key = String(vin || '').toUpperCase().trim();
+      if (!key) return;
+
+      shortVinInput.value = vin;
+
+      const v = state.vehiclesByVin.get(key);
+      if (v) {
+        // Auto-fill from vehicles DB
+        unitTypeInput.value = v.unit_type || '';
+        brandInput.value = v.brand || '';
+        modelInput.value = v.model || '';
+        modelYearInput.value = v.model_year ?? '';
+        state.modalVinSelected = true;
+        vinHint.textContent = 'Vehicle auto-filled from Vehicles. You can adjust fields if needed.';
+      } else {
+        state.modalVinSelected = false;
+        vinHint.textContent = 'Type to search. Select a VIN to fill Brand/Model/Year/Unit type.';
+      }
+    }
+
+    function clearVinAutofillHint() {
+      state.modalVinSelected = false;
+      vinHint.textContent = 'Type to search. Select a VIN to fill Brand/Model/Year/Unit type.';
+    }
+
+    /* ---------------------------
+       Modal
+    ----------------------------*/
     function openModal(item = null) {
       formError.textContent = '';
 
@@ -1809,41 +1854,53 @@
 
       requestId.value = item?.id || '';
       companyNameInput.value = item?.company_name || '';
-      companyPhoneInput.value = item?.['company phone'] || '';
+      companyPhoneInput.value = item?.['company phone'] || item?.company_phone || '';
       docInput.value = item?.doc || '';
 
-      unitTypeInput.value = item?.unittype || '';
+      // Vehicle fields
+      shortVinInput.value = item?.shortvin || item?.short_vin || '';
+      unitTypeInput.value = item?.unittype || item?.unit_type || '';
       brandInput.value = item?.brand || '';
       modelInput.value = item?.model || '';
-      modelYearInput.value = item?.['model year'] || '';
-      shortVinInput.value = item?.shortvin || '';
+      modelYearInput.value = item?.['model year'] || item?.model_year || '';
 
+      // Status + request details
       statusInput.value = canonicalizeStatus(item?.status) || 'Open';
       quoteInput.value = item?.quote ?? '';
-      requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
-      workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
-      shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : '';
+      categoryInput.value = item?.category ?? item?.servicecategory ?? '';
 
-      pocNameInput.value = item?.['poc name'] || '';
-      pocPhoneInput.value = item?.['poc phone'] || '';
+      requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : (item?.request_date ? String(item.request_date).slice(0,10) : '');
+      workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : (item?.work_date ? String(item.work_date).slice(0,10) : '');
+      shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : (item?.shipping_date ? String(item.shipping_date).slice(0,10) : '');
+
+      // Client contact (POC)
+      pocNameInput.value = item?.['poc name'] || item?.poc_name || '';
+      pocPhoneInput.value = item?.['poc phone'] || item?.poc_phone || '';
       confirmedInput.value = item?.confirmed ?? '';
 
+      // Destination
       stateInput.value = item?.state || '';
       cityInput.value = item?.city || '';
       zipInput.value = item?.zip || '';
       addressInput.value = item?.address || '';
 
+      // update hint based on VIN
+      if (shortVinInput.value.trim()) pickVin(shortVinInput.value.trim());
+      else clearVinAutofillHint();
+
+      // Ensure categories are available in modal
+      renderCategoriesSelect(categoryInput.value || '');
+
       modalOverlay.classList.remove('hidden');
       modalOverlay.classList.add('flex');
       lucide.createIcons();
 
-      // Load vehicles only when opening modal (so table stays fast)
-      loadVehiclesOnce();
-      // if edit already has vin, try to fill missing fields
-      applyVehicleAutofill(shortVinInput.value);
+      // pre-render VIN menu with first options
+      renderVinMenu(shortVinInput.value);
     }
 
     function closeModal() {
+      closeVinMenu();
       modalOverlay.classList.add('hidden');
       modalOverlay.classList.remove('flex');
     }
@@ -1855,11 +1912,42 @@
       lucide.createIcons();
     }
 
-    function escapeHtml(s){
-      const v = String(s);
-      return v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
+    function renderCategoriesIfNeeded() {
+      if (!state.categories?.length) {
+        categoryInput.innerHTML = `<option value="">Loading…</option>`;
+      } else {
+        renderCategoriesSelect(categoryInput.value || '');
+      }
     }
-    function escapeAttr(s){ return escapeHtml(s).replaceAll('\n',' '); }
+
+    /* ---------------------------
+       Safe payload: only send keys that exist if we know dbColumns
+    ----------------------------*/
+    function filterPayloadByKnownColumns(payload) {
+      const cols = state.dbColumns || [];
+      if (!cols.length) {
+        // When table is empty and we don't know columns, use safer snake_case keys only.
+        const safe = {};
+        const allow = new Set([
+          'id','company_name','company_phone','doc','unit_type','brand','model','model_year','short_vin',
+          'status','quote','request_date','work_date','shipping_date','poc_name','poc_phone','confirmed',
+          'state','city','zip','address','category','servicecategory'
+        ]);
+        for (const [k,v] of Object.entries(payload)) if (allow.has(k)) safe[k] = v;
+        return safe;
+      }
+
+      const set = new Set(cols);
+      const out = {};
+      for (const [k,v] of Object.entries(payload)) {
+        if (k === 'id' || set.has(k)) out[k] = v;
+      }
+      return out;
+    }
+
+    /* ---------------------------
+       Events
+    ----------------------------*/
 
     // Pagination
     prevPageBtn.addEventListener('click', () => { if (state.page > 1) { state.page--; render(); } });
@@ -1900,7 +1988,7 @@
       });
     });
 
-    // Kanban time filter events (also affect Gantt)
+    // Kanban time filter events
     kbDateField.addEventListener('change', () => {
       state.kbDateField = kbDateField.value;
       savePrefs();
@@ -1956,21 +2044,25 @@
     document.addEventListener('click', () => toggleColumnsMenu(false));
     columnsMenu.addEventListener('click', (e) => e.stopPropagation());
 
-    // Modal
+    // Modal open/close
     newRequestBtn.addEventListener('click', () => openModal(null));
     modalClose.addEventListener('click', closeModal);
-    modalCancel?.addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
-    // VIN input -> autofill
-    let vinDebounce = null;
+    // VIN combobox interactions
+    shortVinInput.addEventListener('focus', () => { renderVinMenu(shortVinInput.value); });
     shortVinInput.addEventListener('input', () => {
-      clearTimeout(vinDebounce);
-      vinDebounce = setTimeout(() => {
-        applyVehicleAutofill(shortVinInput.value);
-      }, 120);
+      renderVinMenu(shortVinInput.value);
+      // if they typed exact VIN, try auto-fill
+      const key = shortVinInput.value.trim().toUpperCase();
+      if (state.vehiclesByVin.has(key)) pickVin(shortVinInput.value.trim());
+      else clearVinAutofillHint();
     });
-    shortVinInput.addEventListener('change', () => applyVehicleAutofill(shortVinInput.value));
+
+    document.addEventListener('click', (e) => {
+      const inside = shortVinInput.contains(e.target) || vinMenu.contains(e.target);
+      if (!inside) closeVinMenu();
+    });
 
     deleteBtn.addEventListener('click', async () => {
       try {
@@ -1987,19 +2079,6 @@
       }
     });
 
-    function filterPayloadToKnownColumns(payload) {
-      // If we have observed dbColumns, only send those keys (avoids "column does not exist")
-      if (!Array.isArray(state.dbColumns) || state.dbColumns.length === 0) return payload;
-      const allowed = new Set(state.dbColumns);
-      const out = {};
-      for (const [k, v] of Object.entries(payload)) {
-        if (allowed.has(k)) out[k] = v;
-      }
-      // always include id if present
-      if (payload.id !== undefined && payload.id !== null) out.id = payload.id;
-      return out;
-    }
-
     requestForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       formError.textContent = '';
@@ -2011,60 +2090,46 @@
         const quoteRaw = quoteInput.value.trim();
         const quoteVal = quoteRaw === '' ? null : (isNaN(Number(quoteRaw)) ? quoteRaw : Number(quoteRaw));
 
-        // Build a "wide" payload to support both snake_case and spaced keys
-        // Then filter to known columns if possible.
-        const payloadWide = {
+        const catVal = categoryInput.value.trim() || null;
+
+        // Always store in snake_case keys (then filter by known columns)
+        const payloadRaw = {
           id: requestId.value || undefined,
 
           company_name: companyNameInput.value.trim() || null,
-          'company name': companyNameInput.value.trim() || null,
-
           company_phone: companyPhoneInput.value.trim() || null,
-          'company phone': companyPhoneInput.value.trim() || null,
-
           doc: docInput.value.trim() || null,
 
-          unittype: unitTypeInput.value.trim() || null,
+          short_vin: shortVinInput.value.trim() || null,
           unit_type: unitTypeInput.value.trim() || null,
-
           brand: brandInput.value.trim() || null,
           model: modelInput.value.trim() || null,
-
           model_year: modelYearInput.value ? Number(modelYearInput.value) : null,
-          'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
-
-          short_vin: shortVinInput.value.trim() || null,
-          shortvin: shortVinInput.value.trim() || null,
 
           status: statusInput.value,
-
           quote: quoteVal,
 
           request_date: requestDateInput.value || null,
-          'request date': requestDateInput.value || null,
-
           work_date: workDateInput.value || null,
-          workdate: workDateInput.value || null,
-          'work date': workDateInput.value || null,
-
           shipping_date: shippingDateInput.value || null,
-          'shipping date': shippingDateInput.value || null,
 
+          // Client contact
           poc_name: pocNameInput.value.trim() || null,
-          'poc name': pocNameInput.value.trim() || null,
-
           poc_phone: pocPhoneInput.value.trim() || null,
-          'poc phone': pocPhoneInput.value.trim() || null,
-
           confirmed: confirmedInput.value || null,
 
+          // Destination
           state: stateInput.value.trim() || null,
           city: cityInput.value.trim() || null,
           zip: zipInput.value.trim() || null,
           address: addressInput.value.trim() || null,
+
+          // Category (support both possible column names)
+          category: catVal,
+          servicecategory: catVal,
         };
 
-        const payload = filterPayloadToKnownColumns(payloadWide);
+        const payload = filterPayloadByKnownColumns(payloadRaw);
 
         await upsertRequest(payload);
         closeModal();
@@ -2084,7 +2149,15 @@
       wireScrollSync();
 
       renderKanbanFilterUI();
+      renderCategoriesIfNeeded();
+
+      // Load initial data
       await loadAllRequests();
+      await loadVehiclesCache();
+      await loadCategories();
+
+      // Ensure category select is correct after load
+      renderCategoriesSelect('');
     });
   </script>
 </body>
