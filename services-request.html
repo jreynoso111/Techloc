@@ -332,19 +332,28 @@
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Service request</p>
           <h3 id="modalTitle" class="text-lg font-black text-white">New request</h3>
+          <p class="mt-1 text-xs text-slate-400">
+            Auto-fill: enter <span class="text-slate-200 font-bold">Short VIN</span> to pull unit details • choose
+            <span class="text-slate-200 font-bold">Company</span> to reuse last saved contact/address.
+          </p>
         </div>
         <button id="modalClose" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-2 text-slate-200 hover:bg-slate-800">
           <i data-lucide="x" class="h-5 w-5"></i>
         </button>
       </div>
 
-      <form id="requestForm" class="space-y-5 px-6 py-6">
+      <form id="requestForm" class="space-y-5 px-6 py-6" novalidate>
         <input type="hidden" id="requestId" />
+
+        <!-- Datalists for auto-complete -->
+        <datalist id="companyDatalist"></datalist>
 
         <div class="grid gap-4 md:grid-cols-2">
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Company Name</span>
-            <input id="companyNameInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            <input id="companyNameInput" list="companyDatalist"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            <span id="companyAutofillHint" class="hidden text-[11px] text-slate-400">Filled from previous request.</span>
           </label>
 
           <label class="space-y-2">
@@ -379,7 +388,9 @@
 
           <label class="space-y-2">
             <span class="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">Short VIN</span>
-            <input id="shortVinInput" class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            <input id="shortVinInput" autocomplete="off"
+              class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-600" />
+            <span id="vinAutofillHint" class="hidden text-[11px] text-slate-400">Unit info filled from Vehicles.</span>
           </label>
 
           <label class="space-y-2">
@@ -462,7 +473,9 @@
           <p id="formError" class="text-sm text-red-300"></p>
           <div class="flex items-center gap-2">
             <button type="button" id="deleteBtn" class="hidden rounded-2xl border border-red-800 bg-red-950/40 px-4 py-2 text-sm font-black text-red-200 hover:bg-red-950/70">Delete</button>
-            <button type="submit" class="rounded-2xl bg-blue-600 px-5 py-2 text-sm font-black text-white hover:bg-blue-500">Save</button>
+            <button type="submit" id="saveBtn" class="rounded-2xl bg-blue-600 px-5 py-2 text-sm font-black text-white hover:bg-blue-500">
+              Save
+            </button>
           </div>
         </div>
       </form>
@@ -474,7 +487,9 @@
 
     const SUPABASE_URL = "https://ewgtclzscwbokxmzxbcu.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto";
+
     const TABLE_NAME = "services_request";
+    const VEHICLES_TABLE = "vehicles";
     const PAGE_SIZE = 20;
 
     const LS_KEY = "tl_services_table_prefs_v4";
@@ -484,6 +499,14 @@
       return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
       });
+    }
+
+    function todayISO() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
     }
 
     function fmtDate(v) {
@@ -527,15 +550,9 @@
       const t = s.toLowerCase().replace(/\s+/g, ' ').trim();
 
       if (t === 'open' || t === 'new') return 'Open';
-
-      if (t === 'in progress' || t === 'inprogress' || t === 'in-progress' || t === 'progress' || t === 'working')
-        return 'In Progress';
-
-      if (t === 'waiting' || t === 'on hold' || t === 'hold' || t === 'pending' || t === 'awaiting' || t === 'awaiting parts')
-        return 'Waiting';
-
-      if (t === 'closed' || t === 'done' || t === 'completed' || t === 'complete' || t === 'resolved')
-        return 'Closed';
+      if (t === 'in progress' || t === 'inprogress' || t === 'in-progress' || t === 'progress' || t === 'working') return 'In Progress';
+      if (t === 'waiting' || t === 'on hold' || t === 'hold' || t === 'pending' || t === 'awaiting' || t === 'awaiting parts') return 'Waiting';
+      if (t === 'closed' || t === 'done' || t === 'completed' || t === 'complete' || t === 'resolved') return 'Closed';
 
       const exact = CANON_STATUSES.find(x => x.toLowerCase() === t);
       if (exact) return exact;
@@ -607,7 +624,12 @@
       colVisible: {},
       colWidths: {},
 
-      dbColumns: []
+      dbColumns: [],
+      dbColumnsSet: new Set(),
+
+      _vinLookupTimer: null,
+      _companyLookupTimer: null,
+      _modalIsEdit: false,
     };
 
     const tableView = document.getElementById('tableView');
@@ -648,6 +670,7 @@
     const modalClose = document.getElementById('modalClose');
     const newRequestBtn = document.getElementById('newRequestBtn');
     const requestForm = document.getElementById('requestForm');
+    const saveBtn = document.getElementById('saveBtn');
 
     const requestId = document.getElementById('requestId');
     const companyNameInput = document.getElementById('companyNameInput');
@@ -673,6 +696,10 @@
     const formError = document.getElementById('formError');
     const modalTitle = document.getElementById('modalTitle');
     const deleteBtn = document.getElementById('deleteBtn');
+
+    const vinAutofillHint = document.getElementById('vinAutofillHint');
+    const companyAutofillHint = document.getElementById('companyAutofillHint');
+    const companyDatalist = document.getElementById('companyDatalist');
 
     // Kanban time filter UI
     const kbDateField = document.getElementById('kbDateField');
@@ -814,7 +841,6 @@
     }
 
     function applyTimeFilterForViews(rows) {
-      // Apply kb time range to Kanban + Gantt (optional, but useful)
       if (state.view !== 'kanban' && state.view !== 'gantt') return rows;
       if (!state.kbRange || state.kbRange === 'all') return rows;
 
@@ -879,7 +905,6 @@
         }
       }
 
-      // Apply time filter for Kanban + Gantt
       out = applyTimeFilterForViews(out);
 
       if (state.sortKey) {
@@ -1203,7 +1228,6 @@
       kbMeta.textContent = `${state.filteredRows.length} items • ${parts.join(' • ')}`;
     }
 
-    // ✅ Kanban with Edit button on each card
     function renderKanbanView() {
       const buckets = new Map();
       for (const s of CANON_STATUSES) buckets.set(s, []);
@@ -1280,7 +1304,6 @@
         `;
       }).join('');
 
-      // wire edit
       kanbanColumns.querySelectorAll('.kbEditBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1377,7 +1400,6 @@
       `;
     }
 
-    // ✅ Gantt
     function ganttStatusClass(status) {
       const s = canonicalizeStatus(status);
       if (s === 'Waiting') return 'waiting';
@@ -1392,7 +1414,6 @@
     }
 
     function renderGanttView() {
-      // Build tasks with start/end
       const tasks = state.filteredRows.map(r => {
         const req = parseMaybeDate(r['request date']);
         const work = parseMaybeDate(r.workdate);
@@ -1415,14 +1436,12 @@
         return;
       }
 
-      // Range
       let minTs = Infinity, maxTs = -Infinity;
       for (const t of tasks) {
         if (t.start < minTs) minTs = t.start;
         if (t.end > maxTs) maxTs = t.end;
       }
 
-      // Padding (nice edges)
       const padDays = 3;
       minTs = startOfDay(minTs - padDays * 86400000);
       maxTs = endOfDay(maxTs + padDays * 86400000);
@@ -1432,8 +1451,7 @@
 
       ganttMeta.textContent = `${tasks.length} items • Range: ${fmtDate(toISODate(minTs))} → ${fmtDate(toISODate(maxTs))} • Scale: ${ganttScale.value}`;
 
-      // Header ticks
-      const scale = ganttScale.value; // day|week
+      const scale = ganttScale.value;
       const tick = (scale === 'day') ? 1 : 7;
 
       const ticks = [];
@@ -1449,16 +1467,14 @@
         </div>
       `;
 
-      // Gridlines + rows
       ganttList.innerHTML = tasks.map(t => {
         const leftPct = ((t.start - minTs) / totalMs) * 100;
-        const widthPct = Math.max(0.8, ((t.end - t.start) / totalMs) * 100); // min width
+        const widthPct = Math.max(0.8, ((t.end - t.start) / totalMs) * 100);
         const r = t.row;
 
         const label = `${r.company_name || '—'} • ${r.unittype || ''} ${r.brand || ''} ${r.model || ''}`.trim();
         const datesLabel = `Req: ${fmtDate(r['request date'])} • Work: ${fmtDate(r.workdate)} • Ship: ${fmtDate(r['shipping date'])}`;
 
-        // gridlines HTML
         const gridLines = ticks.map(x => {
           const xPct = (x.day / totalDays) * 100;
           return `<div class="gantt-gridline" style="left:${xPct}%;"></div>`;
@@ -1502,7 +1518,6 @@
         `;
       }).join('');
 
-      // wire edit buttons
       ganttList.querySelectorAll('.ganttEditBtn').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1584,10 +1599,7 @@
 
       if (state.view === 'calendar') renderCalendarView();
 
-      if (state.view === 'gantt') {
-        // reuse same filter controls as kanban? keep them working via saved prefs
-        renderGanttView();
-      }
+      if (state.view === 'gantt') renderGanttView();
     }
 
     async function requireLogin() {
@@ -1602,6 +1614,16 @@
         return false;
       }
       return true;
+    }
+
+    function rebuildCompanyDatalist() {
+      const names = Array.from(new Set(
+        (state.allRows || [])
+          .map(r => (r.company_name || '').trim())
+          .filter(Boolean)
+      )).sort((a,b) => a.localeCompare(b));
+
+      companyDatalist.innerHTML = names.map(n => `<option value="${escapeAttr(n)}"></option>`).join('');
     }
 
     async function loadAllRequests() {
@@ -1619,6 +1641,8 @@
         state.allRows = [];
         state.filteredRows = [];
         state.total = 0;
+        state.dbColumns = [];
+        state.dbColumnsSet = new Set();
       } else {
         const rows = (data || []).map(normalizeRow);
         state.allRows = rows;
@@ -1627,11 +1651,26 @@
         if (first) {
           const keys = Object.keys(first).filter(k => !k.startsWith('_'));
           state.dbColumns = keys.sort((a,b) => a.localeCompare(b));
-        } else state.dbColumns = [];
+          state.dbColumnsSet = new Set(state.dbColumns);
+        } else {
+          state.dbColumns = [];
+          state.dbColumnsSet = new Set();
+        }
+
+        rebuildCompanyDatalist();
       }
 
       state.loading = false;
       render();
+    }
+
+    // Only include columns that exist in the table (prevents errors)
+    function pickDbCols(obj) {
+      const out = {};
+      for (const [k,v] of Object.entries(obj)) {
+        if (k === 'id' || state.dbColumnsSet.has(k)) out[k] = v;
+      }
+      return out;
     }
 
     async function upsertRequest(payload) {
@@ -1654,32 +1693,42 @@
 
     function openModal(item = null) {
       formError.textContent = '';
+      vinAutofillHint.classList.add('hidden');
+      companyAutofillHint.classList.add('hidden');
 
       const isEdit = !!item;
+      state._modalIsEdit = isEdit;
+
       modalTitle.textContent = isEdit ? 'Edit request' : 'New request';
       deleteBtn.classList.toggle('hidden', !isEdit);
 
       requestId.value = item?.id || '';
       companyNameInput.value = item?.company_name || '';
-      companyPhoneInput.value = item?.['company phone'] || '';
+      companyPhoneInput.value = item?.['company phone'] || item?.company_phone || '';
       docInput.value = item?.doc || '';
-      unitTypeInput.value = item?.unittype || '';
+      unitTypeInput.value = item?.unittype || item?.unit_type || '';
       brandInput.value = item?.brand || '';
       modelInput.value = item?.model || '';
-      modelYearInput.value = item?.['model year'] || '';
-      shortVinInput.value = item?.shortvin || '';
+      modelYearInput.value = item?.['model year'] || item?.model_year || '';
+      shortVinInput.value = item?.shortvin || item?.short_vin || '';
       statusInput.value = canonicalizeStatus(item?.status) || 'Open';
       quoteInput.value = item?.quote ?? '';
       requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : '';
       workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : '';
       shippingDateInput.value = item?.['shipping date'] ? String(item['shipping date']).slice(0, 10) : '';
-      pocNameInput.value = item?.['poc name'] || '';
-      pocPhoneInput.value = item?.['poc phone'] || '';
+      pocNameInput.value = item?.['poc name'] || item?.poc_name || '';
+      pocPhoneInput.value = item?.['poc phone'] || item?.poc_phone || '';
       confirmedInput.value = item?.confirmed ?? '';
       stateInput.value = item?.state || '';
       cityInput.value = item?.city || '';
       zipInput.value = item?.zip || '';
       addressInput.value = item?.address || '';
+
+      // Defaults for NEW request
+      if (!isEdit) {
+        if (!requestDateInput.value) requestDateInput.value = todayISO();
+        if (!statusInput.value) statusInput.value = 'Open';
+      }
 
       modalOverlay.classList.remove('hidden');
       modalOverlay.classList.add('flex');
@@ -1703,6 +1752,147 @@
       return v.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;");
     }
     function escapeAttr(s){ return escapeHtml(s).replaceAll('\n',' '); }
+
+    // ===== Dynamic autofill =====
+
+    function setIfEmpty(inputEl, value) {
+      if (!inputEl) return false;
+      const cur = String(inputEl.value || '').trim();
+      if (cur) return false;
+      if (value === null || value === undefined) return false;
+      const v = String(value).trim();
+      if (!v) return false;
+      inputEl.value = v;
+      return true;
+    }
+
+    function setYearIfEmpty(inputEl, value) {
+      if (!inputEl) return false;
+      const cur = String(inputEl.value || '').trim();
+      if (cur) return false;
+      const n = Number(value);
+      if (!isFinite(n) || n <= 0) return false;
+      inputEl.value = String(n);
+      return true;
+    }
+
+    async function lookupVehicleByShortVin(vinRaw) {
+      const vin = String(vinRaw || '').trim();
+      if (!vin || vin.length < 4) return null;
+
+      // Try common column names
+      // We select a superset and then read whatever exists in returned row
+      const selectCols = [
+        'short_vin', 'shortvin',
+        'unit_type', 'unittype',
+        'brand', 'model',
+        'model_year', 'modelyear', 'year'
+      ].join(',');
+
+      // First try exact eq on short_vin; if fails, try shortvin
+      const tryEq = async (col) => {
+        const { data, error } = await state.client
+          .from(VEHICLES_TABLE)
+          .select(selectCols)
+          .eq(col, vin)
+          .limit(1);
+        if (error) return { data: null, error };
+        return { data: data?.[0] || null, error: null };
+      };
+
+      let res = await tryEq('short_vin');
+      if (!res.data) res = await tryEq('shortvin');
+
+      return res.data || null;
+    }
+
+    async function tryAutofillFromVehicle() {
+      if (state._modalIsEdit) return; // don't auto-overwrite edits
+
+      const vin = shortVinInput.value.trim();
+      vinAutofillHint.classList.add('hidden');
+
+      if (!vin || vin.length < 4) return;
+
+      // debounce
+      if (state._vinLookupTimer) clearTimeout(state._vinLookupTimer);
+      state._vinLookupTimer = setTimeout(async () => {
+        try {
+          const ok = await requireLogin();
+          if (!ok) return;
+
+          const v = await lookupVehicleByShortVin(vin);
+          if (!v) return;
+
+          const unitType = v.unit_type ?? v.unittype ?? null;
+          const brand = v.brand ?? null;
+          const model = v.model ?? null;
+          const year = v.model_year ?? v.modelyear ?? v.year ?? null;
+
+          let changed = false;
+          changed = setIfEmpty(unitTypeInput, unitType) || changed;
+          changed = setIfEmpty(brandInput, brand) || changed;
+          changed = setIfEmpty(modelInput, model) || changed;
+          changed = setYearIfEmpty(modelYearInput, year) || changed;
+
+          if (changed) {
+            vinAutofillHint.classList.remove('hidden');
+            setTimeout(() => vinAutofillHint.classList.add('hidden'), 2200);
+          }
+        } catch (e) {
+          // silent (don’t block user typing)
+          console.warn('VIN autofill failed:', e?.message || e);
+        }
+      }, 350);
+    }
+
+    function findLatestByCompany(companyName) {
+      const name = String(companyName || '').trim().toLowerCase();
+      if (!name) return null;
+
+      // pick the newest by request date/work/shipping fallback
+      let best = null;
+      let bestTs = -Infinity;
+
+      for (const r of state.allRows) {
+        const n = String(r.company_name || '').trim().toLowerCase();
+        if (n !== name) continue;
+        const ts = getRowDateTs(r, 'auto') ?? -Infinity;
+        if (ts > bestTs) { bestTs = ts; best = r; }
+      }
+      return best;
+    }
+
+    async function tryAutofillFromCompanyHistory() {
+      if (state._modalIsEdit) return;
+
+      const company = companyNameInput.value.trim();
+      companyAutofillHint.classList.add('hidden');
+      if (!company) return;
+
+      // debounce
+      if (state._companyLookupTimer) clearTimeout(state._companyLookupTimer);
+      state._companyLookupTimer = setTimeout(() => {
+        const last = findLatestByCompany(company);
+        if (!last) return;
+
+        let changed = false;
+
+        changed = setIfEmpty(companyPhoneInput, last['company phone'] ?? last.company_phone ?? null) || changed;
+        changed = setIfEmpty(addressInput, last.address ?? null) || changed;
+        changed = setIfEmpty(cityInput, last.city ?? null) || changed;
+        changed = setIfEmpty(stateInput, last.state ?? null) || changed;
+        changed = setIfEmpty(zipInput, last.zip ?? null) || changed;
+
+        changed = setIfEmpty(pocNameInput, last['poc name'] ?? last.poc_name ?? null) || changed;
+        changed = setIfEmpty(pocPhoneInput, last['poc phone'] ?? last.poc_phone ?? null) || changed;
+
+        if (changed) {
+          companyAutofillHint.classList.remove('hidden');
+          setTimeout(() => companyAutofillHint.classList.add('hidden'), 2200);
+        }
+      }, 250);
+    }
 
     // Pagination
     prevPageBtn.addEventListener('click', () => { if (state.page > 1) { state.page--; render(); } });
@@ -1804,6 +1994,11 @@
     modalClose.addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
+    // Autofill events
+    shortVinInput.addEventListener('input', tryAutofillFromVehicle);
+    companyNameInput.addEventListener('input', tryAutofillFromCompanyHistory);
+    companyNameInput.addEventListener('change', tryAutofillFromCompanyHistory);
+
     deleteBtn.addEventListener('click', async () => {
       try {
         const id = requestId.value;
@@ -1827,41 +2022,51 @@
         const ok = await requireLogin();
         if (!ok) return;
 
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
         const quoteRaw = quoteInput.value.trim();
         const quoteVal = quoteRaw === '' ? null : (isNaN(Number(quoteRaw)) ? quoteRaw : Number(quoteRaw));
 
-        const payload = {
+        const rawPayload = {
           id: requestId.value || undefined,
+
+          // prefer snake_case for DB; pickDbCols() will keep only real columns
           company_name: companyNameInput.value.trim() || null,
-          'company phone': companyPhoneInput.value.trim() || null,
           company_phone: companyPhoneInput.value.trim() || null,
+
           doc: docInput.value.trim() || null,
-          unittype: unitTypeInput.value.trim() || null,
+
           unit_type: unitTypeInput.value.trim() || null,
+          unittype: unitTypeInput.value.trim() || null, // if your DB uses unittype
+
           brand: brandInput.value.trim() || null,
           model: modelInput.value.trim() || null,
-          'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
+
           model_year: modelYearInput.value ? Number(modelYearInput.value) : null,
-          shortvin: shortVinInput.value.trim() || null,
           short_vin: shortVinInput.value.trim() || null,
+          shortvin: shortVinInput.value.trim() || null, // if your DB uses shortvin
+
           status: statusInput.value,
           quote: quoteVal,
-          'request date': requestDateInput.value || null,
+
           request_date: requestDateInput.value || null,
-          workdate: workDateInput.value || null,
           work_date: workDateInput.value || null,
-          'shipping date': shippingDateInput.value || null,
           shipping_date: shippingDateInput.value || null,
-          'poc name': pocNameInput.value.trim() || null,
+
           poc_name: pocNameInput.value.trim() || null,
-          'poc phone': pocPhoneInput.value.trim() || null,
           poc_phone: pocPhoneInput.value.trim() || null,
+
           confirmed: confirmedInput.value || null,
+
           state: stateInput.value.trim() || null,
           city: cityInput.value.trim() || null,
           zip: zipInput.value.trim() || null,
           address: addressInput.value.trim() || null,
         };
+
+        // send only existing columns (plus id)
+        const payload = pickDbCols(rawPayload);
 
         await upsertRequest(payload);
         closeModal();
@@ -1869,6 +2074,9 @@
       } catch (err) {
         console.error(err);
         formError.textContent = `Could not save. ${err?.message || 'Check RLS policies + table columns.'}`;
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
       }
     });
 
