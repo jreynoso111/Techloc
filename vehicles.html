@@ -364,10 +364,9 @@
               <div class="flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-red-500 border border-white"></span> Client location</div>
               <div class="flex items-center gap-2">
                 <span class="relative inline-flex h-3.5 w-3.5 items-center justify-center">
-                  <span class="absolute inset-0 rounded-full bg-red-500 border border-white"></span>
-                  <span class="absolute -inset-1 rounded-full border border-red-400/70"></span>
+                  <span class="absolute inset-0 rounded-full border border-red-400/70 bg-red-500/20"></span>
                 </span>
-                50-mile hotspot radius
+                Hotspot coverage area
               </div>
             </div>
           </div>
@@ -1220,6 +1219,7 @@
       const zip = getField(row, 'zip', 'Zip');
       const rawLat = parseFloat(getField(row, 'lat', 'Lat'));
       const rawLng = parseFloat(getField(row, 'long', 'Long', 'lng', 'Lng', 'longitude', 'Longitude'));
+      const rawRadius = parseFloat(getField(row, 'radius', 'Radius'));
       const fallbackLatLng = Number.isFinite(rawLat) && Number.isFinite(rawLng) ? { lat: rawLat, lng: rawLng } : null;
 
       const { coords } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng });
@@ -1231,6 +1231,7 @@
         zip: zip || '',
         lat: coords.lat,
         lng: coords.lng,
+        radiusMiles: Number.isFinite(rawRadius) ? rawRadius : HOTSPOT_RADIUS_MILES,
       };
     };
 
@@ -1476,7 +1477,7 @@
 
       hotspots.filter(hasValidCoords).forEach((hotspot) => {
         const circle = L.circle([hotspot.lat, hotspot.lng], {
-          radius: HOTSPOT_RADIUS_MILES * MILES_TO_METERS,
+          radius: hotspot.radiusMiles * MILES_TO_METERS,
           color: '#ef4444',
           weight: 1.5,
           fillColor: '#ef4444',
@@ -1486,21 +1487,12 @@
 
         circle?.bringToBack?.();
 
-        const marker = L.marker([hotspot.lat, hotspot.lng], {
-          icon: L.divIcon({
-            className: '',
-            html: '<span class="hotspot-pin"></span>',
-            iconSize: [18, 18],
-            iconAnchor: [9, 9],
-          })
-        }).addTo(hotspotLayer);
-
         const locationText = [hotspot.city, hotspot.state, hotspot.zip].filter(Boolean).join(', ');
-        marker.bindPopup(`
+        circle.bindPopup(`
           <div class="text-xs text-slate-100 space-y-1">
             <p class="font-bold text-white text-sm">Hotspot</p>
             <p class="text-[11px] text-slate-300">${locationText || 'Location unavailable'}</p>
-            <p class="text-[11px] text-red-300">50-mile coverage radius</p>
+            <p class="text-[11px] text-red-300">Coverage radius: ${hotspot.radiusMiles} miles</p>
           </div>
         `);
       });
