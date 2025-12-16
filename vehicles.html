@@ -356,6 +356,10 @@
       <button id="open-tire-sidebar" class="sidebar-toggle-btn">Tire Services</button>
       <button id="open-inspector-sidebar" class="sidebar-toggle-btn">Inspectors</button>
     </div>
+    <div id="map-visibility-group" class="pointer-events-none absolute top-4 left-1/2 z-[500] -translate-x-1/2 transform flex flex-wrap justify-center gap-2">
+      <button id="toggle-hotspots" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Hotspot Areas</button>
+      <button id="toggle-blacklist" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Blacklist Marks</button>
+    </div>
     <div id="right-toggle-group" class="sidebar-toggle-group right-3 items-end">
       <button id="open-right-sidebar" class="sidebar-toggle-btn text-[11px]">Show Vehicles</button>
       <button id="toggle-vehicle-markers" class="sidebar-toggle-btn sidebar-toggle-pill active" aria-pressed="true">Hide Vehicle Marks</button>
@@ -938,6 +942,8 @@
     let vehicles = [];
     let vehicleHeaders = [];
     let vehicleMarkersVisible = true;
+    let hotspotsVisible = true;
+    let blacklistMarkersVisible = true;
     const serviceHeadersByCategory = {};
     let editingService = null;
     let editingVehicleId = null;
@@ -2192,6 +2198,68 @@
       if (dispatcherSidebarVisible) updateDispatcherUI(dispatchers);
       if (tireSidebarVisible) updateTireUI(tirePartners);
       if (inspectorSidebarVisible) updateInspectorUI(inspectors);
+    }
+
+    function updateHotspotToggle() {
+      const toggle = document.getElementById('toggle-hotspots');
+      if (!toggle) return;
+
+      toggle.textContent = hotspotsVisible ? 'Hide Hotspot Areas' : 'Show Hotspot Areas';
+      toggle.classList.toggle('active', hotspotsVisible);
+      toggle.setAttribute('aria-pressed', hotspotsVisible ? 'true' : 'false');
+    }
+
+    function setHotspotsVisible(visible) {
+      hotspotsVisible = !!visible;
+      updateHotspotToggle();
+
+      if (!hotspotLayer || !map) return;
+      if (!hotspotsVisible) {
+        if (map.hasLayer(hotspotLayer)) map.removeLayer(hotspotLayer);
+        return;
+      }
+
+      if (!map.hasLayer(hotspotLayer)) hotspotLayer.addTo(map);
+      renderHotspots();
+    }
+
+    function setupHotspotToggle() {
+      const toggle = document.getElementById('toggle-hotspots');
+      if (!toggle) return;
+
+      toggle.addEventListener('click', () => setHotspotsVisible(!hotspotsVisible));
+      updateHotspotToggle();
+    }
+
+    function updateBlacklistToggle() {
+      const toggle = document.getElementById('toggle-blacklist');
+      if (!toggle) return;
+
+      toggle.textContent = blacklistMarkersVisible ? 'Hide Blacklist Marks' : 'Show Blacklist Marks';
+      toggle.classList.toggle('active', blacklistMarkersVisible);
+      toggle.setAttribute('aria-pressed', blacklistMarkersVisible ? 'true' : 'false');
+    }
+
+    function setBlacklistVisible(visible) {
+      blacklistMarkersVisible = !!visible;
+      updateBlacklistToggle();
+
+      if (!blacklistLayer || !map) return;
+      if (!blacklistMarkersVisible) {
+        if (map.hasLayer(blacklistLayer)) map.removeLayer(blacklistLayer);
+        return;
+      }
+
+      if (!map.hasLayer(blacklistLayer)) blacklistLayer.addTo(map);
+      renderBlacklistSites();
+    }
+
+    function setupBlacklistToggle() {
+      const toggle = document.getElementById('toggle-blacklist');
+      if (!toggle) return;
+
+      toggle.addEventListener('click', () => setBlacklistVisible(!blacklistMarkersVisible));
+      updateBlacklistToggle();
     }
 
     function updateVehicleMarkerToggle() {
@@ -3743,6 +3811,8 @@
       loadInspectors();
       setupResizableSidebars();
       setupSidebarToggles();
+      setupHotspotToggle();
+      setupBlacklistToggle();
       setupVehicleMarkerToggle();
       bindVehicleFilterHandlers();
       syncVehicleFilterInputs();
