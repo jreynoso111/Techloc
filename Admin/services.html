@@ -931,6 +931,8 @@
       return String(value);
     };
 
+    const INSERT_NEW_VALUE = '__insert_new__';
+
     const getSelectOptions = (colId) => {
       if (colId === 'verified') {
         const base = [
@@ -947,7 +949,7 @@
           seen.add(value);
           custom.push({ value, label: optionLabel(colId, val) });
         });
-        return [...base, ...custom];
+        return [...base, ...custom, { value: INSERT_NEW_VALUE, label: 'Insert new…' }];
       }
 
       const col = ALL_COLUMNS.find(c => c.id === colId);
@@ -963,7 +965,7 @@
         seen.add(key);
         opts.push({ value, label: optionLabel(colId, value) });
       });
-      return [{ value: '', label: '—' }, ...opts];
+      return [{ value: '', label: '—' }, ...opts, { value: INSERT_NEW_VALUE, label: 'Insert new…' }];
     };
 
     const addSelectOption = (select, value, label) => {
@@ -971,7 +973,12 @@
       const opt = document.createElement('option');
       opt.value = value;
       opt.textContent = label;
-      select.appendChild(opt);
+      const insertOpt = [...select.options].find(o => o.value === INSERT_NEW_VALUE);
+      if (insertOpt) {
+        select.insertBefore(opt, insertOpt);
+      } else {
+        select.appendChild(opt);
+      }
     };
 
     const writeLocalRowValue = (rowId, colId, newValue) => {
@@ -1117,16 +1124,26 @@
           : (rawCurrent === null || rawCurrent === undefined ? '' : String(rawCurrent));
         sel.value = [...sel.options].some(o => o.value === currentValue) ? currentValue : '';
 
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = 'rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-100 hover:border-blue-500';
-        addBtn.textContent = 'Insert new';
-        addBtn.addEventListener('click', () => {
+        let previousValue = sel.value;
+
+        sel.addEventListener('change', () => {
+          if (sel.value !== INSERT_NEW_VALUE) {
+            previousValue = sel.value;
+            return;
+          }
+
           const label = colId === 'verified' ? 'verification' : col.label.toLowerCase();
           const entry = prompt(`Enter a new ${label} value:`);
-          if (entry === null) return;
+          if (entry === null) {
+            sel.value = previousValue;
+            return;
+          }
+
           const trimmed = entry.trim();
-          if (trimmed === '') return;
+          if (trimmed === '') {
+            sel.value = previousValue;
+            return;
+          }
 
           let value = trimmed;
           if (colId === 'verified') {
@@ -1137,10 +1154,10 @@
 
           addSelectOption(sel, value, optionLabel(colId, trimmed));
           sel.value = value;
+          previousValue = value;
         });
 
         wrapper.appendChild(sel);
-        wrapper.appendChild(addBtn);
         inputEl = sel;
         state.inlineEdit.inputEl = inputEl;
         td.appendChild(wrapper);
