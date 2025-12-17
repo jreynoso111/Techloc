@@ -323,7 +323,12 @@
       if (['false', '0', 'no', 'n', 'unverified', 'not verified'].includes(s)) return false;
       return null;
     };
-    const boolToLabel = (v) => (v === true ? 'Verified' : v === false ? 'Not verified' : '—');
+    const boolToLabel = (v) => {
+      if (v === true) return 'Verified';
+      if (v === false) return 'Not verified';
+      if (v === null || v === undefined || String(v).trim() === '') return '—';
+      return String(v);
+    };
 
     const getField = (row, ...keys) => {
       for (const key of keys) {
@@ -331,6 +336,13 @@
         if (value !== undefined && value !== null && String(value).trim() !== '') return value;
       }
       return '';
+    };
+
+    const normalizeVerified = (value) => {
+      const boolVal = toBool(value);
+      if (boolVal === true || boolVal === false) return boolVal;
+      const raw = value === null || value === undefined ? '' : String(value).trim();
+      return raw === '' ? null : raw;
     };
 
     const normalizeRow = (row) => ({
@@ -348,7 +360,7 @@
       notes: getField(row, 'Notes', 'notes'),
       website: getField(row, 'website', 'Website'),
       availability: getField(row, 'availability', 'Availability'),
-      verified: toBool(getField(row, 'Verified', 'verified', 'is_verified', 'Is Verified')),
+      verified: normalizeVerified(getField(row, 'Verified', 'verified', 'is_verified', 'Is Verified')),
       lat: getField(row, 'lat', 'latitude', 'Lat'),
       long: getField(row, 'long', 'lng', 'longitude', 'Lon'),
     });
@@ -446,7 +458,9 @@
       localStorage.setItem(storageKey(), JSON.stringify({
         columnOrder: state.columnOrder,
         columnVisibility: state.columnVisibility,
-        columnWidths: state.columnWidths
+        columnWidths: state.columnWidths,
+        filters: state.filters,
+        pagination: state.pagination,
       }));
     };
 
@@ -477,6 +491,21 @@
           if (validCols.has(k) && Number.isFinite(+v)) next[k] = +v;
         }
         state.columnWidths = next;
+      }
+
+      if (prefs.filters && typeof prefs.filters === 'object') {
+        state.filters = {
+          search: prefs.filters.search ?? '',
+          company: prefs.filters.company ?? 'all',
+          state: prefs.filters.state ?? 'all',
+          category: prefs.filters.category ?? 'all',
+        };
+      }
+
+      if (prefs.pagination && typeof prefs.pagination === 'object') {
+        const page = Number.isFinite(+prefs.pagination.page) ? +prefs.pagination.page : 1;
+        state.pagination.page = Math.max(1, page);
+        if (Number.isFinite(+prefs.pagination.pageSize)) state.pagination.pageSize = +prefs.pagination.pageSize;
       }
     };
 
@@ -544,6 +573,21 @@
       });
     };
 
+    const syncFilterControls = () => {
+      if (els.search) els.search.value = state.filters.search || '';
+
+      const setSelect = (el, value) => {
+        if (!el) return;
+        const fallback = 'all';
+        const has = [...el.options].some(o => o.value === value);
+        el.value = has ? value : fallback;
+      };
+
+      setSelect(els.companyFilter, state.filters.company);
+      setSelect(els.stateFilter, state.filters.state);
+      setSelect(els.categoryFilter, state.filters.category);
+    };
+
     const applySearch = (rows, term) => {
       if (!term) return rows;
       const q = term.toLowerCase();
@@ -574,8 +618,9 @@
 
       const sorted = [...rows].sort((a, b) => {
         if (col.id === 'verified') {
-          const as = a.verified === true ? '1' : a.verified === false ? '0' : '';
-          const bs = b.verified === true ? '1' : b.verified === false ? '0' : '';
+          const normalize = (v) => (v === true ? '2' : v === false ? '1' : getText(v));
+          const as = normalize(a.verified);
+          const bs = normalize(b.verified);
           return as.localeCompare(bs, undefined, { numeric: true, sensitivity: 'base' });
         }
         return getText(a[col.key]).localeCompare(getText(b[col.key]), undefined, { numeric: true, sensitivity: 'base' });
@@ -792,6 +837,7 @@
 
     const renderPagination = (rows) => {
       const totalPages = Math.max(1, Math.ceil(rows.length / state.pagination.pageSize));
+      const prevPage = state.pagination.page;
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
 
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
@@ -804,6 +850,8 @@
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
       els.prevPage.disabled = state.pagination.page === 1 || rows.length === 0;
       els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
+
+      if (prevPage !== state.pagination.page) savePrefs();
 
       return { start, end };
     };
@@ -859,10 +907,11 @@
 
     const parseEditedValue = (colId, raw) => {
       if (colId === 'verified') {
-        // raw comes from select: '', 'true', 'false'
-        if (raw === 'true') return true;
-        if (raw === 'false') return false;
-        return null;
+        const v = String(raw ?? '').trim();
+        if (v === '') return null;
+        if (v === 'true') return true;
+        if (v === 'false') return false;
+        return v;
       }
       const v = String(raw ?? '').trim();
       return v === '' ? null : v;
@@ -872,6 +921,57 @@
       if (colId === 'verified') return boolToLabel(value);
       if (value === null || value === undefined || String(value).trim() === '') return '—';
       return String(value);
+    };
+
+    const selectColumns = new Set(['category', 'authorization', 'state', 'verified']);
+
+    const optionLabel = (colId, value) => {
+      if (colId === 'state') return String(value).toUpperCase();
+      if (colId === 'verified') return boolToLabel(value);
+      return String(value);
+    };
+
+    const getSelectOptions = (colId) => {
+      if (colId === 'verified') {
+        const base = [
+          { value: '', label: '—' },
+          { value: 'true', label: 'Verified' },
+          { value: 'false', label: 'Not verified' },
+        ];
+        const seen = new Set(base.map(o => o.value));
+        const custom = [];
+        state.rows.forEach((row) => {
+          const val = row.verified;
+          const value = val === true ? 'true' : val === false ? 'false' : (val === null || val === undefined ? '' : String(val));
+          if (!value || seen.has(value)) return;
+          seen.add(value);
+          custom.push({ value, label: optionLabel(colId, val) });
+        });
+        return [...base, ...custom];
+      }
+
+      const col = ALL_COLUMNS.find(c => c.id === colId);
+      if (!col) return [];
+      const seen = new Set();
+      const opts = [];
+      state.rows.forEach((row) => {
+        const raw = row[col.key];
+        const value = raw === null || raw === undefined ? '' : String(raw).trim();
+        if (!value) return;
+        const key = getText(value);
+        if (seen.has(key)) return;
+        seen.add(key);
+        opts.push({ value, label: optionLabel(colId, value) });
+      });
+      return [{ value: '', label: '—' }, ...opts];
+    };
+
+    const addSelectOption = (select, value, label) => {
+      if ([...select.options].some(o => o.value === value)) return;
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      select.appendChild(opt);
     };
 
     const writeLocalRowValue = (rowId, colId, newValue) => {
@@ -921,7 +1021,7 @@
 
       const same =
         (colId === 'verified')
-          ? (toBool(currentValue) === toBool(newValue))
+          ? (String(currentValue ?? '').trim() === String(newValue ?? '').trim())
           : (String(currentValue ?? '') === String(newValue ?? ''));
 
       if (same) {
@@ -1002,27 +1102,57 @@
 
       let inputEl;
 
-      if (colId === 'verified') {
+      if (selectColumns.has(colId)) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex items-center gap-2';
+
         const sel = document.createElement('select');
-        sel.className = 'cell-select';
-        sel.innerHTML = `
-          <option value="">—</option>
-          <option value="true">Verified</option>
-          <option value="false">Not verified</option>
-        `;
-        const vb = toBool(rawCurrent);
-        sel.value = vb === true ? 'true' : vb === false ? 'false' : '';
+        sel.className = 'cell-select flex-1 min-w-0';
+
+        const opts = getSelectOptions(colId);
+        opts.forEach(({ value, label }) => addSelectOption(sel, value, label));
+
+        const currentValue = colId === 'verified'
+          ? (rawCurrent === true ? 'true' : rawCurrent === false ? 'false' : (rawCurrent === null || rawCurrent === undefined ? '' : String(rawCurrent)))
+          : (rawCurrent === null || rawCurrent === undefined ? '' : String(rawCurrent));
+        sel.value = [...sel.options].some(o => o.value === currentValue) ? currentValue : '';
+
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-100 hover:border-blue-500';
+        addBtn.textContent = 'Insert new';
+        addBtn.addEventListener('click', () => {
+          const label = colId === 'verified' ? 'verification' : col.label.toLowerCase();
+          const entry = prompt(`Enter a new ${label} value:`);
+          if (entry === null) return;
+          const trimmed = entry.trim();
+          if (trimmed === '') return;
+
+          let value = trimmed;
+          if (colId === 'verified') {
+            const boolVal = toBool(trimmed);
+            if (boolVal === true) value = 'true';
+            else if (boolVal === false) value = 'false';
+          }
+
+          addSelectOption(sel, value, optionLabel(colId, trimmed));
+          sel.value = value;
+        });
+
+        wrapper.appendChild(sel);
+        wrapper.appendChild(addBtn);
         inputEl = sel;
+        state.inlineEdit.inputEl = inputEl;
+        td.appendChild(wrapper);
       } else {
         const inp = document.createElement('input');
         inp.type = 'text';
         inp.className = 'cell-input';
         inp.value = rawCurrent === null || rawCurrent === undefined ? '' : String(rawCurrent);
         inputEl = inp;
+        state.inlineEdit.inputEl = inputEl;
+        td.appendChild(inputEl);
       }
-
-      state.inlineEdit.inputEl = inputEl;
-      td.appendChild(inputEl);
 
       // focus + select
       setTimeout(() => {
@@ -1316,8 +1446,9 @@
       populateSelect(els.stateFilter, state.rows.map(r => r.state), 'All states');
       populateSelect(els.categoryFilter, state.rows.map(r => r.category), 'All categories');
 
-      state.pagination.page = 1;
+      syncFilterControls();
       renderTable();
+      savePrefs();
     };
 
     async function deleteRow(row) {
@@ -1331,16 +1462,16 @@
     }
 
     // ---------------- EVENTS ----------------
-    els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; renderTable(); });
-    els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; renderTable(); });
-    els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; renderTable(); });
-    els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; renderTable(); });
+    els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
+    els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
+    els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
+    els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
 
-    els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; renderTable(); } });
+    els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; savePrefs(); renderTable(); } });
     els.nextPage.addEventListener('click', () => {
       const total = applySort(applyFilters()).length;
       const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
-      if (state.pagination.page < totalPages) { state.pagination.page += 1; renderTable(); }
+      if (state.pagination.page < totalPages) { state.pagination.page += 1; savePrefs(); renderTable(); }
     });
 
     els.refresh.addEventListener('click', refresh);
@@ -1349,11 +1480,30 @@
     els.addRecord?.addEventListener('click', async () => {
       if (state.currentUserRole !== 'administrator') return;
       try {
-        const payload = { company_name: 'New Company', category: PAGE_CATEGORY, verified: null };
+        const payload = {
+          company_name: '',
+          authorization: '',
+          category: '',
+          verified: null,
+          phone: '',
+          contact: '',
+          address: '',
+          city: '',
+          state: '',
+          zip: '',
+          email: '',
+          notes: '',
+          website: '',
+          availability: '',
+          lat: null,
+          long: null,
+        };
         const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
         if (error) throw error;
         state.rows.unshift(normalizeRow(data));
+        state.pagination.page = 1;
         renderTable();
+        savePrefs();
       } catch (err) {
         console.error(err);
         alert('Error creating record: ' + (err?.message || JSON.stringify(err)));
@@ -1364,6 +1514,7 @@
     const init = async () => {
       createConstellationBackground();
       await requireSession();
+      syncFilterControls();
       attachResizeHandles();
       attachScrollSync();
       attachAnalyticsResizeObserver();
