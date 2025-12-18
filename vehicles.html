@@ -358,9 +358,13 @@
       flex-direction: column;
       gap: 0.75rem;
       pointer-events: none;
+      align-items: flex-start;
     }
 
-    .sidebar-toggle-group .sidebar-toggle-btn { position: relative; pointer-events: auto; }
+    .sidebar-toggle-group.items-end { align-items: flex-end; }
+
+    .sidebar-toggle-group .sidebar-toggle-btn { position: relative; pointer-events: auto; align-self: flex-start; width: auto; }
+    .sidebar-toggle-group.items-end .sidebar-toggle-btn { align-self: flex-end; }
 
     .sidebar-toggle-pill { padding: 0.4rem 0.85rem; font-size: 11px; }
   </style>
@@ -430,7 +434,6 @@
       <button id="open-tire-sidebar" class="sidebar-toggle-btn">Tire Services</button>
       <button id="open-inspector-sidebar" class="sidebar-toggle-btn">Inspectors</button>
       <div id="custom-toggle-slot" class="flex flex-wrap gap-2">
-        <button id="open-custom-sidebar" class="sidebar-toggle-btn hidden">Additional services</button>
         <div id="custom-category-toggles" class="contents flex flex-wrap gap-2"></div>
       </div>
     </div>
@@ -1086,6 +1089,7 @@
     let inspectors = [];
     let customServices = [];
     let customCategories = new Map();
+    let customToggleRef = null;
     let selectedCustomCategoryKey = null;
     let vehicles = [];
     let vehicleHeaders = [];
@@ -1187,26 +1191,46 @@
 
       slot.innerHTML = '';
       selectedCustomCategoryKey = null;
-      if (!customCategoryLabels.size) return;
+
+      if (!customCategoryLabels.size) {
+        slot.classList.add('hidden');
+        customToggleRef = null;
+        return;
+      }
+
+      const buttons = [];
+
+      const updateCustomToggleStates = () => {
+        buttons.forEach((button) => {
+          const key = button.dataset.categoryKey || '';
+          const isActive = key && selectedCustomCategoryKey === key;
+          button.classList.toggle('active', isActive);
+        });
+      };
 
       const buildButton = (label, key = null) => {
         const button = document.createElement('button');
         button.className = 'sidebar-toggle-btn';
         button.textContent = label;
+        button.dataset.categoryKey = key || '';
         button.addEventListener('click', () => {
-          selectedCustomCategoryKey = key;
+          selectedCustomCategoryKey = selectedCustomCategoryKey === key ? null : key;
           sidebarStateController?.setState?.('custom', true);
           renderCustomServices();
+          updateCustomToggleStates();
         });
         slot.appendChild(button);
+        buttons.push(button);
       };
-
-      buildButton('All new categories');
 
       Array.from(customCategoryLabels).forEach((label) => {
         const meta = ensureCustomCategoryMeta(label);
         buildButton(meta.label, meta.key);
       });
+
+      customToggleRef = buttons[0] || null;
+      slot.classList.remove('hidden');
+      updateCustomToggleStates();
     }
 
     const isServiceTypeEnabled = (type) => enabledServiceTypes.has(type);
@@ -1220,11 +1244,15 @@
         const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('category');
         if (error) throw error;
 
-        const normalizedCategories = new Set(
-          (data || [])
-            .map((row) => `${row?.category || ''}`.trim().toLowerCase())
-            .filter(Boolean)
-        );
+        const rawCategories = new Map();
+        (data || []).forEach((row) => {
+          const raw = `${row?.category ?? ''}`.trim();
+          if (!raw) return;
+          const key = raw.toLowerCase();
+          if (!rawCategories.has(key)) rawCategories.set(key, raw);
+        });
+
+        const normalizedCategories = new Set(rawCategories.keys());
 
         const detected = SERVICE_TYPES.filter((type) => {
           if (type === 'custom') return false;
@@ -1233,9 +1261,11 @@
         });
 
         const knownLabels = new Set(Object.values(SERVICE_CATEGORIES).map((c) => `${c}`.trim().toLowerCase()));
-        customCategoryLabels = new Set(
-          [...normalizedCategories].filter((label) => label && !knownLabels.has(label))
-        );
+        const customLabelMap = new Map();
+        rawCategories.forEach((original, key) => {
+          if (!knownLabels.has(key)) customLabelMap.set(key, original);
+        });
+        customCategoryLabels = new Set(customLabelMap.values());
 
         if (customCategoryLabels.size) detected.push('custom');
 
@@ -1255,7 +1285,12 @@
         if (!config) return;
 
         const enabled = isServiceTypeEnabled(type);
-        const toggle = document.getElementById(config.toggleId);
+        if (type === 'custom') {
+          const slot = document.getElementById('custom-category-toggles');
+          if (slot) slot.classList.toggle('hidden', !enabled || !customCategoryLabels.size);
+        }
+
+        const toggle = config.toggleId ? document.getElementById(config.toggleId) : null;
         const sidebar = document.getElementById(config.sidebarId);
         const layer = config.layer?.();
 
@@ -1606,7 +1641,7 @@
       dispatcher: { sidebarId: 'dispatcher-sidebar', toggleId: 'open-dispatcher-sidebar', legendSelector: '[data-legend="dispatcher"]', collapsedClass: 'collapsed-dispatcher', layer: () => dispatcherLayer },
       tire: { sidebarId: 'tire-sidebar', toggleId: 'open-tire-sidebar', legendSelector: '[data-legend="tire"]', collapsedClass: 'collapsed-tire', layer: () => tireLayer },
       inspector: { sidebarId: 'inspector-sidebar', toggleId: 'open-inspector-sidebar', legendSelector: '[data-legend="inspector"]', collapsedClass: 'collapsed-inspector', layer: () => inspectorLayer },
-      custom: { sidebarId: 'custom-sidebar', toggleId: 'open-custom-sidebar', legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-custom', layer: () => customServiceLayer }
+      custom: { sidebarId: 'custom-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-custom', layer: () => customServiceLayer }
     };
 
     let enabledServiceTypes = new Set(SERVICE_TYPES);
@@ -2549,7 +2584,7 @@
       });
 
       if (!grouped.size) {
-        container.innerHTML = '<div class="text-center mt-10 text-slate-600 text-xs">No new categories detected.</div>';
+        container.innerHTML = '<div class="text-center mt-10 text-slate-600 text-xs">No services available.</div>';
         counter && (counter.textContent = '0');
         document.getElementById('custom-legend-slot')?.replaceChildren();
         return;
@@ -4077,7 +4112,7 @@
         const openDispatcher = document.getElementById('open-dispatcher-sidebar');
         const openTire = document.getElementById('open-tire-sidebar');
         const openInspector = document.getElementById('open-inspector-sidebar');
-        const openCustom = document.getElementById('open-custom-sidebar');
+        const openCustom = customToggleRef || document.querySelector('#custom-category-toggles .sidebar-toggle-btn');
         const collapseLeft = document.getElementById('collapse-left');
         const collapseRight = document.getElementById('collapse-right');
         const collapseTowing = document.getElementById('collapse-towing');
