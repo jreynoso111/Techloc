@@ -226,9 +226,22 @@
                   <select id="state-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
                     <option value="all">All states</option>
                   </select>
-                  <select id="category-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-                    <option value="all">All categories</option>
-                  </select>
+                  <div class="relative" id="category-filter-shell">
+                    <button id="category-filter-toggle" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" type="button">
+                      <i data-lucide="filter" class="h-4 w-4"></i>
+                      <span id="category-filter-label">All categories</span>
+                      <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                    </button>
+
+                    <div id="category-filter-popover" class="popover hidden rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
+                      <div class="flex items-center justify-between px-2 pb-2">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Categories</p>
+                        <button id="category-filter-clear" type="button" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">Clear</button>
+                      </div>
+                      <div id="category-filter-list" class="max-h-56 overflow-y-auto px-2 pb-2 space-y-1"></div>
+                      <p class="px-2 pt-1 text-[11px] text-slate-500">Select one or more categories to filter the table.</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2">
@@ -392,7 +405,11 @@
       companies: document.getElementById('tech-companies'),
       companyFilter: document.getElementById('company-filter'),
       stateFilter: document.getElementById('state-filter'),
-      categoryFilter: document.getElementById('category-filter'),
+      categoryFilterToggle: document.getElementById('category-filter-toggle'),
+      categoryFilterPopover: document.getElementById('category-filter-popover'),
+      categoryFilterList: document.getElementById('category-filter-list'),
+      categoryFilterLabel: document.getElementById('category-filter-label'),
+      categoryFilterClear: document.getElementById('category-filter-clear'),
       search: document.getElementById('search'),
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
@@ -437,7 +454,7 @@
       rows: [],
       currentUserRole: 'user',
       currentUserId: 'anon',
-      filters: { search: '', company: 'all', state: 'all', category: 'all' },
+      filters: { search: '', company: 'all', state: 'all', categories: [] },
       sort: { key: '', dir: 'asc' },
       pagination: { page: 1, pageSize: 20 },
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
@@ -494,11 +511,19 @@
       }
 
       if (prefs.filters && typeof prefs.filters === 'object') {
+        const savedCategories = (() => {
+          if (Array.isArray(prefs.filters.categories)) return prefs.filters.categories;
+          if (typeof prefs.filters.category === 'string') {
+            return prefs.filters.category === 'all' ? [] : [prefs.filters.category];
+          }
+          return [];
+        })();
+
         state.filters = {
           search: prefs.filters.search ?? '',
           company: prefs.filters.company ?? 'all',
           state: prefs.filters.state ?? 'all',
-          category: prefs.filters.category ?? 'all',
+          categories: savedCategories,
         };
       }
 
@@ -573,6 +598,64 @@
       });
     };
 
+    const renderCategoryFilterOptions = () => {
+      if (!els.categoryFilterList) return;
+      const values = Array.from(new Set(state.rows.map(r => getText(r.category)).filter(Boolean))).sort();
+      const selected = new Set(state.filters.categories);
+
+      els.categoryFilterList.innerHTML = '';
+
+      if (!values.length) {
+        const empty = document.createElement('p');
+        empty.className = 'px-2 text-sm text-slate-400';
+        empty.textContent = 'No categories available';
+        els.categoryFilterList.appendChild(empty);
+        return;
+      }
+
+      values.forEach((value, idx) => {
+        const id = `cat-filter-${idx}`;
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:border-blue-500/60';
+
+        const left = document.createElement('div');
+        left.className = 'flex items-center gap-2 min-w-0';
+        left.innerHTML = `
+          <span class="truncate font-semibold">${value.toUpperCase()}</span>
+        `;
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'h-4 w-4 accent-blue-600';
+        input.id = id;
+        input.value = value;
+        input.checked = selected.has(value);
+        input.addEventListener('change', () => {
+          const next = new Set(state.filters.categories);
+          if (input.checked) {
+            next.add(value);
+          } else {
+            next.delete(value);
+          }
+          state.filters.categories = Array.from(next);
+          state.pagination.page = 1;
+          savePrefs();
+          updateCategoryFilterLabel();
+          renderTable();
+        });
+
+        label.appendChild(left);
+        label.appendChild(input);
+        els.categoryFilterList.appendChild(label);
+      });
+    };
+
+    const updateCategoryFilterLabel = () => {
+      if (!els.categoryFilterLabel) return;
+      const count = state.filters.categories.length;
+      els.categoryFilterLabel.textContent = count ? `${count} selected` : 'All categories';
+    };
+
     const syncFilterControls = () => {
       if (els.search) els.search.value = state.filters.search || '';
 
@@ -585,7 +668,7 @@
 
       setSelect(els.companyFilter, state.filters.company);
       setSelect(els.stateFilter, state.filters.state);
-      setSelect(els.categoryFilter, state.filters.category);
+      updateCategoryFilterLabel();
     };
 
     const applySearch = (rows, term) => {
@@ -606,11 +689,12 @@
       let result = applySearch([...state.rows], f.search);
       if (f.company !== 'all') result = result.filter(r => getText(r.company) === f.company);
       if (f.state !== 'all') result = result.filter(r => getText(r.state) === f.state);
-      if (f.category !== 'all') {
+      if (Array.isArray(f.categories) && f.categories.length) {
+        const selected = new Set(f.categories.map(getText));
         result = result.filter((r) => {
           const cat = getText(r.category);
           if (!cat) return true; // keep blank/unassigned rows visible while filtering
-          return cat === f.category;
+          return selected.has(cat);
         });
       }
       return result;
@@ -1325,15 +1409,46 @@
       if (willShow) renderColumnsPopover();
     };
 
+    const toggleCategoryFilterPopover = (force) => {
+      if (!els.categoryFilterPopover) return;
+      const willShow = typeof force === 'boolean' ? force : els.categoryFilterPopover.classList.contains('hidden');
+      els.categoryFilterPopover.classList.toggle('hidden', !willShow);
+      if (willShow) {
+        renderCategoryFilterOptions();
+        lucide.createIcons();
+      }
+    };
+
     document.addEventListener('click', (e) => {
-      const inside = e.target.closest('#columns-popover') || e.target.closest('#columns-btn');
-      if (!inside) toggleColumnsPopover(false);
+      const insideColumns = e.target.closest('#columns-popover') || e.target.closest('#columns-btn');
+      if (!insideColumns) toggleColumnsPopover(false);
+
+      const insideCategories = e.target.closest('#category-filter-popover') || e.target.closest('#category-filter-toggle');
+      if (!insideCategories) toggleCategoryFilterPopover(false);
     });
 
     els.columnsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleColumnsPopover();
     });
+
+    if (els.categoryFilterToggle) {
+      els.categoryFilterToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleCategoryFilterPopover();
+      });
+    }
+
+    if (els.categoryFilterClear) {
+      els.categoryFilterClear.addEventListener('click', () => {
+        state.filters.categories = [];
+        state.pagination.page = 1;
+        savePrefs();
+        renderCategoryFilterOptions();
+        updateCategoryFilterLabel();
+        renderTable();
+      });
+    }
 
     els.colsAll.addEventListener('click', () => {
       Object.keys(state.columnVisibility).forEach((k) => state.columnVisibility[k] = true);
@@ -1479,7 +1594,7 @@
       updateStats();
       populateSelect(els.companyFilter, state.rows.map(r => r.company), 'All companies');
       populateSelect(els.stateFilter, state.rows.map(r => r.state), 'All states');
-      populateSelect(els.categoryFilter, state.rows.map(r => r.category), 'All categories');
+      renderCategoryFilterOptions();
 
       syncFilterControls();
       renderTable();
@@ -1540,7 +1655,6 @@
     // ---------------- EVENTS ----------------
     els.companyFilter.addEventListener('change', (e) => { state.filters.company = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
     els.stateFilter.addEventListener('change', (e) => { state.filters.state = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
-    els.categoryFilter.addEventListener('change', (e) => { state.filters.category = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
     els.search.addEventListener('input', (e) => { state.filters.search = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
 
     els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; savePrefs(); renderTable(); } });
