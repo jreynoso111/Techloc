@@ -228,6 +228,8 @@
     .service-mini-card { font-family: 'Inter', sans-serif; min-width: 0; }
     .service-mini-title { margin: 0; font-size: 13px; font-weight: 800; color: #fff; line-height: 1.2; }
     .service-mini-location { margin: 2px 0 0; font-size: 11px; color: #cbd5e1; line-height: 1.3; }
+    .service-mini-meta { margin: 2px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.3; }
+    .service-mini-meta strong { color: #e2e8f0; font-weight: 700; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
@@ -1668,6 +1670,11 @@
     const showServicePreviewCard = (partner) => {
       if (!map || !partner) return;
       const locationText = formatPartnerLocation(partner) || 'Location unavailable';
+      const cityText = partner.city || 'City unavailable';
+      const stateText = partner.state || partner.region || 'State unavailable';
+      const zipText = partner.zip || 'Zip unavailable';
+      const phoneText = partner.phone || 'Phone unavailable';
+      const phoneDial = partner.phoneDial || partner.phone;
       const popup = L.popup({
         className: 'service-mini-popup',
         closeButton: true,
@@ -1681,6 +1688,10 @@
           <div class="service-mini-card">
             <p class="service-mini-title">${partner.company || 'Service'}</p>
             <p class="service-mini-location">${locationText}</p>
+            <p class="service-mini-meta"><strong>City:</strong> ${cityText}</p>
+            <p class="service-mini-meta"><strong>State:</strong> ${stateText}</p>
+            <p class="service-mini-meta"><strong>ZIP:</strong> ${zipText}</p>
+            <p class="service-mini-meta"><strong>Phone:</strong> ${phoneDial ? `<a href="tel:${phoneDial}" class="text-blue-300">${phoneText}</a>` : phoneText}</p>
           </div>
         `);
 
@@ -3965,16 +3976,16 @@
     function showServicesFromOrigin(origin, { forceType = null } = {}) {
       serviceLayer?.clearLayers();
       serviceConnectionLayer?.clearLayers();
-      if (!origin) return;
+      const hasSidebarOpen = isAnyServiceSidebarOpen();
+      const hasExplicitType = !!forceType;
+      if (!origin || (!hasSidebarOpen && !hasExplicitType)) return;
 
       lastOriginPoint = { lat: origin.lat, lng: origin.lng, name: origin.name || origin.customer || '' };
 
       const visibleTypes = getVisibleServiceTypes();
       const activeTypes = forceType
         ? [forceType]
-        : visibleTypes.length
-          ? [visibleTypes[0]]
-          : getEnabledServiceTypes();
+        : visibleTypes;
 
       activeTypes.forEach((type) => {
         const baseList = getPartnerListByType(type);
@@ -4203,6 +4214,16 @@
         }) || null;
 
         renderVisibleSidebars();
+
+        if (!isAnyServiceSidebarOpen()) {
+          serviceLayer?.clearLayers();
+          serviceConnectionLayer?.clearLayers();
+        } else {
+          const origin = getCurrentOrigin();
+          if (origin) {
+            showServicesFromOrigin(origin, { forceType: getActivePartnerType() });
+          }
+        }
       };
 
         const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
