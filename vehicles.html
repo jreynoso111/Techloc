@@ -228,6 +228,8 @@
     .service-mini-card { font-family: 'Inter', sans-serif; min-width: 0; }
     .service-mini-title { margin: 0; font-size: 13px; font-weight: 800; color: #fff; line-height: 1.2; }
     .service-mini-location { margin: 2px 0 0; font-size: 11px; color: #cbd5e1; line-height: 1.3; }
+    .service-mini-meta { margin: 2px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.3; }
+    .service-mini-meta strong { color: #e2e8f0; font-weight: 700; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
@@ -1151,6 +1153,9 @@
     const SERVICE_TABLE = 'Services';
     const SERVICE_CATEGORIES = {
       technicians: 'GPS Technician',
+      parking: 'Parking Yard',
+      repo: 'Repo Agent',
+      storage: 'SP Storage',
       towing: 'Towing',
       resellers: 'dealer/auction',
       repair: 'Repair Shop',
@@ -1171,6 +1176,7 @@
       const key = SERVICE_CATEGORY_KEYS_BY_TYPE[type];
       return key ? SERVICE_CATEGORIES[key] : '';
     };
+
 
     const normalizeCategoryLabel = (value = '') => `${value}`.trim();
     const getCustomCategoryKey = (label = '') => normalizeKey(label) || `custom-${customCategories.size + 1}`;
@@ -1259,8 +1265,10 @@
 
         const detected = SERVICE_TYPES.filter((type) => {
           if (type === 'custom') return false;
-          const label = `${getServiceCategoryLabel(type)}`.toLowerCase();
-          return label && normalizedCategories.has(label);
+          const labels = getServiceCategoryLabels(type)
+            .map((label) => `${label}`.toLowerCase())
+            .filter(Boolean);
+          return labels.some((label) => normalizedCategories.has(label));
         });
 
         const knownLabels = new Set(Object.values(SERVICE_CATEGORIES).map((c) => `${c}`.trim().toLowerCase()));
@@ -1333,6 +1341,20 @@
     };
 
     const normalizeKey = (key = '') => `${key}`.trim().toLowerCase().replace(/\s+/g, '_');
+
+    const getServiceCategoryLabels = (type = '') => SERVICE_LABELS_BY_TYPE[type] || [];
+
+    const techCategoryColors = {
+      [normalizeKey(SERVICE_CATEGORIES.technicians)]: SERVICE_COLORS.tech,
+      [normalizeKey(SERVICE_CATEGORIES.parking)]: SERVICE_COLORS.techParking,
+      [normalizeKey(SERVICE_CATEGORIES.repo)]: SERVICE_COLORS.techRepo,
+      [normalizeKey(SERVICE_CATEGORIES.storage)]: SERVICE_COLORS.techStorage,
+    };
+
+    const getTechMarkerColor = (category = '') => {
+      const normalized = normalizeKey(category);
+      return techCategoryColors[normalized] || SERVICE_COLORS.tech;
+    };
 
     const escapeHTML = (value = '') => `${value}`
       .replace(/&/g, '&amp;')
@@ -1455,11 +1477,13 @@
       const stateCode = toStateCode(getField(row, 'State', 'state', 'state_code')) || 'US';
       const city = getField(row, 'City', 'city');
       const zip = getField(row, 'Zip', 'zip');
+      const category = getField(row, 'category', 'Category') || SERVICE_CATEGORIES.technicians;
       const { coords, hasExactCoords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx });
       const { display: phone, tel: phoneDial } = formatPhoneNumber(getField(row, 'Phone', 'phone'));
       return {
         id: row?.id ?? idx,
         type: 'technicians',
+        category,
         name: company || 'Installer',
         company: company || 'Installer',
         email: getField(row, 'Email', 'email') || '-',
@@ -1612,8 +1636,21 @@
       tire: 'tire',
       inspector: 'inspectors'
     };
+    const SERVICE_LABELS_BY_TYPE = {
+      tech: [SERVICE_CATEGORIES.technicians, SERVICE_CATEGORIES.parking, SERVICE_CATEGORIES.repo, SERVICE_CATEGORIES.storage],
+      towing: [SERVICE_CATEGORIES.towing],
+      reseller: [SERVICE_CATEGORIES.resellers],
+      repair: [SERVICE_CATEGORIES.repair],
+      locksmith: [SERVICE_CATEGORIES.locksmiths],
+      dispatcher: [SERVICE_CATEGORIES.dispatchers],
+      tire: [SERVICE_CATEGORIES.tire],
+      inspector: [SERVICE_CATEGORIES.inspectors]
+    };
     const SERVICE_COLORS = {
       tech: '#3b82f6',
+      techParking: '#06b6d4',
+      techRepo: '#f43f5e',
+      techStorage: '#eab308',
       towing: '#c084fc',
       reseller: '#34d399',
       repair: '#fb923c',
@@ -1668,6 +1705,11 @@
     const showServicePreviewCard = (partner) => {
       if (!map || !partner) return;
       const locationText = formatPartnerLocation(partner) || 'Location unavailable';
+      const cityText = partner.city || 'City unavailable';
+      const stateText = partner.state || partner.region || 'State unavailable';
+      const zipText = partner.zip || 'Zip unavailable';
+      const phoneText = partner.phone || 'Phone unavailable';
+      const phoneDial = partner.phoneDial || partner.phone;
       const popup = L.popup({
         className: 'service-mini-popup',
         closeButton: true,
@@ -1681,6 +1723,10 @@
           <div class="service-mini-card">
             <p class="service-mini-title">${partner.company || 'Service'}</p>
             <p class="service-mini-location">${locationText}</p>
+            <p class="service-mini-meta"><strong>City:</strong> ${cityText}</p>
+            <p class="service-mini-meta"><strong>State:</strong> ${stateText}</p>
+            <p class="service-mini-meta"><strong>ZIP:</strong> ${zipText}</p>
+            <p class="service-mini-meta"><strong>Phone:</strong> ${phoneDial ? `<a href="tel:${phoneDial}" class="text-blue-300">${phoneText}</a>` : phoneText}</p>
           </div>
         `);
 
@@ -1803,10 +1849,18 @@
         return;
       }
       try {
-        const { data, error } = await supabaseClient
+        const techCategories = getServiceCategoryLabels('tech');
+        let query = supabaseClient
           .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.technicians);
+          .select('*');
+
+        if (techCategories.length > 1) {
+          query = query.in('category', techCategories);
+        } else {
+          query = query.eq('category', techCategories[0] || SERVICE_CATEGORIES.technicians);
+        }
+
+        const { data, error } = await query;
         if (error) throw error;
         technicians = (data || []).map((row, idx) => normalizeInstaller(row, idx)).filter(t => t.company || t.city || t.state);
         setServiceHeaders('technicians', data || []);
@@ -2320,21 +2374,25 @@
 
       if (shouldRenderMarkers) {
         displayList.forEach(tech => {
+          const categoryLabel = tech.category || SERVICE_CATEGORIES.technicians;
+          const color = getTechMarkerColor(categoryLabel);
           const marker = L.marker([tech.lat, tech.lng], {
-            icon: createServiceIcon(SERVICE_COLORS.tech)
+            icon: createServiceIcon(color)
           }).addTo(techLayer);
 
           marker.bindPopup(`
             <div class="text-slate-900 p-1 font-sans">
-              <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
-              <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
-              <a href="tel:${tech.phoneDial || tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
+            <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
+            <div class="text-[10px] font-semibold text-blue-200">${categoryLabel}</div>
+            <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
+            <a href="tel:${tech.phoneDial || tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
               <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
             </div>
           `);
 
           marker.on('click', (e) => {
             e.originalEvent.handledByMarker = true;
+            showServicePreviewCard(tech);
             map.panTo([tech.lat, tech.lng]);
             applySelection(null, tech.id);
           });
@@ -2345,6 +2403,8 @@
 
       displayList.slice(0, 50).forEach((tech, idx) => {
         const isNearest = target && idx === 0;
+        const categoryLabel = tech.category || SERVICE_CATEGORIES.technicians;
+        const categoryColor = getTechMarkerColor(categoryLabel);
 
         const card = document.createElement('div');
         card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
@@ -2355,6 +2415,7 @@
           <div class="flex justify-between items-start gap-3">
             <div class="min-w-0 space-y-1">
               <h3 class="font-bold text-white text-sm break-words leading-tight" title="${tech.company}">${tech.company}</h3>
+              <p class="text-[10px] font-semibold text-slate-300 flex items-center gap-1"><span class="inline-flex h-2 w-2 rounded-full" style="background:${categoryColor}"></span>${categoryLabel}</p>
               <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight"><i data-lucide="map-pin" class="h-3 w-3"></i><span class="truncate">${tech.city || 'Unknown'}, ${tech.state || 'US'}</span></p>
             </div>
             <div class="text-right text-[11px] text-slate-400 leading-tight space-y-0.5">
@@ -3965,16 +4026,18 @@
     function showServicesFromOrigin(origin, { forceType = null } = {}) {
       serviceLayer?.clearLayers();
       serviceConnectionLayer?.clearLayers();
-      if (!origin) return;
+      const hasSidebarOpen = isAnyServiceSidebarOpen();
+      const hasExplicitType = !!forceType;
+      if (!origin || (!hasSidebarOpen && !hasExplicitType)) return;
 
       lastOriginPoint = { lat: origin.lat, lng: origin.lng, name: origin.name || origin.customer || '' };
 
       const visibleTypes = getVisibleServiceTypes();
       const activeTypes = forceType
-        ? [forceType]
-        : visibleTypes.length
-          ? [visibleTypes[0]]
-          : getEnabledServiceTypes();
+        ? visibleTypes.filter((type) => type === forceType)
+        : visibleTypes;
+
+      if (!activeTypes.length) return;
 
       activeTypes.forEach((type) => {
         const baseList = getPartnerListByType(type);
@@ -4203,6 +4266,16 @@
         }) || null;
 
         renderVisibleSidebars();
+
+        if (!isAnyServiceSidebarOpen()) {
+          serviceLayer?.clearLayers();
+          serviceConnectionLayer?.clearLayers();
+        } else {
+          const origin = getCurrentOrigin();
+          if (origin) {
+            showServicesFromOrigin(origin, { forceType: getActivePartnerType() });
+          }
+        }
       };
 
         const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
