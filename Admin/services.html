@@ -606,7 +606,13 @@
       let result = applySearch([...state.rows], f.search);
       if (f.company !== 'all') result = result.filter(r => getText(r.company) === f.company);
       if (f.state !== 'all') result = result.filter(r => getText(r.state) === f.state);
-      if (f.category !== 'all') result = result.filter(r => getText(r.category) === f.category);
+      if (f.category !== 'all') {
+        result = result.filter((r) => {
+          const cat = getText(r.category);
+          if (!cat) return true; // keep blank/unassigned rows visible while filtering
+          return cat === f.category;
+        });
+      }
       return result;
     };
 
