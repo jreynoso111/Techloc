@@ -442,7 +442,7 @@
       pagination: { page: 1, pageSize: 20 },
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
       columnVisibility: Object.fromEntries([['actions', true], ...ALL_COLUMNS.map(c => [c.id, true])]),
-      columnWidths: Object.fromEntries([['actions', 110], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
+      columnWidths: Object.fromEntries([['actions', 140], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
       drag: { resizing: null, draggingCol: null },
 
       // inline edit session
@@ -606,7 +606,13 @@
       let result = applySearch([...state.rows], f.search);
       if (f.company !== 'all') result = result.filter(r => getText(r.company) === f.company);
       if (f.state !== 'all') result = result.filter(r => getText(r.state) === f.state);
-      if (f.category !== 'all') result = result.filter(r => getText(r.category) === f.category);
+      if (f.category !== 'all') {
+        result = result.filter((r) => {
+          const cat = getText(r.category);
+          if (!cat) return true; // keep blank/unassigned rows visible while filtering
+          return cat === f.category;
+        });
+      }
       return result;
     };
 
@@ -797,12 +803,24 @@
             td.className = 'text-center align-top compact-td';
 
             if (isAdmin) {
+              const actions = document.createElement('div');
+              actions.className = 'inline-flex items-center justify-center gap-2';
+
+              const duplicateBtn = document.createElement('button');
+              duplicateBtn.type = 'button';
+              duplicateBtn.className = 'text-blue-300 transition hover:text-blue-200 hover:scale-110';
+              duplicateBtn.innerHTML = '<i data-lucide="copy" class="h-4 w-4"></i>';
+              duplicateBtn.onclick = () => duplicateRow(row);
+              actions.appendChild(duplicateBtn);
+
               const deleteBtn = document.createElement('button');
               deleteBtn.type = 'button';
               deleteBtn.className = 'text-red-400 transition hover:text-red-300 hover:scale-110';
               deleteBtn.innerHTML = '<i data-lucide="trash-2" class="h-4 w-4"></i>';
               deleteBtn.onclick = () => deleteRow(row);
-              td.appendChild(deleteBtn);
+              actions.appendChild(deleteBtn);
+
+              td.appendChild(actions);
             } else {
               td.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
             }
@@ -1467,6 +1485,47 @@
       renderTable();
       savePrefs();
     };
+
+    const buildInsertPayload = (row) => {
+      const payload = {};
+      ALL_COLUMNS.forEach((col) => {
+        const dbField = DB_FIELD_BY_COL_ID[col.id];
+        if (!dbField) return;
+        payload[dbField] = row[col.key] ?? null;
+      });
+      return payload;
+    };
+
+    async function duplicateRow(row) {
+      if (!row?.id) return;
+      if (state.currentUserRole !== 'administrator') { alert('Only administrators can duplicate records.'); return; }
+      const confirmed = confirm(`Duplicate "${row.company}"?`);
+      if (!confirmed) return;
+
+      try {
+        const payload = buildInsertPayload(row);
+        const { data, error } = await supabaseClient
+          .from(WRITE_TABLE)
+          .insert([payload])
+          .select('*')
+          .single();
+
+        if (error) throw error;
+
+        const duplicated = normalizeRow(data);
+        const index = state.rows.findIndex(r => r.id === row.id);
+        if (index >= 0) {
+          state.rows.splice(index + 1, 0, duplicated);
+        } else {
+          state.rows.push(duplicated);
+        }
+
+        renderTable();
+      } catch (err) {
+        console.error(err);
+        alert('Error duplicating record: ' + (err?.message || JSON.stringify(err)));
+      }
+    }
 
     async function deleteRow(row) {
       if (!row?.id) return;
