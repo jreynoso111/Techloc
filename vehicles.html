@@ -433,8 +433,8 @@
       <button id="open-dispatcher-sidebar" class="sidebar-toggle-btn">Dispatchers</button>
       <button id="open-tire-sidebar" class="sidebar-toggle-btn">Tire Services</button>
       <button id="open-inspector-sidebar" class="sidebar-toggle-btn">Inspectors</button>
-      <div id="custom-toggle-slot" class="flex flex-wrap gap-2">
-        <div id="custom-category-toggles" class="contents flex flex-wrap gap-2"></div>
+      <div id="custom-toggle-slot" class="flex w-full flex-col gap-2">
+        <div id="custom-category-toggles" class="flex flex-col gap-2"></div>
       </div>
     </div>
     <div id="map-visibility-group" class="pointer-events-none absolute top-4 left-1/2 z-[500] -translate-x-1/2 transform flex flex-wrap justify-center gap-2">
@@ -1223,10 +1223,12 @@
         buttons.push(button);
       };
 
-      Array.from(customCategoryLabels).forEach((label) => {
-        const meta = ensureCustomCategoryMeta(label);
-        buildButton(meta.label, meta.key);
-      });
+      Array.from(customCategoryLabels)
+        .sort((a, b) => `${a}`.localeCompare(`${b}`))
+        .forEach((label) => {
+          const meta = ensureCustomCategoryMeta(label);
+          buildButton(meta.label, meta.key);
+        });
 
       customToggleRef = buttons[0] || null;
       slot.classList.remove('hidden');
