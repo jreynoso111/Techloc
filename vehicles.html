@@ -1150,6 +1150,21 @@
       (window.supabase?.createClient
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
         : null);
+
+    const revealAppShell = () => {
+      const loading = document.querySelector('[data-auth-loading]');
+      const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
+      loading?.classList.add('hidden');
+      protectedBlocks.forEach((block) => {
+        block.classList.remove('hidden');
+        block.removeAttribute('aria-hidden');
+      });
+    };
+
+    if (!supabaseClient) {
+      console.warn('Supabase unavailable: showing shell without remote data.');
+      document.addEventListener('DOMContentLoaded', revealAppShell, { once: true });
+    }
     const SERVICE_TABLE = 'Services';
     const SERVICE_CATEGORIES = {
       technicians: 'GPS Technician',
@@ -4384,6 +4399,7 @@
       (async () => {
         iconLib.createIcons();
         initMap();
+        revealAppShell();
         await syncAvailableServiceTypes();
         updateServiceVisibilityUI();
         if (isServiceTypeEnabled('tech')) loadTechnicians();
