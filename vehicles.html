@@ -3965,16 +3965,16 @@
     function showServicesFromOrigin(origin, { forceType = null } = {}) {
       serviceLayer?.clearLayers();
       serviceConnectionLayer?.clearLayers();
-      if (!origin) return;
+      const hasSidebarOpen = isAnyServiceSidebarOpen();
+      const hasExplicitType = !!forceType;
+      if (!origin || (!hasSidebarOpen && !hasExplicitType)) return;
 
       lastOriginPoint = { lat: origin.lat, lng: origin.lng, name: origin.name || origin.customer || '' };
 
       const visibleTypes = getVisibleServiceTypes();
       const activeTypes = forceType
         ? [forceType]
-        : visibleTypes.length
-          ? [visibleTypes[0]]
-          : getEnabledServiceTypes();
+        : visibleTypes;
 
       activeTypes.forEach((type) => {
         const baseList = getPartnerListByType(type);
@@ -4203,6 +4203,16 @@
         }) || null;
 
         renderVisibleSidebars();
+
+        if (!isAnyServiceSidebarOpen()) {
+          serviceLayer?.clearLayers();
+          serviceConnectionLayer?.clearLayers();
+        } else {
+          const origin = getCurrentOrigin();
+          if (origin) {
+            showServicesFromOrigin(origin, { forceType: getActivePartnerType() });
+          }
+        }
       };
 
         const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
