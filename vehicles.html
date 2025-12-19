@@ -1179,7 +1179,7 @@
       const key = getCustomCategoryKey(normalizedLabel);
       if (!customCategories.has(key)) {
         const color = CUSTOM_COLOR_PALETTE[customCategories.size % CUSTOM_COLOR_PALETTE.length] || SERVICE_COLORS.custom;
-        const layer = map ? L.layerGroup().addTo(map) : null;
+        const layer = map ? L.layerGroup() : null;
         customCategories.set(key, { key, label: normalizedLabel, color, layer });
       }
       return customCategories.get(key);
@@ -1214,8 +1214,14 @@
         button.textContent = label;
         button.dataset.categoryKey = key || '';
         button.addEventListener('click', () => {
-          selectedCustomCategoryKey = selectedCustomCategoryKey === key ? null : key;
-          sidebarStateController?.setState?.('custom', true);
+          const isActive = selectedCustomCategoryKey === key && customSidebarVisible;
+          if (isActive) {
+            selectedCustomCategoryKey = null;
+            sidebarStateController?.setState?.('custom', false);
+          } else {
+            selectedCustomCategoryKey = key;
+            sidebarStateController?.setState?.('custom', true);
+          }
           renderCustomServices();
           updateCustomToggleStates();
         });
@@ -2572,6 +2578,15 @@
       const counter = document.getElementById('custom-count');
       if (!container) return;
 
+      const enabled = customSidebarVisible && isServiceTypeEnabled('custom');
+      if (!enabled) {
+        customCategories.forEach(({ layer }) => layer?.clearLayers?.());
+        container.innerHTML = '<div class="text-center mt-10 text-slate-600 text-xs">Open this sidebar to view nearby partners.</div>';
+        counter && (counter.textContent = list.length.toString());
+        document.getElementById('custom-legend-slot')?.replaceChildren();
+        return;
+      }
+
       container.innerHTML = '';
       customCategories.forEach(({ layer }) => layer?.clearLayers?.());
 
@@ -2620,6 +2635,7 @@
               <div>
                 <p class="text-sm font-bold text-white leading-tight">${escapeHTML(partner.company || partner.name || 'Service')}</p>
                 <p class="text-[11px] text-slate-400">${escapeHTML(locationText)}</p>
+                ${partner.phone ? `<a class="mt-1 inline-flex items-center gap-2 text-[11px] font-semibold text-blue-200 hover:text-blue-100" href="tel:${partner.phoneDial || partner.phone}"><i data-lucide="phone" class="h-3 w-3"></i><span>${escapeHTML(partner.phone)}</span></a>` : ''}
               </div>
               <span class="text-[10px] font-semibold px-2 py-1 rounded-full border border-slate-700 text-slate-200">${escapeHTML(meta.label)}</span>
             </div>
@@ -4092,8 +4108,7 @@
       rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
     }
 
-    const isControlViewRoute = window.location.pathname.toLowerCase().includes('vehicles.html');
-    const defaultSidebarVisible = !isControlViewRoute;
+    const defaultSidebarVisible = false;
 
     function setupSidebarToggles() {
       const leftSidebar = document.getElementById('left-sidebar');
@@ -4130,15 +4145,27 @@
       const defaultLeftOffset = 12;
       const defaultRightOffset = 12;
       const syncSidebarVisibility = () => {
+        const previousVisibility = {
+          tech: techSidebarVisible,
+          towing: towingSidebarVisible,
+          reseller: resellerSidebarVisible,
+          repair: repairSidebarVisible,
+          locksmith: locksmithSidebarVisible,
+          dispatcher: dispatcherSidebarVisible,
+          tire: tireSidebarVisible,
+          inspector: inspectorSidebarVisible,
+          custom: customSidebarVisible,
+        };
+
         techSidebarVisible = isServiceTypeEnabled('tech') && !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
         towingSidebarVisible = isServiceTypeEnabled('towing') && !!towingSidebar && !towingSidebar.classList.contains('collapsed-towing');
         resellerSidebarVisible = isServiceTypeEnabled('reseller') && !!resellerSidebar && !resellerSidebar.classList.contains('collapsed-reseller');
         repairSidebarVisible = isServiceTypeEnabled('repair') && !!repairSidebar && !repairSidebar.classList.contains('collapsed-repair');
         locksmithSidebarVisible = isServiceTypeEnabled('locksmith') && !!locksmithSidebar && !locksmithSidebar.classList.contains('collapsed-locksmith');
-          dispatcherSidebarVisible = isServiceTypeEnabled('dispatcher') && !!dispatcherSidebar && !dispatcherSidebar.classList.contains('collapsed-dispatcher');
-          tireSidebarVisible = isServiceTypeEnabled('tire') && !!tireSidebar && !tireSidebar.classList.contains('collapsed-tire');
-          inspectorSidebarVisible = isServiceTypeEnabled('inspector') && !!inspectorSidebar && !inspectorSidebar.classList.contains('collapsed-inspector');
-          customSidebarVisible = isServiceTypeEnabled('custom') && !!customSidebar && !customSidebar.classList.contains('collapsed-custom');
+        dispatcherSidebarVisible = isServiceTypeEnabled('dispatcher') && !!dispatcherSidebar && !dispatcherSidebar.classList.contains('collapsed-dispatcher');
+        tireSidebarVisible = isServiceTypeEnabled('tire') && !!tireSidebar && !tireSidebar.classList.contains('collapsed-tire');
+        inspectorSidebarVisible = isServiceTypeEnabled('inspector') && !!inspectorSidebar && !inspectorSidebar.classList.contains('collapsed-inspector');
+        customSidebarVisible = isServiceTypeEnabled('custom') && !!customSidebar && !customSidebar.classList.contains('collapsed-custom');
 
         if (!techSidebarVisible) {
           if (map?.hasLayer(techLayer)) map.removeLayer(techLayer);
@@ -4183,19 +4210,55 @@
           tireLayer.addTo(map);
         }
 
-          if (!inspectorSidebarVisible) {
-            inspectorLayer?.clearLayers();
-          } else if (inspectorLayer && map && !map.hasLayer(inspectorLayer)) {
-            inspectorLayer.addTo(map);
-          }
+        if (!inspectorSidebarVisible) {
+          inspectorLayer?.clearLayers();
+        } else if (inspectorLayer && map && !map.hasLayer(inspectorLayer)) {
+          inspectorLayer.addTo(map);
+        }
 
-          if (!customSidebarVisible) {
-            customServiceLayer?.clearLayers?.();
-            customCategories.forEach(({ layer }) => layer?.clearLayers?.());
-          } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
-            customServiceLayer.addTo(map);
-            customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
-          }
+        if (!customSidebarVisible) {
+          customServiceLayer?.clearLayers?.();
+          customCategories.forEach(({ layer }) => layer?.clearLayers?.());
+        } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
+          customServiceLayer.addTo(map);
+          customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
+        }
+
+        if (previousVisibility.tech !== techSidebarVisible) {
+          updateTechUI(getTechList(technicians));
+        }
+
+        if (previousVisibility.towing !== towingSidebarVisible) {
+          updateTowingUI(towingCompanies);
+        }
+
+        if (previousVisibility.reseller !== resellerSidebarVisible) {
+          updateResellerUI(resellers);
+        }
+
+        if (previousVisibility.repair !== repairSidebarVisible) {
+          updateRepairUI(repairShops);
+        }
+
+        if (previousVisibility.locksmith !== locksmithSidebarVisible) {
+          updateLocksmithUI(locksmiths);
+        }
+
+        if (previousVisibility.dispatcher !== dispatcherSidebarVisible) {
+          updateDispatcherUI(dispatchers);
+        }
+
+        if (previousVisibility.tire !== tireSidebarVisible) {
+          updateTireUI(tirePartners);
+        }
+
+        if (previousVisibility.inspector !== inspectorSidebarVisible) {
+          updateInspectorUI(inspectors);
+        }
+
+        if (previousVisibility.custom !== customSidebarVisible) {
+          renderCustomServices(customServices);
+        }
 
           activeLeftPanel = leftSideKeys.find(key => {
             const cfg = configs[key];
@@ -4308,7 +4371,12 @@
       sidebarStateController = { setState, updateTogglePositions };
 
       Object.entries(configs).forEach(([side, config]) => {
-        if (config.toggle) config.toggle.addEventListener('click', () => setState(side, true));
+        if (config.toggle) {
+          config.toggle.addEventListener('click', () => {
+            const isCollapsed = config.sidebar?.classList.contains(config.collapsedClass);
+            setState(side, isCollapsed);
+          });
+        }
         if (config.collapse) config.collapse.addEventListener('click', () => setState(side, false));
         setState(side, defaultSidebarVisible);
       });
