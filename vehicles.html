@@ -1674,6 +1674,8 @@
       return value === 'no' || value === 'unauthorized';
     };
 
+    const isAuthorizedReseller = (partner = {}) => `${partner.authorization || partner.details?.authorization || ''}`.trim().toLowerCase() === 'authorized';
+
     const isRepoAgentPartner = (partner = {}) => `${partner.categoryLabel || partner.category || ''}`.trim().toLowerCase() === 'repo agent';
     const isParkingStoragePartner = (partner = {}) => `${partner.categoryLabel || partner.category || ''}`.trim().toLowerCase() === 'parking/storage';
 
@@ -2495,8 +2497,12 @@
       prioritized.slice(0, 75).forEach((partner, idx) => {
         const unauthorized = isUnauthorizedPartner(partner);
         const markerColor = getPartnerColor(partner, accentColor);
+        const checkPulseColor =
+          !unauthorized && type === 'reseller' && isAuthorizedReseller(partner)
+            ? markerColor
+            : null;
         const marker = L.marker([partner.lat, partner.lng], {
-          icon: createServiceIcon(markerColor, { unauthorized })
+          icon: createServiceIcon(markerColor, { unauthorized, checkPulseColor })
         }).addTo(layer);
 
         const locationText = formatPartnerLocation(partner);
