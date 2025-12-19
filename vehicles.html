@@ -2573,7 +2573,14 @@
       if (!container) return;
 
       container.innerHTML = '';
-      customCategories.forEach(({ layer }) => layer?.clearLayers?.());
+      const markersAllowed = customSidebarVisible && isServiceTypeEnabled('custom');
+
+      customCategories.forEach(({ layer }) => {
+        layer?.clearLayers?.();
+        if (!markersAllowed && map?.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
 
       const filtered = selectedCustomCategoryKey
         ? list.filter((item) => item?.categoryKey === selectedCustomCategoryKey)
@@ -2626,7 +2633,7 @@
             ${partner.notes ? `<p class="mt-2 text-[11px] text-slate-400 leading-tight">${escapeHTML(partner.notes)}</p>` : ''}
           `;
 
-          if (map && meta.layer && hasValidCoords(partner)) {
+          if (markersAllowed && map && meta.layer && hasValidCoords(partner)) {
             const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner) });
             const marker = L.marker([partner.lat, partner.lng], { icon });
             marker.on('click', (e) => {
