@@ -1112,6 +1112,7 @@
     let tireSidebarVisible = false;
     let inspectorSidebarVisible = false;
     let customSidebarVisible = false;
+    let lastCustomSidebarVisible = false;
     let activeLeftPanel = null;
     let lastClientLocation = null;
     let renderedTechIds = '';
@@ -2633,14 +2634,20 @@
             ${partner.notes ? `<p class="mt-2 text-[11px] text-slate-400 leading-tight">${escapeHTML(partner.notes)}</p>` : ''}
           `;
 
-          if (markersAllowed && map && meta.layer && hasValidCoords(partner)) {
-            const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner) });
-            const marker = L.marker([partner.lat, partner.lng], { icon });
-            marker.on('click', (e) => {
-              e.originalEvent.handledByMarker = true;
-              showServicePopup(partner, meta.color);
-            });
-            marker.addTo(meta.layer);
+          if (markersAllowed && map && meta.layer) {
+            if (!map.hasLayer(meta.layer)) {
+              meta.layer.addTo(map);
+            }
+
+            if (hasValidCoords(partner)) {
+              const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner) });
+              const marker = L.marker([partner.lat, partner.lng], { icon });
+              marker.on('click', (e) => {
+                e.originalEvent.handledByMarker = true;
+                showServicePopup(partner, meta.color);
+              });
+              marker.addTo(meta.layer);
+            }
           }
 
           card.addEventListener('click', () => {
@@ -4137,6 +4144,7 @@
       const defaultLeftOffset = 12;
       const defaultRightOffset = 12;
       const syncSidebarVisibility = () => {
+        const previousCustomVisible = customSidebarVisible;
         techSidebarVisible = isServiceTypeEnabled('tech') && !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
         towingSidebarVisible = isServiceTypeEnabled('towing') && !!towingSidebar && !towingSidebar.classList.contains('collapsed-towing');
         resellerSidebarVisible = isServiceTypeEnabled('reseller') && !!resellerSidebar && !resellerSidebar.classList.contains('collapsed-reseller');
@@ -4202,6 +4210,11 @@
           } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
             customServiceLayer.addTo(map);
             customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
+          }
+
+          if (customSidebarVisible !== previousCustomVisible) {
+            lastCustomSidebarVisible = customSidebarVisible;
+            if (customSidebarVisible) renderCustomServices(customServices);
           }
 
           activeLeftPanel = leftSideKeys.find(key => {
