@@ -1108,6 +1108,8 @@
     let customCategories = new Map();
     let customToggleRef = null;
     let selectedCustomCategoryKey = null;
+    let serviceCacheByCategory = new Map();
+    let serviceFetchPromise = null;
     let vehicles = [];
     let vehicleHeaders = [];
     let vehicleMarkersVisible = true;
@@ -1182,6 +1184,28 @@
       });
     };
 
+    const debounce = (fn, delay = 200) => {
+      let timeoutId;
+      return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+      };
+    };
+
+    const debounceAsync = (fn, delay = 300) => {
+      let timeoutId;
+      return (...args) => new Promise((resolve, reject) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(async () => {
+          try {
+            resolve(await fn(...args));
+          } catch (error) {
+            reject(error);
+          }
+        }, delay);
+      });
+    };
+
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     const supabaseClient =
@@ -1211,6 +1235,41 @@
     const getServiceCategoryLabel = (type) => {
       const key = SERVICE_CATEGORY_KEYS_BY_TYPE[type];
       return key ? SERVICE_CATEGORIES[key] : '';
+    };
+
+    const getCategoryCacheKey = (value = '') => normalizeCategoryLabel(value).toLowerCase();
+
+    const buildServiceCache = (rows = []) => {
+      const cache = new Map();
+      rows.forEach((row) => {
+        const key = getCategoryCacheKey(row?.category || 'uncategorized');
+        const list = cache.get(key) || [];
+        list.push(row);
+        cache.set(key, list);
+      });
+      return cache;
+    };
+
+    const ensureServiceCache = async () => {
+      if (!supabaseClient) return null;
+      if (serviceCacheByCategory.size) return serviceCacheByCategory;
+      if (serviceFetchPromise) return serviceFetchPromise;
+
+      serviceFetchPromise = (async () => {
+        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*');
+        if (error) throw error;
+        serviceCacheByCategory = buildServiceCache(data || []);
+        return serviceCacheByCategory;
+      })().finally(() => {
+        serviceFetchPromise = null;
+      });
+
+      return serviceFetchPromise;
+    };
+
+    const getCachedServices = (categoryLabel) => {
+      if (!categoryLabel) return [];
+      return serviceCacheByCategory.get(getCategoryCacheKey(categoryLabel)) || [];
     };
 
     const normalizeCategoryLabel = (value = '') => `${value}`.trim();
@@ -1872,11 +1931,8 @@
         return;
       }
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.technicians);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.technicians);
         technicians = (data || []).map((row, idx) => normalizeInstaller(row, idx)).filter(t => t.company || t.city || t.state);
         setServiceHeaders('technicians', data || []);
         renderedTechIds = '';
@@ -1897,6 +1953,7 @@
     }
 
     async function loadVehicles() {
+      if (vehicles.length) return;
       if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping vehicle load.');
         return;
@@ -2019,11 +2076,8 @@
       if (!isServiceTypeEnabled('towing')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.towing);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.towing);
         setServiceHeaders('towing', data);
         towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
@@ -2036,11 +2090,8 @@
       if (!isServiceTypeEnabled('reseller')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.resellers);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.resellers);
         setServiceHeaders('reseller', data);
         resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
@@ -2053,11 +2104,8 @@
       if (!isServiceTypeEnabled('repair')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.repair);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.repair);
         setServiceHeaders('repair', data);
         repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
@@ -2070,11 +2118,8 @@
       if (!isServiceTypeEnabled('locksmith')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.locksmiths);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.locksmiths);
         setServiceHeaders('locksmith', data);
         locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
@@ -2087,11 +2132,8 @@
       if (!isServiceTypeEnabled('dispatcher')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.dispatchers);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.dispatchers);
         setServiceHeaders('dispatcher', data);
         dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
@@ -2104,11 +2146,8 @@
       if (!isServiceTypeEnabled('tire')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.tire);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.tire);
         setServiceHeaders('tire', data);
         tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
         updateTireUI(tirePartners);
@@ -2121,11 +2160,8 @@
       if (!isServiceTypeEnabled('inspector')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.inspectors);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.inspectors);
         setServiceHeaders('inspector', data);
         inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
         updateInspectorUI(inspectors);
@@ -2143,8 +2179,8 @@
 
       try {
         const labels = Array.from(customCategoryLabels);
-        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*').in('category', labels);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = labels.flatMap((label) => getCachedServices(label));
 
         customCategories.forEach(({ layer }) => layer?.clearLayers?.());
         customServices = (data || []).map((row, idx) => {
@@ -3491,6 +3527,8 @@
       }
     }
 
+    const debouncedGeocodeAddress = debounceAsync(geocodeAddress, 400);
+
     function processLocation(location, label = '', partnerTypeOverride = null) {
       if (!location) return;
 
@@ -3555,7 +3593,7 @@
         status?.classList.remove('hidden');
         iconLib.createIcons();
 
-        const location = await geocodeAddress(query);
+        const location = await debouncedGeocodeAddress(query);
 
         button.innerHTML = originalBtnText;
         button.disabled = false;
@@ -4503,7 +4541,11 @@
           });
         });
 
-        document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
+        let vehicleSearchTimer;
+        document.getElementById('vehicle-search').addEventListener('input', () => {
+          clearTimeout(vehicleSearchTimer);
+          vehicleSearchTimer = setTimeout(() => renderVehicles(), 250);
+        });
 
         document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
         document.getElementById('vehicle-modal-close')?.addEventListener('click', closeVehicleModal);
