@@ -1675,8 +1675,10 @@
     };
 
     const isRepoAgentPartner = (partner = {}) => `${partner.categoryLabel || partner.category || ''}`.trim().toLowerCase() === 'repo agent';
+    const isParkingStoragePartner = (partner = {}) => `${partner.categoryLabel || partner.category || ''}`.trim().toLowerCase() === 'parking/storage';
 
     const hasSpAgentNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp agent';
+    const hasSpStorageNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp storage';
 
     const getPartnerColor = (partner, defaultColor) => isUnauthorizedPartner(partner) ? '#94a3b8' : defaultColor;
 
@@ -2661,7 +2663,11 @@
             }
 
             if (hasValidCoords(partner)) {
-              const checkPulseColor = isRepoAgentPartner(partner) && hasSpAgentNote(partner) ? meta.color : null;
+              const checkPulseColor =
+                (isRepoAgentPartner(partner) && hasSpAgentNote(partner)) ||
+                (isParkingStoragePartner(partner) && hasSpStorageNote(partner))
+                  ? meta.color
+                  : null;
               const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner), checkPulseColor });
               const marker = L.marker([partner.lat, partner.lng], { icon });
               marker.on('click', (e) => {
