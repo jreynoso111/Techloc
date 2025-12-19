@@ -1158,6 +1158,29 @@
     const HOTSPOT_RADIUS_MILES = 50;
     const selectedServiceByType = {};
     const locationCache = new Map();
+    const distanceCaches = {
+      tech: { originKey: null, distances: new Map() },
+      partners: { originKey: null, distances: new Map() }
+    };
+
+    const getOriginKey = (origin) => origin ? `${Number(origin.lat).toFixed(6)},${Number(origin.lng).toFixed(6)}` : null;
+
+    const attachDistances = (list, origin, cache, distanceCalculator) => {
+      if (!origin) return [...list];
+      const originKey = getOriginKey(origin);
+      if (cache.originKey !== originKey) {
+        cache.distances.clear();
+        cache.originKey = originKey;
+      }
+
+      return list.map((item) => {
+        const cached = cache.distances.get(item.id);
+        if (cached !== undefined) return { ...item, distance: cached };
+        const distance = distanceCalculator(item);
+        cache.distances.set(item.id, distance);
+        return { ...item, distance };
+      });
+    };
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
@@ -2320,11 +2343,15 @@
       listContainer.innerHTML = '';
 
       const origin = clientLocation || getCurrentOrigin();
+      const techWithDistances = attachDistances(
+        techList,
+        origin,
+        distanceCaches.tech,
+        (tech) => getDistance(origin.lat, origin.lng, tech.lat, tech.lng)
+      );
       const sortedList = origin
-        ? techList
-            .map(t => ({ ...t, distance: getDistance(origin.lat, origin.lng, t.lat, t.lng) }))
-            .sort((a, b) => a.distance - b.distance)
-        : [...techList];
+        ? techWithDistances.sort((a, b) => a.distance - b.distance)
+        : [...techWithDistances];
 
       const selectedTech = selectedTechId !== null
         ? sortedList.find(t => t.id === selectedTechId) || techList.find(t => t.id === selectedTechId)
@@ -2376,7 +2403,9 @@
         const card = document.createElement('div');
         card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
 
-        const distanceLabel = origin ? `${Math.round(getDistance(origin.lat, origin.lng, tech.lat, tech.lng))} mi` : '';
+        const distanceLabel = origin && typeof tech.distance === 'number'
+          ? `${Math.round(tech.distance)} mi`
+          : '';
 
         card.innerHTML = `
           <div class="flex justify-between items-start gap-3">
@@ -2475,14 +2504,15 @@
       const filteredPartners = applyServiceFilter(partners, type);
       const selectedService = getSelectedService(type);
       const origin = getCurrentOrigin() || selectedService;
+      const partnersWithDistances = attachDistances(
+        filteredPartners,
+        origin,
+        distanceCaches.partners,
+        (partner) => getDistance(origin.lat, origin.lng, partner.lat, partner.lng)
+      );
       const sorted = origin
-        ? filteredPartners
-            .map(p => ({
-              ...p,
-              distance: map.distance([origin.lat, origin.lng], [p.lat, p.lng]) / 1609.34
-            }))
-            .sort((a, b) => a.distance - b.distance)
-        : [...filteredPartners];
+        ? partnersWithDistances.sort((a, b) => a.distance - b.distance)
+        : [...partnersWithDistances];
 
       const prioritized = selectedService
         ? [sorted.find(p => p.id === selectedService.id) || selectedService, ...sorted.filter(p => p.id !== selectedService.id)]
