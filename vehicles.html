@@ -1214,8 +1214,14 @@
         button.textContent = label;
         button.dataset.categoryKey = key || '';
         button.addEventListener('click', () => {
-          selectedCustomCategoryKey = selectedCustomCategoryKey === key ? null : key;
-          sidebarStateController?.setState?.('custom', true);
+          const isActive = selectedCustomCategoryKey === key && customSidebarVisible;
+          if (isActive) {
+            selectedCustomCategoryKey = null;
+            sidebarStateController?.setState?.('custom', false);
+          } else {
+            selectedCustomCategoryKey = key;
+            sidebarStateController?.setState?.('custom', true);
+          }
           renderCustomServices();
           updateCustomToggleStates();
         });
