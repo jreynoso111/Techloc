@@ -1108,6 +1108,8 @@
     let customCategories = new Map();
     let customToggleRef = null;
     let selectedCustomCategoryKey = null;
+    let serviceCacheByCategory = new Map();
+    let serviceFetchPromise = null;
     let vehicles = [];
     let vehicleHeaders = [];
     let vehicleMarkersVisible = true;
@@ -1158,6 +1160,51 @@
     const HOTSPOT_RADIUS_MILES = 50;
     const selectedServiceByType = {};
     const locationCache = new Map();
+    const distanceCaches = {
+      tech: { originKey: null, distances: new Map() },
+      partners: { originKey: null, distances: new Map() }
+    };
+
+    const getOriginKey = (origin) => origin ? `${Number(origin.lat).toFixed(6)},${Number(origin.lng).toFixed(6)}` : null;
+
+    const attachDistances = (list, origin, cache, distanceCalculator) => {
+      if (!origin) return [...list];
+      const originKey = getOriginKey(origin);
+      if (cache.originKey !== originKey) {
+        cache.distances.clear();
+        cache.originKey = originKey;
+      }
+
+      return list.map((item) => {
+        const cached = cache.distances.get(item.id);
+        if (cached !== undefined) return { ...item, distance: cached };
+        const distance = distanceCalculator(item);
+        cache.distances.set(item.id, distance);
+        return { ...item, distance };
+      });
+    };
+
+    const debounce = (fn, delay = 200) => {
+      let timeoutId;
+      return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+      };
+    };
+
+    const debounceAsync = (fn, delay = 300) => {
+      let timeoutId;
+      return (...args) => new Promise((resolve, reject) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(async () => {
+          try {
+            resolve(await fn(...args));
+          } catch (error) {
+            reject(error);
+          }
+        }, delay);
+      });
+    };
 
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
@@ -1188,6 +1235,41 @@
     const getServiceCategoryLabel = (type) => {
       const key = SERVICE_CATEGORY_KEYS_BY_TYPE[type];
       return key ? SERVICE_CATEGORIES[key] : '';
+    };
+
+    const getCategoryCacheKey = (value = '') => normalizeCategoryLabel(value).toLowerCase();
+
+    const buildServiceCache = (rows = []) => {
+      const cache = new Map();
+      rows.forEach((row) => {
+        const key = getCategoryCacheKey(row?.category || 'uncategorized');
+        const list = cache.get(key) || [];
+        list.push(row);
+        cache.set(key, list);
+      });
+      return cache;
+    };
+
+    const ensureServiceCache = async () => {
+      if (!supabaseClient) return null;
+      if (serviceCacheByCategory.size) return serviceCacheByCategory;
+      if (serviceFetchPromise) return serviceFetchPromise;
+
+      serviceFetchPromise = (async () => {
+        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*');
+        if (error) throw error;
+        serviceCacheByCategory = buildServiceCache(data || []);
+        return serviceCacheByCategory;
+      })().finally(() => {
+        serviceFetchPromise = null;
+      });
+
+      return serviceFetchPromise;
+    };
+
+    const getCachedServices = (categoryLabel) => {
+      if (!categoryLabel) return [];
+      return serviceCacheByCategory.get(getCategoryCacheKey(categoryLabel)) || [];
     };
 
     const normalizeCategoryLabel = (value = '') => `${value}`.trim();
@@ -1531,6 +1613,15 @@
       const city = getField(row, 'PT City', 'City', 'city');
       const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
+      const searchIndex = `${
+        getField(row, 'ShortVIN', 'VIN', 'vin') || ''
+      } ${
+        getField(row, 'Model', 'model') || ''
+      } ${
+        getField(row, 'PT City', 'City', 'city') || ''
+      } ${
+        getField(row, 'Customer ID', 'Customer', 'customer_id') || ''
+      }`.toLowerCase();
       return {
         id: row?.id ?? idx,
         status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
@@ -1562,6 +1653,7 @@
         lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${zip ? ' ' + zip : ''}`.trim(),
         payment: getField(row, 'Payment Schedule', 'payment'),
         details: row,
+        _searchIndex: searchIndex,
       };
     };
 
@@ -1618,6 +1710,25 @@
     const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
       ? window.lucide
       : { createIcons: () => {} };
+
+    const ICON_PATHS = {
+      mapPin: '<path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
+      navigation: '<polygon points="3 11 12 2 21 11 12 20 3 11"></polygon><line x1="12" y1="22" x2="12" y2="13"></line>',
+      mail: '<rect x="3" y="5" width="18" height="14" rx="2"></rect><polyline points="3 7 12 13 21 7"></polyline>',
+      wifiOff: '<line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 0 12 9.5 10.94 10.94 0 0 0 4.08 12.74"></path><path d="M5.1 16.5A6.95 6.95 0 0 1 12 14.5a6.95 6.95 0 0 1 3.53.96"></path><line x1="12" y1="20" x2="12.01" y2="20"></line>',
+      hash: '<line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line>',
+      clock: '<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 15"></polyline>',
+      info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>'
+    };
+
+    const svgIcon = (name, className = 'h-3 w-3') => {
+      const paths = ICON_PATHS[name];
+      if (!paths) return '';
+      return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+    };
+
+    const VEHICLE_RENDER_LIMIT = 35;
+    const PARTNER_CARD_LIMIT = 35;
 
     const SERVICE_TYPES = ['tech', 'towing', 'reseller', 'repair', 'locksmith', 'dispatcher', 'tire', 'inspector', 'custom'];
     const SERVICE_CATEGORY_KEYS_BY_TYPE = {
@@ -1734,6 +1845,7 @@
     // --- 1. Initialize map ---
     function initMap() {
       map = L.map('tech-map', {
+        renderer: L.canvas(),
         zoomControl: false,
         minZoom: 3,
         zoomSnap: 0.25,
@@ -1829,11 +1941,8 @@
         return;
       }
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.technicians);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.technicians);
         technicians = (data || []).map((row, idx) => normalizeInstaller(row, idx)).filter(t => t.company || t.city || t.state);
         setServiceHeaders('technicians', data || []);
         renderedTechIds = '';
@@ -1854,6 +1963,7 @@
     }
 
     async function loadVehicles() {
+      if (vehicles.length) return;
       if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping vehicle load.');
         return;
@@ -1976,11 +2086,8 @@
       if (!isServiceTypeEnabled('towing')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.towing);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.towing);
         setServiceHeaders('towing', data);
         towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
@@ -1993,11 +2100,8 @@
       if (!isServiceTypeEnabled('reseller')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.resellers);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.resellers);
         setServiceHeaders('reseller', data);
         resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
@@ -2010,11 +2114,8 @@
       if (!isServiceTypeEnabled('repair')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.repair);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.repair);
         setServiceHeaders('repair', data);
         repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
@@ -2027,11 +2128,8 @@
       if (!isServiceTypeEnabled('locksmith')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.locksmiths);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.locksmiths);
         setServiceHeaders('locksmith', data);
         locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
@@ -2044,11 +2142,8 @@
       if (!isServiceTypeEnabled('dispatcher')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.dispatchers);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.dispatchers);
         setServiceHeaders('dispatcher', data);
         dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
@@ -2061,11 +2156,8 @@
       if (!isServiceTypeEnabled('tire')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.tire);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.tire);
         setServiceHeaders('tire', data);
         tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
         updateTireUI(tirePartners);
@@ -2078,11 +2170,8 @@
       if (!isServiceTypeEnabled('inspector')) return;
       if (!supabaseClient) return;
       try {
-        const { data, error } = await supabaseClient
-          .from(SERVICE_TABLE)
-          .select('*')
-          .eq('category', SERVICE_CATEGORIES.inspectors);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = getCachedServices(SERVICE_CATEGORIES.inspectors);
         setServiceHeaders('inspector', data);
         inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
         updateInspectorUI(inspectors);
@@ -2100,8 +2189,8 @@
 
       try {
         const labels = Array.from(customCategoryLabels);
-        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*').in('category', labels);
-        if (error) throw error;
+        await ensureServiceCache();
+        const data = labels.flatMap((label) => getCachedServices(label));
 
         customCategories.forEach(({ layer }) => layer?.clearLayers?.());
         customServices = (data || []).map((row, idx) => {
@@ -2319,11 +2408,15 @@
       listContainer.innerHTML = '';
 
       const origin = clientLocation || getCurrentOrigin();
+      const techWithDistances = attachDistances(
+        techList,
+        origin,
+        distanceCaches.tech,
+        (tech) => getDistance(origin.lat, origin.lng, tech.lat, tech.lng)
+      );
       const sortedList = origin
-        ? techList
-            .map(t => ({ ...t, distance: getDistance(origin.lat, origin.lng, t.lat, t.lng) }))
-            .sort((a, b) => a.distance - b.distance)
-        : [...techList];
+        ? techWithDistances.sort((a, b) => a.distance - b.distance)
+        : [...techWithDistances];
 
       const selectedTech = selectedTechId !== null
         ? sortedList.find(t => t.id === selectedTechId) || techList.find(t => t.id === selectedTechId)
@@ -2375,7 +2468,9 @@
         const card = document.createElement('div');
         card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
 
-        const distanceLabel = origin ? `${Math.round(getDistance(origin.lat, origin.lng, tech.lat, tech.lng))} mi` : '';
+        const distanceLabel = origin && typeof tech.distance === 'number'
+          ? `${Math.round(tech.distance)} mi`
+          : '';
 
         card.innerHTML = `
           <div class="flex justify-between items-start gap-3">
@@ -2461,27 +2556,31 @@
       if (!container) return;
 
       if (!visible) {
-        container.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">Open this sidebar to view nearby partners.</div>`;
+        const placeholder = document.createElement('div');
+        placeholder.className = 'text-center mt-10 text-slate-600 text-xs';
+        placeholder.textContent = 'Open this sidebar to view nearby partners.';
+        container.replaceChildren(placeholder);
         layer?.clearLayers();
         updateServiceCount(type, partners.length, applyServiceFilter(partners, type).length);
         return;
       }
 
-      container.innerHTML = '';
+      container.replaceChildren();
       layer?.clearLayers();
 
       const totalPartners = partners.length;
       const filteredPartners = applyServiceFilter(partners, type);
       const selectedService = getSelectedService(type);
       const origin = getCurrentOrigin() || selectedService;
+      const partnersWithDistances = attachDistances(
+        filteredPartners,
+        origin,
+        distanceCaches.partners,
+        (partner) => getDistance(origin.lat, origin.lng, partner.lat, partner.lng)
+      );
       const sorted = origin
-        ? filteredPartners
-            .map(p => ({
-              ...p,
-              distance: map.distance([origin.lat, origin.lng], [p.lat, p.lng]) / 1609.34
-            }))
-            .sort((a, b) => a.distance - b.distance)
-        : [...filteredPartners];
+        ? partnersWithDistances.sort((a, b) => a.distance - b.distance)
+        : [...partnersWithDistances];
 
       const prioritized = selectedService
         ? [sorted.find(p => p.id === selectedService.id) || selectedService, ...sorted.filter(p => p.id !== selectedService.id)]
@@ -2489,68 +2588,81 @@
 
       updateServiceCount(type, totalPartners, prioritized.length);
 
-      if (!prioritized.length) {
-        container.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No partners available.</div>`;
-        return;
-      }
+        if (!prioritized.length) {
+          const empty = document.createElement('div');
+          empty.className = 'text-center mt-10 text-slate-600 text-xs';
+          empty.textContent = 'No partners available.';
+          container.replaceChildren(empty);
+          return;
+        }
 
-      prioritized.slice(0, 75).forEach((partner, idx) => {
-        const unauthorized = isUnauthorizedPartner(partner);
-        const markerColor = getPartnerColor(partner, accentColor);
-        const checkPulseColor =
-          !unauthorized && type === 'reseller' && isAuthorizedReseller(partner)
-            ? markerColor
-            : null;
-        const marker = L.marker([partner.lat, partner.lng], {
-          icon: createServiceIcon(markerColor, { unauthorized, checkPulseColor })
-        }).addTo(layer);
+        const fragment = document.createDocumentFragment();
+        const markerLimit = Math.min(prioritized.length, 75);
+        const cardLimit = Math.min(prioritized.length, PARTNER_CARD_LIMIT);
 
-        const locationText = formatPartnerLocation(partner);
+        prioritized.forEach((partner, idx) => {
+          const unauthorized = isUnauthorizedPartner(partner);
+          const markerColor = getPartnerColor(partner, accentColor);
+          const checkPulseColor =
+            !unauthorized && type === 'reseller' && isAuthorizedReseller(partner)
+              ? markerColor
+              : null;
 
-        marker.bindPopup(`
-          <div class="text-slate-900 p-1 font-sans">
-            <strong class="block text-sm font-bold mb-1">${partner.company}</strong>
-            <div class="text-xs text-slate-500 mb-2">${locationText || 'US'}</div>
-            <a href="tel:${partner.phoneDial || partner.phone}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${partner.phone || 'Contact'}</a>
-            <div class="text-[10px] text-slate-500">${partner.availability || ''}</div>
-          </div>
-        `);
+          if (idx < markerLimit) {
+            const marker = L.marker([partner.lat, partner.lng], {
+              icon: createServiceIcon(markerColor, { unauthorized, checkPulseColor })
+            }).addTo(layer);
 
-        marker.on('click', (e) => {
-          e.originalEvent.handledByMarker = true;
-          sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
-          selectedServiceByType[type] = partner;
-          const originPoint = getCurrentOrigin() || partner;
-          if (originPoint) {
-            showServicesFromOrigin(originPoint, { forceType: type });
+            const locationText = formatPartnerLocation(partner);
+
+            marker.bindPopup(`
+              <div class="text-slate-900 p-1 font-sans">
+                <strong class="block text-sm font-bold mb-1">${partner.company}</strong>
+                <div class="text-xs text-slate-500 mb-2">${locationText || 'US'}</div>
+                <a href="tel:${partner.phoneDial || partner.phone}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${partner.phone || 'Contact'}</a>
+                <div class="text-[10px] text-slate-500">${partner.availability || ''}</div>
+              </div>
+            `);
+
+            marker.on('click', (e) => {
+              e.originalEvent.handledByMarker = true;
+              sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+              selectedServiceByType[type] = partner;
+              const originPoint = getCurrentOrigin() || partner;
+              if (originPoint) {
+                showServicesFromOrigin(originPoint, { forceType: type });
+              }
+              showServicePreviewCard(partner);
+              renderPartnerUI(partners, options);
+              map.panTo([partner.lat, partner.lng]);
+            });
           }
-          showServicePreviewCard(partner);
-          renderPartnerUI(partners, options);
-          map.panTo([partner.lat, partner.lng]);
-        });
 
-        const card = document.createElement('div');
-        const isSelected = selectedService?.id === partner.id;
-        card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isSelected || (idx === 0 && origin) ? 'bg-slate-800 border-amber-400 ring-1 ring-amber-400' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
-        card.innerHTML = `
-          <div class="flex justify-between items-start gap-3">
-            <div class="min-w-0">
-              <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">${badgeLabel}</p>
-              <h3 class="font-bold text-white text-sm break-words leading-tight" title="${partner.company}">${partner.company}</h3>
+          if (idx >= cardLimit) return;
+
+          const locationText = formatPartnerLocation(partner);
+          const card = document.createElement('div');
+          const isSelected = selectedService?.id === partner.id;
+          card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isSelected || (idx === 0 && origin) ? 'bg-slate-800 border-amber-400 ring-1 ring-amber-400' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
+          card.innerHTML = `
+            <div class="flex justify-between items-start gap-3">
+              <div class="min-w-0">
+                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">${badgeLabel}</p>
+                <h3 class="font-bold text-white text-sm break-words leading-tight" title="${partner.company}">${partner.company}</h3>
+              </div>
+              <div class="text-right text-[11px] text-slate-400 leading-tight">
+                <p class="font-semibold text-slate-200">${partner.contact || 'Dispatch'}</p>
+                <a class="block font-bold text-blue-200" href="tel:${partner.phoneDial || partner.phone}">${partner.phone || ''}</a>
+                <p class="text-[10px] text-slate-500">${partner.availability || ''}</p>
+              </div>
             </div>
-            <div class="text-right text-[11px] text-slate-400 leading-tight">
-              <p class="font-semibold text-slate-200">${partner.contact || 'Dispatch'}</p>
-              <a class="block font-bold text-blue-200" href="tel:${partner.phoneDial || partner.phone}">${partner.phone || ''}</a>
-              <p class="text-[10px] text-slate-500">${partner.availability || ''}</p>
+            <div class="grid grid-cols-2 gap-2 mt-2 text-[11px] text-slate-300">
+              <div class="flex items-center gap-1 text-slate-400">${svgIcon('mapPin')}<span>${locationText || 'US'}</span></div>
+              ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation')}<span class="font-semibold text-slate-100">${Math.round(partner.distance)} mi</span></div>` : ''}
+              ${partner.notes ? `<div class="col-span-2 text-[10px] text-slate-400 leading-tight">${partner.notes}</div>` : ''}
             </div>
-          </div>
-          <div class="grid grid-cols-2 gap-2 mt-2 text-[11px] text-slate-300">
-            <div class="flex items-center gap-1 text-slate-400"><i data-lucide="map-pin" class="h-3 w-3"></i><span>${locationText || 'US'}</span></div>
-            ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300"><i data-lucide="navigation" class="h-3 w-3"></i><span class="font-semibold text-slate-100">${Math.round(partner.distance)} mi</span></div>` : ''}
-            ${partner.notes ? `<div class="col-span-2 text-[10px] text-slate-400 leading-tight">${partner.notes}</div>` : ''}
-          </div>
-          
-        `;
+
+          `;
 
           card.addEventListener('click', () => {
             sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
@@ -2563,10 +2675,17 @@
             renderPartnerUI(partners, options);
           });
 
-        container.appendChild(card);
+        fragment.appendChild(card);
       });
 
-      iconLib.createIcons();
+      if (prioritized.length > cardLimit) {
+        const notice = document.createElement('p');
+        notice.className = 'text-[11px] text-slate-500 px-1 pt-1';
+        notice.textContent = `Showing the first ${cardLimit} of ${prioritized.length} partners.`;
+        fragment.appendChild(notice);
+      }
+
+      container.replaceChildren(fragment);
     }
 
     function updateTowingUI(list = towingCompanies) {
@@ -2834,7 +2953,7 @@
     function renderVehicles() {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
-      container.innerHTML = '';
+      container.replaceChildren();
       vehicleLayer.clearLayers();
       vehicleMarkers.clear();
 
@@ -2849,83 +2968,17 @@
       document.getElementById('vehicles-count').textContent = filtered.length;
 
       if (filtered.length === 0) {
-        container.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No vehicles match your search.</div>`;
+        const empty = document.createElement('div');
+        empty.className = 'text-center mt-10 text-slate-600 text-xs';
+        empty.textContent = 'No vehicles match your search.';
+        container.replaceChildren(empty);
         return;
       }
 
       const fragment = document.createDocumentFragment();
 
-      filtered.forEach((vehicle) => {
+      filtered.forEach((vehicle, idx) => {
         const movingMeta = getMovingMeta(vehicle);
-
-          const card = document.createElement('div');
-          card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
-          card.innerHTML = `
-            <div class="flex items-start justify-between gap-3">
-              <div class="space-y-1">
-                <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model}</p>
-                <h3 class="font-extrabold text-white text-sm leading-tight flex items-center gap-2">${vehicle.year || '—'} <span class="text-slate-600">•</span> ${vehicle.vin || 'VIN N/A'}</h3>
-                <p class="text-[11px] text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="h-3 w-3"></i> ${vehicle.lastLocation || 'No location provided'}</p>
-                ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
-                <p class="text-[11px] text-blue-200 font-semibold">Customer ID: <span class="text-slate-100">${vehicle.customerId || '—'}</span></p>
-              </div>
-              <div class="flex flex-col items-end gap-1 text-right">
-                <div class="inline-flex items-center gap-2 text-[10px] font-bold text-slate-300">
-                  <span class="px-2 py-1 rounded-full border border-amber-400/40 bg-amber-500/10 text-amber-100">${vehicle.status}</span>
-                </div>
-                <div class="inline-flex items-center gap-2 text-[10px] font-semibold ${movingMeta.text} px-2 py-1 rounded-full border border-slate-800 ${movingMeta.bg}">
-                  <span class="w-2 h-2 rounded-full ${movingMeta.dot}"></span>
-                  <span>${movingMeta.label}</span>
-                </div>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-[11px]">
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
-                <i data-lucide="wifi-off" class="h-3 w-3 text-amber-300"></i>
-                <div class="text-left leading-tight">
-                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
-                  <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
-                </div>
-              </div>
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
-                <i data-lucide="hash" class="h-3 w-3 text-blue-400"></i>
-                <div class="text-left leading-tight">
-                  <p class="font-semibold">VIN</p>
-                  <p class="text-[10px] text-slate-400">${vehicle.vin || 'Not available'}</p>
-                </div>
-              </div>
-            </div>
-            <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
-              <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
-                </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
-                </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
-                </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
-                </div>
-              </div>
-              <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span class="flex items-center gap-2 font-semibold text-slate-200"><i data-lucide="clock-3" class="h-3 w-3"></i> ${vehicle.lastRead || '—'}</span>
-                <span class="text-slate-400">${vehicle.payment || ''}</span>
-              </div>
-            </div>
-            <div class="pt-1 flex items-center justify-end gap-2">
-              <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
-                <i data-lucide="info" class="h-3.5 w-3.5"></i>
-                See more
-              </button>
-            </div>
-          `;
 
           const focusHandler = () => {
             if (!hasValidCoords(vehicle)) {
@@ -2935,16 +2988,6 @@
             applySelection(vehicle.id, null);
             focusVehicle(vehicle);
           };
-
-          card.addEventListener('click', focusHandler);
-
-          const viewMoreBtn = card.querySelector('[data-view-more]');
-          if (viewMoreBtn) {
-            viewMoreBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              openVehicleModal(vehicle);
-            });
-          }
 
           let coords = null;
           if (hasValidCoords(vehicle)) {
@@ -2989,12 +3032,99 @@
             vehicleMarkers.set(vehicle.id, { marker });
           }
 
+          if (idx >= VEHICLE_RENDER_LIMIT) return;
+
+          const card = document.createElement('div');
+          card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-3">
+              <div class="space-y-1">
+                <p class="text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model}</p>
+                <h3 class="font-extrabold text-white text-sm leading-tight flex items-center gap-2">${vehicle.year || '—'} <span class="text-slate-600">•</span> ${vehicle.vin || 'VIN N/A'}</h3>
+                <p class="text-[11px] text-slate-400 flex items-center gap-1">${svgIcon('mapPin')} ${vehicle.lastLocation || 'No location provided'}</p>
+                ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
+                <p class="text-[11px] text-blue-200 font-semibold">Customer ID: <span class="text-slate-100">${vehicle.customerId || '—'}</span></p>
+              </div>
+              <div class="flex flex-col items-end gap-1 text-right">
+                <div class="inline-flex items-center gap-2 text-[10px] font-bold text-slate-300">
+                  <span class="px-2 py-1 rounded-full border border-amber-400/40 bg-amber-500/10 text-amber-100">${vehicle.status}</span>
+                </div>
+                <div class="inline-flex items-center gap-2 text-[10px] font-semibold ${movingMeta.text} px-2 py-1 rounded-full border border-slate-800 ${movingMeta.bg}">
+                  <span class="w-2 h-2 rounded-full ${movingMeta.dot}"></span>
+                  <span>${movingMeta.label}</span>
+                </div>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
+                ${svgIcon('wifiOff', 'h-3 w-3 text-amber-300')}
+                <div class="text-left leading-tight">
+                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
+                  <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
+                </div>
+              </div>
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
+                ${svgIcon('hash', 'h-3 w-3 text-blue-400')}
+                <div class="text-left leading-tight">
+                  <p class="font-semibold">VIN</p>
+                  <p class="text-[10px] text-slate-400">${vehicle.vin || 'Not available'}</p>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
+              <div class="grid grid-cols-4 gap-2">
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
+                </div>
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
+                </div>
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
+                </div>
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span class="flex items-center gap-2 font-semibold text-slate-200">${svgIcon('clock', 'h-3 w-3')} ${vehicle.lastRead || '—'}</span>
+                <span class="text-slate-400">${vehicle.payment || ''}</span>
+              </div>
+            </div>
+            <div class="pt-1 flex items-center justify-end gap-2">
+              <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                ${svgIcon('info', 'h-3.5 w-3.5')}
+                See more
+              </button>
+            </div>
+          `;
+
+          card.addEventListener('click', focusHandler);
+
+          const viewMoreBtn = card.querySelector('[data-view-more]');
+          if (viewMoreBtn) {
+            viewMoreBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openVehicleModal(vehicle);
+            });
+          }
+
           fragment.appendChild(card);
         });
 
-      container.appendChild(fragment);
-      iconLib.createIcons();
-    }
+        if (filtered.length > VEHICLE_RENDER_LIMIT) {
+          const notice = document.createElement('p');
+          notice.className = 'text-[11px] text-slate-500 px-1 pt-1';
+          notice.textContent = `Showing the first ${VEHICLE_RENDER_LIMIT} of ${filtered.length} vehicles. Refine filters to see more.`;
+          fragment.appendChild(notice);
+        }
+
+        container.replaceChildren(fragment);
+      }
 
     function focusVehicle(vehicle) {
       if (!vehicle) return;
@@ -3096,14 +3226,7 @@
 
     function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
-      if (q) {
-        const matchesSearch =
-          vehicle.model.toLowerCase().includes(q) ||
-          vehicle.vin.toLowerCase().includes(q) ||
-          vehicle.lastLocation.toLowerCase().includes(q) ||
-          vehicle.customer.toLowerCase().includes(q);
-        if (!matchesSearch) return false;
-      }
+      if (q && !(vehicle._searchIndex || '').includes(q)) return false;
 
       const invPrep = normalizeFilterValue(vehicle.invPrepStatus);
       if (vehicleFilters.invPrep !== 'all' && invPrep !== vehicleFilters.invPrep) return false;
@@ -3407,6 +3530,8 @@
       }
     }
 
+    const debouncedGeocodeAddress = debounceAsync(geocodeAddress, 400);
+
     function processLocation(location, label = '', partnerTypeOverride = null) {
       if (!location) return;
 
@@ -3471,7 +3596,7 @@
         status?.classList.remove('hidden');
         iconLib.createIcons();
 
-        const location = await geocodeAddress(query);
+        const location = await debouncedGeocodeAddress(query);
 
         button.innerHTML = originalBtnText;
         button.disabled = false;
@@ -4419,7 +4544,11 @@
           });
         });
 
-        document.getElementById('vehicle-search').addEventListener('input', () => renderVehicles());
+        let vehicleSearchTimer;
+        document.getElementById('vehicle-search').addEventListener('input', () => {
+          clearTimeout(vehicleSearchTimer);
+          vehicleSearchTimer = setTimeout(() => renderVehicles(), 250);
+        });
 
         document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
         document.getElementById('vehicle-modal-close')?.addEventListener('click', closeVehicleModal);
