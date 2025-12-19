@@ -1613,6 +1613,15 @@
       const city = getField(row, 'PT City', 'City', 'city');
       const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
+      const searchIndex = `${
+        getField(row, 'ShortVIN', 'VIN', 'vin') || ''
+      } ${
+        getField(row, 'Model', 'model') || ''
+      } ${
+        getField(row, 'PT City', 'City', 'city') || ''
+      } ${
+        getField(row, 'Customer ID', 'Customer', 'customer_id') || ''
+      }`.toLowerCase();
       return {
         id: row?.id ?? idx,
         status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
@@ -1644,6 +1653,7 @@
         lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${zip ? ' ' + zip : ''}`.trim(),
         payment: getField(row, 'Payment Schedule', 'payment'),
         details: row,
+        _searchIndex: searchIndex,
       };
     };
 
@@ -3216,14 +3226,7 @@
 
     function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
-      if (q) {
-        const matchesSearch =
-          vehicle.model.toLowerCase().includes(q) ||
-          vehicle.vin.toLowerCase().includes(q) ||
-          vehicle.lastLocation.toLowerCase().includes(q) ||
-          vehicle.customer.toLowerCase().includes(q);
-        if (!matchesSearch) return false;
-      }
+      if (q && !(vehicle._searchIndex || '').includes(q)) return false;
 
       const invPrep = normalizeFilterValue(vehicle.invPrepStatus);
       if (vehicleFilters.invPrep !== 'all' && invPrep !== vehicleFilters.invPrep) return false;
