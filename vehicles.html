@@ -307,6 +307,23 @@
       pointer-events: none;
     }
 
+    .service-check {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      font-size: 11px;
+      font-weight: 900;
+      color: #22c55e;
+      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
+      pointer-events: none;
+      animation: service-check-pulse 1.1s ease-in-out infinite alternate;
+    }
+
+    @keyframes service-check-pulse {
+      0% { color: #22c55e; }
+      100% { color: var(--service-check-accent, #22c55e); }
+    }
+
     .distance-label-wrapper { pointer-events: none; }
 
     .distance-label {
@@ -1112,6 +1129,7 @@
     let tireSidebarVisible = false;
     let inspectorSidebarVisible = false;
     let customSidebarVisible = false;
+    let lastCustomSidebarVisible = false;
     let activeLeftPanel = null;
     let lastClientLocation = null;
     let renderedTechIds = '';
@@ -1656,6 +1674,12 @@
       return value === 'no' || value === 'unauthorized';
     };
 
+    const isRepoAgentPartner = (partner = {}) => `${partner.categoryLabel || partner.category || ''}`.trim().toLowerCase() === 'repo agent';
+    const isParkingStoragePartner = (partner = {}) => `${partner.categoryLabel || partner.category || ''}`.trim().toLowerCase() === 'parking/storage';
+
+    const hasSpAgentNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp agent';
+    const hasSpStorageNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp storage';
+
     const getPartnerColor = (partner, defaultColor) => isUnauthorizedPartner(partner) ? '#94a3b8' : defaultColor;
 
     const formatPartnerLocation = (partner = {}) => {
@@ -1687,9 +1711,9 @@
       popup.openOn(map);
     };
 
-    const createServiceIcon = (color, { unauthorized = false } = {}) => L.divIcon({
+    const createServiceIcon = (color, { unauthorized = false, checkPulseColor = null } = {}) => L.divIcon({
       className: 'service-triangle-icon',
-      html: `<div class="service-icon-wrapper"><svg width="18" height="16" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg"><path d="M9 1.1L17 14.8H1L9 1.1Z"/></svg>${unauthorized ? '<span class="service-cross">✕</span>' : ''}</div>`,
+      html: `<div class="service-icon-wrapper"><svg width="18" height="16" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg"><path d="M9 1.1L17 14.8H1L9 1.1Z"/></svg>${unauthorized ? '<span class="service-cross">✕</span>' : ''}${checkPulseColor ? `<span class="service-check" style="--service-check-accent:${checkPulseColor}">✓</span>` : ''}</div>`,
       iconSize: [18, 16],
       iconAnchor: [9, 14],
       popupAnchor: [0, -10]
@@ -2573,7 +2597,14 @@
       if (!container) return;
 
       container.innerHTML = '';
-      customCategories.forEach(({ layer }) => layer?.clearLayers?.());
+      const markersAllowed = customSidebarVisible && isServiceTypeEnabled('custom');
+
+      customCategories.forEach(({ layer }) => {
+        layer?.clearLayers?.();
+        if (!markersAllowed && map?.hasLayer(layer)) {
+          map.removeLayer(layer);
+        }
+      });
 
       const filtered = selectedCustomCategoryKey
         ? list.filter((item) => item?.categoryKey === selectedCustomCategoryKey)
@@ -2626,14 +2657,25 @@
             ${partner.notes ? `<p class="mt-2 text-[11px] text-slate-400 leading-tight">${escapeHTML(partner.notes)}</p>` : ''}
           `;
 
-          if (map && meta.layer && hasValidCoords(partner)) {
-            const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner) });
-            const marker = L.marker([partner.lat, partner.lng], { icon });
-            marker.on('click', (e) => {
-              e.originalEvent.handledByMarker = true;
-              showServicePopup(partner, meta.color);
-            });
-            marker.addTo(meta.layer);
+          if (markersAllowed && map && meta.layer) {
+            if (!map.hasLayer(meta.layer)) {
+              meta.layer.addTo(map);
+            }
+
+            if (hasValidCoords(partner)) {
+              const checkPulseColor =
+                (isRepoAgentPartner(partner) && hasSpAgentNote(partner)) ||
+                (isParkingStoragePartner(partner) && hasSpStorageNote(partner))
+                  ? meta.color
+                  : null;
+              const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner), checkPulseColor });
+              const marker = L.marker([partner.lat, partner.lng], { icon });
+              marker.on('click', (e) => {
+                e.originalEvent.handledByMarker = true;
+                showServicePopup(partner, meta.color);
+              });
+              marker.addTo(meta.layer);
+            }
           }
 
           card.addEventListener('click', () => {
@@ -4130,6 +4172,7 @@
       const defaultLeftOffset = 12;
       const defaultRightOffset = 12;
       const syncSidebarVisibility = () => {
+        const previousCustomVisible = customSidebarVisible;
         techSidebarVisible = isServiceTypeEnabled('tech') && !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
         towingSidebarVisible = isServiceTypeEnabled('towing') && !!towingSidebar && !towingSidebar.classList.contains('collapsed-towing');
         resellerSidebarVisible = isServiceTypeEnabled('reseller') && !!resellerSidebar && !resellerSidebar.classList.contains('collapsed-reseller');
@@ -4195,6 +4238,11 @@
           } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
             customServiceLayer.addTo(map);
             customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
+          }
+
+          if (customSidebarVisible !== previousCustomVisible) {
+            lastCustomSidebarVisible = customSidebarVisible;
+            if (customSidebarVisible) renderCustomServices(customServices);
           }
 
           activeLeftPanel = leftSideKeys.find(key => {
