@@ -9,7 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/scripts/supabaseClient.js"></script>
@@ -956,7 +955,10 @@
         </div>
         <div class="mt-4 relative">
           <input id="vehicle-search" type="text" placeholder="Search by VIN, model, city..." class="w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all">
-          <i data-lucide="search" class="h-4 w-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2"></i>
+          <svg class="h-4 w-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
         </div>
         <div class="mt-2 space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-2.5">
           <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
@@ -1043,7 +1045,11 @@
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" id="vehicle-edit-cancel" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Cancelar</button>
           <button type="submit" id="vehicle-edit-save" class="inline-flex items-center gap-2 rounded-lg border border-amber-500/60 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-100 hover:bg-amber-500/30 transition-colors">
-            <i data-lucide="save" class="h-4 w-4"></i>
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+              <path d="M17 21v-8H7v8"></path>
+              <path d="M7 3v5h8"></path>
+            </svg>
             Guardar cambios
           </button>
         </div>
@@ -1067,7 +1073,11 @@
         <div class="flex justify-end gap-2 pt-2">
           <button type="button" id="service-edit-cancel" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-emerald-400 hover:text-emerald-200 transition-colors">Cancelar</button>
           <button type="submit" id="service-edit-save" class="inline-flex items-center gap-2 rounded-lg border border-emerald-500/60 bg-emerald-500/20 px-4 py-2 text-xs font-bold text-emerald-100 hover:bg-emerald-500/30 transition-colors">
-            <i data-lucide="save" class="h-4 w-4"></i>
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path>
+              <path d="M17 21v-8H7v8"></path>
+              <path d="M7 3v5h8"></path>
+            </svg>
             Guardar servicio
           </button>
         </div>
@@ -1613,7 +1623,7 @@
       const city = getField(row, 'PT City', 'City', 'city');
       const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
-      return {
+      const v = {
         id: row?.id ?? idx,
         status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
         invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat'),
@@ -1645,6 +1655,10 @@
         payment: getField(row, 'Payment Schedule', 'payment'),
         details: row,
       };
+
+      v._searchBlob = `${v.model} ${v.vin} ${v.lastLocation} ${v.customerId} ${v.customer}`.toLowerCase();
+
+      return v;
     };
 
     const normalizeHotspot = (row, idx = 0) => {
@@ -1697,10 +1711,6 @@
       return accuracy === 'exact' ? 'bg-emerald-300' : 'bg-amber-300';
     };
 
-    const iconLib = typeof window !== 'undefined' && window.lucide && typeof window.lucide.createIcons === 'function'
-      ? window.lucide
-      : { createIcons: () => {} };
-
     const ICON_PATHS = {
       mapPin: '<path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
       navigation: '<polygon points="3 11 12 2 21 11 12 20 3 11"></polygon><line x1="12" y1="22" x2="12" y2="13"></line>',
@@ -1708,7 +1718,12 @@
       wifiOff: '<line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 0 12 9.5 10.94 10.94 0 0 0 4.08 12.74"></path><path d="M5.1 16.5A6.95 6.95 0 0 1 12 14.5a6.95 6.95 0 0 1 3.53.96"></path><line x1="12" y1="20" x2="12.01" y2="20"></line>',
       hash: '<line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line>',
       clock: '<circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15 15"></polyline>',
-      info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>'
+      info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
+      search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
+      save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v5h8"></path>',
+      alertCircle: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
+      fileWarning: '<path d="M14.5 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5L14.5 2Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path>',
+      loader2: '<path d="M21 12a9 9 0 1 1-6.219-8.56"></path>'
     };
 
     const svgIcon = (name, className = 'h-3 w-3') => {
@@ -1923,11 +1938,10 @@
         console.warn('Supabase unavailable: showing local installer placeholders.');
         document.getElementById('tech-list').innerHTML = `
           <div class="text-center mt-10 px-6">
-            <i data-lucide="alert-circle" class="mx-auto h-8 w-8 text-slate-600 mb-2"></i>
+            ${svgIcon('alertCircle', 'mx-auto h-8 w-8 text-slate-600 mb-2')}
             <p class="text-slate-500 text-xs">Supabase is offline. Unable to load installers.</p>
           </div>
         `;
-        iconLib.createIcons();
         return;
       }
       try {
@@ -1944,11 +1958,10 @@
         document.getElementById('file-error').classList.remove('hidden');
         document.getElementById('tech-list').innerHTML = `
           <div class="text-center mt-10 px-6">
-            <i data-lucide="file-warning" class="mx-auto h-8 w-8 text-slate-600 mb-2"></i>
+            ${svgIcon('fileWarning', 'mx-auto h-8 w-8 text-slate-600 mb-2')}
             <p class="text-slate-500 text-xs">No installer data detected.</p>
           </div>
         `;
-        iconLib.createIcons();
       }
     }
 
@@ -1970,11 +1983,10 @@
         console.warn("Vehicle load warning: " + err.message);
         document.getElementById('vehicle-list').innerHTML = `
           <div class="text-center mt-10 px-6">
-            <i data-lucide="file-warning" class="mx-auto h-8 w-8 text-slate-600 mb-2"></i>
+            ${svgIcon('fileWarning', 'mx-auto h-8 w-8 text-slate-600 mb-2')}
             <p class="text-slate-500 text-xs">Unable to load vehicle data.</p>
           </div>
         `;
-        iconLib.createIcons();
       }
     }
 
@@ -2466,12 +2478,12 @@
           <div class="flex justify-between items-start gap-3">
             <div class="min-w-0 space-y-1">
               <h3 class="font-bold text-white text-sm break-words leading-tight" title="${tech.company}">${tech.company}</h3>
-              <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight"><i data-lucide="map-pin" class="h-3 w-3"></i><span class="truncate">${tech.city || 'Unknown'}, ${tech.state || 'US'}</span></p>
+              <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight">${svgIcon('mapPin', 'h-3 w-3')}<span class="truncate">${tech.city || 'Unknown'}, ${tech.state || 'US'}</span></p>
             </div>
             <div class="text-right text-[11px] text-slate-400 leading-tight space-y-0.5">
               <p class="font-semibold text-slate-200">${tech.phone || ''}</p>
-              ${tech.email ? `<p class="flex items-center gap-1 justify-end text-slate-400"><i data-lucide="mail" class="h-3 w-3"></i><span class="truncate max-w-[160px]">${tech.email}</span></p>` : ''}
-              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300"><i data-lucide="navigation" class="h-3 w-3"></i><span class="font-semibold text-slate-100">${distanceLabel}</span></p>` : ''}
+              ${tech.email ? `<p class="flex items-center gap-1 justify-end text-slate-400">${svgIcon('mail', 'h-3 w-3')}<span class="truncate max-w-[160px]">${tech.email}</span></p>` : ''}
+              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation', 'h-3 w-3')}<span class="font-semibold text-slate-100">${distanceLabel}</span></p>` : ''}
             </div>
           </div>
           ${tech.zip ? `<p class="text-[10px] text-slate-500 mt-1">${tech.zip}</p>` : ''}
@@ -2486,7 +2498,6 @@
         listContainer.appendChild(card);
       });
 
-      iconLib.createIcons();
     }
 
     const isAnyServiceSidebarOpen = () => (
@@ -2943,6 +2954,8 @@
     function renderVehicles() {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
+
+      if (map) map.closePopup();
       container.replaceChildren();
       vehicleLayer.clearLayers();
       vehicleMarkers.clear();
@@ -3216,14 +3229,7 @@
 
     function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
-      if (q) {
-        const matchesSearch =
-          vehicle.model.toLowerCase().includes(q) ||
-          vehicle.vin.toLowerCase().includes(q) ||
-          vehicle.lastLocation.toLowerCase().includes(q) ||
-          vehicle.customer.toLowerCase().includes(q);
-        if (!matchesSearch) return false;
-      }
+      if (q && !vehicle._searchBlob.includes(q)) return false;
 
       const invPrep = normalizeFilterValue(vehicle.invPrepStatus);
       if (vehicleFilters.invPrep !== 'all' && invPrep !== vehicleFilters.invPrep) return false;
@@ -3588,10 +3594,9 @@
         if (!query || partners.length === 0) return;
 
         const originalBtnText = button.innerHTML;
-        button.innerHTML = `<i data-lucide="loader-2" class="animate-spin h-4 w-4"></i>`;
+        button.innerHTML = svgIcon('loader2', 'animate-spin h-4 w-4');
         button.disabled = true;
         status?.classList.remove('hidden');
-        iconLib.createIcons();
 
         const location = await debouncedGeocodeAddress(query);
 
@@ -3773,7 +3778,6 @@
       modal.classList.remove('hidden');
       modal.classList.add('flex');
       saveBtn.disabled = false;
-      iconLib.createIcons();
     }
 
     function closeVehicleEditModal() {
@@ -3937,7 +3941,6 @@
       modal.classList.remove('hidden');
       modal.classList.add('flex');
       saveBtn.disabled = false;
-      iconLib.createIcons();
     }
 
     function closeServiceEditModal() {
@@ -4011,7 +4014,6 @@
           if (vehicle) openVehicleModal(vehicle);
         });
       }
-      iconLib.createIcons();
     }
 
     function getDistance(lat1, lon1, lat2, lon2) {
@@ -4495,7 +4497,6 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       (async () => {
-        iconLib.createIcons();
         initMap();
         await syncAvailableServiceTypes();
         updateServiceVisibilityUI();
