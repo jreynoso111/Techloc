@@ -1179,7 +1179,7 @@
       const key = getCustomCategoryKey(normalizedLabel);
       if (!customCategories.has(key)) {
         const color = CUSTOM_COLOR_PALETTE[customCategories.size % CUSTOM_COLOR_PALETTE.length] || SERVICE_COLORS.custom;
-        const layer = map ? L.layerGroup().addTo(map) : null;
+        const layer = map ? L.layerGroup() : null;
         customCategories.set(key, { key, label: normalizedLabel, color, layer });
       }
       return customCategories.get(key);
@@ -2571,6 +2571,15 @@
       const container = document.getElementById('custom-list');
       const counter = document.getElementById('custom-count');
       if (!container) return;
+
+      const enabled = customSidebarVisible && isServiceTypeEnabled('custom');
+      if (!enabled) {
+        customCategories.forEach(({ layer }) => layer?.clearLayers?.());
+        container.innerHTML = '<div class="text-center mt-10 text-slate-600 text-xs">Open this sidebar to view nearby partners.</div>';
+        counter && (counter.textContent = list.length.toString());
+        document.getElementById('custom-legend-slot')?.replaceChildren();
+        return;
+      }
 
       container.innerHTML = '';
       customCategories.forEach(({ layer }) => layer?.clearLayers?.());
@@ -4092,8 +4101,7 @@
       rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
     }
 
-    const isControlViewRoute = window.location.pathname.toLowerCase().includes('vehicles.html');
-    const defaultSidebarVisible = !isControlViewRoute;
+    const defaultSidebarVisible = false;
 
     function setupSidebarToggles() {
       const leftSidebar = document.getElementById('left-sidebar');
