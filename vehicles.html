@@ -1613,7 +1613,7 @@
       const city = getField(row, 'PT City', 'City', 'city');
       const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
       const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
-      return {
+      const v = {
         id: row?.id ?? idx,
         status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
         invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat'),
@@ -1645,6 +1645,10 @@
         payment: getField(row, 'Payment Schedule', 'payment'),
         details: row,
       };
+
+      v._searchBlob = `${v.model} ${v.vin} ${v.lastLocation} ${v.customerId} ${v.customer}`.toLowerCase();
+
+      return v;
     };
 
     const normalizeHotspot = (row, idx = 0) => {
@@ -3212,14 +3216,7 @@
 
     function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
-      if (q) {
-        const matchesSearch =
-          vehicle.model.toLowerCase().includes(q) ||
-          vehicle.vin.toLowerCase().includes(q) ||
-          vehicle.lastLocation.toLowerCase().includes(q) ||
-          vehicle.customer.toLowerCase().includes(q);
-        if (!matchesSearch) return false;
-      }
+      if (q && !vehicle._searchBlob.includes(q)) return false;
 
       const invPrep = normalizeFilterValue(vehicle.invPrepStatus);
       if (vehicleFilters.invPrep !== 'all' && invPrep !== vehicleFilters.invPrep) return false;
