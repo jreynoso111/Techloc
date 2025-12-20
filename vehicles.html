@@ -10,6 +10,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="assets/scripts/supabaseClient.js"></script>
   <script src="assets/scripts/authManager.js"></script>
@@ -266,6 +269,34 @@
       filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .vehicle-marker-icon {
+      position: relative;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+    }
+
+    .vehicle-marker-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 9999px;
+      border: 2.6px solid #0f172a;
+      background: #38bdf8;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .vehicle-marker-icon .vehicle-cross-badge {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
     }
 
     .blacklist-marker {
@@ -584,357 +615,7 @@
       </div>
     </aside>
 
-    <!-- Towing Sidebar -->
-    <aside id="towing-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--towing-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-blue-300 mb-1">Towing partners</p>
-            <h2 class="text-xl font-black text-white leading-tight">Towing companies nearby</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="towing-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-towing" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize towing sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="towing-search-form" class="relative">
-            <input
-              id="towing-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="towing-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="towing-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="towing-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter towing partners by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="towing-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Towing companies will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Reseller Sidebar -->
-    <aside id="reseller-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--reseller-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-emerald-300 mb-1">Reseller network</p>
-            <h2 class="text-xl font-black text-white leading-tight">Nearby resellers</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="reseller-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-reseller" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize reseller sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="reseller-search-form" class="relative">
-            <input
-              id="reseller-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="reseller-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="reseller-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="reseller-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter resellers by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="reseller-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Resellers will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Repair Shops Sidebar -->
-    <aside id="repair-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--repair-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-orange-200 mb-1">Repair network</p>
-            <h2 class="text-xl font-black text-white leading-tight">Repair shops nearby</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="repair-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-repair" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize repair sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="repair-search-form" class="relative">
-            <input
-              id="repair-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="repair-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="repair-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="repair-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter repair shops by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="repair-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Repair shops will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Locksmith Sidebar -->
-    <aside id="locksmith-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--locksmith-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-yellow-200 mb-1">Locksmith network</p>
-            <h2 class="text-xl font-black text-white leading-tight">Locksmith coverage</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="locksmith-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-locksmith" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize locksmith sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="locksmith-search-form" class="relative">
-            <input
-              id="locksmith-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="locksmith-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="locksmith-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="locksmith-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter locksmiths by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="locksmith-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Locksmiths will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Dispatcher Sidebar -->
-    <aside id="dispatcher-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--dispatcher-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-sky-200 mb-1">Dispatch desks</p>
-            <h2 class="text-xl font-black text-white leading-tight">Dispatcher partners</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="dispatcher-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-dispatcher" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize dispatcher sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="dispatcher-search-form" class="relative">
-            <input
-              id="dispatcher-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="dispatcher-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="dispatcher-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="dispatcher-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter dispatchers by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="dispatcher-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Dispatchers will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Tire Services Sidebar -->
-    <aside id="tire-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--tire-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-lime-200 mb-1">Tire services</p>
-            <h2 class="text-xl font-black text-white leading-tight">Commercial tire partners</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="tire-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-tire" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize tire sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="tire-search-form" class="relative">
-            <input
-              id="tire-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="tire-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="tire-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="tire-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter tire services by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="tire-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Tire partners will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Inspectors Sidebar -->
-    <aside id="inspector-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--inspector-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-indigo-200 mb-1">Quality inspections</p>
-            <h2 class="text-xl font-black text-white leading-tight">Field inspectors</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="inspector-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-inspector" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize inspector sidebar">-</button>
-          </div>
-        </div>
-        <div class="mt-4 space-y-2">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
-          <form id="inspector-search-form" class="relative">
-            <input
-              id="inspector-address-input"
-              type="text"
-              class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-              placeholder="Ex: 33101, Phoenix, AZ..."
-              autocomplete="off"
-            >
-            <button type="submit" id="inspector-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-              CALCULATE
-            </button>
-          </form>
-          <div class="flex justify-between items-end">
-            <div id="inspector-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          </div>
-          <input
-            id="inspector-filter"
-            type="text"
-            class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Filter inspectors by name, city, or state"
-            autocomplete="off"
-          >
-        </div>
-      </div>
-      <div id="inspector-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Inspectors will appear here.</div>
-      </div>
-    </aside>
-
-    <!-- Custom Services Sidebar -->
-    <aside id="custom-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden collapsed-custom" style="width: var(--custom-sidebar-width)">
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-indigo-200 mb-1">Dynamic services</p>
-            <h2 class="text-xl font-black text-white leading-tight">New categories</h2>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="custom-count" class="text-xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-custom" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize custom services sidebar">-</button>
-          </div>
-        </div>
-        <p class="mt-2 text-[12px] text-slate-400">Showing every new category detected in Supabase.</p>
-      </div>
-      <div id="custom-list" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">New categories will appear here.</div>
-      </div>
-    </aside>
+    <div id="partner-sidebars"></div>
 
     <!-- Vehicles Sidebar -->
     <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
@@ -1087,21 +768,8 @@
 
   <script>
     // --- Base Config ---
-    const STATE_CENTERS = {
-      'AL': [32.8067, -86.7911], 'AK': [61.3707, -152.4044], 'AZ': [33.7298, -111.4312], 'AR': [34.9697, -92.3731],
-      'CA': [36.1162, -119.6816], 'CO': [39.0598, -105.3111], 'CT': [41.5978, -72.7554], 'DE': [39.3185, -75.5071],
-      'FL': [27.7663, -81.6868], 'GA': [33.0406, -83.6431], 'HI': [21.0943, -157.4983], 'ID': [44.2405, -114.4788],
-      'IL': [40.3495, -88.9861], 'IN': [39.8494, -86.2583], 'IA': [42.0115, -93.2105], 'KS': [38.5266, -96.7265],
-      'KY': [37.6681, -84.6701], 'LA': [31.1695, -91.8678], 'ME': [44.6939, -69.3819], 'MD': [39.0639, -76.8021],
-      'MA': [42.2302, -71.5301], 'MI': [43.3266, -84.5361], 'MN': [45.6945, -93.9002], 'MS': [32.7416, -89.6787],
-      'MO': [38.4561, -92.2884], 'MT': [46.9219, -110.4544], 'NE': [41.1254, -98.2681], 'NV': [38.3135, -117.0554],
-      'NH': [43.4525, -71.5639], 'NJ': [40.2989, -74.5210], 'NM': [34.8405, -106.2485], 'NY': [42.1657, -74.9481],
-      'NC': [35.6301, -79.8064], 'ND': [47.5289, -99.7840], 'OH': [40.3888, -82.7649], 'OK': [35.5653, -96.9289],
-      'OR': [43.9336, -120.5583], 'PA': [40.5908, -77.2098], 'RI': [41.6809, -71.5118], 'SC': [33.8569, -80.9450],
-      'SD': [44.2998, -99.4388], 'TN': [35.7478, -86.6923], 'TX': [31.0545, -97.5635], 'UT': [40.1500, -111.8624],
-      'VT': [44.0459, -72.7107], 'VA': [37.7693, -78.1699], 'WA': [47.4009, -121.4905], 'WV': [38.4912, -80.9545],
-      'WI': [44.2685, -89.6165], 'WY': [42.7559, -107.3025], 'DC': [38.9072, -77.0369]
-    };
+    let STATE_CENTERS = {};
+    const DEFAULT_STATE_CENTER = [39.8, -98.5];
 
     let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, towingLayer, resellerLayer, repairLayer, locksmithLayer, dispatcherLayer, tireLayer, inspectorLayer, customServiceLayer, hotspotLayer, blacklistLayer;
     let technicians = [];
@@ -1173,6 +841,22 @@
     const distanceCaches = {
       tech: { originKey: null, distances: new Map() },
       partners: { originKey: null, distances: new Map() }
+    };
+
+    const loadStateCenters = async () => {
+      try {
+        const response = await fetch('./assets/scripts/state-centers.json');
+        if (!response.ok) throw new Error(`Failed to fetch state centers: ${response.status}`);
+        const data = await response.json();
+        STATE_CENTERS = data || {};
+      } catch (error) {
+        console.error('Failed to load state centers configuration', error);
+        STATE_CENTERS = {};
+      }
+
+      if (!Array.isArray(STATE_CENTERS.DEFAULT)) {
+        STATE_CENTERS.DEFAULT = DEFAULT_STATE_CENTER;
+      }
     };
 
     const getOriginKey = (origin) => origin ? `${Number(origin.lat).toFixed(6)},${Number(origin.lng).toFixed(6)}` : null;
@@ -1347,6 +1031,12 @@
           sidebarStateController?.setState?.('custom', true);
           renderCustomServices();
           updateCustomToggleStates();
+
+          // Force recalculation when switching dynamic categories (e.g., Parking to Repo)
+          const origin = getCurrentOrigin();
+          if (origin && selectedCustomCategoryKey) {
+            showServicesFromOrigin(origin, { forceType: 'custom' });
+          }
         });
         slot.appendChild(button);
         buttons.push(button);
@@ -1521,7 +1211,7 @@
 
       const base = (() => {
         if (STATE_CENTERS[stateCode]) return STATE_CENTERS[stateCode];
-        return STATE_CENTERS.DEFAULT || [39.8, -98.5];
+        return STATE_CENTERS.DEFAULT || DEFAULT_STATE_CENTER;
       })();
 
       const cleanZip = `${zip}`.trim();
@@ -1794,6 +1484,109 @@
       custom: { sidebarId: 'custom-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-custom', layer: () => customServiceLayer }
     };
 
+    const PARTNER_SIDEBAR_CONFIGS = [
+      { type: 'towing', eyebrow: 'Towing partners', title: 'Towing companies nearby', accentClass: 'text-blue-300', filterPlaceholder: 'Filter towing partners by name, city, or state', emptyText: 'Towing companies will appear here.' },
+      { type: 'reseller', eyebrow: 'Reseller network', title: 'Nearby resellers', accentClass: 'text-emerald-300', filterPlaceholder: 'Filter resellers by name, city, or state', emptyText: 'Resellers will appear here.' },
+      { type: 'repair', eyebrow: 'Repair network', title: 'Repair shops nearby', accentClass: 'text-orange-200', filterPlaceholder: 'Filter repair shops by name, city, or state', emptyText: 'Repair shops will appear here.' },
+      { type: 'locksmith', eyebrow: 'Locksmith network', title: 'Locksmith coverage', accentClass: 'text-yellow-200', filterPlaceholder: 'Filter locksmiths by name, city, or state', emptyText: 'Locksmiths will appear here.' },
+      { type: 'dispatcher', eyebrow: 'Dispatch desks', title: 'Dispatcher partners', accentClass: 'text-sky-200', filterPlaceholder: 'Filter dispatchers by name, city, or state', emptyText: 'Dispatchers will appear here.' },
+      { type: 'tire', eyebrow: 'Tire services', title: 'Commercial tire partners', accentClass: 'text-lime-200', filterPlaceholder: 'Filter tire services by name, city, or state', emptyText: 'Tire partners will appear here.' },
+      { type: 'inspector', eyebrow: 'Quality inspections', title: 'Field inspectors', accentClass: 'text-indigo-200', filterPlaceholder: 'Filter inspectors by name, city, or state', emptyText: 'Inspectors will appear here.' },
+    ];
+
+    const CUSTOM_SIDEBAR_CONFIG = {
+      eyebrow: 'Dynamic services',
+      title: 'New categories',
+      accentClass: 'text-indigo-200',
+      description: 'Showing every new category detected in Supabase.'
+    };
+
+    const partnerSidebarTemplate = ({ type, eyebrow, title, accentClass, filterPlaceholder, emptyText }) => `
+      <aside id="${type}-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl" style="width: var(--${type}-sidebar-width)">
+        <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-bold uppercase ${accentClass} mb-1">${eyebrow}</p>
+              <h2 class="text-xl font-black text-white leading-tight">${title}</h2>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
+                <p id="${type}-count" class="text-xl font-black text-white leading-none">0</p>
+              </div>
+              <button id="collapse-${type}" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize ${type} sidebar">-</button>
+            </div>
+          </div>
+          <div class="mt-4 space-y-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Client starting point</p>
+            <form id="${type}-search-form" class="relative">
+              <input
+                id="${type}-address-input"
+                type="text"
+                class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                placeholder="Ex: 33101, Phoenix, AZ..."
+                autocomplete="off"
+              >
+              <button type="submit" id="${type}-search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
+                CALCULATE
+              </button>
+            </form>
+            <div class="flex justify-between items-end">
+              <div id="${type}-search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
+            </div>
+            <input
+              id="${type}-filter"
+              type="text"
+              class="mt-2 block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+              placeholder="${filterPlaceholder}"
+              autocomplete="off"
+            >
+          </div>
+        </div>
+        <div id="${type}-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
+          <div class="text-center mt-10 text-slate-600 text-xs">${emptyText}</div>
+        </div>
+      </aside>
+    `;
+
+    const customSidebarTemplate = (config) => `
+      <aside id="custom-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden collapsed-custom" style="width: var(--custom-sidebar-width)">
+        <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-bold uppercase ${config.accentClass} mb-1">${config.eyebrow}</p>
+              <h2 class="text-xl font-black text-white leading-tight">${config.title}</h2>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="text-right">
+                <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
+                <p id="custom-count" class="text-xl font-black text-white leading-none">0</p>
+              </div>
+              <button id="collapse-custom" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize custom services sidebar">-</button>
+            </div>
+          </div>
+          <p class="mt-2 text-[12px] text-slate-400">${config.description}</p>
+        </div>
+        <div id="custom-list" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900 scroll-smooth relative">
+          <div class="text-center mt-10 text-slate-600 text-xs">New categories will appear here.</div>
+        </div>
+      </aside>
+    `;
+
+    function buildPartnerSidebars() {
+      const slot = document.getElementById('partner-sidebars');
+      if (!slot) return;
+
+      const sidebarMarkup = [
+        ...PARTNER_SIDEBAR_CONFIGS.map((config) => partnerSidebarTemplate(config)),
+        customSidebarTemplate(CUSTOM_SIDEBAR_CONFIG)
+      ].join('\n');
+
+      slot.innerHTML = sidebarMarkup;
+    }
+
+    buildPartnerSidebars();
+
     const isServiceSidebarVisible = (type) => {
       if (!isServiceTypeEnabled(type)) return false;
       const config = SERVICE_UI_CONFIG[type];
@@ -1884,7 +1677,12 @@
       hotspotLayer = L.layerGroup().addTo(map);
       blacklistLayer = L.layerGroup().addTo(map);
       techLayer = L.layerGroup().addTo(map);
-      vehicleLayer = L.layerGroup().addTo(map);
+      vehicleLayer = L.markerClusterGroup({
+        maxClusterRadius: 35,
+        disableClusteringAtZoom: 17,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false
+      }).addTo(map);
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
       serviceLayer = L.layerGroup().addTo(map);
@@ -2964,14 +2762,64 @@
       updateVehicleMarkerToggle();
     }
 
+    function createVehicleMarkerIcon(markerColor, borderColor, isStopped) {
+      return L.divIcon({
+        className: 'vehicle-marker-wrapper',
+        html: `<div class="vehicle-marker-icon"><span class="vehicle-marker-dot" style="background:${markerColor}; border-color:${borderColor}"></span>${isStopped ? '<span class="vehicle-cross-badge">✕</span>' : ''}</div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+    }
+
+    function syncVehicleMarkers(vehiclesWithCoords) {
+      if (!vehicleLayer) return;
+
+      if (!vehicleMarkersVisible) {
+        vehicleLayer.clearLayers();
+        vehicleMarkers.clear();
+        return;
+      }
+
+      const activeIds = new Set();
+
+      vehiclesWithCoords.forEach(({ vehicle, coords, focusHandler }) => {
+        if (!coords) return;
+
+        const markerColor = getVehicleMarkerColor(vehicle);
+        const borderColor = getVehicleMarkerBorderColor(markerColor);
+        const isStopped = isVehicleNotMoving(vehicle);
+        const icon = createVehicleMarkerIcon(markerColor, borderColor, isStopped);
+
+        const stored = vehicleMarkers.get(vehicle.id);
+        let marker = stored?.marker;
+
+        if (marker) {
+          marker.setLatLng([coords.lat, coords.lng]);
+          marker.setIcon(icon);
+          marker.setZIndexOffset(isStopped ? 500 : 0);
+        } else {
+          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0 }).addTo(vehicleLayer);
+          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+        }
+
+        vehicleMarkers.set(vehicle.id, { marker });
+        activeIds.add(vehicle.id);
+      });
+
+      [...vehicleMarkers.keys()].forEach((id) => {
+        if (activeIds.has(id)) return;
+        const stored = vehicleMarkers.get(id);
+        if (stored?.marker) vehicleLayer.removeLayer(stored.marker);
+        vehicleMarkers.delete(id);
+      });
+    }
+
     function renderVehicles() {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
 
       if (map) map.closePopup();
       container.replaceChildren();
-      vehicleLayer.clearLayers();
-      vehicleMarkers.clear();
 
       if (!vehicleMarkersVisible && map?.hasLayer(vehicleLayer)) {
         map.removeLayer(vehicleLayer);
@@ -2988,10 +2836,12 @@
         empty.className = 'text-center mt-10 text-slate-600 text-xs';
         empty.textContent = 'No vehicles match your search.';
         container.replaceChildren(empty);
+        syncVehicleMarkers([]);
         return;
       }
 
       const fragment = document.createDocumentFragment();
+      const vehiclesForMarkers = [];
 
       filtered.forEach((vehicle, idx) => {
         const movingMeta = getMovingMeta(vehicle);
@@ -3022,30 +2872,7 @@
           }
 
           if (coords && vehicleMarkersVisible) {
-            const markerColor = getVehicleMarkerColor(vehicle);
-            const borderColor = getVehicleMarkerBorderColor(markerColor);
-
-            const marker = L.circleMarker([coords.lat, coords.lng], {
-              radius: 8,
-              color: borderColor,
-              weight: 2.6,
-              opacity: 0.95,
-              fillColor: markerColor,
-              fillOpacity: 0.92,
-              className: 'vehicle-dot'
-            }).addTo(vehicleLayer);
-
-            marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
-
-            if (isVehicleNotMoving(vehicle)) {
-              L.marker([coords.lat, coords.lng], {
-                icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
-                interactive: false,
-                zIndexOffset: 500
-              }).addTo(vehicleLayer);
-            }
-
-            vehicleMarkers.set(vehicle.id, { marker });
+            vehiclesForMarkers.push({ vehicle, coords, focusHandler });
           }
 
           if (idx >= VEHICLE_RENDER_LIMIT) return;
@@ -3140,6 +2967,8 @@
         }
 
         container.replaceChildren(fragment);
+
+        syncVehicleMarkers(vehiclesForMarkers);
       }
 
     function focusVehicle(vehicle) {
@@ -4151,7 +3980,15 @@
         if (!chosen) return;
 
         const unauthorized = isUnauthorizedPartner(chosen);
-        const color = getPartnerColor(chosen, SERVICE_COLORS[type] || '#38bdf8');
+        let color = SERVICE_COLORS[type] || '#38bdf8';
+
+        if (type === 'custom' || type.startsWith('custom-')) {
+          const categoryKey = chosen.categoryKey || selectedCustomCategoryKey;
+          const meta = customCategories.get(categoryKey);
+          if (meta) color = meta.color;
+        } else {
+          color = getPartnerColor(chosen, color);
+        }
         const marker = L.marker([chosen.lat, chosen.lng], {
           icon: createServiceIcon(color, { unauthorized })
         }).addTo(serviceLayer);
@@ -4459,6 +4296,14 @@
           leftSideKeys.forEach(key => {
             if (key !== side) applyState(key, false);
           });
+
+          const origin = getCurrentOrigin();
+          if (origin) {
+            const newType = configs[side].type || SIDEBAR_TYPE_BY_KEY[side];
+            setTimeout(() => {
+              showServicesFromOrigin(origin, { forceType: newType });
+            }, 50);
+          }
         }
 
         updateTogglePositions();
@@ -4480,6 +4325,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       (async () => {
+        await loadStateCenters();
         initMap();
         await syncAvailableServiceTypes();
         updateServiceVisibilityUI();
