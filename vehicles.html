@@ -414,6 +414,10 @@
     .sidebar-toggle-group.items-end .sidebar-toggle-btn { align-self: flex-end; }
 
     .sidebar-toggle-pill { padding: 0.4rem 0.85rem; font-size: 11px; }
+
+    #loading-overlay { transition: opacity 0.2s ease; }
+    #loading-overlay .spinner { border-top-color: transparent; }
+    body.loading, body.loading * { cursor: progress !important; }
   </style>
   <link rel="stylesheet" href="assets/visuals/theme.css" />
 </head>
@@ -425,6 +429,13 @@
     <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-3 shadow-xl shadow-slate-900/60">
       <span class="h-3 w-3 animate-pulse rounded-full bg-blue-400"></span>
       <p class="text-sm font-semibold text-slate-200">Validating secure session…</p>
+    </div>
+  </div>
+
+  <div id="loading-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm pointer-events-none">
+    <div class="flex items-center gap-3 rounded-xl border border-slate-800/70 bg-slate-900/90 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-slate-900/50">
+      <span class="spinner h-5 w-5 animate-spin rounded-full border-2 border-slate-500"></span>
+      <span id="loading-text">Cargando…</span>
     </div>
   </div>
 
@@ -900,6 +911,26 @@
       });
     };
 
+    let loadingCounter = 0;
+    function startLoading(message = 'Cargando…') {
+      const overlay = document.getElementById('loading-overlay');
+      const text = document.getElementById('loading-text');
+      if (!overlay || !text) return () => {};
+
+      loadingCounter++;
+      text.textContent = message;
+      overlay.classList.remove('hidden');
+      document.body.classList.add('loading');
+
+      return () => {
+        loadingCounter = Math.max(0, loadingCounter - 1);
+        if (loadingCounter === 0) {
+          overlay.classList.add('hidden');
+          document.body.classList.remove('loading');
+        }
+      };
+    }
+
     const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
     const supabaseClient =
@@ -947,12 +978,14 @@
       if (serviceCacheByCategory.size) return serviceCacheByCategory;
       if (serviceFetchPromise) return serviceFetchPromise;
 
+      const stopLoading = startLoading('Cargando servicios…');
       serviceFetchPromise = (async () => {
         const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*');
         if (error) throw error;
         serviceCacheByCategory = buildServiceCache(data || []);
         return serviceCacheByCategory;
       })().finally(() => {
+        stopLoading();
         serviceFetchPromise = null;
       });
 
@@ -1773,6 +1806,7 @@
         `;
         return;
       }
+      const stopLoading = startLoading('Cargando instaladores…');
       try {
         await ensureServiceCache();
         const data = getCachedServices(getServiceCategoryLabel('tech'));
@@ -1791,6 +1825,8 @@
             <p class="text-slate-500 text-xs">No installer data detected.</p>
           </div>
         `;
+      } finally {
+        stopLoading();
       }
     }
 
@@ -1800,6 +1836,7 @@
         console.warn('Supabase unavailable: skipping vehicle load.');
         return;
       }
+      const stopLoading = startLoading('Cargando vehículos…');
       try {
         const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
         if (error) throw error;
@@ -1816,6 +1853,8 @@
             <p class="text-slate-500 text-xs">Unable to load vehicle data.</p>
           </div>
         `;
+      } finally {
+        stopLoading();
       }
     }
 
@@ -1881,6 +1920,8 @@
         console.warn('Supabase unavailable: skipping hotspot load.');
         return;
       }
+
+      const stopLoading = startLoading('Cargando hotspots…');
       try {
         const { data, error } = await supabaseClient.from(TABLES.hotspots).select('*');
         if (error) throw error;
@@ -1888,6 +1929,8 @@
         renderHotspots();
       } catch (err) {
         console.warn(`Hotspot load warning: ${err.message}`);
+      } finally {
+        stopLoading();
       }
     }
 
@@ -1897,6 +1940,7 @@
         return;
       }
 
+      const stopLoading = startLoading('Cargando ubicaciones en lista negra…');
       try {
         const { data, error } = await supabaseClient.from(TABLES.blacklist).select('*');
         if (error) throw error;
@@ -1904,6 +1948,8 @@
         renderBlacklistSites();
       } catch (err) {
         console.warn(`Blacklist load warning: ${err.message}`);
+      } finally {
+        stopLoading();
       }
     }
 
@@ -3439,15 +3485,20 @@
         if (!query || partners.length === 0) return;
 
         const originalBtnText = button.innerHTML;
+        const stopLoading = startLoading('Buscando dirección…');
         button.innerHTML = svgIcon('loader2', 'animate-spin h-4 w-4');
         button.disabled = true;
         status?.classList.remove('hidden');
 
-        const location = await debouncedGeocodeAddress(query);
-
-        button.innerHTML = originalBtnText;
-        button.disabled = false;
-        status?.classList.add('hidden');
+        let location = null;
+        try {
+          location = await debouncedGeocodeAddress(query);
+        } finally {
+          stopLoading();
+          button.innerHTML = originalBtnText;
+          button.disabled = false;
+          status?.classList.add('hidden');
+        }
 
         if (!location) {
           alert("Address not found. Try a ZIP code or city name.");
