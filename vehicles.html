@@ -3907,7 +3907,15 @@
         if (!chosen) return;
 
         const unauthorized = isUnauthorizedPartner(chosen);
-        const color = getPartnerColor(chosen, SERVICE_COLORS[type] || '#38bdf8');
+        let color = SERVICE_COLORS[type] || '#38bdf8';
+
+        if (type === 'custom' || type.startsWith('custom-')) {
+          const categoryKey = chosen.categoryKey || selectedCustomCategoryKey;
+          const meta = customCategories.get(categoryKey);
+          if (meta) color = meta.color;
+        } else {
+          color = getPartnerColor(chosen, color);
+        }
         const marker = L.marker([chosen.lat, chosen.lng], {
           icon: createServiceIcon(color, { unauthorized })
         }).addTo(serviceLayer);
