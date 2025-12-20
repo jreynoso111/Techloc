@@ -1768,6 +1768,9 @@
       inspector: 'inspector',
       custom: 'custom'
     };
+    const SIDEBAR_TYPE_BY_KEY = Object.fromEntries(
+      Object.entries(SERVICE_SIDEBAR_KEYS).map(([type, key]) => [key, type])
+    );
 
     const SERVICE_UI_CONFIG = {
       tech: { sidebarId: 'left-sidebar', toggleId: 'open-left-sidebar', legendSelector: '[data-legend="tech"]', collapsedClass: 'collapsed-left', layer: () => techLayer },
@@ -1779,6 +1782,15 @@
       tire: { sidebarId: 'tire-sidebar', toggleId: 'open-tire-sidebar', legendSelector: '[data-legend="tire"]', collapsedClass: 'collapsed-tire', layer: () => tireLayer },
       inspector: { sidebarId: 'inspector-sidebar', toggleId: 'open-inspector-sidebar', legendSelector: '[data-legend="inspector"]', collapsedClass: 'collapsed-inspector', layer: () => inspectorLayer },
       custom: { sidebarId: 'custom-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-custom', layer: () => customServiceLayer }
+    };
+
+    const isServiceSidebarVisible = (type) => {
+      if (!isServiceTypeEnabled(type)) return false;
+      const config = SERVICE_UI_CONFIG[type];
+      if (!config?.sidebarId) return false;
+      const sidebar = document.getElementById(config.sidebarId);
+      if (!sidebar || sidebar.classList.contains('hidden')) return false;
+      return !config.collapsedClass || !sidebar.classList.contains(config.collapsedClass);
     };
 
     let enabledServiceTypes = new Set(SERVICE_TYPES);
@@ -2500,17 +2512,7 @@
 
     }
 
-    const isAnyServiceSidebarOpen = () => (
-      (techSidebarVisible && isServiceTypeEnabled('tech')) ||
-      (towingSidebarVisible && isServiceTypeEnabled('towing')) ||
-      (resellerSidebarVisible && isServiceTypeEnabled('reseller')) ||
-      (repairSidebarVisible && isServiceTypeEnabled('repair')) ||
-      (locksmithSidebarVisible && isServiceTypeEnabled('locksmith')) ||
-      (dispatcherSidebarVisible && isServiceTypeEnabled('dispatcher')) ||
-      (tireSidebarVisible && isServiceTypeEnabled('tire')) ||
-      (inspectorSidebarVisible && isServiceTypeEnabled('inspector')) ||
-      (customSidebarVisible && isServiceTypeEnabled('custom'))
-    );
+    const isAnyServiceSidebarOpen = () => getVisibleServiceTypes().length > 0;
 
     const getPartnerFilterValue = (type = 'tech') => `${serviceFilters[type] || ''}`.trim().toLowerCase();
 
@@ -4045,42 +4047,17 @@
     function getActivePartnerType() {
       const visibleTypes = getVisibleServiceTypes();
       if (visibleTypes.length) return visibleTypes[0];
-      const typeMap = {
-        left: 'tech',
-        towing: 'towing',
-        reseller: 'reseller',
-        repair: 'repair',
-        locksmith: 'locksmith',
-        dispatcher: 'dispatcher',
-        tire: 'tire',
-        inspector: 'inspector',
-        custom: 'custom'
-      };
-      if (activeLeftPanel && typeMap[activeLeftPanel]) return typeMap[activeLeftPanel];
-      if (towingSidebarVisible && isServiceTypeEnabled('towing')) return 'towing';
-      if (resellerSidebarVisible && isServiceTypeEnabled('reseller')) return 'reseller';
-      if (repairSidebarVisible && isServiceTypeEnabled('repair')) return 'repair';
-      if (locksmithSidebarVisible && isServiceTypeEnabled('locksmith')) return 'locksmith';
-      if (dispatcherSidebarVisible && isServiceTypeEnabled('dispatcher')) return 'dispatcher';
-      if (tireSidebarVisible && isServiceTypeEnabled('tire')) return 'tire';
-      if (inspectorSidebarVisible && isServiceTypeEnabled('inspector')) return 'inspector';
+
+      const sidebarType = SIDEBAR_TYPE_BY_KEY[activeLeftPanel];
+      if (sidebarType && isServiceTypeEnabled(sidebarType)) return sidebarType;
+
       const [firstEnabled] = getEnabledServiceTypes();
-      return firstEnabled || 'tech';
+      return firstEnabled || null;
     }
 
     function getVisibleServiceTypes() {
-      const visibleTypes = [];
-      if (techSidebarVisible && isServiceTypeEnabled('tech')) visibleTypes.push('tech');
-      if (towingSidebarVisible && isServiceTypeEnabled('towing')) visibleTypes.push('towing');
-      if (resellerSidebarVisible && isServiceTypeEnabled('reseller')) visibleTypes.push('reseller');
-      if (repairSidebarVisible && isServiceTypeEnabled('repair')) visibleTypes.push('repair');
-        if (locksmithSidebarVisible && isServiceTypeEnabled('locksmith')) visibleTypes.push('locksmith');
-        if (dispatcherSidebarVisible && isServiceTypeEnabled('dispatcher')) visibleTypes.push('dispatcher');
-        if (tireSidebarVisible && isServiceTypeEnabled('tire')) visibleTypes.push('tire');
-        if (inspectorSidebarVisible && isServiceTypeEnabled('inspector')) visibleTypes.push('inspector');
-        if (customSidebarVisible && isServiceTypeEnabled('custom')) visibleTypes.push('custom');
-        return visibleTypes;
-      }
+      return SERVICE_TYPES.filter((type) => isServiceSidebarVisible(type));
+    }
 
     function getPartnerLabel(type) {
       if (type === 'towing') return 'towing company';
@@ -4192,7 +4169,7 @@
     function drawConnection(origin, partnerInfo) {
       const type = partnerInfo?.type || getActivePartnerType();
       const target = partnerInfo?.entry || partnerInfo;
-      const isVisible = (type === 'tech' && techSidebarVisible) || (type === 'towing' && towingSidebarVisible) || (type === 'reseller' && resellerSidebarVisible) || (type === 'repair' && repairSidebarVisible) || (type === 'locksmith' && locksmithSidebarVisible) || (type === 'dispatcher' && dispatcherSidebarVisible) || (type === 'tire' && tireSidebarVisible) || (type === 'inspector' && inspectorSidebarVisible);
+      const isVisible = isServiceSidebarVisible(type);
       if (!target || !origin || !isVisible) return;
       const color = type === 'towing'
         ? '#c084fc'
@@ -4310,15 +4287,15 @@
       const defaultRightOffset = 12;
       const syncSidebarVisibility = () => {
         const previousCustomVisible = customSidebarVisible;
-        techSidebarVisible = isServiceTypeEnabled('tech') && !!leftSidebar && !leftSidebar.classList.contains('collapsed-left');
-        towingSidebarVisible = isServiceTypeEnabled('towing') && !!towingSidebar && !towingSidebar.classList.contains('collapsed-towing');
-        resellerSidebarVisible = isServiceTypeEnabled('reseller') && !!resellerSidebar && !resellerSidebar.classList.contains('collapsed-reseller');
-        repairSidebarVisible = isServiceTypeEnabled('repair') && !!repairSidebar && !repairSidebar.classList.contains('collapsed-repair');
-        locksmithSidebarVisible = isServiceTypeEnabled('locksmith') && !!locksmithSidebar && !locksmithSidebar.classList.contains('collapsed-locksmith');
-          dispatcherSidebarVisible = isServiceTypeEnabled('dispatcher') && !!dispatcherSidebar && !dispatcherSidebar.classList.contains('collapsed-dispatcher');
-          tireSidebarVisible = isServiceTypeEnabled('tire') && !!tireSidebar && !tireSidebar.classList.contains('collapsed-tire');
-          inspectorSidebarVisible = isServiceTypeEnabled('inspector') && !!inspectorSidebar && !inspectorSidebar.classList.contains('collapsed-inspector');
-          customSidebarVisible = isServiceTypeEnabled('custom') && !!customSidebar && !customSidebar.classList.contains('collapsed-custom');
+        techSidebarVisible = isServiceSidebarVisible('tech');
+        towingSidebarVisible = isServiceSidebarVisible('towing');
+        resellerSidebarVisible = isServiceSidebarVisible('reseller');
+        repairSidebarVisible = isServiceSidebarVisible('repair');
+        locksmithSidebarVisible = isServiceSidebarVisible('locksmith');
+        dispatcherSidebarVisible = isServiceSidebarVisible('dispatcher');
+        tireSidebarVisible = isServiceSidebarVisible('tire');
+        inspectorSidebarVisible = isServiceSidebarVisible('inspector');
+        customSidebarVisible = isServiceSidebarVisible('custom');
 
         if (!techSidebarVisible) {
           if (map?.hasLayer(techLayer)) map.removeLayer(techLayer);
