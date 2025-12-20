@@ -1820,7 +1820,10 @@
     const hasSpAgentNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp agent';
     const hasSpStorageNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp storage';
 
-    const getPartnerColor = (partner, defaultColor) => isUnauthorizedPartner(partner) ? '#94a3b8' : defaultColor;
+    const getPartnerColor = (partner, defaultColor) => {
+      if (isUnauthorizedPartner(partner)) return '#94a3b8';
+      return partner?.color || defaultColor;
+    };
 
     const formatPartnerLocation = (partner = {}) => {
       const cityText = partner.city ? `${partner.city}, ` : '';
@@ -2811,6 +2814,9 @@
               const marker = L.marker([partner.lat, partner.lng], { icon });
               marker.on('click', (e) => {
                 e.originalEvent.handledByMarker = true;
+                selectedServiceByType.custom = partner;
+                const originPoint = getCurrentOrigin() || lastOriginPoint || partner;
+                if (originPoint) showServicesFromOrigin(originPoint, { forceType: 'custom' });
                 showServicePopup(partner, meta.color);
               });
               marker.addTo(meta.layer);
@@ -2821,6 +2827,9 @@
             sidebarStateController?.setState?.('custom', true);
             if (hasValidCoords(partner) && map) {
               map.panTo([partner.lat, partner.lng]);
+              selectedServiceByType.custom = partner;
+              const originPoint = getCurrentOrigin() || lastOriginPoint || partner;
+              if (originPoint) showServicesFromOrigin(originPoint, { forceType: 'custom' });
               showServicePopup(partner, meta.color);
             }
           });
@@ -4181,7 +4190,7 @@
       const target = partnerInfo?.entry || partnerInfo;
       const isVisible = isServiceSidebarVisible(type);
       if (!target || !origin || !isVisible) return;
-      const baseColor = SERVICE_COLORS[type] || '#818cf8';
+      const baseColor = target?.color || SERVICE_COLORS[type] || '#818cf8';
       const color = getPartnerColor(target, baseColor);
       connectionLayer.clearLayers();
       const miles = getDistance(origin.lat, origin.lng, target.lat, target.lng);
