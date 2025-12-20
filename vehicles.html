@@ -2726,14 +2726,78 @@
       updateVehicleMarkerToggle();
     }
 
+    function syncVehicleMarkers(vehiclesWithCoords) {
+      if (!vehicleLayer) return;
+
+      if (!vehicleMarkersVisible) {
+        vehicleLayer.clearLayers();
+        vehicleMarkers.clear();
+        return;
+      }
+
+      const activeIds = new Set();
+
+      vehiclesWithCoords.forEach(({ vehicle, coords, focusHandler }) => {
+        if (!coords) return;
+
+        const markerColor = getVehicleMarkerColor(vehicle);
+        const borderColor = getVehicleMarkerBorderColor(markerColor);
+
+        const stored = vehicleMarkers.get(vehicle.id);
+        let marker = stored?.marker;
+        let cross = stored?.cross;
+
+        if (marker) {
+          marker.setLatLng([coords.lat, coords.lng]);
+          marker.setStyle({ color: borderColor, fillColor: markerColor });
+        } else {
+          marker = L.circleMarker([coords.lat, coords.lng], {
+            radius: 8,
+            color: borderColor,
+            weight: 2.6,
+            opacity: 0.95,
+            fillColor: markerColor,
+            fillOpacity: 0.92,
+            className: 'vehicle-dot'
+          }).addTo(vehicleLayer);
+
+          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
+        }
+
+        if (isVehicleNotMoving(vehicle)) {
+          if (cross) {
+            cross.setLatLng([coords.lat, coords.lng]);
+          } else {
+            cross = L.marker([coords.lat, coords.lng], {
+              icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
+              interactive: false,
+              zIndexOffset: 500
+            }).addTo(vehicleLayer);
+          }
+        } else if (cross) {
+          vehicleLayer.removeLayer(cross);
+          cross = null;
+        }
+
+        vehicleMarkers.set(vehicle.id, { marker, cross });
+        activeIds.add(vehicle.id);
+      });
+
+      [...vehicleMarkers.keys()].forEach((id) => {
+        if (activeIds.has(id)) return;
+        const stored = vehicleMarkers.get(id);
+        if (stored?.marker) vehicleLayer.removeLayer(stored.marker);
+        if (stored?.cross) vehicleLayer.removeLayer(stored.cross);
+        vehicleMarkers.delete(id);
+      });
+    }
+
     function renderVehicles() {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
 
       if (map) map.closePopup();
       container.replaceChildren();
-      vehicleLayer.clearLayers();
-      vehicleMarkers.clear();
 
       if (!vehicleMarkersVisible && map?.hasLayer(vehicleLayer)) {
         map.removeLayer(vehicleLayer);
@@ -2750,10 +2814,12 @@
         empty.className = 'text-center mt-10 text-slate-600 text-xs';
         empty.textContent = 'No vehicles match your search.';
         container.replaceChildren(empty);
+        syncVehicleMarkers([]);
         return;
       }
 
       const fragment = document.createDocumentFragment();
+      const vehiclesForMarkers = [];
 
       filtered.forEach((vehicle, idx) => {
         const movingMeta = getMovingMeta(vehicle);
@@ -2784,30 +2850,7 @@
           }
 
           if (coords && vehicleMarkersVisible) {
-            const markerColor = getVehicleMarkerColor(vehicle);
-            const borderColor = getVehicleMarkerBorderColor(markerColor);
-
-            const marker = L.circleMarker([coords.lat, coords.lng], {
-              radius: 8,
-              color: borderColor,
-              weight: 2.6,
-              opacity: 0.95,
-              fillColor: markerColor,
-              fillOpacity: 0.92,
-              className: 'vehicle-dot'
-            }).addTo(vehicleLayer);
-
-            marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
-
-            if (isVehicleNotMoving(vehicle)) {
-              L.marker([coords.lat, coords.lng], {
-                icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
-                interactive: false,
-                zIndexOffset: 500
-              }).addTo(vehicleLayer);
-            }
-
-            vehicleMarkers.set(vehicle.id, { marker });
+            vehiclesForMarkers.push({ vehicle, coords, focusHandler });
           }
 
           if (idx >= VEHICLE_RENDER_LIMIT) return;
@@ -2902,6 +2945,8 @@
         }
 
         container.replaceChildren(fragment);
+
+        syncVehicleMarkers(vehiclesForMarkers);
       }
 
     function focusVehicle(vehicle) {
