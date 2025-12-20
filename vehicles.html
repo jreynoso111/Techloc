@@ -1224,15 +1224,15 @@
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
         : null);
     const SERVICE_TABLE = 'Services';
-    const SERVICE_CATEGORIES = {
-      technicians: 'GPS Technician',
-      towing: 'Towing',
-      resellers: 'dealer/auction',
-      repair: 'Repair Shop',
-      locksmiths: 'Locksmiths',
-      dispatchers: 'Dispatcher',
-      tire: 'Tires Services',
-      inspectors: 'inspector',
+    const SERVICE_CATEGORY_HINTS = {
+      tech: ['GPS Technician'],
+      towing: ['Towing'],
+      reseller: ['dealer/auction'],
+      repair: ['Repair Shop'],
+      locksmith: ['Locksmiths'],
+      dispatcher: ['Dispatcher'],
+      tire: ['Tires Services'],
+      inspector: ['inspector'],
     };
 
     const TABLES = {
@@ -1242,10 +1242,8 @@
       blacklist: 'Seervices_Blacklist'
     };
 
-    const getServiceCategoryLabel = (type) => {
-      const key = SERVICE_CATEGORY_KEYS_BY_TYPE[type];
-      return key ? SERVICE_CATEGORIES[key] : '';
-    };
+    const serviceCategoryLabelsByType = new Map();
+    const getServiceCategoryLabel = (type) => serviceCategoryLabelsByType.get(type) || '';
 
     const getCategoryCacheKey = (value = '') => normalizeCategoryLabel(value).toLowerCase();
 
@@ -1280,6 +1278,27 @@
     const getCachedServices = (categoryLabel) => {
       if (!categoryLabel) return [];
       return serviceCacheByCategory.get(getCategoryCacheKey(categoryLabel)) || [];
+    };
+
+    const updateServiceCategoryLabels = (rawCategories = new Map()) => {
+      serviceCategoryLabelsByType.clear();
+
+      const normalizedToOriginal = new Map();
+      rawCategories.forEach((original) => {
+        const normalizedKey = normalizeCategoryLabel(original).toLowerCase();
+        if (!normalizedToOriginal.has(normalizedKey)) normalizedToOriginal.set(normalizedKey, original);
+      });
+
+      SERVICE_TYPES.filter((type) => type !== 'custom').forEach((type) => {
+        const hints = SERVICE_CATEGORY_HINTS[type] || [];
+        const matchKey = hints
+          .map((hint) => normalizeCategoryLabel(hint).toLowerCase())
+          .find((hintKey) => normalizedToOriginal.has(hintKey));
+
+        if (matchKey) {
+          serviceCategoryLabelsByType.set(type, normalizedToOriginal.get(matchKey));
+        }
+      });
     };
 
     const normalizeCategoryLabel = (value = '') => `${value}`.trim();
@@ -1361,19 +1380,20 @@
         (data || []).forEach((row) => {
           const raw = `${row?.category ?? ''}`.trim();
           if (!raw) return;
-          const key = raw.toLowerCase();
+          const key = normalizeCategoryLabel(raw).toLowerCase();
           if (!rawCategories.has(key)) rawCategories.set(key, raw);
         });
 
-        const normalizedCategories = new Set(rawCategories.keys());
+        updateServiceCategoryLabels(rawCategories);
 
         const detected = SERVICE_TYPES.filter((type) => {
           if (type === 'custom') return false;
-          const label = `${getServiceCategoryLabel(type)}`.toLowerCase();
-          return label && normalizedCategories.has(label);
+          return serviceCategoryLabelsByType.has(type);
         });
 
-        const knownLabels = new Set(Object.values(SERVICE_CATEGORIES).map((c) => `${c}`.trim().toLowerCase()));
+        const knownLabels = new Set(
+          Array.from(serviceCategoryLabelsByType.values()).map((c) => `${c}`.trim().toLowerCase())
+        );
         const customLabelMap = new Map();
         rawCategories.forEach((original, key) => {
           if (!knownLabels.has(key)) customLabelMap.set(key, original);
@@ -1736,16 +1756,6 @@
     const PARTNER_CARD_LIMIT = 35;
 
     const SERVICE_TYPES = ['tech', 'towing', 'reseller', 'repair', 'locksmith', 'dispatcher', 'tire', 'inspector', 'custom'];
-    const SERVICE_CATEGORY_KEYS_BY_TYPE = {
-      tech: 'technicians',
-      towing: 'towing',
-      reseller: 'resellers',
-      repair: 'repair',
-      locksmith: 'locksmiths',
-      dispatcher: 'dispatchers',
-      tire: 'tire',
-      inspector: 'inspectors'
-    };
     const SERVICE_COLORS = {
       tech: '#3b82f6',
       towing: '#c084fc',
@@ -1958,7 +1968,7 @@
       }
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.technicians);
+        const data = getCachedServices(getServiceCategoryLabel('tech'));
         technicians = (data || []).map((row, idx) => normalizeInstaller(row, idx)).filter(t => t.company || t.city || t.state);
         setServiceHeaders('technicians', data || []);
         renderedTechIds = '';
@@ -2101,7 +2111,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.towing);
+        const data = getCachedServices(getServiceCategoryLabel('towing'));
         setServiceHeaders('towing', data);
         towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
         updateTowingUI(towingCompanies);
@@ -2115,7 +2125,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.resellers);
+        const data = getCachedServices(getServiceCategoryLabel('reseller'));
         setServiceHeaders('reseller', data);
         resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
         updateResellerUI(resellers);
@@ -2129,7 +2139,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.repair);
+        const data = getCachedServices(getServiceCategoryLabel('repair'));
         setServiceHeaders('repair', data);
         repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
         updateRepairUI(repairShops);
@@ -2143,7 +2153,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.locksmiths);
+        const data = getCachedServices(getServiceCategoryLabel('locksmith'));
         setServiceHeaders('locksmith', data);
         locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
         updateLocksmithUI(locksmiths);
@@ -2157,7 +2167,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.dispatchers);
+        const data = getCachedServices(getServiceCategoryLabel('dispatcher'));
         setServiceHeaders('dispatcher', data);
         dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
         updateDispatcherUI(dispatchers);
@@ -2171,7 +2181,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.tire);
+        const data = getCachedServices(getServiceCategoryLabel('tire'));
         setServiceHeaders('tire', data);
         tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
         updateTireUI(tirePartners);
@@ -2185,7 +2195,7 @@
       if (!supabaseClient) return;
       try {
         await ensureServiceCache();
-        const data = getCachedServices(SERVICE_CATEGORIES.inspectors);
+        const data = getCachedServices(getServiceCategoryLabel('inspector'));
         setServiceHeaders('inspector', data);
         inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
         updateInspectorUI(inspectors);
@@ -4171,19 +4181,8 @@
       const target = partnerInfo?.entry || partnerInfo;
       const isVisible = isServiceSidebarVisible(type);
       if (!target || !origin || !isVisible) return;
-      const color = type === 'towing'
-        ? '#c084fc'
-        : type === 'reseller'
-        ? '#34d399'
-        : type === 'repair'
-        ? '#fb923c'
-        : type === 'locksmith'
-        ? '#facc15'
-        : type === 'dispatcher'
-        ? '#38bdf8'
-        : type === 'tire'
-        ? '#a3e635'
-        : '#818cf8';
+      const baseColor = SERVICE_COLORS[type] || '#818cf8';
+      const color = getPartnerColor(target, baseColor);
       connectionLayer.clearLayers();
       const miles = getDistance(origin.lat, origin.lng, target.lat, target.lng);
       addLabeledConnection(
