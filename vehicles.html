@@ -1419,7 +1419,7 @@
 
         if (config.legendSelector) {
           document.querySelectorAll(config.legendSelector).forEach((el) => {
-            el.classList.remove('hidden');
+            el.classList.toggle('hidden', !enabled);
           });
         }
 
@@ -1811,22 +1811,6 @@
     const hasSpStorageNote = (partner = {}) => `${partner.notes || ''}`.trim().toLowerCase() === 'sp storage';
 
     const getPartnerColor = (partner, defaultColor) => isUnauthorizedPartner(partner) ? '#94a3b8' : defaultColor;
-
-    const getCustomMetaForPartner = (partner = {}) => {
-      const label = normalizeCategoryLabel(partner.category || partner.categoryLabel || '');
-      const key = partner.categoryKey || (label ? getCustomCategoryKey(label) : '');
-      return customCategories.get(key) || (label ? ensureCustomCategoryMeta(label) : null);
-    };
-
-    const getServiceColorForPartner = (type, partner = {}) => {
-      if (type === 'custom') {
-        const meta = getCustomMetaForPartner(partner);
-        const baseColor = meta?.color || SERVICE_COLORS.custom;
-        return getPartnerColor(partner, baseColor);
-      }
-
-      return getPartnerColor(partner, SERVICE_COLORS[type] || '#38bdf8');
-    };
 
     const formatPartnerLocation = (partner = {}) => {
       const cityText = partner.city ? `${partner.city}, ` : '';
@@ -2844,13 +2828,14 @@
       const legendSlot = document.getElementById('custom-legend-slot');
       if (legendSlot) {
         legendSlot.innerHTML = '';
-        customCategories.forEach(({ key, label, color }) => {
+        grouped.forEach((items, key) => {
+          const meta = customCategories.get(key) || ensureCustomCategoryMeta(key);
           const pill = document.createElement('div');
           pill.className = 'legend-pill flex items-center gap-2';
           pill.dataset.legend = `custom-${key}`;
           pill.innerHTML = `
-            <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-            ${escapeHTML(label)}
+            <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="${meta.color}" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
+            ${escapeHTML(meta.label)}
           `;
           legendSlot.appendChild(pill);
         });
@@ -4156,7 +4141,7 @@
         if (!chosen) return;
 
         const unauthorized = isUnauthorizedPartner(chosen);
-        const color = getServiceColorForPartner(type, chosen);
+        const color = getPartnerColor(chosen, SERVICE_COLORS[type] || '#38bdf8');
         const marker = L.marker([chosen.lat, chosen.lng], {
           icon: createServiceIcon(color, { unauthorized })
         }).addTo(serviceLayer);
@@ -4186,7 +4171,19 @@
       const target = partnerInfo?.entry || partnerInfo;
       const isVisible = isServiceSidebarVisible(type);
       if (!target || !origin || !isVisible) return;
-      const color = getServiceColorForPartner(type, target);
+      const color = type === 'towing'
+        ? '#c084fc'
+        : type === 'reseller'
+        ? '#34d399'
+        : type === 'repair'
+        ? '#fb923c'
+        : type === 'locksmith'
+        ? '#facc15'
+        : type === 'dispatcher'
+        ? '#38bdf8'
+        : type === 'tire'
+        ? '#a3e635'
+        : '#818cf8';
       connectionLayer.clearLayers();
       const miles = getDistance(origin.lat, origin.lng, target.lat, target.lng);
       addLabeledConnection(
