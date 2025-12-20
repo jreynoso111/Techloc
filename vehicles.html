@@ -1717,11 +1717,26 @@
         showCoverageOnHover: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
+          let borderClass = 'border-slate-500';
+          let sizeClass = 'w-11 h-11 text-sm';
+          let iconSize = [44, 44];
+
+          if (count > 100) {
+            borderClass = 'border-amber-500';
+            sizeClass = 'w-14 h-14 text-lg';
+            iconSize = [56, 56];
+          } else if (count > 10) {
+            borderClass = 'border-blue-500';
+            sizeClass = 'w-12 h-12 text-base';
+            iconSize = [48, 48];
+          }
+
+          const [width, height] = iconSize;
           return L.divIcon({
-            html: `<div class="bg-slate-800 border-2 border-slate-500 text-white font-bold rounded-full flex items-center justify-center shadow-lg text-sm w-11 h-11">${count}</div>`,
+            html: `<div class="bg-slate-800 border-2 ${borderClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}">${count}</div>`,
             className: 'vehicle-cluster-icon',
-            iconSize: [44, 44],
-            iconAnchor: [22, 22]
+            iconSize,
+            iconAnchor: [width / 2, height / 2]
           });
         }
       }).addTo(map);
