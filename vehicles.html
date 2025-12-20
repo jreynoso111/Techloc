@@ -2508,7 +2508,8 @@
       (locksmithSidebarVisible && isServiceTypeEnabled('locksmith')) ||
       (dispatcherSidebarVisible && isServiceTypeEnabled('dispatcher')) ||
       (tireSidebarVisible && isServiceTypeEnabled('tire')) ||
-      (inspectorSidebarVisible && isServiceTypeEnabled('inspector'))
+      (inspectorSidebarVisible && isServiceTypeEnabled('inspector')) ||
+      (customSidebarVisible && isServiceTypeEnabled('custom'))
     );
 
     const getPartnerFilterValue = (type = 'tech') => `${serviceFilters[type] || ''}`.trim().toLowerCase();
@@ -4033,6 +4034,11 @@
       if (type === 'dispatcher') return dispatchers;
       if (type === 'tire') return tirePartners;
       if (type === 'inspector') return inspectors;
+      if (type === 'custom') {
+        return selectedCustomCategoryKey
+          ? customServices.filter((service) => service?.categoryKey === selectedCustomCategoryKey)
+          : customServices;
+      }
       return technicians;
     }
 
@@ -4047,7 +4053,8 @@
         locksmith: 'locksmith',
         dispatcher: 'dispatcher',
         tire: 'tire',
-        inspector: 'inspector'
+        inspector: 'inspector',
+        custom: 'custom'
       };
       if (activeLeftPanel && typeMap[activeLeftPanel]) return typeMap[activeLeftPanel];
       if (towingSidebarVisible && isServiceTypeEnabled('towing')) return 'towing';
