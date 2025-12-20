@@ -923,7 +923,7 @@
       services: SERVICE_TABLE,
       vehicles: 'vehicles',
       hotspots: 'Hotspots',
-      blacklist: 'Seervices_Blacklist'
+      blacklist: 'Services_Blacklist'
     };
 
     const serviceCategoryLabelsByType = new Map();
@@ -1897,19 +1897,13 @@
         return;
       }
 
-      const blacklistTables = ['Seervices_Blacklist', 'Services_Blacklist'];
-      for (const tableName of blacklistTables) {
-        try {
-          const { data, error } = await supabaseClient.from(tableName).select('*');
-          if (error) throw error;
-          if (Array.isArray(data)) {
-            blacklistSites = data.map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
-            renderBlacklistSites();
-            return;
-          }
-        } catch (err) {
-          console.warn(`Blacklist load warning from ${tableName}: ${err.message}`);
-        }
+      try {
+        const { data, error } = await supabaseClient.from(TABLES.blacklist).select('*');
+        if (error) throw error;
+        blacklistSites = (data || []).map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
+        renderBlacklistSites();
+      } catch (err) {
+        console.warn(`Blacklist load warning: ${err.message}`);
       }
     }
 
