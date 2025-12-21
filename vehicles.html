@@ -2072,6 +2072,8 @@
 
         const card = document.createElement('div');
         card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isNearest ? 'bg-slate-800 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
+        card.dataset.id = tech.id;
+        card.dataset.type = 'tech';
 
         const distanceLabel = origin && typeof tech.distance === 'number'
           ? `${Math.round(tech.distance)} mi`
@@ -2090,13 +2092,8 @@
             </div>
           </div>
           ${tech.zip ? `<p class="text-[10px] text-slate-500 mt-1">${tech.zip}</p>` : ''}
-          
-        `;
 
-        card.addEventListener('click', () => {
-          map.flyTo([tech.lat, tech.lng], 15, { duration: 1.2 });
-          applySelection(null, tech.id);
-        });
+        `;
 
         listContainer.appendChild(card);
       });
@@ -2239,6 +2236,9 @@
           const card = document.createElement('div');
           const isSelected = selectedService?.id === partner.id;
           card.className = `p-3 rounded-lg border transition-colors cursor-pointer ${isSelected || (idx === 0 && origin) ? 'bg-slate-800 border-amber-400 ring-1 ring-amber-400' : 'bg-slate-900 border-slate-800 hover:border-slate-700'}`;
+          card.dataset.id = partner.id;
+          card.dataset.type = 'partner';
+          card.dataset.partnerType = type;
           card.innerHTML = `
             <div class="flex justify-between items-start gap-3">
               <div class="min-w-0">
@@ -2258,17 +2258,6 @@
             </div>
 
           `;
-
-          card.addEventListener('click', () => {
-            sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
-            map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
-            selectedServiceByType[type] = partner;
-            const originPoint = getCurrentOrigin() || partner;
-            if (originPoint) {
-              showServicesFromOrigin(originPoint, { forceType: type });
-            }
-            renderPartnerUI(partners, options);
-          });
 
         fragment.appendChild(card);
       });
@@ -2366,6 +2355,9 @@
           const locationText = formatPartnerLocation(partner) || 'US';
           const card = document.createElement('article');
           card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-3 shadow-sm cursor-pointer hover:border-amber-400/60 transition-colors';
+          card.dataset.id = partner.id;
+          card.dataset.type = 'partner';
+          card.dataset.partnerType = 'custom';
           card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -2398,14 +2390,6 @@
             }
           }
 
-          card.addEventListener('click', () => {
-            sidebarStateController?.setState?.('custom', true);
-            if (hasValidCoords(partner) && map) {
-              map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
-              showServicePopup(partner, meta.color);
-            }
-          });
-
           listWrap.appendChild(card);
         });
 
@@ -2433,16 +2417,107 @@
       }
     }
 
-      function renderVisibleSidebars() {
-        if (techSidebarVisible && isServiceTypeEnabled('tech')) updateTechUI(getTechList(technicians));
-        if (towingSidebarVisible && isServiceTypeEnabled('towing')) updateTowingUI(towingCompanies);
-        if (resellerSidebarVisible && isServiceTypeEnabled('reseller')) updateResellerUI(resellers);
-        if (repairSidebarVisible && isServiceTypeEnabled('repair')) updateRepairUI(repairShops);
-        if (locksmithSidebarVisible && isServiceTypeEnabled('locksmith')) updateLocksmithUI(locksmiths);
+    function renderVisibleSidebars() {
+      if (techSidebarVisible && isServiceTypeEnabled('tech')) updateTechUI(getTechList(technicians));
+      if (towingSidebarVisible && isServiceTypeEnabled('towing')) updateTowingUI(towingCompanies);
+      if (resellerSidebarVisible && isServiceTypeEnabled('reseller')) updateResellerUI(resellers);
+      if (repairSidebarVisible && isServiceTypeEnabled('repair')) updateRepairUI(repairShops);
+      if (locksmithSidebarVisible && isServiceTypeEnabled('locksmith')) updateLocksmithUI(locksmiths);
       if (dispatcherSidebarVisible && isServiceTypeEnabled('dispatcher')) updateDispatcherUI(dispatchers);
       if (tireSidebarVisible && isServiceTypeEnabled('tire')) updateTireUI(tirePartners);
       if (inspectorSidebarVisible && isServiceTypeEnabled('inspector')) updateInspectorUI(inspectors);
       if (customSidebarVisible && isServiceTypeEnabled('custom')) renderCustomServices(customServices);
+    }
+
+    const PARTNER_TYPE_CONFIG = {
+      towing: { containerId: 'towing-list', updater: updateTowingUI, getList: () => towingCompanies },
+      reseller: { containerId: 'reseller-list', updater: updateResellerUI, getList: () => resellers },
+      repair: { containerId: 'repair-list', updater: updateRepairUI, getList: () => repairShops },
+      locksmith: { containerId: 'locksmith-list', updater: updateLocksmithUI, getList: () => locksmiths },
+      dispatcher: { containerId: 'dispatcher-list', updater: updateDispatcherUI, getList: () => dispatchers },
+      tire: { containerId: 'tire-list', updater: updateTireUI, getList: () => tirePartners },
+      inspector: { containerId: 'inspector-list', updater: updateInspectorUI, getList: () => inspectors },
+      custom: { containerId: 'custom-list', updater: renderCustomServices, getList: () => customServices }
+    };
+
+    const findVehicleById = (id) => vehicles.find((vehicle) => `${vehicle.id}` === `${id}`);
+    const findTechById = (id) => technicians.find((tech) => `${tech.id}` === `${id}`);
+    const findPartnerById = (type, id) => {
+      const getter = PARTNER_TYPE_CONFIG[type]?.getList;
+      const list = typeof getter === 'function' ? getter() : [];
+      return list.find((partner) => `${partner.id}` === `${id}`);
+    };
+
+    function handleVehicleListClick(event) {
+      const container = event.currentTarget;
+      const card = event.target.closest('[data-type="vehicle"]');
+      const viewMoreBtn = event.target.closest('[data-action="vehicle-view-more"]');
+      if (!card || !container.contains(card)) return;
+
+      const vehicle = findVehicleById(card.dataset.id);
+      if (!vehicle) return;
+
+      if (viewMoreBtn) {
+        event.stopPropagation();
+        openVehicleModal(vehicle);
+        return;
+      }
+
+      applySelection(vehicle.id, null);
+      focusVehicle(vehicle);
+    }
+
+    function handleTechListClick(event) {
+      const container = event.currentTarget;
+      const card = event.target.closest('[data-type="tech"]');
+      if (!card || !container.contains(card)) return;
+
+      const tech = findTechById(card.dataset.id);
+      if (!tech) return;
+
+      map.flyTo([tech.lat, tech.lng], 15, { duration: 1.2 });
+      applySelection(null, tech.id);
+    }
+
+    function handlePartnerListClick(event, type) {
+      const container = event.currentTarget;
+      const card = event.target.closest('[data-type="partner"]');
+      if (!card || !container.contains(card) || card.dataset.partnerType !== type) return;
+
+      const partner = findPartnerById(type, card.dataset.id);
+      if (!partner) return;
+
+      sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+      if (hasValidCoords(partner) && map) {
+        map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
+      }
+      selectedServiceByType[type] = partner;
+
+      const originPoint = type === 'custom' ? null : getCurrentOrigin() || partner;
+      if (originPoint) {
+        showServicesFromOrigin(originPoint, { forceType: type });
+      }
+
+      if (type === 'custom' && hasValidCoords(partner)) {
+        showServicePopup(partner, partner.color || SERVICE_COLORS.custom);
+      }
+
+      const updater = PARTNER_TYPE_CONFIG[type]?.updater;
+      if (typeof updater === 'function') updater();
+    }
+
+    function setupEventDelegation() {
+      const vehicleList = document.getElementById('vehicle-list');
+      if (vehicleList) vehicleList.addEventListener('click', handleVehicleListClick);
+
+      const techList = document.getElementById('tech-list');
+      if (techList) techList.addEventListener('click', handleTechListClick);
+
+      Object.entries(PARTNER_TYPE_CONFIG).forEach(([type, config]) => {
+        const container = document.getElementById(config.containerId);
+        if (!container) return;
+        container.addEventListener('click', (event) => handlePartnerListClick(event, type));
+      });
     }
 
     function updateHotspotToggle() {
@@ -2662,6 +2737,8 @@
 
           const card = document.createElement('div');
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
+          card.dataset.id = vehicle.id;
+          card.dataset.type = 'vehicle';
           card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
               <div class="space-y-1">
@@ -2722,22 +2799,12 @@
               </div>
             </div>
             <div class="pt-1 flex items-center justify-end gap-2">
-              <button data-view-more class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+              <button data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 ${svgIcon('info', 'h-3.5 w-3.5')}
                 See more
               </button>
             </div>
           `;
-
-          card.addEventListener('click', focusHandler);
-
-          const viewMoreBtn = card.querySelector('[data-view-more]');
-          if (viewMoreBtn) {
-            viewMoreBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              openVehicleModal(vehicle);
-            });
-          }
 
           fragment.appendChild(card);
         });
@@ -3868,6 +3935,8 @@
             }
           });
         });
+
+        setupEventDelegation();
 
         let vehicleSearchTimer;
         document.getElementById('vehicle-search').addEventListener('input', () => {
