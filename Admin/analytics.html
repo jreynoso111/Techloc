@@ -527,17 +527,27 @@
 
         // Layout Profesional: Flexbox + Background Track
         const barHtml = `
-          <div class="group space-y-2">
+          <div class="group space-y-2 cursor-pointer transition-transform hover:-translate-y-[2px]" data-category-bar="${cat}" role="button" tabindex="0">
             <div class="flex justify-between items-center">
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 group-hover:text-white transition-colors">${cat}</span>
               <span class="font-mono text-xs font-bold text-white flex items-center gap-1 leading-none">${count}<span class="text-slate-500 font-medium">(${percentage}%)</span></span>
             </div>
             <div class="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-              <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out" style="width: 0%" data-width="${percentage}%"></div>
+              <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out group-hover:opacity-90 group-hover:brightness-110" style="width: 0%" data-width="${percentage}%"></div>
             </div>
           </div>
         `;
         els.categoryBars.insertAdjacentHTML('beforeend', barHtml);
+      });
+
+      els.categoryBars.querySelectorAll('[data-category-bar]').forEach(bar => {
+        bar.addEventListener('click', () => {
+          if (!els.searchInput) return;
+          const category = bar.getAttribute('data-category-bar') || '';
+          els.searchInput.value = category;
+          els.searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          els.searchInput.focus();
+        });
       });
 
       // Animate bars on load
