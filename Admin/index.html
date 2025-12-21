@@ -501,11 +501,13 @@
       }
 
       try {
-        const { data, error } = await supabaseClient.from('vehicles').select('deal status');
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .select('"deal status" as deal_status');
         if (error) throw error;
 
         const counts = (data || []).reduce((acc, row) => {
-          const status = ((row['deal status'] ?? 'Unknown').toString() || 'Unknown').trim() || 'Unknown';
+          const status = ((row.deal_status ?? 'Unknown').toString() || 'Unknown').trim() || 'Unknown';
           acc[status] = (acc[status] || 0) + 1;
           return acc;
         }, {});
