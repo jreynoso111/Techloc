@@ -20,7 +20,6 @@
     };
   </script>
   <link rel="stylesheet" href="assets/visuals/theme.css" />
-  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
   <div class="pointer-events-none fixed inset-0 z-0 opacity-80 mix-blend-screen" aria-hidden="true">
@@ -53,14 +52,8 @@
         </div>
         <div class="space-y-2">
           <label for="password" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
-          <div class="relative">
-            <input id="password" name="password" type="password" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="•••••••" />
-            <button type="button" id="toggle-password" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-200">
-              <i data-lucide="eye" class="h-5 w-5"></i>
-            </button>
-          </div>
+          <input id="password" name="password" type="password" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="••••••••" />
         </div>
-        <div id="form-error" class="hidden mb-4 p-3 rounded-xl border border-red-500/50 bg-red-500/10 text-xs text-red-200 font-medium text-center"></div>
         <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-600/40 transition hover:-translate-y-0.5">
           <span>Login</span>
         </button>
@@ -70,61 +63,40 @@
     </div>
   </main>
 
-    <script type="module">
-      import { createConstellationBackground } from './assets/scripts/constellation.js';
+  <script type="module">
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     const loginForm = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
-    const togglePassword = document.getElementById('toggle-password');
     const submitButton = loginForm.querySelector('button[type="submit"]');
     const submitLabel = submitButton.querySelector('span');
-    const formError = document.getElementById('form-error');
 
-      loginForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-      formError.classList.add('hidden');
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
 
       submitButton.disabled = true;
       const originalText = submitLabel.textContent;
       submitLabel.textContent = 'Verifying...';
 
-        submitButton.disabled = true;
-        const originalText = submitLabel.textContent;
-        submitLabel.textContent = 'Verifying...';
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
 
-        const email = emailInput.value.trim();
-        const password = passwordInput.value;
+      const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
 
       if (error) {
-        formError.textContent = error.message;
-        formError.classList.remove('hidden');
+        alert(error.message);
         submitButton.disabled = false;
         submitLabel.textContent = originalText;
         return;
       }
 
-        if (error) {
-          formError.textContent = error.message;
-          formError.classList.remove('hidden');
-          submitButton.disabled = false;
-          submitLabel.textContent = originalText;
-          return;
-        }
-
-    togglePassword.addEventListener('click', () => {
-      const isPassword = passwordInput.getAttribute('type') === 'password';
-      passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
-
-      const icon = togglePassword.querySelector('i');
-      icon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
-      lucide.createIcons();
+      const basePath = window.location.hostname.includes('github.io') ? '/Techloc' : '';
+      window.location.replace(basePath + '/index.html');
     });
 
     document.addEventListener('DOMContentLoaded', () => {
       createConstellationBackground();
-      lucide.createIcons();
     });
   </script>
 </body>
