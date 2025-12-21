@@ -528,9 +528,7 @@
 
   <script type="module">
     import { createConstellationBackground } from './assets/scripts/constellation.js';
-
-    const SUPABASE_URL = "https://ewgtclzscwbokxmzxbcu.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto";
+    import { supabase as supabaseClient } from './assets/scripts/supabaseClient.js';
 
     const TABLE_NAME = "services_request";
     const VEHICLES_TABLE = "vehicles";
@@ -539,13 +537,6 @@
     const PAGE_SIZE = 20;
 
     const LS_KEY = "tl_services_table_prefs_v5";
-
-    function getClient() {
-      if (!window.supabase?.createClient) return null;
-      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-      });
-    }
 
     function fmtDate(v) {
       if (!v) return '—';
@@ -2144,7 +2135,7 @@
       createConstellationBackground();
       lucide.createIcons();
 
-      state.client = getClient();
+      state.client = supabaseClient;
       loadPrefs();
       wireScrollSync();
 

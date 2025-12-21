@@ -1,7 +1,8 @@
+import { supabase as supabaseClient } from './supabaseClient.js';
+
 (function () {
-  const supabaseClient = window.supabaseClient;
   if (!supabaseClient) {
-    console.error('Supabase client not initialized. Ensure supabaseClient.js runs before authManager.js.');
+    console.error('Supabase client not initialized. Ensure supabaseClient.js is available.');
     return;
   }
 
@@ -190,7 +191,7 @@
     }
 
     if (window.currentUserStatus === 'suspended' && isProtectedRoute()) {
-      window.supabaseClient?.auth.signOut();
+      supabaseClient?.auth.signOut();
       window.location.replace(mapsTo('login.html'));
     }
   };
