@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
@@ -194,6 +195,7 @@
             <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
           </div>
           <div id="datasets" class="grid gap-4 md:grid-cols-2"></div>
+          <canvas id="fleet-chart" class="mt-6 max-h-64 w-full"></canvas>
         </section>
 
         <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
@@ -488,6 +490,80 @@
       }, 4200);
     };
 
+    let fleetChartInstance = null;
+
+    const renderFleetChart = async () => {
+      const canvas = document.getElementById('fleet-chart');
+      if (!canvas || !window.Chart) return;
+      if (!supabaseClient) {
+        console.warn('Supabase client unavailable. Skipping fleet chart render.');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabaseClient.from('vehicles').select('deal status');
+        if (error) throw error;
+
+        const counts = (data || []).reduce((acc, row) => {
+          const status = ((row['deal status'] ?? 'Unknown').toString() || 'Unknown').trim() || 'Unknown';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+
+        const labels = Object.keys(counts);
+        const values = labels.map((label) => counts[label]);
+
+        const chartLabels = labels.length ? labels : ['No data'];
+        const chartValues = labels.length ? values : [1];
+
+        const palette = ['#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#f97316', '#facc15', '#34d399'];
+        const backgroundColors = chartLabels.map((_, idx) => palette[idx % palette.length]);
+
+        if (fleetChartInstance) fleetChartInstance.destroy();
+
+        Chart.defaults.color = '#cbd5e1';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+
+        fleetChartInstance = new Chart(canvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [
+              {
+                data: chartValues,
+                backgroundColor: backgroundColors,
+                borderColor: '#0f172a',
+                borderWidth: 2,
+                hoverOffset: 10,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '58%',
+            layout: { padding: 8 },
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#e2e8f0', boxWidth: 14, boxHeight: 14 },
+              },
+              tooltip: {
+                backgroundColor: '#0f172a',
+                titleColor: '#e2e8f0',
+                bodyColor: '#e2e8f0',
+                borderColor: '#334155',
+                borderWidth: 1,
+              },
+            },
+          },
+        });
+      } catch (error) {
+        console.error('Failed to render fleet chart:', error);
+        showToast('Unable to render fleet chart: ' + error.message, 'error');
+      }
+    };
+
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
@@ -613,6 +689,7 @@
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
 
       renderActivityLog(activities);
+      await renderFleetChart();
       lucide.createIcons();
     };
 
