@@ -70,8 +70,8 @@
     </div>
   </main>
 
-  <script type="module">
-    import { createConstellationBackground } from './assets/scripts/constellation.js';
+    <script type="module">
+      import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     const loginForm = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
@@ -81,8 +81,8 @@
     const submitLabel = submitButton.querySelector('span');
     const formError = document.getElementById('form-error');
 
-    loginForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
 
       formError.classList.add('hidden');
 
@@ -90,10 +90,12 @@
       const originalText = submitLabel.textContent;
       submitLabel.textContent = 'Verifying...';
 
-      const email = emailInput.value.trim();
-      const password = passwordInput.value;
+        submitButton.disabled = true;
+        const originalText = submitLabel.textContent;
+        submitLabel.textContent = 'Verifying...';
 
-      const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
 
       if (error) {
         formError.textContent = error.message;
@@ -103,9 +105,13 @@
         return;
       }
 
-      const basePath = window.location.hostname.includes('github.io') ? '/Techloc' : '';
-      window.location.replace(basePath + '/index.html');
-    });
+        if (error) {
+          formError.textContent = error.message;
+          formError.classList.remove('hidden');
+          submitButton.disabled = false;
+          submitLabel.textContent = originalText;
+          return;
+        }
 
     togglePassword.addEventListener('click', () => {
       const isPassword = passwordInput.getAttribute('type') === 'password';
