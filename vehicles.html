@@ -3594,13 +3594,18 @@
       const minWidth = 260;
       const maxWidth = 720;
       let activeDrag = null;
+      let resizePending = false;
 
       const clampWidth = (value) => Math.min(Math.max(value, minWidth), maxWidth);
 
       const applyWidth = (side, width) => {
         rootStyle.setProperty(side === 'left' ? '--left-sidebar-width' : '--right-sidebar-width', `${width}px`);
-        if (map) {
-          map.invalidateSize();
+        if (map && !resizePending) {
+          resizePending = true;
+          requestAnimationFrame(() => {
+            map.invalidateSize();
+            resizePending = false;
+          });
         }
       };
 
