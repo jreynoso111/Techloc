@@ -2355,6 +2355,9 @@
           const locationText = formatPartnerLocation(partner) || 'US';
           const card = document.createElement('article');
           card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-3 shadow-sm cursor-pointer hover:border-amber-400/60 transition-colors';
+          card.dataset.id = partner.id;
+          card.dataset.type = 'partner';
+          card.dataset.partnerType = 'custom';
           card.innerHTML = `
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -2386,14 +2389,6 @@
               marker.addTo(meta.layer);
             }
           }
-
-          card.addEventListener('click', () => {
-            sidebarStateController?.setState?.('custom', true);
-            if (hasValidCoords(partner) && map) {
-              map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
-              showServicePopup(partner, meta.color);
-            }
-          });
 
           listWrap.appendChild(card);
         });
@@ -2441,7 +2436,8 @@
       locksmith: { containerId: 'locksmith-list', updater: updateLocksmithUI, getList: () => locksmiths },
       dispatcher: { containerId: 'dispatcher-list', updater: updateDispatcherUI, getList: () => dispatchers },
       tire: { containerId: 'tire-list', updater: updateTireUI, getList: () => tirePartners },
-      inspector: { containerId: 'inspector-list', updater: updateInspectorUI, getList: () => inspectors }
+      inspector: { containerId: 'inspector-list', updater: updateInspectorUI, getList: () => inspectors },
+      custom: { containerId: 'custom-list', updater: renderCustomServices, getList: () => customServices }
     };
 
     const findVehicleById = (id) => vehicles.find((vehicle) => `${vehicle.id}` === `${id}`);
@@ -2496,9 +2492,14 @@
         map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
       }
       selectedServiceByType[type] = partner;
-      const originPoint = getCurrentOrigin() || partner;
+
+      const originPoint = type === 'custom' ? null : getCurrentOrigin() || partner;
       if (originPoint) {
         showServicesFromOrigin(originPoint, { forceType: type });
+      }
+
+      if (type === 'custom' && hasValidCoords(partner)) {
+        showServicePopup(partner, partner.color || SERVICE_COLORS.custom);
       }
 
       const updater = PARTNER_TYPE_CONFIG[type]?.updater;
