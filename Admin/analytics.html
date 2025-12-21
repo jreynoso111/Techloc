@@ -241,14 +241,25 @@
                       <h3 class="text-sm font-bold uppercase tracking-widest text-white">Recent Additions</h3>
                       <a href="#" class="text-[10px] font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider">View All</a>
                     </div>
-                    <div class="relative">
-                      <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
-                      <input
-                        id="recent-search"
-                        type="text"
-                        placeholder="Search"
-                        class="w-48 rounded-lg border border-white/10 bg-white/5 px-9 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 placeholder:text-slate-500 backdrop-blur focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                      />
+                    <div class="flex items-center gap-2">
+                      <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
+                        <input
+                          id="recent-search"
+                          type="text"
+                          placeholder="Search"
+                          class="w-48 rounded-lg border border-white/10 bg-white/5 px-9 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 placeholder:text-slate-500 backdrop-blur focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        />
+                      </div>
+                      <button
+                        id="export-btn"
+                        type="button"
+                        class="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        title="Export current view"
+                      >
+                        <i data-lucide="download" class="h-4 w-4"></i>
+                        <span>Export</span>
+                      </button>
                     </div>
                 </div>
                 
@@ -263,7 +274,7 @@
                                     <th class="px-4 py-3 text-right">Loc</th>
                                 </tr>
                             </thead>
-                            <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
+                                <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
                                 </tbody>
                         </table>
                     </div>
@@ -273,6 +284,34 @@
       </section>
     </div>
   </main>
+
+  <div
+    id="detail-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 backdrop-blur-sm px-4"
+    aria-hidden="true"
+  >
+    <div id="detail-modal-backdrop" class="absolute inset-0"></div>
+    <div
+      id="detail-modal-container"
+      class="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl frosted-card"
+    >
+      <div class="flex items-start justify-between gap-4">
+        <div class="space-y-1">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Quick view</p>
+          <h3 id="detail-modal-title" class="text-2xl font-black text-white"></h3>
+          <p id="detail-modal-subtitle" class="text-sm text-slate-400"></p>
+        </div>
+        <button
+          id="detail-modal-close"
+          type="button"
+          class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white"
+        >
+          Close
+        </button>
+      </div>
+      <div id="detail-modal-content" class="mt-5 space-y-4 text-sm text-slate-200"></div>
+    </div>
+  </div>
 
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
@@ -310,8 +349,18 @@
       activityFeed: document.getElementById('activity-feed'),
       status: document.getElementById('dataset-status'),
       refreshBtn: document.getElementById('refresh-btn'),
-      searchInput: document.getElementById('recent-search')
+      searchInput: document.getElementById('recent-search'),
+      exportBtn: document.getElementById('export-btn'),
+      detailModal: document.getElementById('detail-modal'),
+      detailModalClose: document.getElementById('detail-modal-close'),
+      detailModalTitle: document.getElementById('detail-modal-title'),
+      detailModalSubtitle: document.getElementById('detail-modal-subtitle'),
+      detailModalContent: document.getElementById('detail-modal-content'),
+      detailModalBackdrop: document.getElementById('detail-modal-backdrop')
     };
+
+    let lastFiltered = [];
+    let currentRecentRows = [];
 
     // --- HELPERS ---
     const escapeHtml = (str = '') => String(str)
@@ -416,6 +465,15 @@
 
     const formatTooltip = (row = {}) => escapeHtml(JSON.stringify(row, null, 2));
 
+    const formatAddress = (row = {}) => {
+      const address = getField(row.raw || row, 'full_address', 'address', 'street_address', 'street', 'location', 'location_label');
+      const city = getField(row.raw || row, 'city') || row.city;
+      const state = getField(row.raw || row, 'state', 'region') || row.state;
+      const pieces = [address, city, state].filter(Boolean).map(part => String(part).trim());
+      if (!pieces.length) return 'Address not available';
+      return pieces.join(', ');
+    };
+
     const timeAgo = (dateStr) => {
         const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
         if (seconds < 60) return "Just now";
@@ -439,6 +497,61 @@
           .slice(0, 2)
           .map(([key, value]) => `${key}: ${value}`);
         return [...parts, ...remaining].join(' • ') || 'No additional details';
+    };
+
+    const closeDetailModal = () => {
+      if (!els.detailModal) return;
+      els.detailModal.classList.add('hidden');
+      els.detailModal.classList.remove('flex');
+      els.detailModal.setAttribute('aria-hidden', 'true');
+    };
+
+    const openDetailModal = (row = {}) => {
+      if (!els.detailModal || !els.detailModalContent) return;
+
+      const phone = getField(row.raw || row, 'phone', 'phone_number', 'contact_number');
+      const email = getField(row.raw || row, 'email', 'contact_email');
+      const notes = getField(row.raw || row, 'notes', 'note', 'description', 'details');
+      const created = row.created_at ? new Date(row.created_at).toLocaleString() : 'Unknown date';
+      const { label: sourceLabel, classes: sourceClasses } = describeSource(row.source);
+
+      els.detailModalTitle.textContent = row.name || 'Unknown record';
+      els.detailModalSubtitle.textContent = `${row.category || 'Uncategorized'} • ${row.state || row.city || 'No region'}`;
+
+      els.detailModalContent.innerHTML = `
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Location</p>
+            <p class="font-semibold text-white leading-tight">${escapeHtml(formatAddress(row))}</p>
+            <p class="text-xs text-slate-400 mt-1">${escapeHtml(row.location?.label || row.city || '')}</p>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Contact</p>
+            <p class="font-semibold text-white leading-tight">${escapeHtml(phone || 'No phone provided')}</p>
+            <p class="text-xs text-slate-400 mt-1">${escapeHtml(email || 'No email on file')}</p>
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Source</p>
+            <span class="inline-flex items-center rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${sourceClasses}">${sourceLabel}</span>
+            <p class="text-xs text-slate-400">Created: ${escapeHtml(created)}</p>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Quality</p>
+            <p class="text-2xl font-mono font-bold text-white">${row.rating ? row.rating.toFixed(1) : '—'}</p>
+            <p class="text-xs text-slate-400">Category: ${escapeHtml(row.category || 'Uncategorized')}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-white/10 bg-white/5 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Notes</p>
+          <p class="text-slate-200 whitespace-pre-wrap leading-relaxed">${escapeHtml(notes || 'No notes provided')}</p>
+        </div>
+      `;
+
+      els.detailModal.classList.remove('hidden');
+      els.detailModal.classList.add('flex');
+      els.detailModal.setAttribute('aria-hidden', 'false');
     };
 
     const parseCsv = (text) => {
@@ -654,8 +767,39 @@
 
       // 6. Recent Table (Badges)
       const recent = rows.slice(-30).reverse();
+      currentRecentRows = recent;
       els.tableBody.innerHTML = '';
-      recent.forEach(r => {
+
+      if (!recent.length) {
+        const emptyHtml = `
+          <tr>
+            <td colspan="4" class="px-4 py-8 text-center text-slate-500">
+              <div class="flex flex-col items-center gap-3">
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <i data-lucide="search" class="h-4 w-4 text-slate-500"></i>
+                  <span>No matching records found</span>
+                </div>
+                <button type="button" id="clear-filters-btn" class="text-xs font-semibold text-slate-300 underline decoration-dashed underline-offset-4 transition hover:text-white">
+                  Clear filters
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        els.tableBody.insertAdjacentHTML('beforeend', emptyHtml);
+
+        const clearBtn = document.getElementById('clear-filters-btn');
+        clearBtn?.addEventListener('click', () => {
+          if (!els.searchInput) return;
+          els.searchInput.value = '';
+          applyFilter();
+          els.searchInput.focus();
+        });
+
+        return;
+      }
+
+      recent.forEach((r, idx) => {
         // Badges styles based on category logic
         let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
         if(r.category === 'Dispatcher') badgeColor = 'bg-violet-500/10 text-violet-300 border-violet-500/20';
@@ -665,7 +809,7 @@
         const tooltip = formatTooltip(r.raw || r);
 
         const rowHtml = `
-          <tr class="hover:bg-white/5 transition-colors group" title="${tooltip}">
+          <tr class="hover:bg-white/5 transition-colors group cursor-pointer" title="${tooltip}" data-row-index="${idx}">
             <td class="px-4 py-3 font-medium text-slate-300 text-xs truncate max-w-[140px] group-hover:text-white">${r.name}</td>
             <td class="px-4 py-3">
                 <span class="inline-block rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
@@ -682,6 +826,81 @@
         `;
         els.tableBody.insertAdjacentHTML('beforeend', rowHtml);
       });
+
+      els.tableBody.querySelectorAll('[data-row-index]').forEach(rowEl => {
+        rowEl.addEventListener('click', () => {
+          const idx = Number(rowEl.getAttribute('data-row-index'));
+          const rowData = currentRecentRows[idx];
+          if (rowData) openDetailModal(rowData);
+        });
+      });
+    };
+
+    const filterRows = (query = '') => {
+      const term = query.trim().toLowerCase();
+      if (!term) return [...allData];
+
+      return allData.filter(row => {
+        return ['name', 'category', 'city', 'state'].some(key => {
+          const value = row[key];
+          return value && String(value).toLowerCase().includes(term);
+        });
+      });
+    };
+
+    const applyFilter = () => {
+      const filtered = filterRows(els.searchInput?.value || '');
+      lastFiltered = filtered;
+      renderDashboard(filtered);
+      lucide.createIcons();
+    };
+
+    const buildCsv = (rows = []) => {
+      if (!rows.length) return '';
+
+      const columns = [
+        { header: 'Name', value: row => row.name || getField(row.raw, 'company_name', 'company') },
+        { header: 'Category', value: row => row.category },
+        { header: 'Business Type', value: row => getField(row.raw, 'business_type', 'type', 'service_type', 'role') },
+        { header: 'City', value: row => getField(row.raw, 'city') || row.city },
+        { header: 'State', value: row => getField(row.raw, 'state', 'region') || row.state },
+        { header: 'Phone', value: row => getField(row.raw, 'phone', 'phone_number', 'contact_number') },
+        { header: 'Email', value: row => getField(row.raw, 'email', 'contact_email') },
+        { header: 'Notes', value: row => getField(row.raw, 'notes', 'note', 'description', 'details') },
+        { header: 'Assigned To', value: row => getField(row.raw, 'assigned_to', 'owner') },
+        { header: 'Rating', value: row => row.rating },
+        { header: 'Location', value: row => row.location?.label || '' },
+        { header: 'Source', value: row => row.source },
+        { header: 'Created At', value: row => row.created_at },
+        { header: 'Raw Payload', value: row => JSON.stringify(row.raw || {}) }
+      ];
+
+      const escapeCell = (val) => {
+        const str = val === undefined || val === null ? '' : String(val);
+        return `"${str.replace(/"/g, '""')}"`;
+      };
+
+      const header = columns.map(col => escapeCell(col.header)).join(',');
+      const lines = rows.map(row => columns.map(col => escapeCell(col.value(row))).join(','));
+      return [header, ...lines].join('\n');
+    };
+
+    const exportCurrentView = () => {
+      const rows = lastFiltered.length ? lastFiltered : allData;
+      if (!rows.length) return;
+
+      const csvContent = buildCsv(rows);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const date = new Date().toISOString().slice(0, 10);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `techloc_export_${date}.csv`;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
     };
 
     const filterRows = (query = '') => {
@@ -794,6 +1013,11 @@
     };
 
     els.searchInput?.addEventListener('input', applyFilter);
+    els.exportBtn?.addEventListener('click', exportCurrentView);
+    els.detailModalClose?.addEventListener('click', closeDetailModal);
+    els.detailModal?.addEventListener('click', (e) => {
+      if (e.target === els.detailModal || e.target === els.detailModalBackdrop) closeDetailModal();
+    });
     els.refreshBtn.addEventListener('click', () => {
         els.categoryBars.innerHTML = '<p class="text-xs text-slate-500 animate-pulse">Updating...</p>';
         init();
