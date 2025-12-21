@@ -200,6 +200,7 @@
 
     const fetchServiceStats = async () => {
       const CACHE_KEY = 'techloc_home_stats';
+      const CACHE_DURATION = 300000; // 5 minutos
 
       // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
       const client = window.supabaseClient || window.supabase;
@@ -212,13 +213,18 @@
       const cachedStats = sessionStorage.getItem(CACHE_KEY);
       if (cachedStats) {
         try {
-          const { totalCount, availableCount, uniqueStates, avgRating } = JSON.parse(cachedStats);
+          const { totalCount, availableCount, uniqueStates, avgRating, timestamp } = JSON.parse(cachedStats);
 
-          animateValue('tech-count', 0, totalCount ?? 0, 2000);
-          animateValue('available-count', 0, availableCount ?? 0, 2000);
-          animateValue('states-count', 0, uniqueStates ?? 0, 2000);
-          animateValue('avg-rating', 0, avgRating ?? 0, 2000);
-          return;
+          const isFresh = typeof timestamp === 'number'
+            && (Date.now() - timestamp) < CACHE_DURATION;
+
+          if (isFresh) {
+            animateValue('tech-count', 0, totalCount ?? 0, 2000);
+            animateValue('available-count', 0, availableCount ?? 0, 2000);
+            animateValue('states-count', 0, uniqueStates ?? 0, 2000);
+            animateValue('avg-rating', 0, avgRating ?? 0, 2000);
+            return;
+          }
         } catch (parseError) {
           console.warn('Invalid cached stats, fetching fresh data.');
         }
@@ -260,6 +266,7 @@
           availableCount,
           uniqueStates,
           avgRating,
+          timestamp: Date.now(),
         }));
 
         // Actualizamos el DOM con animación
