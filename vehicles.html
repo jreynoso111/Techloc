@@ -839,6 +839,24 @@
       };
     };
 
+    const createPartnerClusterIcon = (cluster) => {
+      const count = cluster.getChildCount();
+      return L.divIcon({
+        html: `<div class="bg-slate-700 text-white text-xs font-semibold rounded-full flex items-center justify-center w-10 h-10 border border-slate-500 shadow-md">${count}</div>`,
+        className: 'partner-cluster-icon',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+    };
+
+    const createPartnerClusterGroup = () => L.markerClusterGroup({
+      maxClusterRadius: 45,
+      disableClusteringAtZoom: 17,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      iconCreateFunction: createPartnerClusterIcon
+    });
+
     const debounceAsync = (fn, delay = 300) => {
       let timeoutId;
       return (...args) => new Promise((resolve, reject) => {
@@ -967,7 +985,7 @@
       const key = getCustomCategoryKey(normalizedLabel);
       if (!customCategories.has(key)) {
         const color = CUSTOM_COLOR_PALETTE[customCategories.size % CUSTOM_COLOR_PALETTE.length] || SERVICE_COLORS.custom;
-        const layer = map ? L.layerGroup().addTo(map) : null;
+        const layer = createPartnerClusterGroup();
         customCategories.set(key, { key, label: normalizedLabel, color, layer });
       }
       return customCategories.get(key);
@@ -1651,7 +1669,7 @@
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       hotspotLayer = L.layerGroup().addTo(map);
       blacklistLayer = L.layerGroup().addTo(map);
-      techLayer = L.layerGroup().addTo(map);
+      techLayer = createPartnerClusterGroup();
       vehicleLayer = L.markerClusterGroup({
         maxClusterRadius: 35,
         disableClusteringAtZoom: 17,
@@ -1687,14 +1705,14 @@
       serviceLayer = L.layerGroup().addTo(map);
       serviceConnectionLayer = L.layerGroup().addTo(map);
       highlightLayer = L.layerGroup().addTo(map);
-      towingLayer = L.layerGroup().addTo(map);
-      resellerLayer = L.layerGroup().addTo(map);
-      repairLayer = L.layerGroup().addTo(map);
-      locksmithLayer = L.layerGroup().addTo(map);
-      tireLayer = L.layerGroup().addTo(map);
-      inspectorLayer = L.layerGroup().addTo(map);
-      dispatcherLayer = L.layerGroup().addTo(map);
-      customServiceLayer = L.layerGroup().addTo(map);
+      towingLayer = createPartnerClusterGroup();
+      resellerLayer = createPartnerClusterGroup();
+      repairLayer = createPartnerClusterGroup();
+      locksmithLayer = createPartnerClusterGroup();
+      tireLayer = createPartnerClusterGroup();
+      inspectorLayer = createPartnerClusterGroup();
+      dispatcherLayer = createPartnerClusterGroup();
+      customServiceLayer = createPartnerClusterGroup();
 
       const invalidateMapSize = () => map?.invalidateSize();
 
