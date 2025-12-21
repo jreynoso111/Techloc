@@ -3537,25 +3537,34 @@
         }
       };
 
-      const onMouseMove = (event) => {
+      const handleMove = (clientX) => {
         if (!activeDrag) return;
         const bounds = layout.getBoundingClientRect();
 
         if (activeDrag === 'left') {
-          const newWidth = clampWidth(event.clientX - bounds.left);
+          const newWidth = clampWidth(clientX - bounds.left);
           applyWidth('left', newWidth);
         }
 
         if (activeDrag === 'right') {
-          const newWidth = clampWidth(bounds.right - event.clientX);
+          const newWidth = clampWidth(bounds.right - clientX);
           applyWidth('right', newWidth);
         }
+      };
+
+      const onMouseMove = (event) => handleMove(event.clientX);
+      const onTouchMove = (event) => {
+        const touch = event.touches?.[0];
+        if (!touch) return;
+        handleMove(touch.clientX);
       };
 
       const stopDrag = () => {
         activeDrag = null;
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', stopDrag);
+        document.removeEventListener('touchmove', onTouchMove);
+        document.removeEventListener('touchend', stopDrag);
       };
 
       const startDrag = (side, event) => {
@@ -3563,10 +3572,20 @@
         activeDrag = side;
         document.addEventListener('mousemove', onMouseMove);
         document.addEventListener('mouseup', stopDrag);
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', stopDrag);
       };
 
-      leftSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('left', e));
-      rightSidebar.querySelector('.resize-handle')?.addEventListener('mousedown', (e) => startDrag('right', e));
+      const attachHandle = (element, side) => {
+        const handle = element.querySelector('.resize-handle');
+        if (!handle) return;
+
+        handle.addEventListener('mousedown', (e) => startDrag(side, e));
+        handle.addEventListener('touchstart', (e) => startDrag(side, e), { passive: false });
+      };
+
+      attachHandle(leftSidebar, 'left');
+      attachHandle(rightSidebar, 'right');
     }
 
     const isControlViewRoute = window.location.pathname.toLowerCase().includes('vehicles.html');
