@@ -1968,101 +1968,70 @@
       }
     }
 
-    async function loadTowingCompanies() {
-      if (!isServiceTypeEnabled('towing')) return;
+    const SERVICE_LOAD_CONFIG = {
+      towing: {
+        uiUpdate: updateTowingUI,
+        setList: (list) => { towingCompanies = list; },
+        warningLabel: 'Towing'
+      },
+      reseller: {
+        uiUpdate: updateResellerUI,
+        setList: (list) => { resellers = list; },
+        warningLabel: 'Reseller'
+      },
+      repair: {
+        uiUpdate: updateRepairUI,
+        setList: (list) => { repairShops = list; },
+        warningLabel: 'Repair shop'
+      },
+      locksmith: {
+        uiUpdate: updateLocksmithUI,
+        setList: (list) => { locksmiths = list; },
+        warningLabel: 'Locksmith'
+      },
+      dispatcher: {
+        uiUpdate: updateDispatcherUI,
+        setList: (list) => { dispatchers = list; },
+        warningLabel: 'Dispatcher'
+      },
+      tire: {
+        uiUpdate: updateTireUI,
+        setList: (list) => { tirePartners = list; },
+        warningLabel: 'Tire services'
+      },
+      inspector: {
+        uiUpdate: updateInspectorUI,
+        setList: (list) => { inspectors = list; },
+        warningLabel: 'Inspector'
+      }
+    };
+
+    async function loadPartnerService(type) {
+      if (!isServiceTypeEnabled(type)) return;
       if (!supabaseClient) return;
+
+      const config = SERVICE_LOAD_CONFIG[type];
+      if (!config) {
+        console.warn(`No service config found for type "${type}".`);
+        return;
+      }
+
       try {
         await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('towing'));
-        setServiceHeaders('towing', data);
-        towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
-        updateTowingUI(towingCompanies);
+        const data = getCachedServices(getServiceCategoryLabel(type));
+        setServiceHeaders(type, data);
+        const normalized = (data || []).map((row, idx) => normalizePartner(row, type, idx));
+        config.setList(normalized);
+        config.uiUpdate(normalized);
       } catch (err) {
-        console.warn("Towing load warning: " + err.message);
+        const label = config.warningLabel || type;
+        console.warn(`${label} load warning: ${err.message}`);
       }
     }
 
-    async function loadResellers() {
-      if (!isServiceTypeEnabled('reseller')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('reseller'));
-        setServiceHeaders('reseller', data);
-        resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
-        updateResellerUI(resellers);
-      } catch (err) {
-        console.warn("Reseller load warning: " + err.message);
-      }
-    }
-
-    async function loadRepairShops() {
-      if (!isServiceTypeEnabled('repair')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('repair'));
-        setServiceHeaders('repair', data);
-        repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
-        updateRepairUI(repairShops);
-      } catch (err) {
-        console.warn("Repair shop load warning: " + err.message);
-      }
-    }
-
-    async function loadLocksmiths() {
-      if (!isServiceTypeEnabled('locksmith')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('locksmith'));
-        setServiceHeaders('locksmith', data);
-        locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
-        updateLocksmithUI(locksmiths);
-      } catch (err) {
-        console.warn("Locksmith load warning: " + err.message);
-      }
-    }
-
-    async function loadDispatchers() {
-      if (!isServiceTypeEnabled('dispatcher')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('dispatcher'));
-        setServiceHeaders('dispatcher', data);
-        dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
-        updateDispatcherUI(dispatchers);
-      } catch (err) {
-        console.warn("Dispatcher load warning: " + err.message);
-      }
-    }
-
-    async function loadTireServices() {
-      if (!isServiceTypeEnabled('tire')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('tire'));
-        setServiceHeaders('tire', data);
-        tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
-        updateTireUI(tirePartners);
-      } catch (err) {
-        console.warn("Tire services load warning: " + err.message);
-      }
-    }
-
-    async function loadInspectors() {
-      if (!isServiceTypeEnabled('inspector')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('inspector'));
-        setServiceHeaders('inspector', data);
-        inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
-        updateInspectorUI(inspectors);
-      } catch (err) {
-        console.warn("Inspector load warning: " + err.message);
+    async function loadAllServices() {
+      for (const type of Object.keys(SERVICE_LOAD_CONFIG)) {
+        await loadPartnerService(type);
       }
     }
 
@@ -4403,13 +4372,7 @@
         loadHotspots();
         loadBlacklistSites();
         loadVehicles();
-        if (isServiceTypeEnabled('towing')) loadTowingCompanies();
-        if (isServiceTypeEnabled('reseller')) loadResellers();
-        if (isServiceTypeEnabled('repair')) loadRepairShops();
-        if (isServiceTypeEnabled('locksmith')) loadLocksmiths();
-        if (isServiceTypeEnabled('dispatcher')) loadDispatchers();
-        if (isServiceTypeEnabled('tire')) loadTireServices();
-        if (isServiceTypeEnabled('inspector')) loadInspectors();
+        await loadAllServices();
         if (isServiceTypeEnabled('custom')) loadCustomServices();
         setupResizableSidebars();
         setupSidebarToggles();
