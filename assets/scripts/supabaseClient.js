@@ -1,4 +1,4 @@
-import { SUPABASE_KEY, SUPABASE_URL } from './config.js';
+import { SUPABASE_KEY, SUPABASE_URL } from './env.js';
 
 const existingClient = typeof window !== 'undefined' ? window.supabaseClient : null;
 const supabaseLibReady = typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function';
