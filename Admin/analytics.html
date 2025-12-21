@@ -117,7 +117,7 @@
       <section class="flex-1 space-y-6">
         
         <div class="flex flex-col justify-between gap-4 border-b border-white/5 pb-6 sm:flex-row sm:items-end">
-          <div>
+      <div>
             <div class="flex items-center gap-2 mb-1">
               <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
               <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-500" id="dataset-status">System Live</p>
@@ -132,17 +132,29 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
             <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
             <div class="flex items-center gap-3 text-slate-400 mb-2">
               <div class="rounded-lg bg-blue-500/10 p-2 text-blue-400">
-                <i data-lucide="database" class="h-4 w-4"></i>
+                <i data-lucide="badge-check" class="h-4 w-4"></i>
               </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Total Records</span>
+              <span class="text-xs font-semibold uppercase tracking-wider">Service Providers</span>
             </div>
             <p id="kpi-total" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Registered entities</p>
+            <p class="mt-1 text-[11px] text-slate-500">Active provider records</p>
+          </div>
+
+          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-sky-500/10 blur-2xl"></div>
+            <div class="flex items-center gap-3 text-slate-400 mb-2">
+              <div class="rounded-lg bg-sky-500/10 p-2 text-sky-400">
+                <i data-lucide="truck" class="h-4 w-4"></i>
+              </div>
+              <span class="text-xs font-semibold uppercase tracking-wider">Total Vehicles</span>
+            </div>
+            <p id="kpi-vehicles" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
+            <p class="mt-1 text-[11px] text-slate-500">Units tracked in fleet</p>
           </div>
 
           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
@@ -161,12 +173,16 @@
              <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl"></div>
             <div class="flex items-center gap-3 text-slate-400 mb-2">
               <div class="rounded-lg bg-amber-500/10 p-2 text-amber-400">
-                <i data-lucide="mouse-pointer-click" class="h-4 w-4"></i>
+                <i data-lucide="map-pin" class="h-4 w-4"></i>
               </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Activity</span>
+              <span class="text-xs font-semibold uppercase tracking-wider">Top Regions</span>
             </div>
-            <p id="kpi-clicks" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Clicks recorded</p>
+            <div id="top-regions" class="grid grid-cols-2 gap-3">
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+            </div>
           </div>
 
           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
@@ -232,9 +248,31 @@
             </div>
 
             <div class="rounded-2xl border frosted-card p-6 flex flex-col">
-                <div class="mb-5 flex items-center justify-between">
-                    <h3 class="text-sm font-bold uppercase tracking-widest text-white">Recent Additions</h3>
-                    <a href="#" class="text-[10px] font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider">View All</a>
+                <div class="mb-5 flex flex-wrap items-center gap-3 justify-between">
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-sm font-bold uppercase tracking-widest text-white">Recent Additions</h3>
+                      <a href="#" class="text-[10px] font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider">View All</a>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
+                        <input
+                          id="recent-search"
+                          type="text"
+                          placeholder="Search"
+                          class="w-48 rounded-lg border border-white/10 bg-white/5 px-9 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 placeholder:text-slate-500 backdrop-blur focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        />
+                      </div>
+                      <button
+                        id="export-btn"
+                        type="button"
+                        class="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                        title="Export current view"
+                      >
+                        <i data-lucide="download" class="h-4 w-4"></i>
+                        <span>Export</span>
+                      </button>
+                    </div>
                 </div>
                 
                 <div class="overflow-hidden rounded-xl border border-white/5 bg-black/20">
@@ -244,10 +282,11 @@
                                 <tr>
                                     <th class="px-4 py-3">Company</th>
                                     <th class="px-4 py-3">Type</th>
+                                    <th class="px-4 py-3 text-center">Source</th>
                                     <th class="px-4 py-3 text-right">Loc</th>
                                 </tr>
                             </thead>
-                            <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
+                                <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
                                 </tbody>
                         </table>
                     </div>
@@ -258,12 +297,41 @@
     </div>
   </main>
 
+  <div
+    id="detail-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 backdrop-blur-sm px-4"
+    aria-hidden="true"
+  >
+    <div id="detail-modal-backdrop" class="absolute inset-0"></div>
+    <div
+      id="detail-modal-container"
+      class="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl frosted-card"
+    >
+      <div class="flex items-start justify-between gap-4">
+        <div class="space-y-1">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Quick view</p>
+          <h3 id="detail-modal-title" class="text-2xl font-black text-white"></h3>
+          <p id="detail-modal-subtitle" class="text-sm text-slate-400"></p>
+        </div>
+        <button
+          id="detail-modal-close"
+          type="button"
+          class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white"
+        >
+          Close
+        </button>
+      </div>
+      <div id="detail-modal-content" class="mt-5 space-y-4 text-sm text-slate-200"></div>
+    </div>
+  </div>
+
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     // --- CONFIGURATION ---
-    const TABLE_SERVICES = 'Services';
+    const TABLE_SERVICES = 'services';
+    const TABLE_VEHICLES = 'vehicles';
     const TABLE_ANALYTICS = 'analytics_events';
     const datasetEntries = window.TL_DATASETS ? Object.entries(window.TL_DATASETS) : [
       ['dispatchers', '../assets/data/dispatchers.csv'],
@@ -280,22 +348,58 @@
     let actorProfile = { role: 'guest', email: 'anonymous', id: 'n/a' };
     let changeChannel = null;
     const liveEvents = [];
+    let allData = [];
 
     // --- ELEMENTS ---
     const els = {
       kpiTotal: document.getElementById('kpi-total'),
       kpiCategories: document.getElementById('kpi-categories'),
-      kpiClicks: document.getElementById('kpi-clicks'),
       kpiRating: document.getElementById('kpi-rating'),
       categoryBars: document.getElementById('category-bars'),
       topPerformers: document.getElementById('top-performers'),
+      topRegions: document.getElementById('top-regions'),
       tableBody: document.getElementById('recent-table-body'),
       activityFeed: document.getElementById('activity-feed'),
       status: document.getElementById('dataset-status'),
-      refreshBtn: document.getElementById('refresh-btn')
+      refreshBtn: document.getElementById('refresh-btn'),
+      searchInput: document.getElementById('recent-search'),
+      exportBtn: document.getElementById('export-btn'),
+      kpiVehicles: document.getElementById('kpi-vehicles'),
+      detailModal: document.getElementById('detail-modal'),
+      detailModalClose: document.getElementById('detail-modal-close'),
+      detailModalTitle: document.getElementById('detail-modal-title'),
+      detailModalSubtitle: document.getElementById('detail-modal-subtitle'),
+      detailModalContent: document.getElementById('detail-modal-content'),
+      detailModalBackdrop: document.getElementById('detail-modal-backdrop')
+    };
+
+    let lastFiltered = [];
+    let currentRecentRows = [];
+
+    const setStatus = (text, variant = 'info') => {
+      if (!els.status) return;
+      const palette = {
+        success: 'text-emerald-400',
+        info: 'text-blue-200',
+        warning: 'text-amber-300',
+        error: 'text-rose-400'
+      };
+
+      els.status.textContent = text;
+
+      const removable = ['text-emerald-500', 'text-emerald-400', 'text-blue-200', 'text-amber-300', 'text-rose-400', 'text-red-400'];
+      removable.forEach(cls => els.status.classList.remove(cls));
+      els.status.classList.add(palette[variant] || palette.info);
     };
 
     // --- HELPERS ---
+    const escapeHtml = (str = '') => String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
     const getField = (row, ...keys) => {
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
@@ -361,7 +465,13 @@
     const normalizeRow = (row) => {
       const categoryRaw = getField(row, 'category', 'business_type', 'type', 'service_type', 'role', 'title', 'function', 'position', 'segment', 'line_of_business');
       const category = formatCategory(categoryRaw || row.category || row.type || row.service_type || row.business_type || '');
+      const datasetKey = (row.datasetKey || row.dataset || row.dataset_key || '').toString();
+      const datasetPath = (row.datasetPath || '').toString();
       const location = resolveLocation(row);
+
+      const categoryFlag = category.toLowerCase();
+      const datasetFlag = `${datasetKey} ${datasetPath}`.toLowerCase();
+      const isVehicle = categoryFlag === 'vehicle' || categoryFlag === 'fleet' || datasetFlag.includes('vehicle');
 
       return {
         id: row.id,
@@ -371,10 +481,33 @@
         city: getField(row, 'city'),
         rating: Number(getField(row, 'google_rating')) || 0,
         created_at: row.created_at || new Date().toISOString(),
-        isVehicle: category === 'Vehicle',
+        isVehicle,
         location,
-        source: row.source || 'database'
+        source: row.source || 'database',
+        raw: row
       };
+    };
+
+    const describeSource = (source = '') => {
+      const normalized = String(source).toLowerCase();
+      if (normalized.includes('db') || normalized.includes('supabase') || normalized.includes('database')) {
+        return { label: 'DB', classes: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
+      }
+      if (normalized.includes('csv') || normalized.includes('web') || normalized.includes('file')) {
+        return { label: 'CSV', classes: 'border-blue-400/30 bg-blue-400/10 text-blue-200' };
+      }
+      return { label: source || 'Other', classes: 'border-slate-500/30 bg-slate-500/10 text-slate-200' };
+    };
+
+    const formatTooltip = (row = {}) => escapeHtml(JSON.stringify(row, null, 2));
+
+    const formatAddress = (row = {}) => {
+      const address = getField(row.raw || row, 'full_address', 'address', 'street_address', 'street', 'location', 'location_label');
+      const city = getField(row.raw || row, 'city') || row.city;
+      const state = getField(row.raw || row, 'state', 'region') || row.state;
+      const pieces = [address, city, state].filter(Boolean).map(part => String(part).trim());
+      if (!pieces.length) return 'Address not available';
+      return pieces.join(', ');
     };
 
     const timeAgo = (dateStr) => {
@@ -402,6 +535,61 @@
         return [...parts, ...remaining].join(' • ') || 'No additional details';
     };
 
+    const closeDetailModal = () => {
+      if (!els.detailModal) return;
+      els.detailModal.classList.add('hidden');
+      els.detailModal.classList.remove('flex');
+      els.detailModal.setAttribute('aria-hidden', 'true');
+    };
+
+    const openDetailModal = (row = {}) => {
+      if (!els.detailModal || !els.detailModalContent) return;
+
+      const phone = getField(row.raw || row, 'phone', 'phone_number', 'contact_number');
+      const email = getField(row.raw || row, 'email', 'contact_email');
+      const notes = getField(row.raw || row, 'notes', 'note', 'description', 'details');
+      const created = row.created_at ? new Date(row.created_at).toLocaleString() : 'Unknown date';
+      const { label: sourceLabel, classes: sourceClasses } = describeSource(row.source);
+
+      els.detailModalTitle.textContent = row.name || 'Unknown record';
+      els.detailModalSubtitle.textContent = `${row.category || 'Uncategorized'} • ${row.state || row.city || 'No region'}`;
+
+      els.detailModalContent.innerHTML = `
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Location</p>
+            <p class="font-semibold text-white leading-tight">${escapeHtml(formatAddress(row))}</p>
+            <p class="text-xs text-slate-400 mt-1">${escapeHtml(row.location?.label || row.city || '')}</p>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Contact</p>
+            <p class="font-semibold text-white leading-tight">${escapeHtml(phone || 'No phone provided')}</p>
+            <p class="text-xs text-slate-400 mt-1">${escapeHtml(email || 'No email on file')}</p>
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Source</p>
+            <span class="inline-flex items-center rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${sourceClasses}">${sourceLabel}</span>
+            <p class="text-xs text-slate-400">Created: ${escapeHtml(created)}</p>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Quality</p>
+            <p class="text-2xl font-mono font-bold text-white">${row.rating ? row.rating.toFixed(1) : '—'}</p>
+            <p class="text-xs text-slate-400">Category: ${escapeHtml(row.category || 'Uncategorized')}</p>
+          </div>
+        </div>
+        <div class="rounded-xl border border-white/10 bg-white/5 p-4">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Notes</p>
+          <p class="text-slate-200 whitespace-pre-wrap leading-relaxed">${escapeHtml(notes || 'No notes provided')}</p>
+        </div>
+      `;
+
+      els.detailModal.classList.remove('hidden');
+      els.detailModal.classList.add('flex');
+      els.detailModal.setAttribute('aria-hidden', 'false');
+    };
+
     const parseCsv = (text) => {
         const lines = text.trim().split(/\r?\n/).filter(Boolean);
         if (lines.length === 0) return [];
@@ -417,26 +605,31 @@
         });
     };
 
-    const loadLocalDatasets = async () => {
-        const datasets = await Promise.all(datasetEntries.map(async ([key, path]) => {
+    const loadLocalDatasets = async (onProgress) => {
+        const aggregated = [];
+
+        for (const [key, path] of datasetEntries) {
             try {
                 const response = await fetch(path);
-                if (!response.ok) throw new Error(`Could not load ${path}`);
+                if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
                 const csvText = await response.text();
-                const parsed = parseCsv(csvText).map(row => ({
+                const rows = parseCsv(csvText).map(row => ({
                     ...row,
                     category: row.category || key,
                     business_type: row.business_type || row.type || key,
-                    source: 'web-file'
+                    source: 'web-file',
+                    datasetKey: key,
+                    datasetPath: path
                 }));
-                return parsed;
+                aggregated.push(...rows);
+                onProgress?.(true);
             } catch (err) {
-                console.warn(`Dataset skip (${path}):`, err.message);
-                return [];
+                console.error(`Dataset failed (${path})`, err);
+                onProgress?.(false);
             }
-        }));
+        }
 
-        return datasets.flat();
+        return aggregated;
     };
 
     const hydrateActorProfile = async () => {
@@ -476,30 +669,16 @@
         });
     };
 
-    const fetchClickAnalytics = async () => {
-        try {
-            const { count, error } = await supabaseClient
-                .from(TABLE_ANALYTICS)
-                .select('*', { count: 'exact', head: true });
-
-            if (error) throw error;
-            return count || 0;
-        } catch (err) {
-            console.warn('Could not fetch clicks', err.message);
-            return 0;
-        }
-    };
-
     // --- ANALYTICS VISUALIZATION ---
-    const calculateAnalytics = (data, clickCount) => {
-      const rows = data.map(normalizeRow);
+    const renderDashboard = (rows = []) => {
+      const vehicleRows = rows.filter(r => r.isVehicle);
+      const serviceRows = rows.filter(r => !r.isVehicle);
 
       // 1. KPIs
-      els.kpiTotal.textContent = rows.length;
-      els.kpiClicks.textContent = clickCount || 0;
+      els.kpiTotal.textContent = serviceRows.length;
+      if (els.kpiVehicles) els.kpiVehicles.textContent = vehicleRows.length;
 
       // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluding vehicles as a service
-      const serviceRows = rows.filter(r => !r.isVehicle);
       const catCounts = {};
       serviceRows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
       const dispatcherCount = serviceRows.filter(r => r.category === 'Dispatcher').length;
@@ -515,17 +694,27 @@
 
         // Layout Profesional: Flexbox + Background Track
         const barHtml = `
-          <div class="group space-y-2">
+          <div class="group space-y-2 cursor-pointer transition-transform hover:-translate-y-[2px]" data-category-bar="${cat}" role="button" tabindex="0">
             <div class="flex justify-between items-center">
               <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 group-hover:text-white transition-colors">${cat}</span>
               <span class="font-mono text-xs font-bold text-white flex items-center gap-1 leading-none">${count}<span class="text-slate-500 font-medium">(${percentage}%)</span></span>
             </div>
             <div class="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-              <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out" style="width: 0%" data-width="${percentage}%"></div>
+              <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out group-hover:opacity-90 group-hover:brightness-110" style="width: 0%" data-width="${percentage}%"></div>
             </div>
           </div>
         `;
         els.categoryBars.insertAdjacentHTML('beforeend', barHtml);
+      });
+
+      els.categoryBars.querySelectorAll('[data-category-bar]').forEach(bar => {
+        bar.addEventListener('click', () => {
+          if (!els.searchInput) return;
+          const category = bar.getAttribute('data-category-bar') || '';
+          els.searchInput.value = category;
+          els.searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          els.searchInput.focus();
+        });
       });
 
       // Animate bars on load
@@ -534,6 +723,56 @@
             el.style.width = el.getAttribute('data-width');
         });
       }, 100);
+
+      // 3. Top Regions (Geo intelligence)
+      els.topRegions.innerHTML = '';
+      const regionCounts = rows.reduce((acc, row) => {
+        const state = (row.state || '').trim();
+        if (!state) return acc;
+        acc[state] = (acc[state] || 0) + 1;
+        return acc;
+      }, {});
+
+      const topRegions = Object.entries(regionCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4);
+
+      if (topRegions.length === 0) {
+        els.topRegions.innerHTML = '<p class="col-span-2 text-center text-xs text-slate-500">No region data yet.</p>';
+      } else {
+        const accent = ['amber', 'emerald', 'blue', 'violet'];
+        topRegions.forEach(([state, count], idx) => {
+          const color = accent[idx % accent.length];
+          const card = `
+            <button
+              class="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-left transition hover:border-${color}-400/40 hover:shadow-[0_0_25px_rgba(251,191,36,0.12)] focus:outline-none focus:ring-2 focus:ring-${color}-400/30"
+              data-region="${state}"
+              type="button"
+            >
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">State</p>
+                  <p class="text-lg font-black text-white leading-tight">${state}</p>
+                </div>
+                <span class="rounded-full border border-${color}-400/30 bg-${color}-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-${color}-200">Top</span>
+              </div>
+              <p class="mt-3 text-2xl font-mono font-bold text-white">${count}</p>
+              <p class="text-[11px] text-slate-500">Services in state</p>
+            </button>
+          `;
+          els.topRegions.insertAdjacentHTML('beforeend', card);
+        });
+      }
+
+      els.topRegions.querySelectorAll('[data-region]').forEach(card => {
+        card.addEventListener('click', () => {
+          if (!els.searchInput) return;
+          const state = card.getAttribute('data-region') || '';
+          els.searchInput.value = state;
+          els.searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          els.searchInput.focus();
+        });
+      });
 
       // 4. Avg Rating
       const ratedRows = rows.filter(r => r.rating > 0);
@@ -572,26 +811,142 @@
 
       // 6. Recent Table (Badges)
       const recent = rows.slice(-30).reverse();
+      currentRecentRows = recent;
       els.tableBody.innerHTML = '';
-      recent.forEach(r => {
+
+      if (!recent.length) {
+        const emptyHtml = `
+          <tr>
+            <td colspan="4" class="px-4 py-8 text-center text-slate-500">
+              <div class="flex flex-col items-center gap-3">
+                <div class="flex items-center gap-2 text-sm font-semibold">
+                  <i data-lucide="search" class="h-4 w-4 text-slate-500"></i>
+                  <span>No matching records found</span>
+                </div>
+                <button type="button" id="clear-filters-btn" class="text-xs font-semibold text-slate-300 underline decoration-dashed underline-offset-4 transition hover:text-white">
+                  Clear filters
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        els.tableBody.insertAdjacentHTML('beforeend', emptyHtml);
+
+        const clearBtn = document.getElementById('clear-filters-btn');
+        clearBtn?.addEventListener('click', () => {
+          if (!els.searchInput) return;
+          els.searchInput.value = '';
+          applyFilter();
+          els.searchInput.focus();
+        });
+
+        return;
+      }
+
+      recent.forEach((r, idx) => {
         // Badges styles based on category logic
         let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
         if(r.category === 'Dispatcher') badgeColor = 'bg-violet-500/10 text-violet-300 border-violet-500/20';
         if(r.category === 'Technician') badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
 
+        const { label: sourceLabel, classes: sourceClasses } = describeSource(r.source);
+        const tooltip = formatTooltip(r.raw || r);
+        const badgeLayout = r.isVehicle ? 'inline-flex items-center gap-1' : 'inline-block';
+        const badgeIcon = r.isVehicle ? '<i data-lucide="truck" class="h-3 w-3"></i>' : '';
+
         const rowHtml = `
-          <tr class="hover:bg-white/5 transition-colors group">
+          <tr class="hover:bg-white/5 transition-colors group cursor-pointer" title="${tooltip}" data-row-index="${idx}">
             <td class="px-4 py-3 font-medium text-slate-300 text-xs truncate max-w-[140px] group-hover:text-white">${r.name}</td>
             <td class="px-4 py-3">
-                <span class="inline-block rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                    ${r.category}
+                <span class="${badgeLayout} rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                    ${badgeIcon}${r.category}
                 </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <span class="inline-flex items-center rounded border ${sourceClasses} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                ${sourceLabel}
+              </span>
             </td>
             <td class="px-4 py-3 text-right text-slate-500 text-xs font-mono">${r.state || '—'}</td>
           </tr>
         `;
         els.tableBody.insertAdjacentHTML('beforeend', rowHtml);
       });
+
+      els.tableBody.querySelectorAll('[data-row-index]').forEach(rowEl => {
+        rowEl.addEventListener('click', () => {
+          const idx = Number(rowEl.getAttribute('data-row-index'));
+          const rowData = currentRecentRows[idx];
+          if (rowData) openDetailModal(rowData);
+        });
+      });
+    };
+
+    const filterRows = (query = '') => {
+      const term = query.trim().toLowerCase();
+      if (!term) return [...allData];
+
+      return allData.filter(row => {
+        return ['name', 'category', 'city', 'state'].some(key => {
+          const value = row[key];
+          return value && String(value).toLowerCase().includes(term);
+        });
+      });
+    };
+
+    const applyFilter = () => {
+      const filtered = filterRows(els.searchInput?.value || '');
+      lastFiltered = filtered;
+      renderDashboard(filtered);
+      lucide.createIcons();
+    };
+
+    const buildCsv = (rows = []) => {
+      if (!rows.length) return '';
+
+      const columns = [
+        { header: 'Name', value: row => row.name || getField(row.raw, 'company_name', 'company') },
+        { header: 'Category', value: row => row.category },
+        { header: 'Business Type', value: row => getField(row.raw, 'business_type', 'type', 'service_type', 'role') },
+        { header: 'City', value: row => getField(row.raw, 'city') || row.city },
+        { header: 'State', value: row => getField(row.raw, 'state', 'region') || row.state },
+        { header: 'Phone', value: row => getField(row.raw, 'phone', 'phone_number', 'contact_number') },
+        { header: 'Email', value: row => getField(row.raw, 'email', 'contact_email') },
+        { header: 'Notes', value: row => getField(row.raw, 'notes', 'note', 'description', 'details') },
+        { header: 'Assigned To', value: row => getField(row.raw, 'assigned_to', 'owner') },
+        { header: 'Rating', value: row => row.rating },
+        { header: 'Location', value: row => row.location?.label || '' },
+        { header: 'Source', value: row => row.source },
+        { header: 'Created At', value: row => row.created_at },
+        { header: 'Raw Payload', value: row => JSON.stringify(row.raw || {}) }
+      ];
+
+      const escapeCell = (val) => {
+        const str = val === undefined || val === null ? '' : String(val);
+        return `"${str.replace(/"/g, '""')}"`;
+      };
+
+      const header = columns.map(col => escapeCell(col.header)).join(',');
+      const lines = rows.map(row => columns.map(col => escapeCell(col.value(row))).join(','));
+      return [header, ...lines].join('\n');
+    };
+
+    const exportCurrentView = () => {
+      const rows = lastFiltered.length ? lastFiltered : allData;
+      if (!rows.length) return;
+
+      const csvContent = buildCsv(rows);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const date = new Date().toISOString().slice(0, 10);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `techloc_export_${date}.csv`;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
     };
 
     // --- ACTIVITY FEED ---
@@ -669,22 +1024,61 @@
       await hydrateActorProfile();
       trackUserActivity();
 
-      els.status.textContent = 'Syncing...';
-      const [{ data, error }, webRows, clickCount] = await Promise.all([
-        supabaseClient.from(TABLE_SERVICES).select('*'),
-        loadLocalDatasets(),
-        fetchClickAnalytics()
+      const totalSources = datasetEntries.length + 2; // supabase services + vehicles + local files
+      let loadedCount = 0;
+      const updateProgress = (succeeded = true) => {
+        loadedCount += 1;
+        setStatus(`Loaded ${loadedCount}/${totalSources} sources...`, succeeded ? 'info' : 'warning');
+      };
+
+      setStatus(`Loading 0/${totalSources} sources...`, 'info');
+
+      const fetchSupabaseTable = async (tableName, datasetKey) => {
+        try {
+          const { data, error } = await supabaseClient.from(tableName).select('*');
+          if (error) throw error;
+          const hydrated = (data || []).map(row => ({ ...row, source: 'database', datasetKey }));
+          updateProgress(true);
+          return hydrated;
+        } catch (err) {
+          console.error(`Supabase dataset load failed (${tableName})`, err);
+          updateProgress(false);
+          return [];
+        }
+      };
+
+      const [supabaseServiceRows, supabaseVehicleRows] = await Promise.all([
+        fetchSupabaseTable(TABLE_SERVICES, 'services'),
+        fetchSupabaseTable(TABLE_VEHICLES, 'vehicles'),
       ]);
 
-      const baseRows = error ? [] : (data || []);
-      const combinedRows = [...baseRows, ...webRows];
-      calculateAnalytics(combinedRows || [], clickCount);
-      els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${combinedRows.length} RECORDS</span>`;
+      let webRows = [];
+      try {
+        webRows = await loadLocalDatasets(updateProgress);
+      } catch (err) {
+        console.error('Local dataset load failed', err);
+      }
+
+      const combinedRows = [...supabaseServiceRows, ...supabaseVehicleRows, ...webRows];
+      allData = (combinedRows || []).map(normalizeRow);
+      applyFilter();
+
+      if (allData.length === 0) {
+        setStatus('No data sources found', 'error');
+      } else {
+        setStatus(`LIVE • ${allData.length} RECORDS`, 'success');
+      }
       lucide.createIcons();
 
       startRealtimeFeed();
     };
 
+    els.searchInput?.addEventListener('input', applyFilter);
+    els.exportBtn?.addEventListener('click', exportCurrentView);
+    els.detailModalClose?.addEventListener('click', closeDetailModal);
+    els.detailModal?.addEventListener('click', (e) => {
+      if (e.target === els.detailModal || e.target === els.detailModalBackdrop) closeDetailModal();
+    });
     els.refreshBtn.addEventListener('click', () => {
         els.categoryBars.innerHTML = '<p class="text-xs text-slate-500 animate-pulse">Updating...</p>';
         init();
