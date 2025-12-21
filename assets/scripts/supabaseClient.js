@@ -1,18 +1,30 @@
-(() => {
-  const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
-  const SUPABASE_KEY =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+import { SUPABASE_KEY, SUPABASE_URL } from './config.js';
 
-  if (!window.supabase) {
-    console.error('Supabase library not found. Please include the Supabase CDN script before supabaseClient.js.');
-    return;
-  }
+const existingClient = typeof window !== 'undefined' ? window.supabaseClient : null;
+const supabaseLibReady = typeof window !== 'undefined' && window.supabase && typeof window.supabase.createClient === 'function';
 
-  window.supabaseClient =
-    window.supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    });
-})();
+if (!supabaseLibReady) {
+  console.error(
+    'Supabase library not found. Please include the Supabase CDN script before supabaseClient.js.'
+  );
+}
+
+const supabaseInstance =
+  existingClient ||
+  (supabaseLibReady && SUPABASE_URL && SUPABASE_KEY
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
+      })
+    : null);
+
+const supabase = existingClient || supabaseInstance || null;
+
+if (typeof window !== 'undefined' && supabase) {
+  window.supabaseClient = supabase;
+}
+
+export { supabase };
+export default supabase;
