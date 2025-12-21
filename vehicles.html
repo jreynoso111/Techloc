@@ -1968,101 +1968,70 @@
       }
     }
 
-    async function loadTowingCompanies() {
-      if (!isServiceTypeEnabled('towing')) return;
+    const SERVICE_LOAD_CONFIG = {
+      towing: {
+        uiUpdate: updateTowingUI,
+        setList: (list) => { towingCompanies = list; },
+        warningLabel: 'Towing'
+      },
+      reseller: {
+        uiUpdate: updateResellerUI,
+        setList: (list) => { resellers = list; },
+        warningLabel: 'Reseller'
+      },
+      repair: {
+        uiUpdate: updateRepairUI,
+        setList: (list) => { repairShops = list; },
+        warningLabel: 'Repair shop'
+      },
+      locksmith: {
+        uiUpdate: updateLocksmithUI,
+        setList: (list) => { locksmiths = list; },
+        warningLabel: 'Locksmith'
+      },
+      dispatcher: {
+        uiUpdate: updateDispatcherUI,
+        setList: (list) => { dispatchers = list; },
+        warningLabel: 'Dispatcher'
+      },
+      tire: {
+        uiUpdate: updateTireUI,
+        setList: (list) => { tirePartners = list; },
+        warningLabel: 'Tire services'
+      },
+      inspector: {
+        uiUpdate: updateInspectorUI,
+        setList: (list) => { inspectors = list; },
+        warningLabel: 'Inspector'
+      }
+    };
+
+    async function loadPartnerService(type) {
+      if (!isServiceTypeEnabled(type)) return;
       if (!supabaseClient) return;
+
+      const config = SERVICE_LOAD_CONFIG[type];
+      if (!config) {
+        console.warn(`No service config found for type "${type}".`);
+        return;
+      }
+
       try {
         await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('towing'));
-        setServiceHeaders('towing', data);
-        towingCompanies = (data || []).map((row, idx) => normalizePartner(row, 'towing', idx));
-        updateTowingUI(towingCompanies);
+        const data = getCachedServices(getServiceCategoryLabel(type));
+        setServiceHeaders(type, data);
+        const normalized = (data || []).map((row, idx) => normalizePartner(row, type, idx));
+        config.setList(normalized);
+        config.uiUpdate(normalized);
       } catch (err) {
-        console.warn("Towing load warning: " + err.message);
+        const label = config.warningLabel || type;
+        console.warn(`${label} load warning: ${err.message}`);
       }
     }
 
-    async function loadResellers() {
-      if (!isServiceTypeEnabled('reseller')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('reseller'));
-        setServiceHeaders('reseller', data);
-        resellers = (data || []).map((row, idx) => normalizePartner(row, 'reseller', idx));
-        updateResellerUI(resellers);
-      } catch (err) {
-        console.warn("Reseller load warning: " + err.message);
-      }
-    }
-
-    async function loadRepairShops() {
-      if (!isServiceTypeEnabled('repair')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('repair'));
-        setServiceHeaders('repair', data);
-        repairShops = (data || []).map((row, idx) => normalizePartner(row, 'repair', idx));
-        updateRepairUI(repairShops);
-      } catch (err) {
-        console.warn("Repair shop load warning: " + err.message);
-      }
-    }
-
-    async function loadLocksmiths() {
-      if (!isServiceTypeEnabled('locksmith')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('locksmith'));
-        setServiceHeaders('locksmith', data);
-        locksmiths = (data || []).map((row, idx) => normalizePartner(row, 'locksmith', idx));
-        updateLocksmithUI(locksmiths);
-      } catch (err) {
-        console.warn("Locksmith load warning: " + err.message);
-      }
-    }
-
-    async function loadDispatchers() {
-      if (!isServiceTypeEnabled('dispatcher')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('dispatcher'));
-        setServiceHeaders('dispatcher', data);
-        dispatchers = (data || []).map((row, idx) => normalizePartner(row, 'dispatcher', idx));
-        updateDispatcherUI(dispatchers);
-      } catch (err) {
-        console.warn("Dispatcher load warning: " + err.message);
-      }
-    }
-
-    async function loadTireServices() {
-      if (!isServiceTypeEnabled('tire')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('tire'));
-        setServiceHeaders('tire', data);
-        tirePartners = (data || []).map((row, idx) => normalizePartner(row, 'tire', idx));
-        updateTireUI(tirePartners);
-      } catch (err) {
-        console.warn("Tire services load warning: " + err.message);
-      }
-    }
-
-    async function loadInspectors() {
-      if (!isServiceTypeEnabled('inspector')) return;
-      if (!supabaseClient) return;
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel('inspector'));
-        setServiceHeaders('inspector', data);
-        inspectors = (data || []).map((row, idx) => normalizePartner(row, 'inspector', idx));
-        updateInspectorUI(inspectors);
-      } catch (err) {
-        console.warn("Inspector load warning: " + err.message);
+    async function loadAllServices() {
+      for (const type of Object.keys(SERVICE_LOAD_CONFIG)) {
+        await loadPartnerService(type);
       }
     }
 
@@ -2090,198 +2059,6 @@
       } catch (err) {
         console.warn(`Custom service warning: ${err.message}`);
       }
-    }
-
-    // --- 3. Process CSV text ---
-    function parseCSV(csvText) {
-      const rows = [];
-      let currentValue = '';
-      let currentRow = [];
-      let inQuotes = false;
-
-      for (let i = 0; i < csvText.length; i++) {
-        const char = csvText[i];
-
-        if (char === '"') {
-          const next = csvText[i + 1];
-          if (inQuotes && next === '"') {
-            currentValue += '"';
-            i++;
-          } else {
-            inQuotes = !inQuotes;
-          }
-          continue;
-        }
-
-        if (!inQuotes && (char === ',' || char === '\n' || char === '\r')) {
-          currentRow.push(currentValue);
-          currentValue = '';
-
-          if (char === ',') continue;
-
-          if (char === '\r' && csvText[i + 1] === '\n') i++;
-          if (currentRow.some(cell => cell.trim() !== '')) rows.push(currentRow);
-          currentRow = [];
-          continue;
-        }
-
-        currentValue += char;
-      }
-
-      currentRow.push(currentValue);
-      if (currentRow.some(cell => cell.trim() !== '')) rows.push(currentRow);
-
-      return rows.filter(r => r.length > 0);
-    }
-
-    async function parseTechCSV(csvText) {
-      const rows = parseCSV(csvText);
-      if (rows.length < 2) return;
-
-      const headers = rows[0].map(h => h.trim().replace(/"/g, '')).map(h => h.toLowerCase());
-
-      const techPromises = rows.slice(1).map(async (values, idx) => {
-        const cleanValues = values.map(v => v.replace(/^"|"$/g, '').trim());
-
-        const row = {};
-        headers.forEach((h, i) => row[h] = cleanValues[i] || '');
-
-        const companyName = row['installation company'] || row['company'] || 'Installer';
-        const stateCode = toStateCode(row['state']) || 'US';
-        const coords = deriveCoords({
-          zip: row['zip'],
-          city: row['city'],
-          stateCode,
-          seed: idx
-        });
-        const { display: phone, tel: phoneDial } = formatPhoneNumber(row['phone']);
-
-        return {
-          id: idx,
-          name: companyName,
-          company: companyName,
-          email: row['email'] || '-',
-          phone: phone || '-',
-          phoneDial,
-          city: row['city'] || '',
-          state: stateCode,
-          zip: row['zip'] || '',
-          lat: coords.lat,
-          lng: coords.lng
-        };
-      });
-
-      technicians = await Promise.all(techPromises);
-      renderedTechIds = '';
-
-      document.getElementById('total-count').textContent = technicians.length;
-      updateTechUI(technicians);
-      renderVehicles();
-    }
-
-    function parseVehicleCSV(csvText) {
-      const rows = parseCSV(csvText);
-      if (rows.length < 2) return [];
-      const headers = rows[0].map(h => h.replace(/^"|"$/g, '').trim());
-
-      const vehiclesData = rows.slice(1).map((values, idx) => {
-        const clean = values.map(v => v.replace(/^"|"$/g, '').trim());
-        const row = {};
-        headers.forEach((h, i) => {
-          const value = (clean[i] ?? '').trim();
-          row[h] = value;
-          const normalized = normalizeKey(h);
-          if (!(normalized in row)) row[normalized] = value;
-        });
-
-        const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state_loc'));
-        const numericLat = parseFloat(getField(row, 'Lat', 'lat'));
-        const numericLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
-        const hasExactCoords = Number.isFinite(numericLat) && Number.isFinite(numericLng) && numericLat !== 0 && numericLng !== 0;
-        const { coords, accuracy } = resolveCoords(row, {
-          zip: getField(row, 'PT ZipCode', 'Zip', 'zip'),
-          city: getField(row, 'PT City', 'City', 'city'),
-          stateCode,
-          seed: idx,
-          fallbackLatLng: hasExactCoords ? { lat: numericLat, lng: numericLng } : null
-        });
-
-        const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
-
-        return {
-          id: idx,
-          status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
-          invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat', 'inv_prep_stat'),
-          dealCompletion,
-          type: getField(row, 'Unit Type', 'type') || 'Vehicle',
-          year: getField(row, 'Model Year', 'year'),
-          model: getField(row, 'Model', 'model') || 'Vehicle',
-          vin: getField(row, 'ShortVIN', 'VIN', 'vin') || 'N/A',
-          gpsFix: getField(row, 'GPS Fix', 'gps_fix'),
-          gpsReason: getField(row, 'GPS Fix Reason', 'gps_fix_reason'),
-          gpsMoving: getField(row, 'GPS Moving', 'gps_moving'),
-          moving: getField(row, 'Moving', 'moving'),
-          movingCalc: getField(row, 'Moving (Calc)', 'moving_calc'),
-          ptStatus: getField(row, 'PT Status', 'pt_status'),
-          ptSerial: getField(row, 'PT Serial ', 'PT Serial', 'pt_serial'),
-          encoreSerial: getField(row, 'Encore Serial', 'encore_serial'),
-          lastRead: getField(row, 'PT Last Read', 'pt_last_read'),
-          state: stateCode,
-          city: getField(row, 'PT City', 'City', 'city') || '',
-          zipcode: getField(row, 'PT ZipCode', 'Zip', 'zip') || '',
-          lat: coords.lat,
-          lng: coords.lng,
-          locationAccuracy: accuracy,
-          customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
-          customer: getField(row, 'PT City', 'City', 'city')
-            ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
-            : stateCode || 'Unknown area',
-          lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${getField(row, 'PT ZipCode', 'Zip', 'zip') ? ' ' + getField(row, 'PT ZipCode', 'Zip', 'zip') : ''}`.trim(),
-          payment: getField(row, 'Payment Schedule', 'payment'),
-          details: row
-        };
-      });
-
-      document.getElementById('vehicles-count').textContent = vehiclesData.length;
-      return { headers, rows: vehiclesData };
-    }
-
-    function parsePartnerCSV(csvText, type = 'towing') {
-      const rows = parseCSV(csvText);
-      if (rows.length < 2) return [];
-      const headers = rows[0].map(h => h.replace(/^"|"$/g, '').trim().toLowerCase());
-      return rows.slice(1).map((values, idx) => {
-        const clean = values.map(v => v.replace(/^"|"$/g, '').trim());
-        const row = {};
-        headers.forEach((h, i) => row[h] = (clean[i] ?? '').trim());
-
-        const stateCode = toStateCode(row['state']) || toStateCode(row['region']) || 'US';
-        const coords = deriveCoords({
-          zip: row['zip'],
-          city: row['city'],
-          stateCode,
-          seed: idx
-        });
-
-        const { display: phone, tel: phoneDial } = formatPhoneNumber(row['phone']);
-
-        return {
-          id: `${type}-${idx}`,
-          type,
-          company: row['company'] || row['name'] || 'Partner',
-          region: row['region'] || stateCode,
-          phone,
-          phoneDial,
-          contact: row['contact'] || '',
-          availability: row['availability'] || row['tier'] || '',
-          notes: row['notes'] || '',
-          city: row['city'] || '',
-          state: stateCode,
-          zip: row['zip'] || '',
-          lat: coords.lat,
-          lng: coords.lng
-        };
-      });
     }
 
     // --- 4. Update map and list ---
@@ -4403,13 +4180,7 @@
         loadHotspots();
         loadBlacklistSites();
         loadVehicles();
-        if (isServiceTypeEnabled('towing')) loadTowingCompanies();
-        if (isServiceTypeEnabled('reseller')) loadResellers();
-        if (isServiceTypeEnabled('repair')) loadRepairShops();
-        if (isServiceTypeEnabled('locksmith')) loadLocksmiths();
-        if (isServiceTypeEnabled('dispatcher')) loadDispatchers();
-        if (isServiceTypeEnabled('tire')) loadTireServices();
-        if (isServiceTypeEnabled('inspector')) loadInspectors();
+        await loadAllServices();
         if (isServiceTypeEnabled('custom')) loadCustomServices();
         setupResizableSidebars();
         setupSidebarToggles();
