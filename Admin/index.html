@@ -8,9 +8,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="../assets/scripts/supabaseClient.js"></script>
-  <script src="../assets/scripts/authManager.js"></script>
+  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
+  <script type="module" src="../assets/scripts/authManager.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
   <script>
     tailwind.config = {
@@ -194,6 +195,7 @@
             <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
           </div>
           <div id="datasets" class="grid gap-4 md:grid-cols-2"></div>
+          <canvas id="fleet-chart" class="mt-6 max-h-64 w-full"></canvas>
         </section>
 
         <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
@@ -247,9 +249,11 @@
       </div>
     </div>
   </template>
-
+  
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
+    import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
     // --- MAPPING: Frontend Keys to Actual Supabase Tables ---
     const DATASETS = [
@@ -269,45 +273,8 @@
       }
     ];
 
-    const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
-    const getSupabaseClient = () => {
-      if (window.supabaseClient) return window.supabaseClient;
-      if (window.supabase && SUPABASE_URL && SUPABASE_KEY) {
-        return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-      return null;
-    };
-
-    const supabaseClient = getSupabaseClient();
-
     const ADMIN_ROLE = 'administrator';
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
-
-    // ---- Vehicles column whitelist (MUST MATCH YOUR ACTUAL TABLE COLUMN NAMES EXACTLY) ----
-    const VEHICLES_COLUMNS = new Set([
-      'deal status',
-      'customer id',
-      'unit type',
-      'model year',
-      'model',
-      'shortvin',
-      'inv. prep. stat.',
-      'phys_loc',
-      'deal completion',
-      'gps fix',
-      'gps fix reason',
-      'pt status',
-      'pt serial',
-      'encore serial',
-      'moving',
-      'pt last read',
-      'state loc',
-      'pt city',
-      'pt zipcode',
-      'lat',
-      'long',
-    ]);
 
     const toNumber = (value) => {
       if (value === undefined || value === null) return null;
@@ -483,6 +450,122 @@
       return { card: clone, stats: { ...stats, table: dataset.displayName } };
     };
 
+    const ensureToastContainer = () => {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed bottom-6 right-6 z-50 flex flex-col gap-3';
+        document.body.appendChild(container);
+      }
+      return container;
+    };
+
+    const showToast = (message, type = 'info') => {
+      const container = ensureToastContainer();
+      const toast = document.createElement('div');
+
+      const variantClasses =
+        type === 'success'
+          ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-50 shadow-emerald-500/30'
+          : 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30';
+
+      toast.className = `flex min-w-[260px] max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${variantClasses}`;
+
+      const icon = document.createElement('span');
+      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${type === 'success' ? 'bg-emerald-400' : 'bg-red-400'}`;
+
+      const text = document.createElement('p');
+      text.className = 'whitespace-pre-line font-semibold leading-relaxed';
+      text.textContent = message;
+
+      toast.appendChild(icon);
+      toast.appendChild(text);
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+        setTimeout(() => toast.remove(), 320);
+      }, 4200);
+    };
+
+    let fleetChartInstance = null;
+
+    const renderFleetChart = async () => {
+      const canvas = document.getElementById('fleet-chart');
+      if (!canvas || !window.Chart) return;
+      if (!supabaseClient) {
+        console.warn('Supabase client unavailable. Skipping fleet chart render.');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .select('"deal status" as deal_status');
+        if (error) throw error;
+
+        const counts = (data || []).reduce((acc, row) => {
+          const status = ((row.deal_status ?? 'Unknown').toString() || 'Unknown').trim() || 'Unknown';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+
+        const labels = Object.keys(counts);
+        const values = labels.map((label) => counts[label]);
+
+        const chartLabels = labels.length ? labels : ['No data'];
+        const chartValues = labels.length ? values : [1];
+
+        const palette = ['#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#f97316', '#facc15', '#34d399'];
+        const backgroundColors = chartLabels.map((_, idx) => palette[idx % palette.length]);
+
+        if (fleetChartInstance) fleetChartInstance.destroy();
+
+        Chart.defaults.color = '#cbd5e1';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+
+        fleetChartInstance = new Chart(canvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [
+              {
+                data: chartValues,
+                backgroundColor: backgroundColors,
+                borderColor: '#0f172a',
+                borderWidth: 2,
+                hoverOffset: 10,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '58%',
+            layout: { padding: 8 },
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#e2e8f0', boxWidth: 14, boxHeight: 14 },
+              },
+              tooltip: {
+                backgroundColor: '#0f172a',
+                titleColor: '#e2e8f0',
+                bodyColor: '#e2e8f0',
+                borderColor: '#334155',
+                borderWidth: 1,
+              },
+            },
+          },
+        });
+      } catch (error) {
+        console.error('Failed to render fleet chart:', error);
+        showToast('Unable to render fleet chart: ' + error.message, 'error');
+      }
+    };
+
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
@@ -499,7 +582,7 @@
         });
 
       if (!mapped.length) {
-        alert('No valid rows detected. Each row must include a ShortVIN value.');
+        showToast('No valid rows detected. Each row must include a ShortVIN value.', 'error');
         return;
       }
 
@@ -511,7 +594,7 @@
       if (error) {
         console.error('Supabase upsert error:', { message: error.message, details: error.details, hint: error.hint });
         if (isRlsBlocked(error)) {
-          alert('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.');
+          showToast('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.', 'error');
           return;
         }
         throw error;
@@ -523,7 +606,7 @@
         '\nUpserted: ' + upserted +
         '\nSkipped invalid: ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
-      alert(summary);
+      showToast(summary, 'success');
     };
 
     const wireCsvUpload = () => {
@@ -551,13 +634,13 @@
         event.preventDefault();
 
         if (!requireAdmin()) {
-          alert('Only administrators can upload vehicle data.');
+          showToast('Only administrators can upload vehicle data.', 'error');
           return;
         }
 
         const file = fileInput.files?.[0];
         if (!file) {
-          alert('Please select a CSV file to upload.');
+          showToast('Please select a CSV file to upload.', 'error');
           return;
         }
 
@@ -574,7 +657,7 @@
               await uploadCsvRows(results.data || [], parseErrors);
             } catch (err) {
               console.error('Upload failed:', err);
-              alert('Upload failed: ' + err.message);
+              showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
               submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
@@ -583,7 +666,7 @@
           },
           error: (err) => {
             console.error('CSV parse error:', err);
-            alert('CSV parse error: ' + err.message);
+            showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
             lucide.createIcons();
@@ -608,6 +691,7 @@
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
 
       renderActivityLog(activities);
+      await renderFleetChart();
       lucide.createIcons();
     };
 
