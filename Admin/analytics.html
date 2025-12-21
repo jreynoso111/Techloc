@@ -903,6 +903,24 @@
       URL.revokeObjectURL(url);
     };
 
+    const filterRows = (query = '') => {
+      const term = query.trim().toLowerCase();
+      if (!term) return [...allData];
+
+      return allData.filter(row => {
+        return ['name', 'category', 'city', 'state'].some(key => {
+          const value = row[key];
+          return value && String(value).toLowerCase().includes(term);
+        });
+      });
+    };
+
+    const applyFilter = () => {
+      const filtered = filterRows(els.searchInput?.value || '');
+      renderDashboard(filtered);
+      lucide.createIcons();
+    };
+
     // --- ACTIVITY FEED ---
     const summarizeChanges = (oldRow = {}, newRow = {}) => {
         const changed = [];
