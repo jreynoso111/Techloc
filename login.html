@@ -45,59 +45,64 @@
         <p class="text-sm text-slate-300">Use your administrator credentials to authenticate. After signing in you'll return to the homepage with secure access to admin tools.</p>
       </div>
 
-      <form id="login-form" class="space-y-4">
-        <div class="space-y-2">
-          <label for="email" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
-          <input id="email" name="email" type="email" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="admin@techloc.com" />
-        </div>
-        <div class="space-y-2">
-          <label for="password" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
-          <input id="password" name="password" type="password" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="••••••••" />
-        </div>
-        <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-600/40 transition hover:-translate-y-0.5">
-          <span>Login</span>
-        </button>
-      </form>
+        <form id="login-form" class="space-y-4">
+          <div class="space-y-2">
+            <label for="email" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
+            <input id="email" name="email" type="email" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="admin@techloc.com" />
+          </div>
+          <div class="space-y-2">
+            <label for="password" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
+            <input id="password" name="password" type="password" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="••••••••" />
+          </div>
+          <div id="form-error" class="hidden mb-4 p-3 rounded-xl border border-red-500/50 bg-red-500/10 text-xs text-red-200 font-medium text-center"></div>
+          <button type="submit" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-blue-600/40 transition hover:-translate-y-0.5">
+            <span>Login</span>
+          </button>
+        </form>
 
       <div id="status" class="text-sm text-slate-400">Use your administrator credentials.</div>
     </div>
   </main>
 
-  <script type="module">
-    import { createConstellationBackground } from './assets/scripts/constellation.js';
+    <script type="module">
+      import { createConstellationBackground } from './assets/scripts/constellation.js';
 
-    const loginForm = document.getElementById('login-form');
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const submitButton = loginForm.querySelector('button[type="submit"]');
-    const submitLabel = submitButton.querySelector('span');
+      const loginForm = document.getElementById('login-form');
+      const emailInput = document.getElementById('email');
+      const passwordInput = document.getElementById('password');
+      const submitButton = loginForm.querySelector('button[type="submit"]');
+      const submitLabel = submitButton.querySelector('span');
+      const formError = document.getElementById('form-error');
 
-    loginForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
+      loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
 
-      submitButton.disabled = true;
-      const originalText = submitLabel.textContent;
-      submitLabel.textContent = 'Verifying...';
+        formError.classList.add('hidden');
 
-      const email = emailInput.value.trim();
-      const password = passwordInput.value;
+        submitButton.disabled = true;
+        const originalText = submitLabel.textContent;
+        submitLabel.textContent = 'Verifying...';
 
-      const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
 
-      if (error) {
-        alert(error.message);
-        submitButton.disabled = false;
-        submitLabel.textContent = originalText;
-        return;
-      }
+        const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
 
-      const basePath = window.location.hostname.includes('github.io') ? '/Techloc' : '';
-      window.location.replace(basePath + '/index.html');
-    });
+        if (error) {
+          formError.textContent = error.message;
+          formError.classList.remove('hidden');
+          submitButton.disabled = false;
+          submitLabel.textContent = originalText;
+          return;
+        }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      createConstellationBackground();
-    });
-  </script>
+        const basePath = window.location.hostname.includes('github.io') ? '/Techloc' : '';
+        window.location.replace(basePath + '/index.html');
+      });
+
+      document.addEventListener('DOMContentLoaded', () => {
+        createConstellationBackground();
+      });
+    </script>
 </body>
 </html>
