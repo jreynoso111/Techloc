@@ -840,22 +840,22 @@
       };
     };
 
-    const createPartnerClusterIcon = (cluster) => {
+    const createPartnerClusterIcon = (cluster, color = '#334155') => {
       const count = cluster.getChildCount();
       return L.divIcon({
-        html: `<div class="bg-slate-700 text-white text-xs font-semibold rounded-full flex items-center justify-center w-10 h-10 border border-slate-500 shadow-md">${count}</div>`,
+        html: `<div class="text-white text-xs font-semibold rounded-full flex items-center justify-center w-10 h-10 border shadow-md" style="background:${color}; border-color:${color}">${count}</div>`,
         className: 'partner-cluster-icon',
         iconSize: [40, 40],
         iconAnchor: [20, 20]
       });
     };
 
-    const createPartnerClusterGroup = () => L.markerClusterGroup({
+    const createPartnerClusterGroup = (color = '#334155') => L.markerClusterGroup({
       maxClusterRadius: 45,
       disableClusteringAtZoom: 17,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
-      iconCreateFunction: createPartnerClusterIcon
+      iconCreateFunction: (cluster) => createPartnerClusterIcon(cluster, color)
     });
 
     const debounceAsync = (fn, delay = 300) => {
@@ -979,7 +979,7 @@
       const key = getCustomCategoryKey(normalizedLabel);
       if (!customCategories.has(key)) {
         const color = CUSTOM_COLOR_PALETTE[customCategories.size % CUSTOM_COLOR_PALETTE.length] || SERVICE_COLORS.custom;
-        const layer = createPartnerClusterGroup();
+        const layer = createPartnerClusterGroup(color);
         customCategories.set(key, { key, label: normalizedLabel, color, layer });
       }
       return customCategories.get(key);
@@ -1663,7 +1663,7 @@
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       hotspotLayer = L.layerGroup().addTo(map);
       blacklistLayer = L.layerGroup().addTo(map);
-      techLayer = createPartnerClusterGroup();
+      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
       vehicleLayer = L.markerClusterGroup({
         maxClusterRadius: 35,
         disableClusteringAtZoom: 17,
@@ -1671,23 +1671,47 @@
         showCoverageOnHover: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
-          let borderClass = 'border-slate-500';
           let sizeClass = 'w-11 h-11 text-sm';
           let iconSize = [44, 44];
 
           if (count > 100) {
-            borderClass = 'border-amber-500';
             sizeClass = 'w-14 h-14 text-lg';
             iconSize = [56, 56];
           } else if (count > 10) {
-            borderClass = 'border-blue-500';
             sizeClass = 'w-12 h-12 text-base';
             iconSize = [48, 48];
           }
 
+          const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
+          let hasRed = false;
+          let hasAmber = false;
+
+          childMarkers.forEach((marker) => {
+            const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
+            const isStopped = marker?.options?.isStopped;
+
+            if (isStopped) hasRed = true;
+
+            if (markerColor) {
+              const colorValue = `${markerColor}`.toLowerCase();
+              if (colorValue === '#ef4444') {
+                hasRed = true;
+              } else if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
+                hasAmber = true;
+              }
+            }
+          });
+
+          let clusterColor = '#f59e0b';
+          if (hasRed) {
+            clusterColor = '#ef4444';
+          } else if (hasAmber) {
+            clusterColor = '#fbbf24';
+          }
+
           const [width, height] = iconSize;
           return L.divIcon({
-            html: `<div class="bg-slate-800 border-2 ${borderClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}">${count}</div>`,
+            html: `<div class="border-2 text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}" style="background:${clusterColor}; border-color:${clusterColor}">${count}</div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
@@ -1699,14 +1723,14 @@
       serviceLayer = L.layerGroup().addTo(map);
       serviceConnectionLayer = L.layerGroup().addTo(map);
       highlightLayer = L.layerGroup().addTo(map);
-      towingLayer = createPartnerClusterGroup();
-      resellerLayer = createPartnerClusterGroup();
-      repairLayer = createPartnerClusterGroup();
-      locksmithLayer = createPartnerClusterGroup();
-      tireLayer = createPartnerClusterGroup();
-      inspectorLayer = createPartnerClusterGroup();
-      dispatcherLayer = createPartnerClusterGroup();
-      customServiceLayer = createPartnerClusterGroup();
+      towingLayer = createPartnerClusterGroup(SERVICE_COLORS.towing);
+      resellerLayer = createPartnerClusterGroup(SERVICE_COLORS.reseller);
+      repairLayer = createPartnerClusterGroup(SERVICE_COLORS.repair);
+      locksmithLayer = createPartnerClusterGroup(SERVICE_COLORS.locksmith);
+      tireLayer = createPartnerClusterGroup(SERVICE_COLORS.tire);
+      inspectorLayer = createPartnerClusterGroup(SERVICE_COLORS.inspector);
+      dispatcherLayer = createPartnerClusterGroup(SERVICE_COLORS.dispatcher);
+      customServiceLayer = createPartnerClusterGroup(SERVICE_COLORS.custom);
 
       const invalidateMapSize = () => map?.invalidateSize();
 
@@ -2667,8 +2691,11 @@
           marker.setLatLng([coords.lat, coords.lng]);
           marker.setIcon(icon);
           marker.setZIndexOffset(isStopped ? 500 : 0);
+          marker.options.vehicleData = vehicle;
+          marker.options.markerColor = markerColor;
+          marker.options.isStopped = isStopped;
         } else {
-          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0 }).addTo(vehicleLayer);
+          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0, vehicleData: vehicle, markerColor, isStopped }).addTo(vehicleLayer);
           marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
         }
 
