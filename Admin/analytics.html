@@ -232,9 +232,20 @@
             </div>
 
             <div class="rounded-2xl border frosted-card p-6 flex flex-col">
-                <div class="mb-5 flex items-center justify-between">
-                    <h3 class="text-sm font-bold uppercase tracking-widest text-white">Recent Additions</h3>
-                    <a href="#" class="text-[10px] font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider">View All</a>
+                <div class="mb-5 flex flex-wrap items-center gap-3 justify-between">
+                    <div class="flex items-center gap-2">
+                      <h3 class="text-sm font-bold uppercase tracking-widest text-white">Recent Additions</h3>
+                      <a href="#" class="text-[10px] font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider">View All</a>
+                    </div>
+                    <div class="relative">
+                      <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
+                      <input
+                        id="recent-search"
+                        type="text"
+                        placeholder="Search"
+                        class="w-48 rounded-lg border border-white/10 bg-white/5 px-9 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 placeholder:text-slate-500 backdrop-blur focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                      />
+                    </div>
                 </div>
                 
                 <div class="overflow-hidden rounded-xl border border-white/5 bg-black/20">
@@ -280,6 +291,8 @@
     let actorProfile = { role: 'guest', email: 'anonymous', id: 'n/a' };
     let changeChannel = null;
     const liveEvents = [];
+    let allData = [];
+    let cachedClickCount = 0;
 
     // --- ELEMENTS ---
     const els = {
@@ -292,7 +305,8 @@
       tableBody: document.getElementById('recent-table-body'),
       activityFeed: document.getElementById('activity-feed'),
       status: document.getElementById('dataset-status'),
-      refreshBtn: document.getElementById('refresh-btn')
+      refreshBtn: document.getElementById('refresh-btn'),
+      searchInput: document.getElementById('recent-search')
     };
 
     // --- HELPERS ---
@@ -491,9 +505,7 @@
     };
 
     // --- ANALYTICS VISUALIZATION ---
-    const calculateAnalytics = (data, clickCount) => {
-      const rows = data.map(normalizeRow);
-
+    const renderDashboard = (rows = [], clickCount = cachedClickCount) => {
       // 1. KPIs
       els.kpiTotal.textContent = rows.length;
       els.kpiClicks.textContent = clickCount || 0;
@@ -594,6 +606,24 @@
       });
     };
 
+    const filterRows = (query = '') => {
+      const term = query.trim().toLowerCase();
+      if (!term) return [...allData];
+
+      return allData.filter(row => {
+        return ['name', 'category', 'city', 'state'].some(key => {
+          const value = row[key];
+          return value && String(value).toLowerCase().includes(term);
+        });
+      });
+    };
+
+    const applyFilter = () => {
+      const filtered = filterRows(els.searchInput?.value || '');
+      renderDashboard(filtered, cachedClickCount);
+      lucide.createIcons();
+    };
+
     // --- ACTIVITY FEED ---
     const summarizeChanges = (oldRow = {}, newRow = {}) => {
         const changed = [];
@@ -678,13 +708,16 @@
 
       const baseRows = error ? [] : (data || []);
       const combinedRows = [...baseRows, ...webRows];
-      calculateAnalytics(combinedRows || [], clickCount);
-      els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${combinedRows.length} RECORDS</span>`;
+      cachedClickCount = clickCount || 0;
+      allData = (combinedRows || []).map(normalizeRow);
+      applyFilter();
+      els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${allData.length} RECORDS</span>`;
       lucide.createIcons();
 
       startRealtimeFeed();
     };
 
+    els.searchInput?.addEventListener('input', applyFilter);
     els.refreshBtn.addEventListener('click', () => {
         els.categoryBars.innerHTML = '<p class="text-xs text-slate-500 animate-pulse">Updating...</p>';
         init();
