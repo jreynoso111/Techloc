@@ -9,8 +9,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="../assets/scripts/supabaseClient.js"></script>
-  <script src="../assets/scripts/authManager.js"></script>
+  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
+  <script type="module" src="../assets/scripts/authManager.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
   <script>
     tailwind.config = {
@@ -250,7 +250,8 @@
   
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
-    import { SUPABASE_URL, SUPABASE_KEY, VEHICLES_COLUMNS } from '../assets/scripts/config.js';
+    import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
+    import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
     // --- MAPPING: Frontend Keys to Actual Supabase Tables ---
     const DATASETS = [
@@ -269,16 +270,6 @@
         displayName: 'Vehicles'
       }
     ];
-
-    const getSupabaseClient = () => {
-      if (window.supabaseClient) return window.supabaseClient;
-      if (window.supabase && SUPABASE_URL && SUPABASE_KEY) {
-        return window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-      return null;
-    };
-
-    const supabaseClient = getSupabaseClient();
 
     const ADMIN_ROLE = 'administrator';
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
