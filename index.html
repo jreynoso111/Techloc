@@ -199,12 +199,29 @@
     };
 
     const fetchServiceStats = async () => {
+      const CACHE_KEY = 'techloc_home_stats';
+
       // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
       const client = window.supabaseClient || window.supabase;
 
       if (!client) {
         console.error("Supabase client not initialized.");
         return;
+      }
+
+      const cachedStats = sessionStorage.getItem(CACHE_KEY);
+      if (cachedStats) {
+        try {
+          const { totalCount, availableCount, uniqueStates, avgRating } = JSON.parse(cachedStats);
+
+          animateValue('tech-count', 0, totalCount ?? 0, 2000);
+          animateValue('available-count', 0, availableCount ?? 0, 2000);
+          animateValue('states-count', 0, uniqueStates ?? 0, 2000);
+          animateValue('avg-rating', 0, avgRating ?? 0, 2000);
+          return;
+        } catch (parseError) {
+          console.warn('Invalid cached stats, fetching fresh data.');
+        }
       }
 
       try {
@@ -237,6 +254,13 @@
 
         // D. SLA Rating: Valor estático alto (hasta que tengas columna de rating real)
         const avgRating = 4.8;
+
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          totalCount,
+          availableCount,
+          uniqueStates,
+          avgRating,
+        }));
 
         // Actualizamos el DOM con animación
         animateValue('tech-count', 0, totalCount, 2000);
