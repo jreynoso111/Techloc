@@ -330,7 +330,8 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     // --- CONFIGURATION ---
-    const TABLE_SERVICES = 'Services';
+    const TABLE_SERVICES = 'services';
+    const TABLE_VEHICLES = 'vehicles';
     const TABLE_ANALYTICS = 'analytics_events';
     const datasetEntries = window.TL_DATASETS ? Object.entries(window.TL_DATASETS) : [
       ['dispatchers', '../assets/data/dispatchers.csv'],
@@ -370,6 +371,25 @@
       detailModalSubtitle: document.getElementById('detail-modal-subtitle'),
       detailModalContent: document.getElementById('detail-modal-content'),
       detailModalBackdrop: document.getElementById('detail-modal-backdrop')
+    };
+
+    let lastFiltered = [];
+    let currentRecentRows = [];
+
+    const setStatus = (text, variant = 'info') => {
+      if (!els.status) return;
+      const palette = {
+        success: 'text-emerald-400',
+        info: 'text-blue-200',
+        warning: 'text-amber-300',
+        error: 'text-rose-400'
+      };
+
+      els.status.textContent = text;
+
+      const removable = ['text-emerald-500', 'text-emerald-400', 'text-blue-200', 'text-amber-300', 'text-rose-400', 'text-red-400'];
+      removable.forEach(cls => els.status.classList.remove(cls));
+      els.status.classList.add(palette[variant] || palette.info);
     };
 
     let lastFiltered = [];
@@ -1026,7 +1046,7 @@
       await hydrateActorProfile();
       trackUserActivity();
 
-      const totalSources = datasetEntries.length + 1; // supabase + local files
+      const totalSources = datasetEntries.length + 2; // supabase services + vehicles + local files
       let loadedCount = 0;
       const updateProgress = (succeeded = true) => {
         loadedCount += 1;
@@ -1035,21 +1055,24 @@
 
       setStatus(`Loading 0/${totalSources} sources...`, 'info');
 
-      let supabaseRows = [];
-      let supabaseSuccess = false;
-      try {
-        const { data, error } = await supabaseClient.from(TABLE_SERVICES).select('*');
-        if (error) {
-          console.error('Supabase dataset load failed', error);
-        } else {
-          supabaseRows = data || [];
-          supabaseSuccess = true;
+      const fetchSupabaseTable = async (tableName, datasetKey) => {
+        try {
+          const { data, error } = await supabaseClient.from(tableName).select('*');
+          if (error) throw error;
+          const hydrated = (data || []).map(row => ({ ...row, source: 'database', datasetKey }));
+          updateProgress(true);
+          return hydrated;
+        } catch (err) {
+          console.error(`Supabase dataset load failed (${tableName})`, err);
+          updateProgress(false);
+          return [];
         }
-      } catch (err) {
-        console.error('Supabase dataset request threw', err);
-      } finally {
-        updateProgress(supabaseSuccess);
-      }
+      };
+
+      const [supabaseServiceRows, supabaseVehicleRows] = await Promise.all([
+        fetchSupabaseTable(TABLE_SERVICES, 'services'),
+        fetchSupabaseTable(TABLE_VEHICLES, 'vehicles'),
+      ]);
 
       let webRows = [];
       try {
@@ -1058,7 +1081,7 @@
         console.error('Local dataset load failed', err);
       }
 
-      const combinedRows = [...supabaseRows, ...webRows];
+      const combinedRows = [...supabaseServiceRows, ...supabaseVehicleRows, ...webRows];
       allData = (combinedRows || []).map(normalizeRow);
       applyFilter();
 
