@@ -117,7 +117,7 @@
       <section class="flex-1 space-y-6">
         
         <div class="flex flex-col justify-between gap-4 border-b border-white/5 pb-6 sm:flex-row sm:items-end">
-          <div>
+      <div>
             <div class="flex items-center gap-2 mb-1">
               <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
               <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-500" id="dataset-status">System Live</p>
@@ -132,17 +132,29 @@
           </div>
         </div>
 
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
             <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
             <div class="flex items-center gap-3 text-slate-400 mb-2">
               <div class="rounded-lg bg-blue-500/10 p-2 text-blue-400">
-                <i data-lucide="database" class="h-4 w-4"></i>
+                <i data-lucide="badge-check" class="h-4 w-4"></i>
               </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Total Records</span>
+              <span class="text-xs font-semibold uppercase tracking-wider">Service Providers</span>
             </div>
             <p id="kpi-total" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Registered entities</p>
+            <p class="mt-1 text-[11px] text-slate-500">Active provider records</p>
+          </div>
+
+          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-sky-500/10 blur-2xl"></div>
+            <div class="flex items-center gap-3 text-slate-400 mb-2">
+              <div class="rounded-lg bg-sky-500/10 p-2 text-sky-400">
+                <i data-lucide="truck" class="h-4 w-4"></i>
+              </div>
+              <span class="text-xs font-semibold uppercase tracking-wider">Total Vehicles</span>
+            </div>
+            <p id="kpi-vehicles" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
+            <p class="mt-1 text-[11px] text-slate-500">Units tracked in fleet</p>
           </div>
 
           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
@@ -351,12 +363,32 @@
       refreshBtn: document.getElementById('refresh-btn'),
       searchInput: document.getElementById('recent-search'),
       exportBtn: document.getElementById('export-btn'),
+      kpiVehicles: document.getElementById('kpi-vehicles'),
       detailModal: document.getElementById('detail-modal'),
       detailModalClose: document.getElementById('detail-modal-close'),
       detailModalTitle: document.getElementById('detail-modal-title'),
       detailModalSubtitle: document.getElementById('detail-modal-subtitle'),
       detailModalContent: document.getElementById('detail-modal-content'),
       detailModalBackdrop: document.getElementById('detail-modal-backdrop')
+    };
+
+    let lastFiltered = [];
+    let currentRecentRows = [];
+
+    const setStatus = (text, variant = 'info') => {
+      if (!els.status) return;
+      const palette = {
+        success: 'text-emerald-400',
+        info: 'text-blue-200',
+        warning: 'text-amber-300',
+        error: 'text-rose-400'
+      };
+
+      els.status.textContent = text;
+
+      const removable = ['text-emerald-500', 'text-emerald-400', 'text-blue-200', 'text-amber-300', 'text-rose-400', 'text-red-400'];
+      removable.forEach(cls => els.status.classList.remove(cls));
+      els.status.classList.add(palette[variant] || palette.info);
     };
 
     let lastFiltered = [];
@@ -435,7 +467,13 @@
     const normalizeRow = (row) => {
       const categoryRaw = getField(row, 'category', 'business_type', 'type', 'service_type', 'role', 'title', 'function', 'position', 'segment', 'line_of_business');
       const category = formatCategory(categoryRaw || row.category || row.type || row.service_type || row.business_type || '');
+      const datasetKey = (row.datasetKey || row.dataset || row.dataset_key || '').toString();
+      const datasetPath = (row.datasetPath || '').toString();
       const location = resolveLocation(row);
+
+      const categoryFlag = category.toLowerCase();
+      const datasetFlag = `${datasetKey} ${datasetPath}`.toLowerCase();
+      const isVehicle = categoryFlag === 'vehicle' || categoryFlag === 'fleet' || datasetFlag.includes('vehicle');
 
       return {
         id: row.id,
@@ -445,7 +483,7 @@
         city: getField(row, 'city'),
         rating: Number(getField(row, 'google_rating')) || 0,
         created_at: row.created_at || new Date().toISOString(),
-        isVehicle: category === 'Vehicle',
+        isVehicle,
         location,
         source: row.source || 'database',
         raw: row
@@ -569,26 +607,31 @@
         });
     };
 
-    const loadLocalDatasets = async () => {
-        const datasets = await Promise.all(datasetEntries.map(async ([key, path]) => {
+    const loadLocalDatasets = async (onProgress) => {
+        const aggregated = [];
+
+        for (const [key, path] of datasetEntries) {
             try {
                 const response = await fetch(path);
-                if (!response.ok) throw new Error(`Could not load ${path}`);
+                if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
                 const csvText = await response.text();
-                const parsed = parseCsv(csvText).map(row => ({
+                const rows = parseCsv(csvText).map(row => ({
                     ...row,
                     category: row.category || key,
                     business_type: row.business_type || row.type || key,
-                    source: 'web-file'
+                    source: 'web-file',
+                    datasetKey: key,
+                    datasetPath: path
                 }));
-                return parsed;
+                aggregated.push(...rows);
+                onProgress?.(true);
             } catch (err) {
-                console.warn(`Dataset skip (${path}):`, err.message);
-                return [];
+                console.error(`Dataset failed (${path})`, err);
+                onProgress?.(false);
             }
-        }));
+        }
 
-        return datasets.flat();
+        return aggregated;
     };
 
     const hydrateActorProfile = async () => {
@@ -630,11 +673,14 @@
 
     // --- ANALYTICS VISUALIZATION ---
     const renderDashboard = (rows = []) => {
+      const vehicleRows = rows.filter(r => r.isVehicle);
+      const serviceRows = rows.filter(r => !r.isVehicle);
+
       // 1. KPIs
-      els.kpiTotal.textContent = rows.length;
+      els.kpiTotal.textContent = serviceRows.length;
+      if (els.kpiVehicles) els.kpiVehicles.textContent = vehicleRows.length;
 
       // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluding vehicles as a service
-      const serviceRows = rows.filter(r => !r.isVehicle);
       const catCounts = {};
       serviceRows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
       const dispatcherCount = serviceRows.filter(r => r.category === 'Dispatcher').length;
@@ -807,13 +853,15 @@
 
         const { label: sourceLabel, classes: sourceClasses } = describeSource(r.source);
         const tooltip = formatTooltip(r.raw || r);
+        const badgeLayout = r.isVehicle ? 'inline-flex items-center gap-1' : 'inline-block';
+        const badgeIcon = r.isVehicle ? '<i data-lucide="truck" class="h-3 w-3"></i>' : '';
 
         const rowHtml = `
           <tr class="hover:bg-white/5 transition-colors group cursor-pointer" title="${tooltip}" data-row-index="${idx}">
             <td class="px-4 py-3 font-medium text-slate-300 text-xs truncate max-w-[140px] group-hover:text-white">${r.name}</td>
             <td class="px-4 py-3">
-                <span class="inline-block rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                    ${r.category}
+                <span class="${badgeLayout} rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                    ${badgeIcon}${r.category}
                 </span>
             </td>
             <td class="px-4 py-3 text-center">
@@ -903,24 +951,6 @@
       URL.revokeObjectURL(url);
     };
 
-    const filterRows = (query = '') => {
-      const term = query.trim().toLowerCase();
-      if (!term) return [...allData];
-
-      return allData.filter(row => {
-        return ['name', 'category', 'city', 'state'].some(key => {
-          const value = row[key];
-          return value && String(value).toLowerCase().includes(term);
-        });
-      });
-    };
-
-    const applyFilter = () => {
-      const filtered = filterRows(els.searchInput?.value || '');
-      renderDashboard(filtered);
-      lucide.createIcons();
-    };
-
     // --- ACTIVITY FEED ---
     const summarizeChanges = (oldRow = {}, newRow = {}) => {
         const changed = [];
@@ -996,17 +1026,47 @@
       await hydrateActorProfile();
       trackUserActivity();
 
-      els.status.textContent = 'Syncing...';
-      const [{ data, error }, webRows] = await Promise.all([
-        supabaseClient.from(TABLE_SERVICES).select('*'),
-        loadLocalDatasets()
-      ]);
+      const totalSources = datasetEntries.length + 1; // supabase + local files
+      let loadedCount = 0;
+      const updateProgress = (succeeded = true) => {
+        loadedCount += 1;
+        setStatus(`Loaded ${loadedCount}/${totalSources} sources...`, succeeded ? 'info' : 'warning');
+      };
 
-      const baseRows = error ? [] : (data || []);
-      const combinedRows = [...baseRows, ...webRows];
+      setStatus(`Loading 0/${totalSources} sources...`, 'info');
+
+      let supabaseRows = [];
+      let supabaseSuccess = false;
+      try {
+        const { data, error } = await supabaseClient.from(TABLE_SERVICES).select('*');
+        if (error) {
+          console.error('Supabase dataset load failed', error);
+        } else {
+          supabaseRows = data || [];
+          supabaseSuccess = true;
+        }
+      } catch (err) {
+        console.error('Supabase dataset request threw', err);
+      } finally {
+        updateProgress(supabaseSuccess);
+      }
+
+      let webRows = [];
+      try {
+        webRows = await loadLocalDatasets(updateProgress);
+      } catch (err) {
+        console.error('Local dataset load failed', err);
+      }
+
+      const combinedRows = [...supabaseRows, ...webRows];
       allData = (combinedRows || []).map(normalizeRow);
       applyFilter();
-      els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${allData.length} RECORDS</span>`;
+
+      if (allData.length === 0) {
+        setStatus('No data sources found', 'error');
+      } else {
+        setStatus(`LIVE • ${allData.length} RECORDS`, 'success');
+      }
       lucide.createIcons();
 
       startRealtimeFeed();
