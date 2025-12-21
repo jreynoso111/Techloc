@@ -259,6 +259,7 @@
                                 <tr>
                                     <th class="px-4 py-3">Company</th>
                                     <th class="px-4 py-3">Type</th>
+                                    <th class="px-4 py-3 text-center">Source</th>
                                     <th class="px-4 py-3 text-right">Loc</th>
                                 </tr>
                             </thead>
@@ -313,6 +314,13 @@
     };
 
     // --- HELPERS ---
+    const escapeHtml = (str = '') => String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
     const getField = (row, ...keys) => {
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
@@ -390,9 +398,23 @@
         created_at: row.created_at || new Date().toISOString(),
         isVehicle: category === 'Vehicle',
         location,
-        source: row.source || 'database'
+        source: row.source || 'database',
+        raw: row
       };
     };
+
+    const describeSource = (source = '') => {
+      const normalized = String(source).toLowerCase();
+      if (normalized.includes('db') || normalized.includes('supabase') || normalized.includes('database')) {
+        return { label: 'DB', classes: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
+      }
+      if (normalized.includes('csv') || normalized.includes('web') || normalized.includes('file')) {
+        return { label: 'CSV', classes: 'border-blue-400/30 bg-blue-400/10 text-blue-200' };
+      }
+      return { label: source || 'Other', classes: 'border-slate-500/30 bg-slate-500/10 text-slate-200' };
+    };
+
+    const formatTooltip = (row = {}) => escapeHtml(JSON.stringify(row, null, 2));
 
     const timeAgo = (dateStr) => {
         const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
@@ -639,13 +661,21 @@
         if(r.category === 'Dispatcher') badgeColor = 'bg-violet-500/10 text-violet-300 border-violet-500/20';
         if(r.category === 'Technician') badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
 
+        const { label: sourceLabel, classes: sourceClasses } = describeSource(r.source);
+        const tooltip = formatTooltip(r.raw || r);
+
         const rowHtml = `
-          <tr class="hover:bg-white/5 transition-colors group">
+          <tr class="hover:bg-white/5 transition-colors group" title="${tooltip}">
             <td class="px-4 py-3 font-medium text-slate-300 text-xs truncate max-w-[140px] group-hover:text-white">${r.name}</td>
             <td class="px-4 py-3">
                 <span class="inline-block rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
                     ${r.category}
                 </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <span class="inline-flex items-center rounded border ${sourceClasses} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                ${sourceLabel}
+              </span>
             </td>
             <td class="px-4 py-3 text-right text-slate-500 text-xs font-mono">${r.state || '—'}</td>
           </tr>
