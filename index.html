@@ -165,6 +165,39 @@
     import { createConstellationBackground } from './assets/scripts/constellation.js';
 
     // --- 1. LÓGICA DE ESTADÍSTICAS (SUPABASE) ---
+    const animateValue = (id, start, end, duration) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const decimalPlaces = Number.isInteger(end)
+        ? 0
+        : ((end.toString().split('.')[1] || '').length);
+
+      const startTime = performance.now();
+      el.classList.add('animate-pulse');
+
+      const step = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const currentValue = start + (end - start) * progress;
+
+        const formattedValue = decimalPlaces > 0
+          ? currentValue.toFixed(decimalPlaces)
+          : Math.round(currentValue);
+
+        el.textContent = formattedValue;
+
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          el.textContent = Number.isInteger(end) ? end : end.toFixed(decimalPlaces);
+          setTimeout(() => el.classList.remove('animate-pulse'), 300);
+        }
+      };
+
+      requestAnimationFrame(step);
+    };
+
     const fetchServiceStats = async () => {
       // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
       const client = window.supabaseClient || window.supabase;
@@ -205,26 +238,16 @@
         // D. SLA Rating: Valor estático alto (hasta que tengas columna de rating real)
         const avgRating = 4.8;
 
-        // Actualizamos el DOM
-        updateStatDOM('tech-count', totalCount);
-        updateStatDOM('available-count', availableCount);
-        updateStatDOM('states-count', uniqueStates);
-        updateStatDOM('avg-rating', avgRating);
+        // Actualizamos el DOM con animación
+        animateValue('tech-count', 0, totalCount, 2000);
+        animateValue('available-count', 0, availableCount, 2000);
+        animateValue('states-count', 0, uniqueStates, 2000);
+        animateValue('avg-rating', 0, avgRating, 2000);
 
       } catch (err) {
         // En caso de error, dejamos los guiones o ponemos 0
         console.warn('Could not load live stats');
       }
-    };
-
-    // Función auxiliar para animar los números al cargar
-    const updateStatDOM = (id, value) => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.textContent = value;
-            el.classList.add('animate-pulse'); // Pequeño efecto visual
-            setTimeout(() => el.classList.remove('animate-pulse'), 1000);
-        }
     };
 
     // --- 2. LÓGICA DE LOG IN / LOG OUT ---
