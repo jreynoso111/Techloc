@@ -161,12 +161,16 @@
              <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl"></div>
             <div class="flex items-center gap-3 text-slate-400 mb-2">
               <div class="rounded-lg bg-amber-500/10 p-2 text-amber-400">
-                <i data-lucide="mouse-pointer-click" class="h-4 w-4"></i>
+                <i data-lucide="map-pin" class="h-4 w-4"></i>
               </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Activity</span>
+              <span class="text-xs font-semibold uppercase tracking-wider">Top Regions</span>
             </div>
-            <p id="kpi-clicks" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Clicks recorded</p>
+            <div id="top-regions" class="grid grid-cols-2 gap-3">
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
+            </div>
           </div>
 
           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
@@ -292,16 +296,15 @@
     let changeChannel = null;
     const liveEvents = [];
     let allData = [];
-    let cachedClickCount = 0;
 
     // --- ELEMENTS ---
     const els = {
       kpiTotal: document.getElementById('kpi-total'),
       kpiCategories: document.getElementById('kpi-categories'),
-      kpiClicks: document.getElementById('kpi-clicks'),
       kpiRating: document.getElementById('kpi-rating'),
       categoryBars: document.getElementById('category-bars'),
       topPerformers: document.getElementById('top-performers'),
+      topRegions: document.getElementById('top-regions'),
       tableBody: document.getElementById('recent-table-body'),
       activityFeed: document.getElementById('activity-feed'),
       status: document.getElementById('dataset-status'),
@@ -490,25 +493,10 @@
         });
     };
 
-    const fetchClickAnalytics = async () => {
-        try {
-            const { count, error } = await supabaseClient
-                .from(TABLE_ANALYTICS)
-                .select('*', { count: 'exact', head: true });
-
-            if (error) throw error;
-            return count || 0;
-        } catch (err) {
-            console.warn('Could not fetch clicks', err.message);
-            return 0;
-        }
-    };
-
     // --- ANALYTICS VISUALIZATION ---
-    const renderDashboard = (rows = [], clickCount = cachedClickCount) => {
+    const renderDashboard = (rows = []) => {
       // 1. KPIs
       els.kpiTotal.textContent = rows.length;
-      els.kpiClicks.textContent = clickCount || 0;
 
       // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluding vehicles as a service
       const serviceRows = rows.filter(r => !r.isVehicle);
@@ -556,6 +544,56 @@
             el.style.width = el.getAttribute('data-width');
         });
       }, 100);
+
+      // 3. Top Regions (Geo intelligence)
+      els.topRegions.innerHTML = '';
+      const regionCounts = rows.reduce((acc, row) => {
+        const state = (row.state || '').trim();
+        if (!state) return acc;
+        acc[state] = (acc[state] || 0) + 1;
+        return acc;
+      }, {});
+
+      const topRegions = Object.entries(regionCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 4);
+
+      if (topRegions.length === 0) {
+        els.topRegions.innerHTML = '<p class="col-span-2 text-center text-xs text-slate-500">No region data yet.</p>';
+      } else {
+        const accent = ['amber', 'emerald', 'blue', 'violet'];
+        topRegions.forEach(([state, count], idx) => {
+          const color = accent[idx % accent.length];
+          const card = `
+            <button
+              class="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-left transition hover:border-${color}-400/40 hover:shadow-[0_0_25px_rgba(251,191,36,0.12)] focus:outline-none focus:ring-2 focus:ring-${color}-400/30"
+              data-region="${state}"
+              type="button"
+            >
+              <div class="flex items-start justify-between">
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">State</p>
+                  <p class="text-lg font-black text-white leading-tight">${state}</p>
+                </div>
+                <span class="rounded-full border border-${color}-400/30 bg-${color}-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-${color}-200">Top</span>
+              </div>
+              <p class="mt-3 text-2xl font-mono font-bold text-white">${count}</p>
+              <p class="text-[11px] text-slate-500">Services in state</p>
+            </button>
+          `;
+          els.topRegions.insertAdjacentHTML('beforeend', card);
+        });
+      }
+
+      els.topRegions.querySelectorAll('[data-region]').forEach(card => {
+        card.addEventListener('click', () => {
+          if (!els.searchInput) return;
+          const state = card.getAttribute('data-region') || '';
+          els.searchInput.value = state;
+          els.searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          els.searchInput.focus();
+        });
+      });
 
       // 4. Avg Rating
       const ratedRows = rows.filter(r => r.rating > 0);
@@ -630,7 +668,7 @@
 
     const applyFilter = () => {
       const filtered = filterRows(els.searchInput?.value || '');
-      renderDashboard(filtered, cachedClickCount);
+      renderDashboard(filtered);
       lucide.createIcons();
     };
 
@@ -710,15 +748,13 @@
       trackUserActivity();
 
       els.status.textContent = 'Syncing...';
-      const [{ data, error }, webRows, clickCount] = await Promise.all([
+      const [{ data, error }, webRows] = await Promise.all([
         supabaseClient.from(TABLE_SERVICES).select('*'),
-        loadLocalDatasets(),
-        fetchClickAnalytics()
+        loadLocalDatasets()
       ]);
 
       const baseRows = error ? [] : (data || []);
       const combinedRows = [...baseRows, ...webRows];
-      cachedClickCount = clickCount || 0;
       allData = (combinedRows || []).map(normalizeRow);
       applyFilter();
       els.status.innerHTML = `<span class="text-emerald-400 font-bold">LIVE • ${allData.length} RECORDS</span>`;
