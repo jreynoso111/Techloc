@@ -483,6 +483,46 @@
       return { card: clone, stats: { ...stats, table: dataset.displayName } };
     };
 
+    const ensureToastContainer = () => {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed bottom-6 right-6 z-50 flex flex-col gap-3';
+        document.body.appendChild(container);
+      }
+      return container;
+    };
+
+    const showToast = (message, type = 'info') => {
+      const container = ensureToastContainer();
+      const toast = document.createElement('div');
+
+      const variantClasses =
+        type === 'success'
+          ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-50 shadow-emerald-500/30'
+          : 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30';
+
+      toast.className = `flex min-w-[260px] max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${variantClasses}`;
+
+      const icon = document.createElement('span');
+      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${type === 'success' ? 'bg-emerald-400' : 'bg-red-400'}`;
+
+      const text = document.createElement('p');
+      text.className = 'whitespace-pre-line font-semibold leading-relaxed';
+      text.textContent = message;
+
+      toast.appendChild(icon);
+      toast.appendChild(text);
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+        setTimeout(() => toast.remove(), 320);
+      }, 4200);
+    };
+
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
@@ -499,7 +539,7 @@
         });
 
       if (!mapped.length) {
-        alert('No valid rows detected. Each row must include a ShortVIN value.');
+        showToast('No valid rows detected. Each row must include a ShortVIN value.', 'error');
         return;
       }
 
@@ -511,7 +551,7 @@
       if (error) {
         console.error('Supabase upsert error:', { message: error.message, details: error.details, hint: error.hint });
         if (isRlsBlocked(error)) {
-          alert('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.');
+          showToast('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.', 'error');
           return;
         }
         throw error;
@@ -523,7 +563,7 @@
         '\nUpserted: ' + upserted +
         '\nSkipped invalid: ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
-      alert(summary);
+      showToast(summary, 'success');
     };
 
     const wireCsvUpload = () => {
@@ -551,13 +591,13 @@
         event.preventDefault();
 
         if (!requireAdmin()) {
-          alert('Only administrators can upload vehicle data.');
+          showToast('Only administrators can upload vehicle data.', 'error');
           return;
         }
 
         const file = fileInput.files?.[0];
         if (!file) {
-          alert('Please select a CSV file to upload.');
+          showToast('Please select a CSV file to upload.', 'error');
           return;
         }
 
@@ -574,7 +614,7 @@
               await uploadCsvRows(results.data || [], parseErrors);
             } catch (err) {
               console.error('Upload failed:', err);
-              alert('Upload failed: ' + err.message);
+              showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
               submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
@@ -583,7 +623,7 @@
           },
           error: (err) => {
             console.error('CSV parse error:', err);
-            alert('CSV parse error: ' + err.message);
+            showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
             lucide.createIcons();
