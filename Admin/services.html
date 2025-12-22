@@ -620,15 +620,27 @@
       }, 4200);
     };
 
-    const logChange = async ({ action = 'update', summary = '' } = {}) => {
+    const logChange = async ({
+      action = 'update',
+      summary = '',
+      tableName = WRITE_TABLE,
+      recordId = null,
+      columnName = null,
+      previousValue = null,
+      newValue = null,
+    } = {}) => {
       if (!supabaseClient) return;
       try {
         await supabaseClient.from(CHANGE_LOG_TABLE).insert([
           {
-            table_name: WRITE_TABLE,
+            table_name: tableName,
             action,
             summary,
             actor: state.currentUserEmail || state.currentUserId || 'anon',
+            record_id: recordId,
+            column_name: columnName,
+            previous_value: previousValue,
+            new_value: newValue,
             created_at: new Date().toISOString(),
           },
         ]);
@@ -1320,6 +1332,10 @@
         logChange({
           action: 'update',
           summary: `Updated ${col?.label || colId} for ${row.company || 'Service'} (#${rowId})`,
+          recordId: rowId,
+          columnName: colId,
+          previousValue: currentValue,
+          newValue,
         });
       } catch (err) {
         console.error('Cell save failed:', err);
@@ -1823,6 +1839,7 @@
         logChange({
           action: 'insert',
           summary: `Duplicated ${row.company || 'service'} as #${duplicated.id}`,
+          recordId: duplicated.id,
         });
       } catch (err) {
         console.error(err);
@@ -1842,6 +1859,7 @@
         logChange({
           action: 'delete',
           summary: `Deleted ${row.company || 'service'} (#${row.id})`,
+          recordId: row.id,
         });
         refresh();
       }
@@ -1900,6 +1918,7 @@
         logChange({
           action: 'insert',
           summary: `Created new service record (#${normalized.id})`,
+          recordId: normalized.id,
         });
       } catch (err) {
         console.error(err);

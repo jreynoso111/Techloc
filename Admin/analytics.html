@@ -330,8 +330,8 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     // --- CONFIG ---
-    // CORREGIDO: 'services' en minúscula para asegurar compatibilidad con la DB
-    const TABLE_SERVICES = 'services'; 
+    // Alinear nombres de tabla con la vista principal de Services
+    const TABLE_SERVICES = 'Services';
     const TABLE_VEHICLES = 'vehicles';
     const TABLE_CHANGE_LOG = 'admin_change_log';
     
@@ -376,6 +376,14 @@
         return map[cat] || 'bg-slate-500';
     };
 
+    const getField = (row, ...keys) => {
+        for (const key of keys) {
+            const value = row?.[key];
+            if (value !== undefined && value !== null && String(value).trim() !== '') return value;
+        }
+        return '';
+    };
+
     const normalizeRow = (row, type) => {
         if (type === 'vehicle') {
             return {
@@ -392,13 +400,16 @@
                 raw: row
             };
         } else {
+            const ratingValue = getField(row, 'google_rating', 'Google Rating', 'rating', 'Rating');
             return {
                 id: row.id,
-                name: row.name || row.company_name || row.company || 'Service',
-                category: formatCategory(row.category || row.service_type || row.authorization),
-                state: row.state || row.region,
-                city: row.city,
-                rating: Number(row.google_rating) || 0,
+                name: getField(row, 'name', 'company_name', 'company', 'Company', 'Installation Company', 'Service name') || 'Service',
+                category: formatCategory(
+                  getField(row, 'category', 'service_type', 'authorization', 'Authorization', 'Category')
+                ),
+                state: getField(row, 'state', 'region', 'State', 'state_code'),
+                city: getField(row, 'city', 'City'),
+                rating: Number(ratingValue) || 0,
                 source: 'Services DB',
                 isVehicle: false,
                 raw: row
@@ -503,7 +514,7 @@
 
       rows.forEach((row) => {
         const ts = row.created_at ? new Date(row.created_at).toLocaleString() : '—';
-        const user = row.user_email || row.user_id || row.author || 'System';
+        const user = row.user_email || row.user_id || row.actor || row.author || 'System';
         const avatarChar = String(user).charAt(0).toUpperCase();
 
         els.changeLogBody.insertAdjacentHTML('beforeend', `
