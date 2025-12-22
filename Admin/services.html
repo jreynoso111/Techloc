@@ -460,7 +460,7 @@
       drag: { resizing: null, draggingCol: null },
 
       // inline edit session
-      inlineEdit: { td: null, rowId: null, colId: null, original: null, inputEl: null, saving: false }
+      inlineEdit: { td: null, rowId: null, colId: null, original: null, inputEl: null, saving: false, skipBlurCommit: false }
     };
 
     // ================== PERSISTENCE ==================
@@ -1219,8 +1219,6 @@
         20000
       );
 
-      td.classList.remove('saving');
-
       if (error) throw error;
     };
 
@@ -1275,6 +1273,10 @@
       }
 
       try {
+        if (rowId === null || rowId === undefined) {
+          throw new Error('Cannot save cell: missing row id');
+        }
+
         ses.saving = true;
         td.classList.remove('failed');
         td.classList.remove('saved');
@@ -1307,6 +1309,7 @@
         showToast('Error saving cell: ' + (err?.message || JSON.stringify(err)), 'error');
       } finally {
         ses.saving = false;
+        td.classList.remove('saving');
       }
     };
 
@@ -1339,6 +1342,7 @@
       state.inlineEdit.rowId = rowId;
       state.inlineEdit.colId = colId;
       state.inlineEdit.original = displayCurrent === '—' ? '—' : displayCurrent;
+      state.inlineEdit.skipBlurCommit = false;
 
       td.classList.add('editing');
       td.innerHTML = '';
@@ -1417,7 +1421,12 @@
       inputEl.addEventListener('keydown', async (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          await commitInlineEdit();
+          state.inlineEdit.skipBlurCommit = true;
+          try {
+            await commitInlineEdit();
+          } finally {
+            state.inlineEdit.skipBlurCommit = false;
+          }
         } else if (e.key === 'Escape') {
           e.preventDefault();
           endInlineEdit({ save: false });
@@ -1430,7 +1439,12 @@
       });
 
       inputEl.addEventListener('blur', async () => {
-        // save on blur
+        // save on blur unless just handled by Enter
+        if (state.inlineEdit.skipBlurCommit) {
+          state.inlineEdit.skipBlurCommit = false;
+          return;
+        }
+
         await commitInlineEdit();
       });
     };
@@ -1836,7 +1850,14 @@
         };
         const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
         if (error) throw error;
-        state.rows.unshift(normalizeRow(data));
+        const normalized = normalizeRow(data);
+        if (normalized?.id === undefined || normalized?.id === null || normalized.id === '') {
+          console.error('Insert returned row without a valid id', data);
+          showToast('Error creating record: missing ID from server. Please refresh and try again.', 'error');
+          return;
+        }
+
+        state.rows.unshift(normalized);
         state.pagination.page = 1;
         renderTable();
         savePrefs();
