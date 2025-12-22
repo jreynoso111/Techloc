@@ -928,6 +928,38 @@
       return customCategories.get(key);
     };
 
+    function rebuildCustomLegendItems() {
+      const legendSlot = document.getElementById('custom-legend-slot');
+      if (!legendSlot) return;
+
+      legendSlot.innerHTML = '';
+
+      if (!customCategoryLabels.size) {
+        legendSlot.classList.add('hidden');
+        return;
+      }
+
+      legendSlot.classList.remove('hidden');
+
+      Array.from(customCategoryLabels)
+        .sort((a, b) => `${a}`.localeCompare(`${b}`))
+        .forEach((label) => {
+          const meta = ensureCustomCategoryMeta(label);
+          const pill = document.createElement('div');
+          pill.className = 'legend-pill';
+          pill.dataset.legend = meta.key || 'custom';
+          pill.innerHTML = `
+            <span class="inline-flex items-center justify-center">
+              <svg class="h-3 w-3" viewBox="0 0 18 16" fill="${meta.color}" stroke="#0f172a" stroke-width="1.2">
+                <path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path>
+              </svg>
+            </span>
+          `;
+          pill.appendChild(document.createTextNode(` ${meta.label}`));
+          legendSlot.appendChild(pill);
+        });
+    }
+
     function rebuildCustomCategoryToggles() {
       const slot = document.getElementById('custom-category-toggles');
       if (!slot) return;
@@ -938,6 +970,7 @@
       if (!customCategoryLabels.size) {
         slot.classList.add('hidden');
         customToggleRef = null;
+        rebuildCustomLegendItems();
         return;
       }
 
@@ -978,6 +1011,8 @@
           const meta = ensureCustomCategoryMeta(label);
           buildButton(meta.label, meta.key);
         });
+
+      rebuildCustomLegendItems();
 
       customToggleRef = buttons[0] || null;
       slot.classList.remove('hidden');
