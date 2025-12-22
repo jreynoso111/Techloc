@@ -840,22 +840,36 @@
       };
     };
 
-    const createPartnerClusterIcon = (cluster) => {
+    const hexToRgba = (hex, alpha = 1) => {
+      if (!hex || typeof hex !== 'string') return `rgba(51, 65, 85, ${alpha})`;
+      const normalized = hex.replace('#', '');
+      if (![3, 6].includes(normalized.length)) return `rgba(51, 65, 85, ${alpha})`;
+      const fullHex = normalized.length === 3
+        ? normalized.split('').map((c) => c + c).join('')
+        : normalized;
+      const intVal = parseInt(fullHex, 16);
+      const r = (intVal >> 16) & 255;
+      const g = (intVal >> 8) & 255;
+      const b = intVal & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    const createPartnerClusterIcon = (cluster, color = '#334155') => {
       const count = cluster.getChildCount();
       return L.divIcon({
-        html: `<div class="bg-slate-700 text-white text-xs font-semibold rounded-full flex items-center justify-center w-10 h-10 border border-slate-500 shadow-md">${count}</div>`,
+        html: `<div class="text-white text-xs font-semibold rounded-full flex items-center justify-center w-9 h-9 border shadow" style="background:${hexToRgba(color, 0.18)}; border-color:${hexToRgba(color, 0.55)}; color:#e2e8f0; box-shadow:0 8px 20px rgba(0,0,0,0.35)">${count}</div>`,
         className: 'partner-cluster-icon',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
       });
     };
 
-    const createPartnerClusterGroup = () => L.markerClusterGroup({
+    const createPartnerClusterGroup = (color = '#334155') => L.markerClusterGroup({
       maxClusterRadius: 45,
       disableClusteringAtZoom: 17,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
-      iconCreateFunction: createPartnerClusterIcon
+      iconCreateFunction: (cluster) => createPartnerClusterIcon(cluster, color)
     });
 
     const debounceAsync = (fn, delay = 300) => {
@@ -979,7 +993,7 @@
       const key = getCustomCategoryKey(normalizedLabel);
       if (!customCategories.has(key)) {
         const color = CUSTOM_COLOR_PALETTE[customCategories.size % CUSTOM_COLOR_PALETTE.length] || SERVICE_COLORS.custom;
-        const layer = createPartnerClusterGroup();
+        const layer = createPartnerClusterGroup(color);
         customCategories.set(key, { key, label: normalizedLabel, color, layer });
       }
       return customCategories.get(key);
@@ -1663,31 +1677,63 @@
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       hotspotLayer = L.layerGroup().addTo(map);
       blacklistLayer = L.layerGroup().addTo(map);
-      techLayer = createPartnerClusterGroup();
+      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
       vehicleLayer = L.markerClusterGroup({
-        maxClusterRadius: 35,
+        maxClusterRadius: 32,
         disableClusteringAtZoom: 17,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
-          let borderClass = 'border-slate-500';
-          let sizeClass = 'w-11 h-11 text-sm';
-          let iconSize = [44, 44];
+          let sizeClass = 'w-9 h-9 text-xs';
+          let iconSize = [36, 36];
 
           if (count > 100) {
-            borderClass = 'border-amber-500';
-            sizeClass = 'w-14 h-14 text-lg';
-            iconSize = [56, 56];
-          } else if (count > 10) {
-            borderClass = 'border-blue-500';
             sizeClass = 'w-12 h-12 text-base';
             iconSize = [48, 48];
+          } else if (count > 10) {
+            sizeClass = 'w-10 h-10 text-sm';
+            iconSize = [40, 40];
+          }
+
+          const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
+          let anyRed = false;
+          let anyAmber = false;
+          let greenCount = 0;
+
+          childMarkers.forEach((marker) => {
+            const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
+            const isStopped = marker?.options?.isStopped;
+
+            if (markerColor) {
+              const colorValue = `${markerColor}`.toLowerCase();
+              if (colorValue === '#ef4444') {
+                anyRed = true;
+                return;
+              }
+              if (colorValue === '#22c55e') {
+                greenCount += 1;
+              }
+              if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
+                anyAmber = true;
+              }
+            }
+
+            if (isStopped && !anyRed) {
+              anyAmber = true;
+            }
+          });
+
+          let clusterColor = '#22c55e';
+          if (anyRed) {
+            clusterColor = '#ef4444';
+          } else if (anyAmber || greenCount !== childMarkers.length) {
+            clusterColor = '#fbbf24';
           }
 
           const [width, height] = iconSize;
           return L.divIcon({
-            html: `<div class="bg-slate-800 border-2 ${borderClass} text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}">${count}</div>`,
+            html: `<div class="border rounded-full text-white font-semibold flex items-center justify-center shadow ${sizeClass}" style="background:${hexToRgba(clusterColor, 0.2)}; border-color:${hexToRgba(clusterColor, 0.5)}; color:#e2e8f0; box-shadow:0 8px 18px rgba(0,0,0,0.3)">${count}</div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
@@ -1699,14 +1745,14 @@
       serviceLayer = L.layerGroup().addTo(map);
       serviceConnectionLayer = L.layerGroup().addTo(map);
       highlightLayer = L.layerGroup().addTo(map);
-      towingLayer = createPartnerClusterGroup();
-      resellerLayer = createPartnerClusterGroup();
-      repairLayer = createPartnerClusterGroup();
-      locksmithLayer = createPartnerClusterGroup();
-      tireLayer = createPartnerClusterGroup();
-      inspectorLayer = createPartnerClusterGroup();
-      dispatcherLayer = createPartnerClusterGroup();
-      customServiceLayer = createPartnerClusterGroup();
+      towingLayer = createPartnerClusterGroup(SERVICE_COLORS.towing);
+      resellerLayer = createPartnerClusterGroup(SERVICE_COLORS.reseller);
+      repairLayer = createPartnerClusterGroup(SERVICE_COLORS.repair);
+      locksmithLayer = createPartnerClusterGroup(SERVICE_COLORS.locksmith);
+      tireLayer = createPartnerClusterGroup(SERVICE_COLORS.tire);
+      inspectorLayer = createPartnerClusterGroup(SERVICE_COLORS.inspector);
+      dispatcherLayer = createPartnerClusterGroup(SERVICE_COLORS.dispatcher);
+      customServiceLayer = createPartnerClusterGroup(SERVICE_COLORS.custom);
 
       const invalidateMapSize = () => map?.invalidateSize();
 
@@ -2667,8 +2713,11 @@
           marker.setLatLng([coords.lat, coords.lng]);
           marker.setIcon(icon);
           marker.setZIndexOffset(isStopped ? 500 : 0);
+          marker.options.vehicleData = vehicle;
+          marker.options.markerColor = markerColor;
+          marker.options.isStopped = isStopped;
         } else {
-          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0 }).addTo(vehicleLayer);
+          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0, vehicleData: vehicle, markerColor, isStopped }).addTo(vehicleLayer);
           marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
         }
 
