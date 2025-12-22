@@ -209,6 +209,9 @@
     .service-mini-card { font-family: 'Inter', sans-serif; min-width: 0; }
     .service-mini-title { margin: 0; font-size: 13px; font-weight: 800; color: #fff; line-height: 1.2; }
     .service-mini-location { margin: 2px 0 0; font-size: 11px; color: #cbd5e1; line-height: 1.3; }
+    .service-mini-meta { margin: 6px 0 0; font-size: 11px; color: #e2e8f0; line-height: 1.3; display: flex; gap: 6px; align-items: baseline; }
+    .service-mini-label { font-weight: 700; color: #cbd5e1; letter-spacing: 0.02em; text-transform: uppercase; font-size: 10px; }
+    .service-mini-note { margin: 4px 0 0; font-size: 11px; color: #fef3c7; line-height: 1.35; font-weight: 600; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
@@ -1529,6 +1532,8 @@
     const showServicePreviewCard = (partner) => {
       if (!map || !partner) return;
       const locationText = formatPartnerLocation(partner) || 'Location unavailable';
+      const zipText = partner.zip || 'N/A';
+      const noteText = partner.notes || partner.note || partner.details?.note || '';
       const popup = L.popup({
         className: 'service-mini-popup',
         closeButton: true,
@@ -1540,8 +1545,10 @@
         .setLatLng([partner.lat, partner.lng])
         .setContent(`
           <div class="service-mini-card">
-            <p class="service-mini-title">${partner.company || 'Service'}</p>
-            <p class="service-mini-location">${locationText}</p>
+            <p class="service-mini-title">${escapeHTML(partner.company || partner.name || 'Service')}</p>
+            <p class="service-mini-location">${escapeHTML(locationText)}</p>
+            <p class="service-mini-meta"><span class="service-mini-label">ZIP</span><span>${escapeHTML(zipText)}</span></p>
+            ${noteText ? `<p class="service-mini-note"><span class="service-mini-label">Note</span> ${escapeHTML(noteText)}</p>` : ''}
           </div>
         `);
 
@@ -2049,6 +2056,17 @@
       });
     };
 
+    function filterSidebarForPartner(type, partner) {
+      if (!type || !partner) return;
+      const filterValue = partner.company || partner.name || partner.zip || '';
+      serviceFilters[type] = filterValue;
+      const input = document.getElementById(`${type}-filter`);
+      if (input) {
+        input.value = filterValue;
+      }
+      renderVisibleSidebars();
+    }
+
     const updateServiceCount = (type, total, filteredTotal = total) => {
       const el = document.getElementById(`${type}-count`);
       if (el) {
@@ -2156,6 +2174,7 @@
               e.originalEvent.handledByMarker = true;
               sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
               selectedServiceByType[type] = partner;
+              filterSidebarForPartner(type, partner);
               const originPoint = getCurrentOrigin() || partner;
               if (originPoint) {
                 showServicesFromOrigin(originPoint, { forceType: type });
@@ -3398,6 +3417,7 @@
           e.originalEvent.handledByMarker = true;
           sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
           selectedServiceByType[type] = chosen;
+          filterSidebarForPartner(type, chosen);
           showServicePreviewCard(chosen);
           map.flyTo([chosen.lat, chosen.lng], 15, { duration: 1.2 });
         });
