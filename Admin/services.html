@@ -570,7 +570,125 @@
     });
 
     // ---------------- HELPERS ----------------
+    const ensureToastContainer = () => {
+      let container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'fixed bottom-6 right-6 z-50 flex flex-col gap-3';
+        document.body.appendChild(container);
+      }
+      return container;
+    };
+
+    const showToast = (message, type = 'info') => {
+      const container = ensureToastContainer();
+      const toast = document.createElement('div');
+
+      const variantClasses =
+        type === 'success'
+          ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-50 shadow-emerald-500/30'
+          : type === 'warning'
+            ? 'border-amber-500/60 bg-amber-500/10 text-amber-50 shadow-amber-500/30'
+            : type === 'info'
+              ? 'border-blue-500/60 bg-blue-500/10 text-blue-50 shadow-blue-500/30'
+              : 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30';
+
+      toast.className = `flex min-w-[260px] max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${variantClasses}`;
+
+      const icon = document.createElement('span');
+      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${
+        type === 'success' ? 'bg-emerald-400' : type === 'warning' ? 'bg-amber-400' : type === 'info' ? 'bg-blue-400' : 'bg-red-400'
+      }`;
+
+      const text = document.createElement('p');
+      text.className = 'whitespace-pre-line font-semibold leading-relaxed';
+      text.textContent = message;
+
+      toast.appendChild(icon);
+      toast.appendChild(text);
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
+        setTimeout(() => toast.remove(), 320);
+      }, 4200);
+    };
+
+    const showConfirm = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) =>
+      new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur';
+
+        const dialog = document.createElement('div');
+        dialog.className = 'w-[min(420px,92vw)] rounded-2xl border border-slate-800 bg-slate-900/95 p-5 shadow-2xl shadow-black';
+
+        dialog.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="mt-1 h-3 w-3 rounded-full bg-amber-400"></div>
+            <div class="space-y-3">
+              <p class="text-sm font-semibold text-white">${message}</p>
+              <div class="flex flex-wrap gap-2">
+                <button type="button" class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow shadow-emerald-600/40 hover:-translate-y-0.5 transition" data-confirm> ${confirmText} </button>
+                <button type="button" class="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 hover:-translate-y-0.5 transition" data-cancel> ${cancelText} </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const cleanup = (result) => {
+          document.removeEventListener('keydown', onKey);
+          overlay.remove();
+          resolve(result);
+        };
+
+        dialog.querySelector('[data-confirm]')?.addEventListener('click', () => cleanup(true));
+        dialog.querySelector('[data-cancel]')?.addEventListener('click', () => cleanup(false));
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+        function onKey(e) {
+          if (e.key === 'Escape') cleanup(false);
+        }
+        document.addEventListener('keydown', onKey);
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+      });
+
     const getText = (value) => String(value ?? '').toLowerCase().trim();
+
+    const skeleton = {
+      show: () => {
+        els.status.textContent = 'Loading data…';
+        els.total.innerHTML = '<div class="h-7 w-16 rounded bg-slate-800/70 animate-pulse"></div>';
+        els.states.innerHTML = '<div class="h-7 w-12 rounded bg-slate-800/70 animate-pulse"></div>';
+        els.companies.innerHTML = '<div class="h-7 w-12 rounded bg-slate-800/70 animate-pulse"></div>';
+
+        els.paginationSummary.textContent = 'Loading…';
+        els.pageIndicator.textContent = '—';
+        els.prevPage.disabled = true;
+        els.nextPage.disabled = true;
+        if (els.refresh) els.refresh.disabled = true;
+
+        const cols = getVisibleOrderedColumns();
+        els.tbody.innerHTML = '';
+        for (let i = 0; i < 6; i += 1) {
+          const tr = document.createElement('tr');
+          cols.forEach(() => {
+            const td = document.createElement('td');
+            td.className = 'compact-td';
+            td.innerHTML = '<div class="h-4 w-full rounded bg-slate-800/70 animate-pulse"></div>';
+            tr.appendChild(td);
+          });
+          els.tbody.appendChild(tr);
+        }
+      },
+      hide: () => {
+        els.prevPage.disabled = false;
+        els.nextPage.disabled = false;
+        if (els.refresh) els.refresh.disabled = false;
+      }
+    };
 
     const updateStats = () => {
       const total = state.rows.length;
@@ -1167,7 +1285,7 @@
         td.textContent = valueForDisplay(colId, currentValue);
 
         endInlineEdit({ save: true });
-        alert('Error saving cell: ' + (err?.message || JSON.stringify(err)));
+        showToast('Error saving cell: ' + (err?.message || JSON.stringify(err)), 'error');
       } finally {
         ses.saving = false;
       }
@@ -1578,24 +1696,32 @@
 
     // ---------------- DATA FETCH ----------------
     const refresh = async () => {
-      els.status.textContent = 'Loading from Supabase…';
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
-      if (error) {
+      skeleton.show();
+
+      try {
+        const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+        if (error) throw error;
+
+        state.rows = (data || []).map(normalizeRow);
+
+        skeleton.hide();
+        updateStats();
+        populateSelect(els.companyFilter, state.rows.map(r => r.company), 'All companies');
+        populateSelect(els.stateFilter, state.rows.map(r => r.state), 'All states');
+        renderCategoryFilterOptions();
+
+        syncFilterControls();
+        renderTable();
+        savePrefs();
+      } catch (error) {
         console.error('Error fetching services:', error);
+        skeleton.hide();
         els.status.textContent = 'Error loading data';
-        return;
+        els.tbody.innerHTML = `<tr><td class="compact-td text-sm text-red-200" colspan="${getVisibleOrderedColumns().length || 1}">Unable to load data.</td></tr>`;
+        els.paginationSummary.textContent = 'No data available';
+        els.pageIndicator.textContent = '—';
+        showToast('Error loading services data. Please try again.', 'error');
       }
-
-      state.rows = (data || []).map(normalizeRow);
-
-      updateStats();
-      populateSelect(els.companyFilter, state.rows.map(r => r.company), 'All companies');
-      populateSelect(els.stateFilter, state.rows.map(r => r.state), 'All states');
-      renderCategoryFilterOptions();
-
-      syncFilterControls();
-      renderTable();
-      savePrefs();
     };
 
     const buildInsertPayload = (row) => {
@@ -1610,8 +1736,8 @@
 
     async function duplicateRow(row) {
       if (!row?.id) return;
-      if (state.currentUserRole !== 'administrator') { alert('Only administrators can duplicate records.'); return; }
-      const confirmed = confirm(`Duplicate "${row.company}"?`);
+      if (state.currentUserRole !== 'administrator') { showToast('Only administrators can duplicate records.', 'warning'); return; }
+      const confirmed = await showConfirm(`Duplicate "${row.company}"?`, { confirmText: 'Duplicate' });
       if (!confirmed) return;
 
       try {
@@ -1633,20 +1759,24 @@
         }
 
         renderTable();
+        showToast('Record duplicated successfully.', 'success');
       } catch (err) {
         console.error(err);
-        alert('Error duplicating record: ' + (err?.message || JSON.stringify(err)));
+        showToast('Error duplicating record: ' + (err?.message || JSON.stringify(err)), 'error');
       }
     }
 
     async function deleteRow(row) {
       if (!row?.id) return;
-      if (state.currentUserRole !== 'administrator') { alert('Only administrators can delete records.'); return; }
-      const confirmed = confirm(`Delete "${row.company}"?`);
+      if (state.currentUserRole !== 'administrator') { showToast('Only administrators can delete records.', 'warning'); return; }
+      const confirmed = await showConfirm(`Delete "${row.company}"?`, { confirmText: 'Delete', cancelText: 'Cancel' });
       if (!confirmed) return;
       const { error } = await supabaseClient.from(WRITE_TABLE).delete().eq('id', row.id);
-      if (error) alert('Error deleting: ' + error.message);
-      else refresh();
+      if (error) showToast('Error deleting: ' + error.message, 'error');
+      else {
+        showToast('Record deleted.', 'success');
+        refresh();
+      }
     }
 
     // ---------------- EVENTS ----------------
@@ -1693,7 +1823,7 @@
         savePrefs();
       } catch (err) {
         console.error(err);
-        alert('Error creating record: ' + (err?.message || JSON.stringify(err)));
+        showToast('Error creating record: ' + (err?.message || JSON.stringify(err)), 'error');
       }
     });
 
