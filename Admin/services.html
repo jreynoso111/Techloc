@@ -324,6 +324,7 @@
 
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
+    const CHANGE_LOG_TABLE = 'admin_change_log';
     const PAGE_CATEGORY = 'GPS Technician';
 
     const toBool = (v) => {
@@ -451,6 +452,7 @@
       rows: [],
       currentUserRole: 'user',
       currentUserId: 'anon',
+      currentUserEmail: '',
       filters: { search: '', company: 'all', state: 'all', categories: [] },
       sort: { key: '', dir: 'asc' },
       pagination: { page: 1, pageSize: 20 },
@@ -537,6 +539,7 @@
 
       if (data?.session) {
         state.currentUserId = data.session.user.id;
+        state.currentUserEmail = data.session.user.email || '';
         if (window.currentUserRole) {
           state.currentUserRole = window.currentUserRole;
         } else {
@@ -565,6 +568,7 @@
       const nextUserId = session?.user?.id || 'anon';
       if (nextUserId === state.currentUserId) return;
       state.currentUserId = nextUserId;
+      state.currentUserEmail = session?.user?.email || '';
       loadPrefs();
       renderTable();
     });
@@ -614,6 +618,23 @@
         toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
         setTimeout(() => toast.remove(), 320);
       }, 4200);
+    };
+
+    const logChange = async ({ action = 'update', summary = '' } = {}) => {
+      if (!supabaseClient) return;
+      try {
+        await supabaseClient.from(CHANGE_LOG_TABLE).insert([
+          {
+            table_name: WRITE_TABLE,
+            action,
+            summary,
+            actor: state.currentUserEmail || state.currentUserId || 'anon',
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (err) {
+        console.warn('Unable to record change log entry', err?.message || err);
+      }
     };
 
     const showConfirm = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) =>
@@ -1295,6 +1316,11 @@
 
         // refresh charts/stats based on local changes
         renderCharts(applySort(applyFilters()));
+
+        logChange({
+          action: 'update',
+          summary: `Updated ${col?.label || colId} for ${row.company || 'Service'} (#${rowId})`,
+        });
       } catch (err) {
         console.error('Cell save failed:', err);
 
@@ -1793,6 +1819,11 @@
 
         renderTable();
         showToast('Record duplicated successfully.', 'success');
+
+        logChange({
+          action: 'insert',
+          summary: `Duplicated ${row.company || 'service'} as #${duplicated.id}`,
+        });
       } catch (err) {
         console.error(err);
         showToast('Error duplicating record: ' + (err?.message || JSON.stringify(err)), 'error');
@@ -1808,6 +1839,10 @@
       if (error) showToast('Error deleting: ' + error.message, 'error');
       else {
         showToast('Record deleted.', 'success');
+        logChange({
+          action: 'delete',
+          summary: `Deleted ${row.company || 'service'} (#${row.id})`,
+        });
         refresh();
       }
     }
@@ -1861,6 +1896,11 @@
         state.pagination.page = 1;
         renderTable();
         savePrefs();
+
+        logChange({
+          action: 'insert',
+          summary: `Created new service record (#${normalized.id})`,
+        });
       } catch (err) {
         console.error(err);
         showToast('Error creating record: ' + (err?.message || JSON.stringify(err)), 'error');

@@ -444,6 +444,9 @@
 
 
     const ADMIN_ROLE = 'administrator';
+    const CHANGE_LOG_TABLE = 'admin_change_log';
+
+    const actor = { id: 'anon', email: '' };
 
     const DATASET = { key: 'vehicles', path: getDatasetPath('vehicles') };
 
@@ -902,6 +905,62 @@
 
 
 
+    const hydrateActor = async () => {
+
+      if (!supabaseClient) return;
+
+      try {
+
+        const { data } = await supabaseClient.auth.getSession();
+
+        actor.id = data?.session?.user?.id || 'anon';
+
+        actor.email = data?.session?.user?.email || '';
+
+      } catch (error) {
+
+        console.warn('Unable to load user session for change log', error?.message || error);
+
+      }
+
+    };
+
+
+
+    const logChange = async ({ action = 'update', summary = '' } = {}) => {
+
+      if (!supabaseClient) return;
+
+      try {
+
+        await supabaseClient.from(CHANGE_LOG_TABLE).insert([
+
+          {
+
+            table_name: 'vehicles',
+
+            action,
+
+            summary,
+
+            actor: actor.email || actor.id || 'anon',
+
+            created_at: new Date().toISOString(),
+
+          },
+
+        ]);
+
+      } catch (error) {
+
+        console.warn('Unable to record vehicle change', error?.message || error);
+
+      }
+
+    };
+
+
+
     const handleCsvUpload = async (file) => {
 
       if (!supabaseClient) throw new Error('Supabase client is not available.');
@@ -955,6 +1014,11 @@
       await fetchVehiclesCount();
 
       finishUploadProgress();
+
+      logChange({
+        action: 'bulk_upsert',
+        summary: `Uploaded ${mapped.length} vehicle rows via CSV`,
+      });
 
     };
 
@@ -1410,6 +1474,8 @@
     const mount = async () => {
 
       wireUploadForm();
+
+      await hydrateActor();
 
       const text = await loadDataset();
 
