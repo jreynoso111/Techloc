@@ -1671,47 +1671,63 @@
         showCoverageOnHover: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
-          let sizeClass = 'w-11 h-11 text-sm';
-          let iconSize = [44, 44];
+          let iconSize = [36, 36];
+          let sizeClass = 'text-xs';
 
           if (count > 100) {
-            sizeClass = 'w-14 h-14 text-lg';
-            iconSize = [56, 56];
-          } else if (count > 10) {
-            sizeClass = 'w-12 h-12 text-base';
             iconSize = [48, 48];
+            sizeClass = 'text-base';
+          } else if (count > 10) {
+            iconSize = [42, 42];
+            sizeClass = 'text-sm';
           }
 
           const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
           let hasRed = false;
           let hasAmber = false;
+          let allGreen = childMarkers.length > 0;
 
           childMarkers.forEach((marker) => {
             const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
             const isStopped = marker?.options?.isStopped;
-
-            if (isStopped) hasRed = true;
+            let markerStatus = null;
 
             if (markerColor) {
               const colorValue = `${markerColor}`.toLowerCase();
-              if (colorValue === '#ef4444') {
-                hasRed = true;
-              } else if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
-                hasAmber = true;
-              }
+              if (colorValue === '#22c55e') markerStatus = 'green';
+              else if (colorValue === '#ef4444') markerStatus = 'red';
+              else if (colorValue === '#f59e0b' || colorValue === '#fbbf24') markerStatus = 'amber';
+            }
+
+            if (isStopped) markerStatus = 'red';
+
+            if (markerStatus === 'red') {
+              hasRed = true;
+              allGreen = false;
+            } else if (markerStatus === 'amber') {
+              hasAmber = true;
+              allGreen = false;
+            } else if (markerStatus !== 'green') {
+              allGreen = false;
             }
           });
 
-          let clusterColor = '#f59e0b';
+          const VEHICLE_CLUSTER_COLORS = {
+            green: { fill: '#bbf7d0', border: '#34d399' },
+            amber: { fill: '#fef3c7', border: '#f59e0b' },
+            red: { fill: '#fee2e2', border: '#f87171' }
+          };
+
+          let clusterStyle = VEHICLE_CLUSTER_COLORS.green;
           if (hasRed) {
-            clusterColor = '#ef4444';
-          } else if (hasAmber) {
-            clusterColor = '#fbbf24';
+            clusterStyle = VEHICLE_CLUSTER_COLORS.red;
+          } else if (hasAmber || !allGreen) {
+            clusterStyle = VEHICLE_CLUSTER_COLORS.amber;
           }
 
           const [width, height] = iconSize;
           return L.divIcon({
-            html: `<div class="border-2 text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}" style="background:${clusterColor}; border-color:${clusterColor}">${count}</div>`,
+            html: `<div class="border text-slate-900 font-semibold rounded-full flex items-center justify-center shadow-lg ${sizeClass}" style="background:${clusterStyle.fill}; border-color:${clusterStyle.border}; width:${width}px; height:${height}px;">${count}</div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
