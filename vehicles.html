@@ -464,13 +464,8 @@
       <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Clear</button>
     </div>
 
-    <div class="sidebar-toggle-group left-3">
-      <button id="open-left-sidebar" class="sidebar-toggle-btn">GPS Technicians</button>
-      <button id="open-reseller-sidebar" class="sidebar-toggle-btn">Resellers</button>
-      <button id="open-repair-sidebar" class="sidebar-toggle-btn">Repair Shops</button>
-      <div id="custom-toggle-slot" class="flex flex-col gap-2 items-start self-start">
-        <div id="custom-category-toggles" class="flex flex-col gap-2 items-start self-start"></div>
-      </div>
+    <div id="service-toggle-group" class="sidebar-toggle-group left-3">
+      <button id="open-service-sidebar" class="sidebar-toggle-btn">Services</button>
     </div>
     <div id="map-visibility-group" class="pointer-events-none absolute top-4 left-1/2 z-[500] -translate-x-1/2 transform flex flex-wrap justify-center gap-2">
       <button id="toggle-hotspots" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Hotspot Areas</button>
@@ -486,21 +481,7 @@
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-8">
           <div class="flex-1 space-y-2">
             <p class="legend-heading">Services</p>
-            <div class="flex flex-wrap items-center gap-2">
-              <div class="legend-pill" data-legend="tech">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#3b82f6" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Tech
-              </div>
-              <div class="legend-pill" data-legend="reseller">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#34d399" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Reseller
-              </div>
-              <div class="legend-pill" data-legend="repair">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#fb923c" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Repair
-              </div>
-              <div id="custom-legend-slot" class="flex flex-wrap gap-2"></div>
-            </div>
+            <div id="service-legend" class="flex flex-wrap items-center gap-2" data-legend="services-dynamic"></div>
           </div>
           <div class="flex-1 space-y-2 md:text-right">
             <p class="legend-heading md:justify-end">Vehicles</p>
@@ -539,51 +520,39 @@
           </div>
         </div>
       </div>
-    <!-- Sidebar: Control Panel -->
-    <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
+    <aside id="service-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--left-sidebar-width)">
       <div class="resize-handle right-0"></div>
-
-      <!-- Search -->
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
+      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-3">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Client starting point</p>
-            <h2 class="text-xl font-black text-white leading-tight">Find the nearest installer</h2>
+            <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Service category</p>
+            <h2 id="service-sidebar-title" class="text-xl font-black text-white leading-tight">Services</h2>
           </div>
           <div class="flex items-center gap-3">
             <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Installers</p>
-              <p id="total-count" class="text-2xl font-black text-white leading-none">0</p>
+              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
+              <p id="service-count" class="text-2xl font-black text-white leading-none">0</p>
             </div>
-            <button id="collapse-left" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize sidebar">-</button>
+            <button id="collapse-service" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize sidebar">-</button>
           </div>
         </div>
-        <form id="search-form" class="relative">
+        <div class="relative">
           <input
-            id="address-input"
+            id="service-filter"
             type="text"
-            class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Ex: 33101, Phoenix, AZ..."
+            class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-12 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+            placeholder="Search by city, state or name..."
             autocomplete="off"
           >
-          <button type="submit" id="search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-            CALCULATE
-          </button>
-        </form>
-
-        <div class="flex justify-between items-end">
-          <div id="search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          <div id="file-error" class="hidden text-xs text-red-300">Unable to read installer partner data.</div>
+          <svg class="absolute right-3 top-3.5 h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 1010.5 18.5a7.5 7.5 0 006.15-3.85z" />
+          </svg>
         </div>
       </div>
-
-      <!-- Technicians List -->
-      <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
+      <div id="service-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
+        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for service data...</div>
       </div>
     </aside>
-
-    <div id="partner-sidebars"></div>
 
     <!-- Vehicles Sidebar -->
     <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl" style="width: var(--right-sidebar-width)">
@@ -719,7 +688,8 @@
     const serviceFilters = {
       tech: '',
       reseller: '',
-      repair: ''
+      repair: '',
+      services: ''
     };
     const vehicleFilters = {
       invPrep: 'all',
@@ -1878,72 +1848,199 @@
       }
     }
 
-    const SERVICE_LOAD_CONFIG = {
-      reseller: {
-        uiUpdate: updateResellerUI,
-        setList: (list) => { resellers = list; },
-        warningLabel: 'Reseller'
-      },
-      repair: {
-        uiUpdate: updateRepairUI,
-        setList: (list) => { repairShops = list; },
-        warningLabel: 'Repair shop'
-      }
+    const servicesByCategory = new Map();
+    const serviceLayers = new Map();
+    let activeServiceCategory = null;
+
+    const SERVICE_COLOR_PALETTE = ['#3b82f6', '#34d399', '#fb923c', '#f472b6', '#a78bfa', '#10b981', '#38bdf8', '#f59e0b'];
+
+    const getCategoryColor = (key, idx = 0) => {
+      const normalized = normalizeKey(key) || '';
+      if (normalized.includes('tech')) return SERVICE_COLORS.tech;
+      if (normalized.includes('reseller')) return '#34d399';
+      if (normalized.includes('repair')) return '#fb923c';
+      return SERVICE_COLOR_PALETTE[idx % SERVICE_COLOR_PALETTE.length];
     };
 
-    async function loadPartnerService(type) {
-      if (!isServiceTypeEnabled(type)) return;
-      if (!supabaseClient) return;
+    const buildServiceCategory = (key, label, rows, colorIdx = 0) => {
+      const color = getCategoryColor(key, colorIdx);
+      const layer = createPartnerClusterGroup(color);
+      const services = (rows || []).map((row, idx) => ({
+        ...normalizePartner(row, key, idx),
+        categoryKey: key,
+        categoryLabel: label,
+        color,
+      }));
 
-      const config = SERVICE_LOAD_CONFIG[type];
-      if (!config) {
-        console.warn(`No service config found for type "${type}".`);
+      servicesByCategory.set(key, { key, label, color, layer, services });
+      serviceLayers.set(key, layer);
+    };
+
+    const buildDynamicServiceCatalog = async () => {
+      if (!supabaseClient) return;
+      await ensureServiceCache();
+
+      servicesByCategory.clear();
+      serviceLayers.forEach((layer) => layer?.clearLayers?.());
+      serviceLayers.clear();
+
+      let colorIdx = 0;
+      serviceCacheByCategory.forEach((rows, key) => {
+        const originalLabel = rows?.[0]?.category || key;
+        buildServiceCategory(key, normalizeCategoryLabel(originalLabel) || 'Service', rows, colorIdx);
+        colorIdx += 1;
+      });
+    };
+
+    function renderServiceLegend() {
+      const legendSlot = document.querySelector('[data-legend="services-dynamic"]') || document.getElementById('custom-legend-slot');
+      if (!legendSlot) return;
+      legendSlot.innerHTML = '';
+
+      servicesByCategory.forEach(({ key, label, color }) => {
+        const pill = document.createElement('div');
+        pill.className = 'legend-pill flex items-center gap-2';
+        pill.dataset.legend = key;
+        pill.innerHTML = `
+          <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
+          ${escapeHTML(label)}
+        `;
+        legendSlot.appendChild(pill);
+      });
+    }
+
+    function renderServiceToggles() {
+      const container = document.getElementById('service-toggle-group');
+      if (!container) return;
+
+      container.innerHTML = '';
+      const buttons = [];
+
+      const openBtn = document.createElement('button');
+      openBtn.id = 'open-service-sidebar';
+      openBtn.className = 'sidebar-toggle-btn';
+      openBtn.textContent = 'Services';
+      openBtn.addEventListener('click', () => sidebarStateController?.setState?.('left', true));
+      container.appendChild(openBtn);
+
+      const updateButtons = () => {
+        buttons.forEach((btn) => {
+          const isActive = btn.dataset.categoryKey === activeServiceCategory;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+        });
+      };
+
+      servicesByCategory.forEach(({ key, label }) => {
+        const button = document.createElement('button');
+        button.className = 'sidebar-toggle-btn';
+        button.textContent = label;
+        button.dataset.categoryKey = key;
+        button.addEventListener('click', () => {
+          setActiveServiceCategory(key);
+          updateButtons();
+        });
+        container.appendChild(button);
+        buttons.push(button);
+      });
+
+      updateButtons();
+      sidebarStateController?.updateTogglePositions?.();
+    }
+
+    function renderServiceSidebar() {
+      const container = document.getElementById('service-list');
+      const counter = document.getElementById('service-count');
+      const title = document.getElementById('service-sidebar-title');
+      if (!container || !activeServiceCategory) return;
+
+      const meta = servicesByCategory.get(activeServiceCategory);
+      if (!meta) return;
+
+      const filter = (serviceFilters.services || '').toLowerCase();
+      const filtered = meta.services.filter((service) => {
+        if (!filter) return true;
+        const blob = `${service.company || ''} ${service.city || ''} ${service.state || ''} ${service.zip || ''}`.toLowerCase();
+        return blob.includes(filter);
+      });
+
+      container.innerHTML = '';
+
+      if (!filtered.length) {
+        container.innerHTML = '<div class="text-center mt-10 text-slate-600 text-xs">No services found.</div>';
+        counter && (counter.textContent = '0');
         return;
       }
 
-      try {
-        await ensureServiceCache();
-        const data = getCachedServices(getServiceCategoryLabel(type));
-        setServiceHeaders(type, data);
-        const normalized = (data || []).map((row, idx) => normalizePartner(row, type, idx));
-        config.setList(normalized);
-        config.uiUpdate(normalized);
-      } catch (err) {
-        const label = config.warningLabel || type;
-        console.warn(`${label} load warning: ${err.message}`);
+      const fragment = document.createDocumentFragment();
+
+      filtered.forEach((partner) => {
+        const locationText = formatPartnerLocation(partner) || 'US';
+        const card = document.createElement('article');
+        card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-3 shadow-sm cursor-pointer hover:border-amber-400/60 transition-colors';
+        card.dataset.id = partner.id;
+        card.dataset.type = 'partner';
+        card.dataset.partnerType = partner.categoryKey;
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm font-bold text-white leading-tight">${escapeHTML(partner.company || partner.name || 'Service')}</p>
+              <p class="text-[11px] text-slate-400">${escapeHTML(locationText)}</p>
+            </div>
+            <span class="text-[10px] font-semibold px-2 py-1 rounded-full border border-slate-700 text-slate-200">${escapeHTML(meta.label)}</span>
+          </div>
+          ${partner.notes ? `<p class="mt-2 text-[11px] text-slate-400 leading-tight">${escapeHTML(partner.notes)}</p>` : ''}
+        `;
+        fragment.appendChild(card);
+      });
+
+      container.appendChild(fragment);
+      counter && (counter.textContent = filtered.length);
+      title && (title.textContent = meta.label);
+
+      renderServiceMarkers(meta, filtered);
+    }
+
+    function renderServiceMarkers(meta, list) {
+      if (!map || !meta?.layer) return;
+
+      serviceLayers.forEach((layer) => {
+        layer?.clearLayers?.();
+        if (map.hasLayer(layer)) map.removeLayer(layer);
+      });
+
+      const markerLayer = meta.layer;
+      list
+        .filter(hasValidCoords)
+        .forEach((partner) => {
+          const marker = L.marker([partner.lat, partner.lng], {
+            icon: createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner) }),
+          }).addTo(markerLayer);
+
+          marker.on('click', (e) => {
+            e.originalEvent.handledByMarker = true;
+            showServicePreviewCard(partner);
+          });
+        });
+
+      if (markerLayer.getLayers().length && map && !map.hasLayer(markerLayer)) {
+        markerLayer.addTo(map);
       }
+    }
+
+    function setActiveServiceCategory(key) {
+      if (!key || !servicesByCategory.has(key)) return;
+      activeServiceCategory = key;
+      renderServiceSidebar();
     }
 
     async function loadAllServices() {
-      for (const type of Object.keys(SERVICE_LOAD_CONFIG)) {
-        await loadPartnerService(type);
-      }
-    }
-
-    async function loadCustomServices() {
-      if (!isServiceTypeEnabled('custom') || !customCategoryLabels.size) return;
-      if (!supabaseClient) {
-        console.warn('Supabase unavailable: skipping custom categories.');
-        return;
-      }
-
-      try {
-        const labels = Array.from(customCategoryLabels);
-        await ensureServiceCache();
-        const data = labels.flatMap((label) => getCachedServices(label));
-
-        customCategories.forEach(({ layer }) => layer?.clearLayers?.());
-        customServices = (data || []).map((row, idx) => {
-          const rawLabel = normalizeCategoryLabel(row?.category || 'Custom');
-          const meta = ensureCustomCategoryMeta(rawLabel);
-          const partner = normalizePartner(row, 'custom', idx);
-          return { ...partner, categoryKey: meta.key, categoryLabel: meta.label, color: meta.color, type: `custom-${meta.key}` };
-        });
-
-        renderCustomServices();
-      } catch (err) {
-        console.warn(`Custom service warning: ${err.message}`);
-      }
+      await buildDynamicServiceCatalog();
+      const [firstKey] = servicesByCategory.keys();
+      activeServiceCategory = firstKey || null;
+      renderServiceToggles();
+      renderServiceLegend();
+      renderServiceSidebar();
     }
 
     // --- 4. Update map and list ---
@@ -3455,7 +3552,7 @@
 
     function setupResizableSidebars() {
       const layout = document.getElementById('map-layout');
-      const leftSidebar = document.getElementById('left-sidebar');
+      const leftSidebar = document.getElementById('service-sidebar');
       const rightSidebar = document.getElementById('right-sidebar');
       if (!layout || !leftSidebar || !rightSidebar) return;
 
@@ -3533,104 +3630,36 @@
     const defaultSidebarVisible = !isControlViewRoute;
 
     function setupSidebarToggles() {
-      const leftSidebar = document.getElementById('left-sidebar');
+      const leftSidebar = document.getElementById('service-sidebar');
       const rightSidebar = document.getElementById('right-sidebar');
-      const resellerSidebar = document.getElementById('reseller-sidebar');
-      const repairSidebar = document.getElementById('repair-sidebar');
-      const customSidebar = document.getElementById('custom-sidebar');
-      const openLeft = document.getElementById('open-left-sidebar');
+      const openLeft = document.getElementById('open-service-sidebar');
       const openRight = document.getElementById('open-right-sidebar');
-      const openReseller = document.getElementById('open-reseller-sidebar');
-      const openRepair = document.getElementById('open-repair-sidebar');
-      const openCustom = customToggleRef || document.querySelector('#custom-category-toggles .sidebar-toggle-btn');
-      const collapseLeft = document.getElementById('collapse-left');
+      const collapseLeft = document.getElementById('collapse-service');
       const collapseRight = document.getElementById('collapse-right');
-      const collapseReseller = document.getElementById('collapse-reseller');
-      const collapseRepair = document.getElementById('collapse-repair');
-      const collapseCustom = document.getElementById('collapse-custom');
 
       const defaultLeftOffset = 12;
       const defaultRightOffset = 12;
+
       const syncSidebarVisibility = () => {
-        const previousCustomVisible = customSidebarVisible;
-        techSidebarVisible = isServiceSidebarVisible('tech');
-        resellerSidebarVisible = isServiceSidebarVisible('reseller');
-        repairSidebarVisible = isServiceSidebarVisible('repair');
-        customSidebarVisible = isServiceSidebarVisible('custom');
-
-        if (!techSidebarVisible) {
-          if (map?.hasLayer(techLayer)) map.removeLayer(techLayer);
-          connectionLayer?.clearLayers();
-        } else if (techLayer && map && !map.hasLayer(techLayer)) {
-          techLayer.addTo(map);
-        }
-
-        if (!resellerSidebarVisible) {
-          resellerLayer?.clearLayers();
-        } else if (resellerLayer && map && !map.hasLayer(resellerLayer)) {
-          resellerLayer.addTo(map);
-        }
-
-        if (!repairSidebarVisible) {
-          repairLayer?.clearLayers();
-        } else if (repairLayer && map && !map.hasLayer(repairLayer)) {
-          repairLayer.addTo(map);
-        }
-
-          if (!customSidebarVisible) {
-            customServiceLayer?.clearLayers?.();
-            customCategories.forEach(({ layer }) => layer?.clearLayers?.());
-          } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
-            customServiceLayer.addTo(map);
-            customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
-          }
-
-          if (customSidebarVisible !== previousCustomVisible) {
-            lastCustomSidebarVisible = customSidebarVisible;
-            if (customSidebarVisible) renderCustomServices(customServices);
-          }
-
-          activeLeftPanel = leftSideKeys.find(key => {
-            const cfg = configs[key];
-            return cfg?.sidebar && !cfg.sidebar.classList.contains(cfg.collapsedClass);
-        }) || null;
-
-        renderVisibleSidebars();
-
-        if (!isAnyServiceSidebarOpen()) {
-          serviceLayer?.clearLayers();
-          serviceConnectionLayer?.clearLayers();
-        } else {
-          const origin = getCurrentOrigin();
-          if (origin) {
-            showServicesFromOrigin(origin, { forceType: getActivePartnerType() });
-          }
-        }
+        renderServiceSidebar();
       };
 
-        const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
+      const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
 
-        const rawConfigs = {
-          left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left', group: 'left' },
-          reseller: { sidebar: resellerSidebar, toggle: openReseller, collapse: collapseReseller, collapsedClass: 'collapsed-reseller', group: 'left', type: 'reseller' },
-          repair: { sidebar: repairSidebar, toggle: openRepair, collapse: collapseRepair, collapsedClass: 'collapsed-repair', group: 'left', type: 'repair' },
-          custom: { sidebar: customSidebar, toggle: openCustom, collapse: collapseCustom, collapsedClass: 'collapsed-custom', group: 'left', type: 'custom' },
-          right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right', group: 'right' }
-        };
+      const rawConfigs = {
+        left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left', group: 'left' },
+        right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right', group: 'right' }
+      };
 
-        const configs = Object.fromEntries(
-          Object.entries(rawConfigs).filter(([, cfg]) => {
-            if (!cfg.sidebar || !cfg.toggle) return false;
-            if (!cfg.type) return true;
-            return isServiceTypeEnabled(cfg.type);
-          })
-        );
+      const configs = Object.fromEntries(
+        Object.entries(rawConfigs).filter(([, cfg]) => cfg.sidebar)
+      );
 
-        const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
+      const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
 
-        const leftSideKeys = Object.keys(configs).filter((key) => configs[key]?.group === 'left');
+      const leftSideKeys = Object.keys(configs).filter((key) => configs[key]?.group === 'left');
 
-        const updateTogglePositions = () => {
+      const updateTogglePositions = () => {
         const expandedEntry = leftSideKeys
           .map((key) => configs[key])
           .find(cfg => cfg?.sidebar && !cfg.sidebar.classList.contains(cfg.collapsedClass));
@@ -3642,12 +3671,6 @@
         leftSideKeys.forEach(key => {
           const toggle = configs[key]?.toggle;
           if (toggle) toggle.style.left = `${anchorLeft}px`;
-        });
-
-        const customSlot = document.getElementById('custom-toggle-slot');
-        if (customSlot) customSlot.style.left = `${anchorLeft}px`;
-        document.querySelectorAll('#custom-category-toggles .sidebar-toggle-btn').forEach((btn) => {
-          btn.style.left = `${anchorLeft}px`;
         });
 
         const rightSidebarIsCollapsed = configs.right?.sidebar?.classList.contains(configs.right.collapsedClass);
@@ -3663,17 +3686,17 @@
 
       const applyState = (side, expanded) => {
         const config = configs[side];
-        if (!config?.sidebar || !config?.toggle) return false;
+        if (!config?.sidebar) return false;
         const wasCollapsed = config.sidebar.classList.contains(config.collapsedClass);
         const shouldCollapse = !expanded;
         if (shouldCollapse && !wasCollapsed) {
           config.sidebar.classList.add(config.collapsedClass);
-          config.toggle.classList.remove('active');
-          config.toggle.setAttribute('aria-pressed', 'false');
+          config.toggle?.classList.remove('active');
+          config.toggle?.setAttribute('aria-pressed', 'false');
         } else if (!shouldCollapse && wasCollapsed) {
           config.sidebar.classList.remove(config.collapsedClass);
-          config.toggle.classList.add('active');
-          config.toggle.setAttribute('aria-pressed', 'true');
+          config.toggle?.classList.add('active');
+          config.toggle?.setAttribute('aria-pressed', 'true');
         }
         return wasCollapsed !== shouldCollapse;
       };
@@ -3686,14 +3709,7 @@
           leftSideKeys.forEach(key => {
             if (key !== side) applyState(key, false);
           });
-
-          const origin = getCurrentOrigin();
-          if (origin) {
-            const newType = configs[side].type || SIDEBAR_TYPE_BY_KEY[side];
-            setTimeout(() => {
-              showServicesFromOrigin(origin, { forceType: newType });
-            }, 50);
-          }
+          renderServiceSidebar();
         }
 
         updateTogglePositions();
@@ -3717,14 +3733,10 @@
       (async () => {
         await loadStateCenters();
         initMap();
-        await syncAvailableServiceTypes();
-        updateServiceVisibilityUI();
-        if (isServiceTypeEnabled('tech')) loadTechnicians();
         loadHotspots();
         loadBlacklistSites();
         loadVehicles();
         await loadAllServices();
-        if (isServiceTypeEnabled('custom')) loadCustomServices();
         setupResizableSidebars();
         setupSidebarToggles();
         setupHotspotToggle();
@@ -3732,24 +3744,13 @@
         setupVehicleMarkerToggle();
         bindVehicleFilterHandlers();
         syncVehicleFilterInputs();
-        const filterConfigs = [
-          { id: 'tech-filter', type: 'tech' },
-          { id: 'reseller-filter', type: 'reseller' },
-          { id: 'repair-filter', type: 'repair' },
-        ].filter(({ type }) => isServiceTypeEnabled(type));
-
-        filterConfigs.forEach(({ id, type }) => {
-          const input = document.getElementById(id);
-          if (!input) return;
-          input.addEventListener('input', () => {
-            serviceFilters[type] = input.value;
-            renderVisibleSidebars();
-            const origin = getCurrentOrigin();
-            if (origin) {
-              showServicesFromOrigin(origin, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
-            }
+        const serviceFilterInput = document.getElementById('service-filter');
+        if (serviceFilterInput) {
+          serviceFilterInput.addEventListener('input', () => {
+            serviceFilters.services = serviceFilterInput.value;
+            renderServiceSidebar();
           });
-        });
+        }
 
         setupEventDelegation();
 
