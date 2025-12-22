@@ -843,10 +843,10 @@
     const createPartnerClusterIcon = (cluster, color = '#334155') => {
       const count = cluster.getChildCount();
       return L.divIcon({
-        html: `<div class="text-white text-xs font-semibold rounded-full flex items-center justify-center w-10 h-10 border shadow-md" style="background:${color}; border-color:${color}">${count}</div>`,
+        html: `<div class="relative text-xs font-semibold rounded-full flex items-center justify-center w-8 h-8 border-2 shadow-md bg-slate-900/90" style="color:${color}; border-color:${color}">${count}</div>`,
         className: 'partner-cluster-icon',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
       });
     };
 
@@ -1671,34 +1671,44 @@
         showCoverageOnHover: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
-          let sizeClass = 'w-11 h-11 text-sm';
-          let iconSize = [44, 44];
+          let sizeClass = 'w-8 h-8 text-xs';
+          let iconSize = [32, 32];
 
           if (count > 100) {
-            sizeClass = 'w-14 h-14 text-lg';
-            iconSize = [56, 56];
+            sizeClass = 'w-10 h-10 text-sm';
+            iconSize = [40, 40];
           } else if (count > 10) {
-            sizeClass = 'w-12 h-12 text-base';
-            iconSize = [48, 48];
+            sizeClass = 'w-9 h-9 text-sm';
+            iconSize = [36, 36];
           }
 
           const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
           let hasRed = false;
           let hasAmber = false;
+          let allGreen = true;
+          let hasStopped = false;
 
           childMarkers.forEach((marker) => {
             const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
-            const isStopped = marker?.options?.isStopped;
+            const isStopped = marker?.options?.isStopped || (marker?.options?.vehicleData ? isVehicleNotMoving(marker.options.vehicleData) : false);
 
-            if (isStopped) hasRed = true;
+            if (isStopped) {
+              hasStopped = true;
+            }
 
             if (markerColor) {
               const colorValue = `${markerColor}`.toLowerCase();
               if (colorValue === '#ef4444') {
                 hasRed = true;
+                allGreen = false;
               } else if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
                 hasAmber = true;
+                allGreen = false;
+              } else if (colorValue !== '#22c55e') {
+                allGreen = false;
               }
+            } else {
+              allGreen = false;
             }
           });
 
@@ -1706,12 +1716,15 @@
           if (hasRed) {
             clusterColor = '#ef4444';
           } else if (hasAmber) {
-            clusterColor = '#fbbf24';
+            clusterColor = '#f59e0b';
+          } else if (allGreen && childMarkers.length > 0) {
+            clusterColor = '#22c55e';
           }
 
+          const badgeHtml = hasStopped ? '<span class="vehicle-cross-badge absolute inset-0 flex items-center justify-center pointer-events-none">✕</span>' : '';
           const [width, height] = iconSize;
           return L.divIcon({
-            html: `<div class="border-2 text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}" style="background:${clusterColor}; border-color:${clusterColor}">${count}</div>`,
+            html: `<div class="relative border-2 font-bold rounded-full flex items-center justify-center shadow-lg bg-slate-900/90 ${sizeClass}" style="color:${clusterColor}; border-color:${clusterColor}">${badgeHtml}<span>${count}</span></div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
