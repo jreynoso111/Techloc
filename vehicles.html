@@ -34,7 +34,6 @@
       --right-sidebar-width: 360px;
       --reseller-sidebar-width: 320px;
       --repair-sidebar-width: 320px;
-      --dispatcher-sidebar-width: 320px;
       --custom-sidebar-width: 320px;
     }
 
@@ -44,7 +43,6 @@
         --right-sidebar-width: 320px;
         --reseller-sidebar-width: 280px;
         --repair-sidebar-width: 280px;
-        --dispatcher-sidebar-width: 280px;
         --custom-sidebar-width: 280px;
       }
     }
@@ -55,7 +53,6 @@
         --right-sidebar-width: 260px;
         --reseller-sidebar-width: 240px;
         --repair-sidebar-width: 240px;
-        --dispatcher-sidebar-width: 240px;
         --custom-sidebar-width: 240px;
       }
 
@@ -79,7 +76,6 @@
     .collapsed-right { transform: translateX(var(--right-sidebar-width)); }
     .collapsed-reseller { transform: translateX(calc(-1 * var(--reseller-sidebar-width))); }
     .collapsed-repair { transform: translateX(calc(-1 * var(--repair-sidebar-width))); }
-    .collapsed-dispatcher { transform: translateX(calc(-1 * var(--dispatcher-sidebar-width))); }
     .collapsed-custom { transform: translateX(calc(-1 * var(--custom-sidebar-width))); }
 
     .resize-handle {
@@ -469,7 +465,6 @@
       <button id="open-left-sidebar" class="sidebar-toggle-btn">GPS Technicians</button>
       <button id="open-reseller-sidebar" class="sidebar-toggle-btn">Resellers</button>
       <button id="open-repair-sidebar" class="sidebar-toggle-btn">Repair Shops</button>
-      <button id="open-dispatcher-sidebar" class="sidebar-toggle-btn">Dispatchers</button>
       <div id="custom-toggle-slot" class="flex flex-col gap-2 items-start self-start">
         <div id="custom-category-toggles" class="flex flex-col gap-2 items-start self-start"></div>
       </div>
@@ -500,10 +495,6 @@
               <div class="legend-pill" data-legend="repair">
                 <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#fb923c" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
                 Repair
-              </div>
-              <div class="legend-pill" data-legend="dispatcher">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#38bdf8" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Dispatcher
               </div>
               <div id="custom-legend-slot" class="flex flex-wrap gap-2"></div>
             </div>
@@ -691,13 +682,12 @@
     let STATE_CENTERS = {};
     const DEFAULT_STATE_CENTER = [39.8, -98.5];
 
-    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, resellerLayer, repairLayer, dispatcherLayer, customServiceLayer, hotspotLayer, blacklistLayer;
+    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, resellerLayer, repairLayer, customServiceLayer, hotspotLayer, blacklistLayer;
     let technicians = [];
     let blacklistSites = [];
     let hotspots = [];
     let resellers = [];
     let repairShops = [];
-    let dispatchers = [];
     let customServices = [];
     let customCategories = new Map();
     let customToggleRef = null;
@@ -717,7 +707,6 @@
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
     let repairSidebarVisible = false;
-    let dispatcherSidebarVisible = false;
     let customSidebarVisible = false;
     let lastCustomSidebarVisible = false;
     let activeLeftPanel = null;
@@ -727,8 +716,7 @@
     const serviceFilters = {
       tech: '',
       reseller: '',
-      repair: '',
-      dispatcher: ''
+      repair: ''
     };
     const vehicleFilters = {
       invPrep: 'all',
@@ -849,7 +837,6 @@
       tech: ['GPS Technician'],
       reseller: ['dealer/auction'],
       repair: ['Repair Shop'],
-      dispatcher: ['Dispatcher'],
     };
 
     const TABLES = {
@@ -1070,6 +1057,8 @@
 
         if (!enabled) layer?.clearLayers?.();
       });
+
+      document.querySelectorAll('[data-legend]').forEach((el) => el.classList.remove('hidden'));
     };
 
     const setServiceHeaders = (category, data = []) => {
@@ -1380,19 +1369,17 @@
     const VEHICLE_RENDER_LIMIT = 35;
     const PARTNER_CARD_LIMIT = 35;
 
-    const SERVICE_TYPES = ['tech', 'reseller', 'repair', 'dispatcher', 'custom'];
+    const SERVICE_TYPES = ['tech', 'reseller', 'repair', 'custom'];
     const SERVICE_COLORS = {
       tech: '#3b82f6',
       reseller: '#34d399',
       repair: '#fb923c',
-      dispatcher: '#38bdf8',
       custom: '#f472b6'
     };
     const SERVICE_SIDEBAR_KEYS = {
       tech: 'left',
       reseller: 'reseller',
       repair: 'repair',
-      dispatcher: 'dispatcher',
       custom: 'custom'
     };
     const SIDEBAR_TYPE_BY_KEY = Object.fromEntries(
@@ -1403,14 +1390,12 @@
       tech: { sidebarId: 'left-sidebar', toggleId: 'open-left-sidebar', legendSelector: '[data-legend="tech"]', collapsedClass: 'collapsed-left', layer: () => techLayer },
       reseller: { sidebarId: 'reseller-sidebar', toggleId: 'open-reseller-sidebar', legendSelector: '[data-legend="reseller"]', collapsedClass: 'collapsed-reseller', layer: () => resellerLayer },
       repair: { sidebarId: 'repair-sidebar', toggleId: 'open-repair-sidebar', legendSelector: '[data-legend="repair"]', collapsedClass: 'collapsed-repair', layer: () => repairLayer },
-      dispatcher: { sidebarId: 'dispatcher-sidebar', toggleId: 'open-dispatcher-sidebar', legendSelector: '[data-legend="dispatcher"]', collapsedClass: 'collapsed-dispatcher', layer: () => dispatcherLayer },
       custom: { sidebarId: 'custom-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-custom', layer: () => customServiceLayer }
     };
 
     const PARTNER_SIDEBAR_CONFIGS = [
       { type: 'reseller', eyebrow: 'Reseller network', title: 'Nearby resellers', accentClass: 'text-emerald-300', filterPlaceholder: 'Filter resellers by name, city, or state', emptyText: 'Resellers will appear here.' },
       { type: 'repair', eyebrow: 'Repair network', title: 'Repair shops nearby', accentClass: 'text-orange-200', filterPlaceholder: 'Filter repair shops by name, city, or state', emptyText: 'Repair shops will appear here.' },
-      { type: 'dispatcher', eyebrow: 'Dispatch desks', title: 'Dispatcher partners', accentClass: 'text-sky-200', filterPlaceholder: 'Filter dispatchers by name, city, or state', emptyText: 'Dispatchers will appear here.' },
     ];
 
     const CUSTOM_SIDEBAR_CONFIG = {
@@ -1670,7 +1655,6 @@
       highlightLayer = L.layerGroup().addTo(map);
       resellerLayer = createPartnerClusterGroup(SERVICE_COLORS.reseller);
       repairLayer = createPartnerClusterGroup(SERVICE_COLORS.repair);
-      dispatcherLayer = createPartnerClusterGroup(SERVICE_COLORS.dispatcher);
       customServiceLayer = createPartnerClusterGroup(SERVICE_COLORS.custom);
 
       const invalidateMapSize = () => map?.invalidateSize();
@@ -1897,11 +1881,6 @@
         uiUpdate: updateRepairUI,
         setList: (list) => { repairShops = list; },
         warningLabel: 'Repair shop'
-      },
-      dispatcher: {
-        uiUpdate: updateDispatcherUI,
-        setList: (list) => { dispatchers = list; },
-        warningLabel: 'Dispatcher'
       }
     };
 
@@ -2237,10 +2216,6 @@
       renderPartnerUI(list, { containerId: 'repair-list', layer: repairLayer, visible: repairSidebarVisible, accentColor: '#fb923c', badgeLabel: 'Repair shop', type: 'repair', countId: 'repair-count' });
     }
 
-    function updateDispatcherUI(list = dispatchers) {
-      renderPartnerUI(list, { containerId: 'dispatcher-list', layer: dispatcherLayer, visible: dispatcherSidebarVisible, accentColor: '#38bdf8', badgeLabel: 'Dispatcher', type: 'dispatcher', countId: 'dispatcher-count' });
-    }
-
     function renderCustomServices(list = customServices) {
       const container = document.getElementById('custom-list');
       const counter = document.getElementById('custom-count');
@@ -2362,14 +2337,12 @@
       if (techSidebarVisible && isServiceTypeEnabled('tech')) updateTechUI(getTechList(technicians));
       if (resellerSidebarVisible && isServiceTypeEnabled('reseller')) updateResellerUI(resellers);
       if (repairSidebarVisible && isServiceTypeEnabled('repair')) updateRepairUI(repairShops);
-      if (dispatcherSidebarVisible && isServiceTypeEnabled('dispatcher')) updateDispatcherUI(dispatchers);
       if (customSidebarVisible && isServiceTypeEnabled('custom')) renderCustomServices(customServices);
     }
 
     const PARTNER_TYPE_CONFIG = {
       reseller: { containerId: 'reseller-list', updater: updateResellerUI, getList: () => resellers },
       repair: { containerId: 'repair-list', updater: updateRepairUI, getList: () => repairShops },
-      dispatcher: { containerId: 'dispatcher-list', updater: updateDispatcherUI, getList: () => dispatchers },
       custom: { containerId: 'custom-list', updater: renderCustomServices, getList: () => customServices }
     };
 
@@ -3192,8 +3165,6 @@
           updateResellerUI(partnerList);
         } else if (partnerType === 'repair') {
           updateRepairUI(partnerList);
-        } else if (partnerType === 'dispatcher') {
-          updateDispatcherUI(partnerList);
         }
       }
 
@@ -3263,14 +3234,6 @@
       partnerType: 'repair'
     });
 
-    setupAddressSearch({
-      formId: 'dispatcher-search-form',
-      inputId: 'dispatcher-address-input',
-      buttonId: 'dispatcher-search-btn',
-      statusId: 'dispatcher-search-status',
-      partnerType: 'dispatcher'
-    });
-
     function openVehicleModal(vehicle) {
       const modal = document.getElementById('vehicle-modal');
       const title = document.getElementById('vehicle-modal-title');
@@ -3318,7 +3281,6 @@
     function getPartnerListByType(type) {
       if (type === 'reseller') return resellers;
       if (type === 'repair') return repairShops;
-      if (type === 'dispatcher') return dispatchers;
       if (type === 'custom') {
         return selectedCustomCategoryKey
           ? customServices.filter((service) => service?.categoryKey === selectedCustomCategoryKey)
@@ -3345,7 +3307,6 @@
     function getPartnerLabel(type) {
       if (type === 'reseller') return 'reseller';
       if (type === 'repair') return 'repair shop';
-      if (type === 'dispatcher') return 'dispatcher';
       return 'technician';
     }
 
@@ -3556,19 +3517,16 @@
       const rightSidebar = document.getElementById('right-sidebar');
       const resellerSidebar = document.getElementById('reseller-sidebar');
       const repairSidebar = document.getElementById('repair-sidebar');
-      const dispatcherSidebar = document.getElementById('dispatcher-sidebar');
       const customSidebar = document.getElementById('custom-sidebar');
       const openLeft = document.getElementById('open-left-sidebar');
       const openRight = document.getElementById('open-right-sidebar');
       const openReseller = document.getElementById('open-reseller-sidebar');
       const openRepair = document.getElementById('open-repair-sidebar');
-      const openDispatcher = document.getElementById('open-dispatcher-sidebar');
       const openCustom = customToggleRef || document.querySelector('#custom-category-toggles .sidebar-toggle-btn');
       const collapseLeft = document.getElementById('collapse-left');
       const collapseRight = document.getElementById('collapse-right');
       const collapseReseller = document.getElementById('collapse-reseller');
       const collapseRepair = document.getElementById('collapse-repair');
-      const collapseDispatcher = document.getElementById('collapse-dispatcher');
       const collapseCustom = document.getElementById('collapse-custom');
 
       const defaultLeftOffset = 12;
@@ -3578,7 +3536,6 @@
         techSidebarVisible = isServiceSidebarVisible('tech');
         resellerSidebarVisible = isServiceSidebarVisible('reseller');
         repairSidebarVisible = isServiceSidebarVisible('repair');
-        dispatcherSidebarVisible = isServiceSidebarVisible('dispatcher');
         customSidebarVisible = isServiceSidebarVisible('custom');
 
         if (!techSidebarVisible) {
@@ -3598,12 +3555,6 @@
           repairLayer?.clearLayers();
         } else if (repairLayer && map && !map.hasLayer(repairLayer)) {
           repairLayer.addTo(map);
-        }
-
-        if (!dispatcherSidebarVisible) {
-          dispatcherLayer?.clearLayers();
-        } else if (dispatcherLayer && map && !map.hasLayer(dispatcherLayer)) {
-          dispatcherLayer.addTo(map);
         }
 
           if (!customSidebarVisible) {
@@ -3643,7 +3594,6 @@
           left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left', group: 'left' },
           reseller: { sidebar: resellerSidebar, toggle: openReseller, collapse: collapseReseller, collapsedClass: 'collapsed-reseller', group: 'left', type: 'reseller' },
           repair: { sidebar: repairSidebar, toggle: openRepair, collapse: collapseRepair, collapsedClass: 'collapsed-repair', group: 'left', type: 'repair' },
-          dispatcher: { sidebar: dispatcherSidebar, toggle: openDispatcher, collapse: collapseDispatcher, collapsedClass: 'collapsed-dispatcher', group: 'left', type: 'dispatcher' },
           custom: { sidebar: customSidebar, toggle: openCustom, collapse: collapseCustom, collapsedClass: 'collapsed-custom', group: 'left', type: 'custom' },
           right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right', group: 'right' }
         };
@@ -3763,9 +3713,9 @@
         bindVehicleFilterHandlers();
         syncVehicleFilterInputs();
         const filterConfigs = [
+          { id: 'tech-filter', type: 'tech' },
           { id: 'reseller-filter', type: 'reseller' },
           { id: 'repair-filter', type: 'repair' },
-          { id: 'dispatcher-filter', type: 'dispatcher' },
         ].filter(({ type }) => isServiceTypeEnabled(type));
 
         filterConfigs.forEach(({ id, type }) => {
