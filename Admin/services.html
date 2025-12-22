@@ -1850,7 +1850,14 @@
         };
         const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
         if (error) throw error;
-        state.rows.unshift(normalizeRow(data));
+        const normalized = normalizeRow(data);
+        if (normalized?.id === undefined || normalized?.id === null || normalized.id === '') {
+          console.error('Insert returned row without a valid id', data);
+          showToast('Error creating record: missing ID from server. Please refresh and try again.', 'error');
+          return;
+        }
+
+        state.rows.unshift(normalized);
         state.pagination.page = 1;
         renderTable();
         savePrefs();
