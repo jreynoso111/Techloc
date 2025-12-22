@@ -36,16 +36,13 @@
   </script>
   
   <style>
-    /* Estilo Base Oscuro Original */
     body { background-color: #020617; color: #f8fafc; }
     
-    /* Scrollbar */
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
-    /* Glassmorphism Cards */
     .frosted-card {
       background: rgba(15, 23, 42, 0.6);
       backdrop-filter: blur(12px);
@@ -54,9 +51,6 @@
       box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
     }
     
-    .status-dot { box-shadow: 0 0 10px currentColor; }
-
-    /* Circular Progress */
     .circular-chart { display: block; margin: 0 auto; max-width: 100%; max-height: 250px; }
     .circle-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 2.8; }
     .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; animation: progress 1s ease-out forwards; }
@@ -148,7 +142,7 @@
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
             <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
             <div class="flex items-center gap-3 text-slate-400 mb-2">
               <div class="rounded-lg bg-blue-500/10 p-2 text-blue-400"><i data-lucide="truck" class="h-4 w-4"></i></div>
@@ -293,17 +287,20 @@
             </div>
             </div>
             <div class="overflow-hidden rounded-xl border border-white/5 bg-black/20">
-            <div class="max-h-[350px] overflow-y-auto custom-scrollbar">
+            <div class="max-h-[500px] overflow-y-auto custom-scrollbar">
                 <table class="w-full text-left text-sm">
                 <thead class="bg-white/5 text-[10px] uppercase font-bold text-slate-400 sticky top-0 backdrop-blur-sm z-10">
                     <tr>
-                    <th class="px-4 py-3">User</th> <th class="px-4 py-3">Entity / Table</th>
+                    <th class="px-4 py-3">User</th>
+                    <th class="px-4 py-3">Entity / Table</th>
                     <th class="px-4 py-3">Action</th>
                     <th class="px-4 py-3">Change Summary</th>
                     <th class="px-4 py-3 text-right">Timestamp</th>
                     </tr>
                 </thead>
-                <tbody id="change-log-body" class="divide-y divide-white/5 text-slate-300"></tbody>
+                <tbody id="change-log-body" class="divide-y divide-white/5 text-slate-300">
+                     <tr><td colspan="5" class="px-4 py-8 text-center text-slate-500 italic">Loading audit trail...</td></tr>
+                </tbody>
                 </table>
             </div>
             </div>
@@ -333,7 +330,8 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     // --- CONFIG ---
-    const TABLE_SERVICES = 'services'; // Corregido case sensitivity
+    // CORREGIDO: 'services' en minúscula para asegurar compatibilidad con la DB
+    const TABLE_SERVICES = 'services'; 
     const TABLE_VEHICLES = 'vehicles';
     const TABLE_CHANGE_LOG = 'admin_change_log';
     
@@ -342,7 +340,6 @@
       kpiServices: document.getElementById('kpi-services'),
       kpiMoving: document.getElementById('kpi-moving'),
       kpiRating: document.getElementById('kpi-rating'),
-      
       categoryBars: document.getElementById('category-bars'),
       topRegions: document.getElementById('top-regions'),
       movingCircle: document.getElementById('moving-circle'),
@@ -352,7 +349,6 @@
       avgCompletionBar: document.getElementById('avg-completion-bar'),
       avgCompletionText: document.getElementById('avg-completion-text'),
       unitTypesList: document.getElementById('unit-types-list'),
-      
       detailModal: document.getElementById('detail-modal'),
       detailModalTitle: document.getElementById('detail-modal-title'),
       detailModalContent: document.getElementById('detail-modal-content'),
@@ -399,7 +395,7 @@
             return {
                 id: row.id,
                 name: row.name || row.company_name || row.company || 'Service',
-                category: formatCategory(row.category || row.service_type),
+                category: formatCategory(row.category || row.service_type || row.authorization),
                 state: row.state || row.region,
                 city: row.city,
                 rating: Number(row.google_rating) || 0,
@@ -445,6 +441,7 @@
         const regionCounts = {};
         serviceRows.forEach(r => { if(r.state) regionCounts[r.state] = (regionCounts[r.state]||0)+1; });
         const topRegions = Object.entries(regionCounts).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+        
         if (!topRegions.length) els.topRegions.innerHTML = '<p class="text-sm text-slate-500">No region data available.</p>';
         
         topRegions.forEach(([state, count]) => {
@@ -496,36 +493,39 @@
         setTimeout(() => document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.getAttribute('data-width')), 100);
     };
 
-    // --- RENDER CHANGE LOG (AUDIT TRAIL) ---
+    // --- RENDER CHANGE LOG ---
     const renderChangeLog = (rows = []) => {
       els.changeLogBody.innerHTML = '';
       if (!rows.length) {
-        els.changeLogBody.innerHTML = '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-500 text-sm italic">No change history recorded found in audit log.</td></tr>';
+        els.changeLogBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-slate-500 italic">No activity recorded.</td></tr>';
         return;
       }
 
       rows.forEach((row) => {
         const ts = row.created_at ? new Date(row.created_at).toLocaleString() : '—';
-        const user = row.user_email || row.user_id || row.author || 'System'; // Lógica para usuario
-        const avatarChar = user.charAt(0).toUpperCase();
+        const user = row.user_email || row.user_id || row.author || 'System';
+        const avatarChar = String(user).charAt(0).toUpperCase();
 
         els.changeLogBody.insertAdjacentHTML('beforeend', `
-          <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
+          <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
             <td class="px-4 py-3">
-               <div class="flex items-center gap-2">
-                  <div class="h-6 w-6 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
+               <div class="flex items-center gap-3">
+                  <div class="h-8 w-8 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 border border-white/10 flex items-center justify-center text-[10px] font-bold text-white shadow-sm ring-2 ring-transparent group-hover:ring-blue-500/20 transition-all">
                     ${avatarChar}
                   </div>
-                  <span class="text-xs text-slate-300 font-medium truncate max-w-[120px]" title="${user}">${user}</span>
+                  <div class="flex flex-col">
+                      <span class="text-xs text-slate-200 font-semibold truncate max-w-[150px]">${user}</span>
+                      <span class="text-[9px] text-slate-500 uppercase tracking-wide">Admin</span>
+                  </div>
                </div>
             </td>
             <td class="px-4 py-3 text-sm text-slate-400 font-mono text-xs">${row.table_name || row.table || '—'}</td>
             <td class="px-4 py-3 text-sm">
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${row.action === 'delete' ? 'bg-red-500/10 text-red-300 border border-red-500/20' : row.action === 'insert' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-300 border border-blue-500/20'}">
+              <span class="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${row.action === 'delete' ? 'bg-red-500/10 text-red-300 border border-red-500/20' : row.action === 'insert' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-300 border border-blue-500/20'}">
                 ${(row.action || 'update').toUpperCase()}
               </span>
             </td>
-            <td class="px-4 py-3 text-xs text-slate-300">${row.summary || row.description || 'Updated record data'}</td>
+            <td class="px-4 py-3 text-xs text-slate-300">${row.summary || row.description || 'Modified record'}</td>
             <td class="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">${ts}</td>
           </tr>
         `);
@@ -561,7 +561,6 @@
       }
     };
 
-    // --- INIT ---
     window.showDetail = (id) => {
        els.detailModal.classList.remove('hidden');
        els.detailModal.classList.add('flex');
