@@ -1236,7 +1236,26 @@
       if (!input) return;
 
       const raw = input.value;
-      const newValue = parseEditedValue(colId, raw);
+      let newValue = parseEditedValue(colId, raw);
+
+      if (colId === 'phone') {
+        const digits = String(raw ?? '').replace(/\D/g, '');
+        if (digits.length !== 10) {
+          td.classList.add('failed');
+          showToast('Phone numbers must include exactly 10 digits (e.g., 809-555-1234).', 'error');
+          return;
+        }
+        newValue = `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+      }
+
+      if (colId === 'email') {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (newValue && !emailRegex.test(newValue)) {
+          td.classList.add('failed');
+          showToast('Please enter a valid email address.', 'error');
+          return;
+        }
+      }
 
       // compute original value (from local row, not formatted)
       const row = getRowById(rowId);
