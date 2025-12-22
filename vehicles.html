@@ -35,6 +35,7 @@
       --reseller-sidebar-width: 320px;
       --repair-sidebar-width: 320px;
       --custom-sidebar-width: 320px;
+      --dynamic-sidebar-width: 320px;
     }
 
     @media (max-width: 1280px) {
@@ -44,6 +45,7 @@
         --reseller-sidebar-width: 280px;
         --repair-sidebar-width: 280px;
         --custom-sidebar-width: 280px;
+        --dynamic-sidebar-width: 280px;
       }
     }
 
@@ -54,6 +56,7 @@
         --reseller-sidebar-width: 240px;
         --repair-sidebar-width: 240px;
         --custom-sidebar-width: 240px;
+        --dynamic-sidebar-width: 240px;
       }
 
       header .max-w-7xl { row-gap: 1rem; }
@@ -77,6 +80,7 @@
     .collapsed-reseller { transform: translateX(calc(-1 * var(--reseller-sidebar-width))); }
     .collapsed-repair { transform: translateX(calc(-1 * var(--repair-sidebar-width))); }
     .collapsed-custom { transform: translateX(calc(-1 * var(--custom-sidebar-width))); }
+    .collapsed-dynamic { transform: translateX(calc(-1 * var(--dynamic-sidebar-width))); }
 
     .resize-handle {
       position: absolute;
@@ -719,7 +723,8 @@
     const serviceFilters = {
       tech: '',
       reseller: '',
-      repair: ''
+      repair: '',
+      custom: ''
     };
     const vehicleFilters = {
       invPrep: 'all',
@@ -923,6 +928,38 @@
       return customCategories.get(key);
     };
 
+    function rebuildCustomLegendItems() {
+      const legendSlot = document.getElementById('custom-legend-slot');
+      if (!legendSlot) return;
+
+      legendSlot.innerHTML = '';
+
+      if (!customCategoryLabels.size) {
+        legendSlot.classList.add('hidden');
+        return;
+      }
+
+      legendSlot.classList.remove('hidden');
+
+      Array.from(customCategoryLabels)
+        .sort((a, b) => `${a}`.localeCompare(`${b}`))
+        .forEach((label) => {
+          const meta = ensureCustomCategoryMeta(label);
+          const pill = document.createElement('div');
+          pill.className = 'legend-pill';
+          pill.dataset.legend = meta.key || 'custom';
+          pill.innerHTML = `
+            <span class="inline-flex items-center justify-center">
+              <svg class="h-3 w-3" viewBox="0 0 18 16" fill="${meta.color}" stroke="#0f172a" stroke-width="1.2">
+                <path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path>
+              </svg>
+            </span>
+          `;
+          pill.appendChild(document.createTextNode(` ${meta.label}`));
+          legendSlot.appendChild(pill);
+        });
+    }
+
     function rebuildCustomCategoryToggles() {
       const slot = document.getElementById('custom-category-toggles');
       if (!slot) return;
@@ -933,6 +970,7 @@
       if (!customCategoryLabels.size) {
         slot.classList.add('hidden');
         customToggleRef = null;
+        rebuildCustomLegendItems();
         return;
       }
 
@@ -954,7 +992,7 @@
         button.addEventListener('click', () => {
           selectedCustomCategoryKey = selectedCustomCategoryKey === key ? null : key;
           sidebarStateController?.setState?.('custom', true);
-          renderCustomServices();
+          renderCategorySidebar(selectedCustomCategoryKey);
           updateCustomToggleStates();
 
           // Force recalculation when switching dynamic categories (e.g., Parking to Repo)
@@ -973,6 +1011,8 @@
           const meta = ensureCustomCategoryMeta(label);
           buildButton(meta.label, meta.key);
         });
+
+      rebuildCustomLegendItems();
 
       customToggleRef = buttons[0] || null;
       slot.classList.remove('hidden');
@@ -1393,7 +1433,7 @@
       tech: { sidebarId: 'left-sidebar', toggleId: 'open-left-sidebar', legendSelector: '[data-legend="tech"]', collapsedClass: 'collapsed-left', layer: () => techLayer },
       reseller: { sidebarId: 'reseller-sidebar', toggleId: 'open-reseller-sidebar', legendSelector: '[data-legend="reseller"]', collapsedClass: 'collapsed-reseller', layer: () => resellerLayer },
       repair: { sidebarId: 'repair-sidebar', toggleId: 'open-repair-sidebar', legendSelector: '[data-legend="repair"]', collapsedClass: 'collapsed-repair', layer: () => repairLayer },
-      custom: { sidebarId: 'custom-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-custom', layer: () => customServiceLayer }
+      custom: { sidebarId: 'dynamic-service-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-dynamic', layer: () => customServiceLayer }
     };
 
     const PARTNER_SIDEBAR_CONFIGS = [
@@ -1456,25 +1496,34 @@
       </aside>
     `;
 
-    const customSidebarTemplate = (config) => `
-      <aside id="custom-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl hidden collapsed-custom" style="width: var(--custom-sidebar-width)">
+    const dynamicSidebarTemplate = (config) => `
+      <aside id="dynamic-service-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-20 shadow-2xl collapsed-dynamic" style="width: var(--dynamic-sidebar-width)">
         <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
           <div class="flex items-center justify-between gap-3">
             <div>
-              <p class="text-[10px] font-bold uppercase ${config.accentClass} mb-1">${config.eyebrow}</p>
-              <h2 class="text-xl font-black text-white leading-tight">${config.title}</h2>
+              <p id="dynamic-service-eyebrow" class="text-[10px] font-bold uppercase ${config.accentClass} mb-1">${config.eyebrow}</p>
+              <h2 id="dynamic-service-title" class="text-xl font-black text-white leading-tight">${config.title}</h2>
+              <p id="dynamic-service-description" class="mt-1 text-[12px] text-slate-400">${config.description}</p>
             </div>
             <div class="flex items-center gap-3">
               <div class="text-right">
                 <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-                <p id="custom-count" class="text-xl font-black text-white leading-none">0</p>
+                <p id="dynamic-service-count" class="text-xl font-black text-white leading-none">0</p>
               </div>
-              <button id="collapse-custom" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize custom services sidebar">-</button>
+              <button id="collapse-dynamic" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize dynamic services sidebar">-</button>
             </div>
           </div>
-          <p class="mt-2 text-[12px] text-slate-400">${config.description}</p>
+          <div class="mt-4 space-y-2">
+            <input
+              id="dynamic-service-filter"
+              type="text"
+              class="block w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+              placeholder="Filter services by name, city, or state"
+              autocomplete="off"
+            >
+          </div>
         </div>
-        <div id="custom-list" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900 scroll-smooth relative">
+        <div id="dynamic-service-list" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-900 scroll-smooth relative">
           <div class="text-center mt-10 text-slate-600 text-xs">New categories will appear here.</div>
         </div>
       </aside>
@@ -1486,7 +1535,7 @@
 
       const sidebarMarkup = [
         ...PARTNER_SIDEBAR_CONFIGS.map((config) => partnerSidebarTemplate(config)),
-        customSidebarTemplate(CUSTOM_SIDEBAR_CONFIG)
+        dynamicSidebarTemplate(CUSTOM_SIDEBAR_CONFIG)
       ].join('\n');
 
       slot.innerHTML = sidebarMarkup;
@@ -1915,8 +1964,33 @@
     }
 
     async function loadAllServices() {
+      if (!supabaseClient) return;
+
+      await ensureServiceCache();
+
+      const categoryMap = new Map();
+      serviceCacheByCategory.forEach((rows, key) => {
+        const sample = rows?.[0];
+        const label = sample?.category || key || 'Custom';
+        categoryMap.set(key, label);
+      });
+
+      updateServiceCategoryLabels(categoryMap);
+
+      const knownLabels = new Set(
+        Array.from(serviceCategoryLabelsByType.values()).map((label) => normalizeCategoryLabel(label).toLowerCase())
+      );
+      customCategoryLabels = new Set(
+        Array.from(categoryMap.values()).filter((label) => !knownLabels.has(normalizeCategoryLabel(label).toLowerCase()))
+      );
+      rebuildCustomCategoryToggles();
+
       for (const type of Object.keys(SERVICE_LOAD_CONFIG)) {
         await loadPartnerService(type);
+      }
+
+      if (isServiceTypeEnabled('custom') && customCategoryLabels.size) {
+        await loadCustomServices();
       }
     }
 
@@ -1940,7 +2014,11 @@
           return { ...partner, categoryKey: meta.key, categoryLabel: meta.label, color: meta.color, type: `custom-${meta.key}` };
         });
 
-        renderCustomServices();
+        if (!selectedCustomCategoryKey && customServices.length) {
+          selectedCustomCategoryKey = customServices[0].categoryKey;
+        }
+
+        renderCategorySidebar(selectedCustomCategoryKey, customServices);
       } catch (err) {
         console.warn(`Custom service warning: ${err.message}`);
       }
@@ -2060,7 +2138,8 @@
       if (!type || !partner) return;
       const filterValue = partner.company || partner.name || partner.zip || '';
       serviceFilters[type] = filterValue;
-      const input = document.getElementById(`${type}-filter`);
+      const inputId = type === 'custom' ? 'dynamic-service-filter' : `${type}-filter`;
+      const input = document.getElementById(inputId);
       if (input) {
         input.value = filterValue;
       }
@@ -2068,7 +2147,8 @@
     }
 
     const updateServiceCount = (type, total, filteredTotal = total) => {
-      const el = document.getElementById(`${type}-count`);
+      const countId = type === 'custom' ? 'dynamic-service-count' : `${type}-count`;
+      const el = document.getElementById(countId);
       if (el) {
         el.textContent = filteredTotal !== total ? `${filteredTotal}/${total}` : total;
       }
@@ -2235,134 +2315,110 @@
       renderPartnerUI(list, { containerId: 'repair-list', layer: repairLayer, visible: repairSidebarVisible, accentColor: '#fb923c', badgeLabel: 'Repair shop', type: 'repair', countId: 'repair-count' });
     }
 
-    function renderCustomServices(list = customServices) {
-      const container = document.getElementById('custom-list');
-      const counter = document.getElementById('custom-count');
+    function renderCategorySidebar(categoryKey = selectedCustomCategoryKey, list = customServices) {
+      const container = document.getElementById('dynamic-service-list');
+      const counter = document.getElementById('dynamic-service-count');
+      const titleEl = document.getElementById('dynamic-service-title');
+      const eyebrowEl = document.getElementById('dynamic-service-eyebrow');
+      const descEl = document.getElementById('dynamic-service-description');
+      const filterInput = document.getElementById('dynamic-service-filter');
       if (!container) return;
 
-      container.innerHTML = '';
+      const meta = categoryKey ? customCategories.get(categoryKey) || ensureCustomCategoryMeta(categoryKey) : null;
+      const label = meta?.label || 'Dynamic services';
+      if (titleEl) titleEl.textContent = `${label} Network`;
+      if (eyebrowEl) eyebrowEl.textContent = label;
+      if (descEl) descEl.textContent = `Showing ${label} partners detected in Supabase.`;
+
+      const normalizedList = list.filter((item) => !categoryKey || item?.categoryKey === categoryKey);
+      const filterValue = `${serviceFilters.custom || filterInput?.value || ''}`.toLowerCase();
+      const origin = getCurrentOrigin();
+      const withDistances = attachDistances(normalizedList, origin, distanceCaches.partners, (partner) => {
+        if (!origin) return 0;
+        return getDistance(origin.lat, origin.lng, partner.lat, partner.lng);
+      });
+      const sorted = origin ? [...withDistances].sort((a, b) => a.distance - b.distance) : [...withDistances];
+      const filtered = filterValue
+        ? sorted.filter((partner) => {
+            const haystack = `${partner.company || partner.name || ''} ${partner.city || ''} ${partner.state || ''}`.toLowerCase();
+            return haystack.includes(filterValue);
+          })
+        : sorted;
+
       const markersAllowed = customSidebarVisible && isServiceTypeEnabled('custom');
+      customCategories.forEach(({ layer }) => layer?.clearLayers?.());
 
-      customCategories.forEach(({ layer }) => {
-        layer?.clearLayers?.();
-        if (!markersAllowed && map?.hasLayer(layer)) {
-          map.removeLayer(layer);
-        }
-      });
+      container.innerHTML = '';
 
-      const filtered = selectedCustomCategoryKey
-        ? list.filter((item) => item?.categoryKey === selectedCustomCategoryKey)
-        : list;
-
-      const grouped = new Map();
-      filtered.forEach((item) => {
-        const key = item?.categoryKey || 'custom';
-        if (!grouped.has(key)) grouped.set(key, []);
-        grouped.get(key).push(item);
-      });
-
-      if (!grouped.size) {
+      if (!filtered.length) {
         container.innerHTML = '<div class="text-center mt-10 text-slate-600 text-xs">No services available.</div>';
         counter && (counter.textContent = '0');
-        document.getElementById('custom-legend-slot')?.replaceChildren();
         return;
       }
 
-      let total = 0;
-      grouped.forEach((items, key) => {
-        const meta = customCategories.get(key) || ensureCustomCategoryMeta(key);
-        const section = document.createElement('section');
-        section.className = 'space-y-2';
-        section.innerHTML = `
-          <div class="flex items-center justify-between gap-3 bg-slate-800/60 border border-slate-700 rounded-xl px-3 py-2">
-            <div class="flex items-center gap-2">
-              <span class="h-2.5 w-2.5 rounded-full" style="background:${meta.color}"></span>
-              <p class="text-sm font-semibold text-white">${escapeHTML(meta.label)}</p>
+      const fragment = document.createDocumentFragment();
+      filtered.slice(0, PARTNER_CARD_LIMIT).forEach((partner) => {
+        const locationText = formatPartnerLocation(partner) || 'US';
+        const card = document.createElement('article');
+        card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-3 shadow-sm hover:border-blue-500/70 transition-colors';
+        card.dataset.id = partner.id;
+        card.dataset.type = 'partner';
+        card.dataset.partnerType = 'custom';
+
+        const distanceLabel = origin && typeof partner.distance === 'number' ? `${Math.round(partner.distance)} mi` : '';
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm font-bold text-white leading-tight">${escapeHTML(partner.company || partner.name || 'Service')}</p>
+              <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight">${svgIcon('mapPin', 'h-3 w-3')}<span class="truncate">${escapeHTML(locationText)}</span></p>
             </div>
-            <span class="text-[11px] font-semibold text-slate-300">${items.length} services</span>
+            <div class="text-right text-[11px] text-slate-400 leading-tight space-y-0.5">
+              ${partner.phone ? `<a class="font-bold text-blue-200 block" href="tel:${partner.phoneDial || partner.phone}">${partner.phone}</a>` : ''}
+              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation', 'h-3 w-3')}<span class="font-semibold text-slate-100">${distanceLabel}</span></p>` : ''}
+            </div>
           </div>
+          ${partner.notes ? `<p class="mt-2 text-[11px] text-slate-400 leading-tight">${escapeHTML(partner.notes)}</p>` : ''}
         `;
 
-        const listWrap = document.createElement('div');
-        listWrap.className = 'grid gap-2';
+        fragment.appendChild(card);
 
-        items.forEach((partner) => {
-          const locationText = formatPartnerLocation(partner) || 'US';
-          const card = document.createElement('article');
-          card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-3 shadow-sm cursor-pointer hover:border-amber-400/60 transition-colors';
-          card.dataset.id = partner.id;
-          card.dataset.type = 'partner';
-          card.dataset.partnerType = 'custom';
-          card.innerHTML = `
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-bold text-white leading-tight">${escapeHTML(partner.company || partner.name || 'Service')}</p>
-                <p class="text-[11px] text-slate-400">${escapeHTML(locationText)}</p>
-              </div>
-              <span class="text-[10px] font-semibold px-2 py-1 rounded-full border border-slate-700 text-slate-200">${escapeHTML(meta.label)}</span>
-            </div>
-            ${partner.notes ? `<p class="mt-2 text-[11px] text-slate-400 leading-tight">${escapeHTML(partner.notes)}</p>` : ''}
-          `;
-
-          if (markersAllowed && map && meta.layer) {
-            if (!map.hasLayer(meta.layer)) {
-              meta.layer.addTo(map);
-            }
-
-            if (hasValidCoords(partner)) {
-              const checkPulseColor =
-                (isRepoAgentPartner(partner) && hasSpAgentNote(partner)) ||
-                (isParkingStoragePartner(partner) && hasSpStorageNote(partner))
-                  ? meta.color
-                  : null;
-              const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner), checkPulseColor });
-              const marker = L.marker([partner.lat, partner.lng], { icon });
-              marker.on('click', (e) => {
-                e.originalEvent.handledByMarker = true;
-                showServicePopup(partner, meta.color);
-              });
-              marker.addTo(meta.layer);
-            }
+        if (markersAllowed && map && meta?.layer) {
+          if (!map.hasLayer(meta.layer)) {
+            meta.layer.addTo(map);
           }
 
-          listWrap.appendChild(card);
-        });
-
-        section.appendChild(listWrap);
-        container.appendChild(section);
-        total += items.length;
+          if (hasValidCoords(partner)) {
+            const checkPulseColor =
+              (isRepoAgentPartner(partner) && hasSpAgentNote(partner)) ||
+              (isParkingStoragePartner(partner) && hasSpStorageNote(partner))
+                ? meta.color
+                : null;
+            const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner), checkPulseColor });
+            const marker = L.marker([partner.lat, partner.lng], { icon });
+            marker.on('click', (e) => {
+              e.originalEvent.handledByMarker = true;
+              showServicePopup(partner, meta.color);
+            });
+            marker.addTo(meta.layer);
+          }
+        }
       });
 
-      counter && (counter.textContent = total);
-
-      const legendSlot = document.getElementById('custom-legend-slot');
-      if (legendSlot) {
-        legendSlot.innerHTML = '';
-        grouped.forEach((items, key) => {
-          const meta = customCategories.get(key) || ensureCustomCategoryMeta(key);
-          const pill = document.createElement('div');
-          pill.className = 'legend-pill flex items-center gap-2';
-          pill.dataset.legend = `custom-${key}`;
-          pill.innerHTML = `
-            <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="${meta.color}" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-            ${escapeHTML(meta.label)}
-          `;
-          legendSlot.appendChild(pill);
-        });
-      }
+      container.appendChild(fragment);
+      counter && (counter.textContent = filtered.length);
     }
 
     function renderVisibleSidebars() {
       if (techSidebarVisible && isServiceTypeEnabled('tech')) updateTechUI(getTechList(technicians));
       if (resellerSidebarVisible && isServiceTypeEnabled('reseller')) updateResellerUI(resellers);
       if (repairSidebarVisible && isServiceTypeEnabled('repair')) updateRepairUI(repairShops);
-      if (customSidebarVisible && isServiceTypeEnabled('custom')) renderCustomServices(customServices);
+      if (customSidebarVisible && isServiceTypeEnabled('custom')) renderCategorySidebar(selectedCustomCategoryKey, customServices);
     }
 
     const PARTNER_TYPE_CONFIG = {
       reseller: { containerId: 'reseller-list', updater: updateResellerUI, getList: () => resellers },
       repair: { containerId: 'repair-list', updater: updateRepairUI, getList: () => repairShops },
-      custom: { containerId: 'custom-list', updater: renderCustomServices, getList: () => customServices }
+      custom: { containerId: 'dynamic-service-list', updater: renderCategorySidebar, getList: () => customServices }
     };
 
     const findVehicleById = (id) => vehicles.find((vehicle) => `${vehicle.id}` === `${id}`);
@@ -3537,7 +3593,7 @@
       const rightSidebar = document.getElementById('right-sidebar');
       const resellerSidebar = document.getElementById('reseller-sidebar');
       const repairSidebar = document.getElementById('repair-sidebar');
-      const customSidebar = document.getElementById('custom-sidebar');
+      const customSidebar = document.getElementById('dynamic-service-sidebar');
       const openLeft = document.getElementById('open-left-sidebar');
       const openRight = document.getElementById('open-right-sidebar');
       const openReseller = document.getElementById('open-reseller-sidebar');
@@ -3547,7 +3603,7 @@
       const collapseRight = document.getElementById('collapse-right');
       const collapseReseller = document.getElementById('collapse-reseller');
       const collapseRepair = document.getElementById('collapse-repair');
-      const collapseCustom = document.getElementById('collapse-custom');
+      const collapseCustom = document.getElementById('collapse-dynamic');
 
       const defaultLeftOffset = 12;
       const defaultRightOffset = 12;
@@ -3577,18 +3633,18 @@
           repairLayer.addTo(map);
         }
 
-          if (!customSidebarVisible) {
-            customServiceLayer?.clearLayers?.();
-            customCategories.forEach(({ layer }) => layer?.clearLayers?.());
-          } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
-            customServiceLayer.addTo(map);
-            customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
-          }
+        if (!customSidebarVisible) {
+          customServiceLayer?.clearLayers?.();
+          customCategories.forEach(({ layer }) => layer?.clearLayers?.());
+        } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
+          customServiceLayer.addTo(map);
+          customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
+        }
 
-          if (customSidebarVisible !== previousCustomVisible) {
-            lastCustomSidebarVisible = customSidebarVisible;
-            if (customSidebarVisible) renderCustomServices(customServices);
-          }
+        if (customSidebarVisible !== previousCustomVisible) {
+          lastCustomSidebarVisible = customSidebarVisible;
+          if (customSidebarVisible) renderCategorySidebar(selectedCustomCategoryKey, customServices);
+        }
 
           activeLeftPanel = leftSideKeys.find(key => {
             const cfg = configs[key];
@@ -3614,7 +3670,7 @@
           left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left', group: 'left' },
           reseller: { sidebar: resellerSidebar, toggle: openReseller, collapse: collapseReseller, collapsedClass: 'collapsed-reseller', group: 'left', type: 'reseller' },
           repair: { sidebar: repairSidebar, toggle: openRepair, collapse: collapseRepair, collapsedClass: 'collapsed-repair', group: 'left', type: 'repair' },
-          custom: { sidebar: customSidebar, toggle: openCustom, collapse: collapseCustom, collapsedClass: 'collapsed-custom', group: 'left', type: 'custom' },
+          custom: { sidebar: customSidebar, toggle: openCustom, collapse: collapseCustom, collapsedClass: 'collapsed-dynamic', group: 'left', type: 'custom' },
           right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right', group: 'right' }
         };
 
@@ -3724,7 +3780,6 @@
         loadBlacklistSites();
         loadVehicles();
         await loadAllServices();
-        if (isServiceTypeEnabled('custom')) loadCustomServices();
         setupResizableSidebars();
         setupSidebarToggles();
         setupHotspotToggle();
@@ -3736,6 +3791,7 @@
           { id: 'tech-filter', type: 'tech' },
           { id: 'reseller-filter', type: 'reseller' },
           { id: 'repair-filter', type: 'repair' },
+          { id: 'dynamic-service-filter', type: 'custom' },
         ].filter(({ type }) => isServiceTypeEnabled(type));
 
         filterConfigs.forEach(({ id, type }) => {
