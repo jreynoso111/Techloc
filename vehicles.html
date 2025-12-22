@@ -1731,6 +1731,33 @@
             clusterColor = '#fbbf24';
           }
 
+          const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
+          let hasRed = false;
+          let hasAmber = false;
+
+          childMarkers.forEach((marker) => {
+            const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
+            const isStopped = marker?.options?.isStopped;
+
+            if (isStopped) hasRed = true;
+
+            if (markerColor) {
+              const colorValue = `${markerColor}`.toLowerCase();
+              if (colorValue === '#ef4444') {
+                hasRed = true;
+              } else if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
+                hasAmber = true;
+              }
+            }
+          });
+
+          let clusterColor = '#f59e0b';
+          if (hasRed) {
+            clusterColor = '#ef4444';
+          } else if (hasAmber) {
+            clusterColor = '#fbbf24';
+          }
+
           const [width, height] = iconSize;
           return L.divIcon({
             html: `<div class="border rounded-full text-white font-semibold flex items-center justify-center shadow ${sizeClass}" style="background:${hexToRgba(clusterColor, 0.2)}; border-color:${hexToRgba(clusterColor, 0.5)}; color:#e2e8f0; box-shadow:0 8px 18px rgba(0,0,0,0.3)">${count}</div>`,
