@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Command Center</title>
+  <title>TechLoc • Analytics</title>
   
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
   
@@ -29,13 +29,6 @@
           },
           animation: {
             'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            'enter-slide': 'enterSlide 0.3s ease-out forwards',
-          },
-          keyframes: {
-            enterSlide: {
-              '0%': { opacity: '0', transform: 'translateY(-10px)' },
-              '100%': { opacity: '1', transform: 'translateY(0)' },
-            }
           }
         },
       },
@@ -43,253 +36,288 @@
   </script>
   
   <style>
-    body { background-color: #020617; }
+    /* Estilo Base Oscuro Original */
+    body { background-color: #020617; color: #f8fafc; }
     
     /* Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
-    /* Glassmorphism Cards */
+    /* Glassmorphism Cards (Estilo original) */
     .frosted-card {
-      background: rgba(15, 23, 42, 0.6);
+      background: rgba(15, 23, 42, 0.6); /* Slate 900 con transparencia */
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
     }
     
-    /* Neon Texts */
+    /* Efectos Neon sutiles */
     .neon-text-blue { text-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
-    .neon-text-emerald { text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
-    .neon-text-violet { text-shadow: 0 0 10px rgba(139, 92, 246, 0.5); }
-    
-    .status-dot { box-shadow: 0 0 15px currentColor; }
+    .status-dot { box-shadow: 0 0 10px currentColor; }
 
-    /* Circular Progress (Donut Chart Pure CSS) */
-    .circular-chart {
-      display: block;
-      margin: 0 auto;
-      max-width: 100%;
-      max-height: 250px;
-    }
-    .circle-bg {
-      fill: none;
-      stroke: rgba(255,255,255,0.05);
-      stroke-width: 2.8;
-    }
-    .circle {
-      fill: none;
-      stroke-width: 2.8;
-      stroke-linecap: round;
-      animation: progress 1s ease-out forwards;
-    }
+    /* Circular Progress */
+    .circular-chart { display: block; margin: 0 auto; max-width: 100%; max-height: 250px; }
+    .circle-bg { fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 2.8; }
+    .circle { fill: none; stroke-width: 2.8; stroke-linecap: round; animation: progress 1s ease-out forwards; }
     @keyframes progress { 0% { stroke-dasharray: 0 100; } }
-    .percentage {
-      fill: #fff;
-      font-family: 'JetBrains Mono', monospace;
-      font-weight: bold;
-      font-size: 0.5em;
-      text-anchor: middle;
-    }
   </style>
+  <link rel="stylesheet" href="../assets/visuals/theme.css" />
 </head>
 <body class="min-h-screen text-slate-50 relative selection:bg-blue-500/30 overflow-x-hidden">
 
-  <canvas id="constellation-canvas" class="fixed inset-0 -z-10 opacity-40 pointer-events-none"></canvas>
-  
-  <header class="border-b border-white/5 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
-    <div class="flex items-center justify-between px-6 py-3 lg:px-8">
+  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10 opacity-60"></canvas>
+
+  <header class="border-b border-white/5 bg-slate-900/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="flex items-center justify-between px-6 py-4 lg:px-10">
       <a href="../index.html" class="flex items-center gap-3 group">
-        <div class="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
-          <div class="absolute inset-0 bg-white/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-          <span class="text-[10px] font-black uppercase tracking-widest text-white">TL</span>
+        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-900/20 group-hover:scale-105 transition-transform duration-300">
+          <span class="text-xs font-black uppercase tracking-widest text-white">TL</span>
         </div>
         <div>
-          <p class="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-0.5">Admin Console</p>
-          <h1 class="text-sm font-bold text-slate-100 tracking-tight">TechLoc Analytics</h1>
+          <p class="text-[10px] font-bold uppercase tracking-widest text-blue-400">TechLoc Admin</p>
+          <h1 class="text-base font-bold text-slate-100">Analytics Hub</h1>
         </div>
       </a>
-
-      <div class="flex items-center gap-6">
-        <nav class="hidden md:flex items-center gap-1 text-xs font-medium text-slate-400">
-          <a href="../index.html" class="px-3 py-1.5 hover:text-white hover:bg-white/5 rounded-md transition-all">Home</a>
-          <a href="../vehicles.html" class="px-3 py-1.5 hover:text-white hover:bg-white/5 rounded-md transition-all">Live Map</a>
-          <a href="./index.html" class="px-3 py-1.5 text-white bg-white/5 border border-white/5 rounded-md shadow-sm">Analytics</a>
+      <div class="flex flex-wrap items-center justify-end gap-4">
+        <nav class="hidden items-center gap-1 text-sm font-medium text-slate-400 md:flex">
+          <a id="nav-home" href="../index.html" class="rounded-lg px-4 py-2 transition-all hover:text-white hover:bg-white/5">Home</a>
+          <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-lg px-4 py-2 transition-all hover:text-white hover:bg-white/5">Control View</a>
+          <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-lg px-4 py-2 transition-all hover:text-white hover:bg-white/5">Dashboard</a>
         </nav>
-        <div class="h-4 w-px bg-white/10 hidden md:block"></div>
+        <div class="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
         <div class="flex items-center gap-3">
-            <div class="hidden md:flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                <span class="relative flex h-1.5 w-1.5">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 status-dot"></span>
-                </span>
-                Socket Open
-            </div>
-            <button id="nav-logout" data-admin-logout="true" class="text-xs font-medium text-red-400 hover:text-red-300 transition-colors uppercase tracking-wider">Logout</button>
+          <a id="nav-login" href="../login.html" class="hidden rounded-lg border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300 transition hover:bg-white/10 hover:text-white">Login</a>
+          <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-red-200 transition hover:bg-red-500/20 hover:text-white">Logout</button>
+          
+          <div class="hidden items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-300 md:flex shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </span>
+            Admin Tools
+          </div>
         </div>
       </div>
     </div>
   </header>
 
-  <main class="px-4 py-6 lg:px-8 max-w-[1920px] mx-auto space-y-6">
-    
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+  <main class="px-6 py-8 lg:px-10 max-w-[1920px] mx-auto">
+    <div class="flex flex-col gap-8 lg:flex-row">
+      
+      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
+          <h2 class="text-lg font-black text-white">Admin workspace</h2>
+        </div>
+        <nav class="flex flex-col gap-2 text-sm font-semibold">
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
+          </a>
+          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
+          </a>
+          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
+          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
+          </a>
+          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
+            Analytics <span class="text-xs font-medium text-blue-100">Insights</span>
+          </a>
+        </nav>
+      </aside>
+
+      <section class="flex-1 space-y-6">
         
-        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
-            <div class="absolute right-0 top-0 w-20 h-20 bg-blue-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-blue-500/20"></div>
-            <div class="flex items-center gap-2 mb-2">
-                <i data-lucide="truck" class="h-4 w-4 text-blue-400"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Fleet</span>
+        <div class="flex flex-col justify-between gap-4 border-b border-white/5 pb-6 sm:flex-row sm:items-end">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-500" id="dataset-status">System Live</p>
             </div>
-            <div class="flex items-end gap-2">
-                <h2 id="kpi-vehicles" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-blue">-</h2>
-                <span class="text-[10px] text-blue-400/80 mb-1">Units</span>
-            </div>
+            <h2 class="text-3xl font-bold tracking-tight text-white">Analytics Overview</h2>
+            <p class="mt-1 text-sm text-slate-400 max-w-2xl">Real-time telemetry from database records and fleet status.</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="refresh-btn" class="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-300 transition-all hover:border-white/20 hover:bg-white/10 hover:text-white">
+              <i data-lucide="refresh-cw" class="h-3.5 w-3.5 transition-transform group-hover:rotate-180"></i> Sync Data
+            </button>
+          </div>
         </div>
 
-        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
-            <div class="absolute right-0 top-0 w-20 h-20 bg-emerald-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-emerald-500/20"></div>
-            <div class="flex items-center gap-2 mb-2">
-                <i data-lucide="activity" class="h-4 w-4 text-emerald-400"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Moving Now</span>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+           <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
+            <div class="flex items-center gap-3 text-slate-400 mb-2">
+              <div class="rounded-lg bg-blue-500/10 p-2 text-blue-400"><i data-lucide="truck" class="h-4 w-4"></i></div>
+              <span class="text-xs font-semibold uppercase tracking-wider">Total Fleet</span>
             </div>
-            <div class="flex items-end gap-2">
-                <h2 id="kpi-moving" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-emerald">-</h2>
-                <span class="text-[10px] text-emerald-400/80 mb-1">Active</span>
+            <p id="kpi-vehicles" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
+            <p class="mt-1 text-[11px] text-slate-500">Active Units</p>
+          </div>
+
+          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl"></div>
+             <div class="flex items-center gap-3 text-slate-400 mb-2">
+              <div class="rounded-lg bg-emerald-500/10 p-2 text-emerald-400"><i data-lucide="activity" class="h-4 w-4"></i></div>
+              <span class="text-xs font-semibold uppercase tracking-wider">Moving Now</span>
             </div>
+            <p id="kpi-moving" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
+            <p class="mt-1 text-[11px] text-slate-500">Active Status</p>
+          </div>
+
+          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-violet-500/10 blur-2xl"></div>
+             <div class="flex items-center gap-3 text-slate-400 mb-2">
+              <div class="rounded-lg bg-violet-500/10 p-2 text-violet-400"><i data-lucide="users" class="h-4 w-4"></i></div>
+              <span class="text-xs font-semibold uppercase tracking-wider">Service Partners</span>
+            </div>
+            <p id="kpi-services" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
+            <p class="mt-1 text-[11px] text-slate-500">Total Entities</p>
+          </div>
+
+          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
+            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl"></div>
+             <div class="flex items-center gap-3 text-slate-400 mb-2">
+              <div class="rounded-lg bg-amber-500/10 p-2 text-amber-400"><i data-lucide="star" class="h-4 w-4"></i></div>
+              <span class="text-xs font-semibold uppercase tracking-wider">Avg Quality</span>
+            </div>
+            <p id="kpi-rating" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
+            <p class="mt-1 text-[11px] text-slate-500">Google Rating</p>
+          </div>
         </div>
 
-        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
-            <div class="absolute right-0 top-0 w-20 h-20 bg-violet-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-violet-500/20"></div>
-            <div class="flex items-center gap-2 mb-2">
-                <i data-lucide="users" class="h-4 w-4 text-violet-400"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Service Partners</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <h2 id="kpi-services" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-violet">-</h2>
-                <span class="text-[10px] text-violet-400/80 mb-1">Entities</span>
-            </div>
-        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
-            <div class="absolute right-0 top-0 w-20 h-20 bg-amber-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-amber-500/20"></div>
-            <div class="flex items-center gap-2 mb-2">
-                <i data-lucide="star" class="h-4 w-4 text-amber-400"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Avg Quality</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <h2 id="kpi-rating" class="text-3xl font-mono font-bold text-white tracking-tight leading-none">-</h2>
-                <span class="text-[10px] text-amber-400/80 mb-1">Google</span>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        <div class="lg:col-span-1 space-y-6">
+          <div class="lg:col-span-1 space-y-6">
             
-            <div class="frosted-card rounded-xl p-6 relative">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                        <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i> Fleet Pulse
-                    </h3>
-                </div>
-                <div class="flex items-center justify-center relative h-40">
-                     <svg viewBox="0 0 36 36" class="circular-chart w-32 h-32">
-                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path id="moving-circle" class="circle stroke-emerald-500" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    </svg>
-                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                        <span id="moving-pct" class="text-2xl font-bold text-white font-mono">0%</span>
-                        <span class="text-[9px] uppercase tracking-wider text-slate-400">Moving</span>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2 mt-4 text-center">
-                    <div class="bg-emerald-500/10 rounded p-2 border border-emerald-500/20">
-                        <p class="text-[10px] text-emerald-400 uppercase">Moving</p>
-                        <p id="count-moving" class="font-mono font-bold text-white">-</p>
-                    </div>
-                    <div class="bg-slate-800/50 rounded p-2 border border-slate-700/50">
-                        <p class="text-[10px] text-slate-400 uppercase">Stopped</p>
-                        <p id="count-stopped" class="font-mono font-bold text-white">-</p>
-                    </div>
-                </div>
+            <div class="rounded-2xl border frosted-card p-6 relative">
+              <div class="flex items-center justify-between mb-4">
+                 <h3 class="text-sm font-bold uppercase tracking-widest text-white">Fleet Pulse</h3>
+                 <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i>
+              </div>
+              <div class="flex items-center justify-center relative h-40">
+                  <svg viewBox="0 0 36 36" class="circular-chart w-32 h-32">
+                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path id="moving-circle" class="circle stroke-emerald-500" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  </svg>
+                  <div class="absolute inset-0 flex flex-col items-center justify-center">
+                      <span id="moving-pct" class="text-2xl font-bold text-white font-mono">0%</span>
+                      <span class="text-[9px] uppercase tracking-wider text-slate-400">Moving</span>
+                  </div>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-4 text-center">
+                  <div class="bg-emerald-500/10 rounded p-2 border border-emerald-500/20">
+                      <p class="text-[10px] text-emerald-400 uppercase font-bold">Moving</p>
+                      <p id="count-moving" class="font-mono font-bold text-white">-</p>
+                  </div>
+                  <div class="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+                      <p class="text-[10px] text-slate-400 uppercase font-bold">Stopped</p>
+                      <p id="count-stopped" class="font-mono font-bold text-white">-</p>
+                  </div>
+              </div>
             </div>
 
-            <div class="frosted-card rounded-xl p-6">
-                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                        <i data-lucide="check-circle" class="h-4 w-4 text-slate-400"></i> Deal Progress
-                    </h3>
-                </div>
-                <div class="space-y-4">
-                    <div>
-                        <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-400">Avg Completion</span>
-                            <span id="avg-completion-text" class="text-white font-mono">0%</span>
-                        </div>
-                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div id="avg-completion-bar" class="h-full bg-gradient-to-r from-blue-600 to-cyan-400" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="pt-2 border-t border-white/5">
-                        <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Unit Types</p>
-                        <div id="unit-types-list" class="space-y-2">
-                            </div>
-                    </div>
-                </div>
+            <div class="rounded-2xl border frosted-card p-6">
+              <div class="flex items-center justify-between mb-4">
+                  <h3 class="text-sm font-bold uppercase tracking-widest text-white">Deal Progress</h3>
+                  <i data-lucide="check-circle" class="h-4 w-4 text-slate-400"></i>
+              </div>
+              <div class="space-y-4">
+                  <div>
+                      <div class="flex justify-between text-xs mb-1">
+                          <span class="text-slate-400">Avg Completion</span>
+                          <span id="avg-completion-text" class="text-white font-mono">0%</span>
+                      </div>
+                      <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                          <div id="avg-completion-bar" class="h-full bg-gradient-to-r from-blue-600 to-cyan-400" style="width: 0%"></div>
+                      </div>
+                  </div>
+                  <div class="pt-2 border-t border-white/5">
+                      <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Unit Types</p>
+                      <div id="unit-types-list" class="space-y-2"></div>
+                  </div>
+              </div>
             </div>
 
-        </div>
+          </div>
 
-        <div class="lg:col-span-2 space-y-6">
+          <div class="lg:col-span-2 space-y-6">
             
-            <div class="frosted-card rounded-xl p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                        <i data-lucide="pie-chart" class="h-4 w-4 text-violet-400"></i> Partner Categories
-                    </h3>
+            <div class="rounded-2xl border frosted-card p-6">
+               <div class="mb-6 flex items-center justify-between">
+                <div>
+                  <h3 class="text-sm font-bold uppercase tracking-widest text-white">Partner Categories</h3>
+                  <p class="text-[11px] text-slate-500">Distribution by service type</p>
                 </div>
-                <div id="category-bars" class="space-y-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-                     <div class="animate-pulse h-4 bg-white/5 rounded col-span-2"></div>
-                </div>
+                <i data-lucide="pie-chart" class="h-4 w-4 text-violet-400"></i>
+              </div>
+              <div id="category-bars" class="space-y-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                  <div class="animate-pulse h-4 bg-white/5 rounded col-span-2"></div>
+              </div>
             </div>
 
-            <div class="frosted-card rounded-xl p-6">
-                <h3 class="text-xs font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
-                    <i data-lucide="map" class="h-4 w-4 text-amber-400"></i> Top Regions (Services)
+             <div class="rounded-2xl border frosted-card p-6">
+                <div class="mb-5 flex items-center justify-between">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-white">Top Regions</h3>
+                    <div class="text-[10px] font-mono text-amber-400">SERVICES</div>
+                </div>
+                <div id="top-regions" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+            </div>
+
+            <div class="rounded-2xl border frosted-card p-6 flex flex-col">
+              <div class="mb-5 flex items-center justify-between">
+                <h3 class="text-sm font-bold uppercase tracking-widest text-white flex items-center gap-2">
+                  <span class="relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Live Data Feed
                 </h3>
-                <div id="top-regions" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    </div>
-            </div>
-            
-             <div class="frosted-card rounded-xl overflow-hidden flex flex-col h-[300px]">
-                <div class="p-4 border-b border-white/5 bg-slate-900/40">
-                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                        <i data-lucide="database" class="h-4 w-4 text-slate-400"></i> Live Data Feed
-                    </h3>
+                <span class="text-[10px] font-mono text-slate-500">REAL-TIME</span>
+              </div>
+              <div class="overflow-hidden rounded-xl border border-white/5 bg-black/20">
+                <div class="max-h-[300px] overflow-y-auto custom-scrollbar">
+                  <table class="w-full text-left text-sm">
+                    <thead class="bg-white/5 text-[10px] uppercase font-bold text-slate-400 sticky top-0 backdrop-blur-sm z-10">
+                      <tr>
+                        <th class="px-4 py-3">Entity</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3 text-center">Status/Loc</th>
+                        <th class="px-4 py-3 text-right">Source</th>
+                      </tr>
+                    </thead>
+                    <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300"></tbody>
+                  </table>
                 </div>
-                <div class="flex-1 overflow-auto custom-scrollbar bg-black/20">
-                    <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-900/80 sticky top-0 z-10 backdrop-blur-sm">
-                            <tr class="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                                <th class="px-4 py-3">Name / ID</th>
-                                <th class="px-4 py-3">Type</th>
-                                <th class="px-4 py-3">Status/Loc</th>
-                                <th class="px-4 py-3 text-right">Source</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
-                            </tbody>
-                    </table>
-                </div>
+              </div>
             </div>
 
+          </div>
         </div>
+
+      </section>
     </div>
   </main>
+
+  <div id="detail-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 backdrop-blur-sm px-4" aria-hidden="true">
+    <div id="detail-modal-backdrop" class="absolute inset-0"></div>
+    <div id="detail-modal-container" class="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900/90 p-6 shadow-2xl frosted-card">
+      <div class="flex items-start justify-between gap-4">
+        <div class="space-y-1">
+          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Record Detail</p>
+          <h3 id="detail-modal-title" class="text-2xl font-black text-white"></h3>
+          <p id="detail-modal-subtitle" class="text-sm text-slate-400"></p>
+        </div>
+        <button id="detail-modal-close" type="button" class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:text-white">Close</button>
+      </div>
+      <div id="detail-modal-content" class="mt-5 space-y-4 text-sm text-slate-200"></div>
+    </div>
+  </div>
 
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
@@ -299,14 +327,12 @@
     const TABLE_SERVICES = 'services';
     const TABLE_VEHICLES = 'vehicles';
     
-    // --- ELEMENTS ---
     const els = {
       kpiVehicles: document.getElementById('kpi-vehicles'),
       kpiServices: document.getElementById('kpi-services'),
       kpiMoving: document.getElementById('kpi-moving'),
       kpiRating: document.getElementById('kpi-rating'),
       
-      // Charts
       categoryBars: document.getElementById('category-bars'),
       topRegions: document.getElementById('top-regions'),
       movingCircle: document.getElementById('moving-circle'),
@@ -318,9 +344,14 @@
       unitTypesList: document.getElementById('unit-types-list'),
       
       tableBody: document.getElementById('recent-table-body'),
+      detailModal: document.getElementById('detail-modal'),
+      detailModalTitle: document.getElementById('detail-modal-title'),
+      detailModalContent: document.getElementById('detail-modal-content'),
+      detailModalClose: document.getElementById('detail-modal-close'),
+      status: document.getElementById('dataset-status')
     };
 
-    // --- HELPER: Normalize Data based on your Image ---
+    // --- HELPERS ---
     const formatCategory = (str) => {
         if (!str) return 'Uncategorized';
         const clean = String(str).trim().toLowerCase();
@@ -333,14 +364,13 @@
             'Technician': 'bg-blue-500',
             'Towing': 'bg-amber-500',
             'Locksmith': 'bg-pink-500',
-            'Truck': 'bg-emerald-500', // Vehicle type
-            'Trailer': 'bg-cyan-500'   // Vehicle type
+            'Truck': 'bg-emerald-500', 
+            'Trailer': 'bg-cyan-500'
         };
         return map[cat] || 'bg-slate-500';
     };
 
     const normalizeRow = (row, type) => {
-        // Mapeo basado en tu imagen para vehicles
         if (type === 'vehicle') {
             return {
                 id: row['Customer ID'] || row.id,
@@ -348,18 +378,14 @@
                 category: row['unit type'] || 'Vehicle',
                 state: row['state loc'] || row.state,
                 city: row['pt city'],
-                
-                // Vehicle Specifics from Image
-                moving: String(row['moving']) === '1', // 1 = Moving?
+                moving: String(row['moving']) === '1', 
                 completion: parseFloat(row['deal completion']) || 0,
                 ptStatus: row['pt status'],
-                
                 source: 'Fleet DB',
                 isVehicle: true,
                 raw: row
             };
         } else {
-            // Services Standard
             return {
                 id: row.id,
                 name: row.name || row.company_name,
@@ -374,25 +400,18 @@
         }
     };
 
-    // --- RENDER LOGIC ---
-
+    // --- RENDER ---
     const renderDashboard = (serviceRows, vehicleRows) => {
         
-        // 1. SERVICES ANALYTICS
-        // ---------------------
-        
-        // Count Categories
+        // 1. SERVICES: Category Bars (Count + %)
         const catCounts = {};
         serviceRows.forEach(r => catCounts[r.category] = (catCounts[r.category] || 0) + 1);
-        
-        // Render Bars (Count & %)
         els.categoryBars.innerHTML = '';
         const sortedCats = Object.entries(catCounts).sort((a,b) => b[1] - a[1]);
         
         sortedCats.forEach(([cat, count]) => {
             const pct = ((count / serviceRows.length) * 100).toFixed(1);
             const color = getCategoryColor(cat);
-            
             const html = `
                 <div class="group">
                     <div class="flex justify-between mb-1 items-end">
@@ -410,31 +429,22 @@
             els.categoryBars.insertAdjacentHTML('beforeend', html);
         });
 
-        // Geo Analysis (States)
+        // 2. SERVICES: Top Regions (State)
         els.topRegions.innerHTML = '';
         const regionCounts = {};
         serviceRows.forEach(r => { if(r.state) regionCounts[r.state] = (regionCounts[r.state]||0)+1; });
-        
-        Object.entries(regionCounts)
-            .sort((a,b)=>b[1]-a[1])
-            .slice(0, 8)
-            .forEach(([state, count], i) => {
-                const intensity = count > 10 ? 'border-amber-500/30 bg-amber-500/10' : 'border-white/5 bg-white/5';
-                const html = `
-                    <div class="p-2 rounded border ${intensity} text-center hover:scale-105 transition-transform">
-                        <div class="text-[10px] font-mono text-slate-500 uppercase">State</div>
-                        <div class="text-lg font-bold text-white leading-none my-0.5">${state}</div>
-                        <div class="text-[9px] text-amber-400 font-bold">${count} partners</div>
-                    </div>
-                `;
-                els.topRegions.insertAdjacentHTML('beforeend', html);
-            });
+        Object.entries(regionCounts).sort((a,b)=>b[1]-a[1]).slice(0, 8).forEach(([state, count]) => {
+             const intensity = count > 10 ? 'border-amber-500/30 bg-amber-500/10' : 'border-white/5 bg-white/5';
+             els.topRegions.insertAdjacentHTML('beforeend', `
+                <div class="p-2 rounded border ${intensity} text-center hover:scale-105 transition-transform">
+                    <div class="text-[10px] font-mono text-slate-500 uppercase">State</div>
+                    <div class="text-lg font-bold text-white leading-none my-0.5">${state}</div>
+                    <div class="text-[9px] text-amber-400 font-bold">${count}</div>
+                </div>
+             `);
+        });
 
-
-        // 2. VEHICLE ANALYTICS (From Image Columns)
-        // -----------------------------------------
-        
-        // Moving Status
+        // 3. VEHICLES: Moving Status
         const movingCount = vehicleRows.filter(r => r.moving).length;
         const stoppedCount = vehicleRows.length - movingCount;
         const movingPct = vehicleRows.length ? Math.round((movingCount / vehicleRows.length) * 100) : 0;
@@ -442,26 +452,18 @@
         els.movingPct.textContent = `${movingPct}%`;
         els.countMoving.textContent = movingCount;
         els.countStopped.textContent = stoppedCount;
-        
-        // Animate Circle
-        setTimeout(() => {
-            const circleCircumference = 100; // dasharray logic
-            const dashOffset = circleCircumference - movingPct; // logic simplification for css
-            els.movingCircle.setAttribute('stroke-dasharray', `${movingPct}, 100`);
-        }, 100);
+        setTimeout(() => els.movingCircle.setAttribute('stroke-dasharray', `${movingPct}, 100`), 100);
 
-        // Deal Completion
+        // 4. VEHICLES: Deal Completion
         const totalCompletion = vehicleRows.reduce((acc, r) => acc + r.completion, 0);
         const avgCompletion = vehicleRows.length ? (totalCompletion / vehicleRows.length).toFixed(1) : 0;
-        
         els.avgCompletionText.textContent = `${avgCompletion}%`;
         setTimeout(() => els.avgCompletionBar.style.width = `${avgCompletion}%`, 200);
 
-        // Unit Types Breakdown
+        // 5. VEHICLES: Unit Types
         const unitTypes = {};
         vehicleRows.forEach(r => unitTypes[r.category] = (unitTypes[r.category]||0)+1);
         els.unitTypesList.innerHTML = '';
-        
         Object.entries(unitTypes).forEach(([type, count]) => {
              const pct = ((count / vehicleRows.length) * 100).toFixed(0);
              els.unitTypesList.insertAdjacentHTML('beforeend', `
@@ -472,71 +474,63 @@
              `);
         });
 
-
-        // 3. KPIs Totals
-        // --------------
+        // 6. KPIS
         els.kpiVehicles.textContent = vehicleRows.length;
         els.kpiServices.textContent = serviceRows.length;
         els.kpiMoving.textContent = movingCount;
-        
         const ratedServices = serviceRows.filter(r => r.rating > 0);
-        els.kpiRating.textContent = ratedServices.length 
-            ? (ratedServices.reduce((a,b)=>a+b.rating,0)/ratedServices.length).toFixed(1) 
-            : '-';
+        els.kpiRating.textContent = ratedServices.length ? (ratedServices.reduce((a,b)=>a+b.rating,0)/ratedServices.length).toFixed(1) : '-';
 
-
-        // 4. Fill Table
-        // -------------
-        const allRecent = [...vehicleRows, ...serviceRows].slice(0, 20); // Mix
+        // 7. TABLE
+        const allRecent = [...vehicleRows, ...serviceRows].slice(0, 20);
         els.tableBody.innerHTML = '';
         allRecent.forEach(r => {
              els.tableBody.insertAdjacentHTML('beforeend', `
-                <tr class="hover:bg-white/5 transition-colors border-b border-white/5">
-                    <td class="px-4 py-2 text-slate-300 font-medium truncate max-w-[120px]">${r.name}</td>
+                <tr class="hover:bg-white/5 transition-colors border-b border-white/5 cursor-pointer" onclick="window.showDetail('${r.id}')">
+                    <td class="px-4 py-2 text-slate-300 font-medium truncate max-w-[120px] text-xs">${r.name}</td>
                     <td class="px-4 py-2">
                          <span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 ${r.isVehicle ? 'bg-emerald-500/10 text-emerald-300' : 'bg-violet-500/10 text-violet-300'} uppercase font-bold">
                             ${r.category}
                          </span>
                     </td>
-                    <td class="px-4 py-2 text-[10px] text-slate-400">
+                    <td class="px-4 py-2 text-[10px] text-center text-slate-400">
                         ${r.isVehicle ? (r.moving ? 'Moving' : 'Stopped') : (r.city || '-')}
                     </td>
                     <td class="px-4 py-2 text-right text-[9px] text-slate-500 font-mono">${r.source}</td>
                 </tr>
              `);
         });
-
-        // Trigger animations
+        
         setTimeout(() => document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.getAttribute('data-width')), 100);
     };
 
-    // --- LOAD DATA ---
+    // --- LOAD ---
     const loadData = async () => {
         try {
-            // 1. Fetch
             const { data: sData } = await supabaseClient.from(TABLE_SERVICES).select('*');
             const { data: vData } = await supabaseClient.from(TABLE_VEHICLES).select('*');
-            
-            // 2. Normalize
             const services = (sData || []).map(r => normalizeRow(r, 'service'));
-            
-            // NOTA: Aquí simulo que los datos de DB vienen con las columnas de tu imagen.
-            // En producción, asegúrate que Supabase retorna 'deal status', 'unit type', etc.
             const vehicles = (vData || []).map(r => normalizeRow(r, 'vehicle'));
-
             renderDashboard(services, vehicles);
-            
-        } catch (err) {
-            console.error("Error loading data:", err);
-        }
+            els.status.textContent = `LIVE • ${services.length + vehicles.length} RECORDS`;
+        } catch (err) { console.error(err); }
         lucide.createIcons();
     };
+
+    // --- MODAL ---
+    window.showDetail = (id) => {
+       // Simple implementation for modal details
+       els.detailModal.classList.remove('hidden');
+       els.detailModal.classList.add('flex');
+       els.detailModalTitle.textContent = "Record Details";
+       els.detailModalContent.innerHTML = `<p class="text-xs font-mono text-emerald-400">ID: ${id}</p>`;
+    };
+    els.detailModalClose.onclick = () => els.detailModal.classList.add('hidden');
 
     (async () => {
         createConstellationBackground();
         await loadData();
     })();
-
   </script>
 </body>
 </html>
