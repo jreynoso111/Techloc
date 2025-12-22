@@ -3,15 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Analytics</title>
+  <title>TechLoc • Command Center</title>
+  
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
   <script src="../assets/scripts/datasets.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -23,305 +27,260 @@
           colors: { 
             slate: { 850: '#0f172a', 900: '#020617', 950: '#020617' } 
           },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'enter-slide': 'enterSlide 0.3s ease-out forwards',
+          },
+          keyframes: {
+            enterSlide: {
+              '0%': { opacity: '0', transform: 'translateY(-10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          }
         },
       },
     };
   </script>
+  
   <style>
-    /* Scrollbar profesional delgada */
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 4px;
+    /* Estilos base */
+    body { background-color: #020617; }
+    
+    /* Scrollbar minimalista */
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+    /* Efectos de Vidrio (Glassmorphism) */
+    .frosted-card {
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
     }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.02);
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.15);
-      border-radius: 10px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.3);
+    
+    .neon-text-blue { text-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
+    .neon-text-emerald { text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+    
+    /* Indicador de actividad */
+    .status-dot {
+      box-shadow: 0 0 15px currentColor;
     }
   </style>
-  <link rel="stylesheet" href="../assets/visuals/theme.css" />
 </head>
-<body class="min-h-screen text-slate-50 relative selection:bg-blue-500/30">
+<body class="min-h-screen text-slate-50 relative selection:bg-blue-500/30 overflow-x-hidden">
 
-  <header class="border-b muted-border dark-panel backdrop-blur-md sticky top-0 z-50">
-    <div class="flex items-center justify-between px-6 py-4 lg:px-10">
+  <canvas id="constellation-canvas" class="fixed inset-0 -z-10 opacity-40 pointer-events-none"></canvas>
+  
+  <header class="border-b border-white/5 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+    <div class="flex items-center justify-between px-6 py-3 lg:px-8">
       <a href="../index.html" class="flex items-center gap-3 group">
-        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-900/20 group-hover:scale-105 transition-transform duration-300">
-          <span class="text-xs font-black uppercase tracking-widest text-white">TL</span>
+        <div class="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+          <div class="absolute inset-0 bg-white/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <span class="text-[10px] font-black uppercase tracking-widest text-white">TL</span>
         </div>
         <div>
-          <p class="text-[10px] font-bold uppercase tracking-widest text-blue-400">TechLoc Admin</p>
-          <h1 class="text-base font-bold text-slate-100">Analytics Hub</h1>
+          <p class="text-[9px] font-bold uppercase tracking-widest text-blue-400 mb-0.5">Admin Console</p>
+          <h1 class="text-sm font-bold text-slate-100 tracking-tight">TechLoc Analytics</h1>
         </div>
       </a>
-      <div class="flex flex-wrap items-center justify-end gap-4">
-        <nav class="hidden items-center gap-1 text-sm font-medium text-slate-400 md:flex">
-          <a id="nav-home" href="../index.html" class="rounded-lg px-4 py-2 transition-all hover:text-white hover:bg-white/5">Home</a>
-          <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-lg px-4 py-2 transition-all hover:text-white hover:bg-white/5">Control View</a>
-          <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-lg px-4 py-2 transition-all hover:text-white hover:bg-white/5">Dashboard</a>
+
+      <div class="flex items-center gap-6">
+        <nav class="hidden md:flex items-center gap-1 text-xs font-medium text-slate-400">
+          <a href="../index.html" class="px-3 py-1.5 hover:text-white hover:bg-white/5 rounded-md transition-all">Home</a>
+          <a href="../vehicles.html" class="px-3 py-1.5 hover:text-white hover:bg-white/5 rounded-md transition-all">Live Map</a>
+          <a href="./index.html" class="px-3 py-1.5 text-white bg-white/5 border border-white/5 rounded-md shadow-sm">Analytics</a>
         </nav>
-        <div class="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
+
+        <div class="h-4 w-px bg-white/10 hidden md:block"></div>
+
         <div class="flex items-center gap-3">
-          <a id="nav-login" href="../login.html" class="hidden rounded-lg border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300 transition hover:bg-white/10 hover:text-white">Login</a>
-          <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-red-200 transition hover:bg-red-500/20 hover:text-white">Logout</button>
-          
-          <div class="hidden items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-blue-300 md:flex shadow-[0_0_15px_rgba(59,130,246,0.15)]">
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-            </span>
-            Admin Tools
-          </div>
+            <div class="hidden md:flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                <span class="relative flex h-1.5 w-1.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500 status-dot"></span>
+                </span>
+                Socket Open
+            </div>
+            <button id="nav-logout" data-admin-logout="true" class="text-xs font-medium text-red-400 hover:text-red-300 transition-colors uppercase tracking-wider">Logout</button>
         </div>
       </div>
     </div>
   </header>
 
-  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10 opacity-60"></canvas>
-
-  <main class="px-6 py-8 lg:px-10 max-w-[1920px] mx-auto">
-    <div class="flex flex-col gap-8 lg:flex-row">
-      
-<aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
-          <h2 class="text-lg font-black text-white">Admin workspace</h2>
-        </div>
-        <nav class="flex flex-col gap-2 text-sm font-semibold">
-          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Dashboard
-            <span class="text-xs font-medium text-slate-400">Overview</span>
-          </a>
-          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Profiles
-            <span class="text-xs font-medium text-slate-400">Access levels</span>
-          </a>
-          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Services
-            <span class="text-xs font-medium text-slate-400">Technicians</span>
-          </a>
-          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Vehicles
-            <span class="text-xs font-medium text-slate-400">Fleet</span>
-          </a>
-          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
-            Analytics
-            <span class="text-xs font-medium text-blue-100">Insights</span>
-          </a>
-        </nav>
-      </aside>
-      <section class="flex-1 space-y-6">
+  <main class="px-4 py-6 lg:px-8 max-w-[1920px] mx-auto space-y-6">
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         
-        <div class="flex flex-col justify-between gap-4 border-b border-white/5 pb-6 sm:flex-row sm:items-end">
-      <div>
-            <div class="flex items-center gap-2 mb-1">
-              <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
-              <p class="text-[10px] font-bold uppercase tracking-widest text-emerald-500" id="dataset-status">System Live</p>
+        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-20 h-20 bg-blue-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-blue-500/20"></div>
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="truck" class="h-4 w-4 text-blue-400"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Fleet</span>
             </div>
-            <h2 class="text-3xl font-bold tracking-tight text-white">Analytics Overview</h2>
-            <p class="mt-1 text-sm text-slate-400 max-w-2xl">Real-time telemetry from database records and user interactions.</p>
-          </div>
-          <div class="flex gap-2">
-            <button id="refresh-btn" class="group flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-300 transition-all hover:border-white/20 hover:bg-white/10 hover:text-white">
-              <i data-lucide="refresh-cw" class="h-3.5 w-3.5 transition-transform group-hover:rotate-180"></i> Sync Data
-            </button>
-          </div>
-        </div>
-
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
-            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
-            <div class="flex items-center gap-3 text-slate-400 mb-2">
-              <div class="rounded-lg bg-blue-500/10 p-2 text-blue-400">
-                <i data-lucide="badge-check" class="h-4 w-4"></i>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Service Providers</span>
-            </div>
-            <p id="kpi-total" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Active provider records</p>
-          </div>
-
-          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
-            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-sky-500/10 blur-2xl"></div>
-            <div class="flex items-center gap-3 text-slate-400 mb-2">
-              <div class="rounded-lg bg-sky-500/10 p-2 text-sky-400">
-                <i data-lucide="truck" class="h-4 w-4"></i>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Total Vehicles</span>
-            </div>
-            <p id="kpi-vehicles" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Units tracked in fleet</p>
-          </div>
-
-          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
-             <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-indigo-500/10 blur-2xl"></div>
-            <div class="flex items-center gap-3 text-slate-400 mb-2">
-              <div class="rounded-lg bg-indigo-500/10 p-2 text-indigo-400">
-                <i data-lucide="layers" class="h-4 w-4"></i>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Services</span>
-            </div>
-            <p id="kpi-categories" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Active categories</p>
-          </div>
-
-          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
-             <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-amber-500/10 blur-2xl"></div>
-            <div class="flex items-center gap-3 text-slate-400 mb-2">
-              <div class="rounded-lg bg-amber-500/10 p-2 text-amber-400">
-                <i data-lucide="map-pin" class="h-4 w-4"></i>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Top Regions</span>
-            </div>
-            <div id="top-regions" class="grid grid-cols-2 gap-3">
-              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
-              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
-              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
-              <div class="h-16 rounded-xl border border-white/5 bg-white/5 animate-pulse"></div>
-            </div>
-          </div>
-
-          <div class="relative overflow-hidden rounded-2xl border frosted-card p-5 transition hover:border-white/10">
-            <div class="absolute right-0 top-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl"></div>
-            <div class="flex items-center gap-3 text-slate-400 mb-2">
-              <div class="rounded-lg bg-emerald-500/10 p-2 text-emerald-400">
-                <i data-lucide="star" class="h-4 w-4"></i>
-              </div>
-              <span class="text-xs font-semibold uppercase tracking-wider">Quality</span>
-            </div>
-            <p id="kpi-rating" class="font-mono text-3xl font-bold text-white tracking-tight">-</p>
-            <p class="mt-1 text-[11px] text-slate-500">Avg Google rating</p>
-          </div>
-        </div>
-
-        <div class="grid gap-6 lg:grid-cols-[1.8fr_1.2fr]">
-          
-          <div class="rounded-2xl border frosted-card p-6">
-            <div class="mb-6 flex items-center justify-between">
-              <div>
-                <h3 class="text-sm font-bold uppercase tracking-widest text-white">Category Breakdown</h3>
-                <p class="text-[11px] text-slate-500">Partner distribution by service type</p>
-              </div>
-              <i data-lucide="pie-chart" class="h-4 w-4 text-slate-500"></i>
-            </div>
-            <div id="category-bars" class="space-y-5">
-              <div class="flex animate-pulse flex-col gap-3">
-                 <div class="h-4 w-full rounded bg-white/5"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rounded-2xl border frosted-card p-6 flex flex-col">
-            <div class="mb-5 flex items-center justify-between">
-              <h3 class="text-sm font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-2">
-                <span class="relative flex h-2 w-2">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                Live Feed
-              </h3>
-              <span class="text-[10px] font-mono text-slate-500">REAL-TIME</span>
-            </div>
-
-            <div class="flex-1 relative flex flex-col min-h-[520px]">
-                <div class="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-slate-900/90 to-transparent pointer-events-none z-10"></div>
-                <ul id="activity-feed" class="flex-1 h-full overflow-y-auto custom-scrollbar pr-2 pb-4 divide-y divide-white/5">
-                    <li class="text-center py-10 text-slate-600 text-xs italic">Waiting for events...</li>
-                </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid gap-6 lg:grid-cols-2">
-
-            <div class="rounded-2xl border frosted-card p-6">
-                <div class="mb-5 flex items-center justify-between">
-                    <h3 class="text-sm font-bold uppercase tracking-widest text-white">Top Rated Partners</h3>
-                    <div class="text-xs font-semibold text-amber-400 bg-amber-400/10 px-2 py-1 rounded">Top 3</div>
-                </div>
-                <div id="top-performers" class="space-y-3">
-                   </div>
-            </div>
-
-            <div class="rounded-2xl border frosted-card p-6 flex flex-col">
-                <div class="mb-5 flex flex-wrap items-center gap-3 justify-between">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-sm font-bold uppercase tracking-widest text-white">Recent Additions</h3>
-                      <a href="#" class="text-[10px] font-semibold text-blue-400 hover:text-blue-300 uppercase tracking-wider">View All</a>
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <div class="relative">
-                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"></i>
-                        <input
-                          id="recent-search"
-                          type="text"
-                          placeholder="Search"
-                          class="w-48 rounded-lg border border-white/10 bg-white/5 px-9 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 placeholder:text-slate-500 backdrop-blur focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                        />
-                      </div>
-                      <button
-                        id="export-btn"
-                        type="button"
-                        class="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                        title="Export current view"
-                      >
-                        <i data-lucide="download" class="h-4 w-4"></i>
-                        <span>Export</span>
-                      </button>
-                    </div>
-                </div>
-                
-                <div class="overflow-hidden rounded-xl border border-white/5 bg-black/20">
-                    <div class="max-h-[250px] overflow-y-auto custom-scrollbar">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-white/5 text-[10px] uppercase font-bold text-slate-400 sticky top-0 backdrop-blur-sm z-10">
-                                <tr>
-                                    <th class="px-4 py-3">Company</th>
-                                    <th class="px-4 py-3">Type</th>
-                                    <th class="px-4 py-3 text-center">Source</th>
-                                    <th class="px-4 py-3 text-right">Loc</th>
-                                </tr>
-                            </thead>
-                                <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
-                                </tbody>
-                        </table>
-                    </div>
-                </div>
+            <div class="flex items-end gap-2">
+                <h2 id="kpi-vehicles" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-blue">-</h2>
+                <span class="text-[10px] text-blue-400/80 mb-1">Active Units</span>
             </div>
         </div>
-      </section>
+
+        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-20 h-20 bg-violet-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-violet-500/20"></div>
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="users" class="h-4 w-4 text-violet-400"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Service Partners</span>
+            </div>
+            <div class="flex items-end gap-2">
+                <h2 id="kpi-total" class="text-3xl font-mono font-bold text-white tracking-tight leading-none">-</h2>
+                <span class="text-[10px] text-violet-400/80 mb-1">Vendors</span>
+            </div>
+        </div>
+
+        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-20 h-20 bg-amber-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-amber-500/20"></div>
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="layers" class="h-4 w-4 text-amber-400"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Coverage</span>
+            </div>
+            <div class="flex items-end gap-2">
+                <h2 id="kpi-categories" class="text-3xl font-mono font-bold text-white tracking-tight leading-none">-</h2>
+                <span class="text-[10px] text-amber-400/80 mb-1">Service Types</span>
+            </div>
+        </div>
+
+        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-20 h-20 bg-emerald-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-emerald-500/20"></div>
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="star" class="h-4 w-4 text-emerald-400"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Quality Score</span>
+            </div>
+            <div class="flex items-end gap-2">
+                <h2 id="kpi-rating" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-emerald">-</h2>
+                <span class="text-[10px] text-emerald-400/80 mb-1">Avg Rating</span>
+            </div>
+        </div>
+
+        <div class="frosted-card rounded-xl p-5 flex flex-col justify-center items-center text-center relative overflow-hidden border-blue-500/30">
+             <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none"></div>
+             <div id="dataset-status-dot" class="h-2 w-2 rounded-full bg-blue-500 status-dot mb-3"></div>
+             <p id="dataset-status" class="text-[10px] font-bold uppercase tracking-widest text-blue-200">Initializing...</p>
+             <button id="refresh-btn" class="mt-2 text-[9px] uppercase tracking-wider text-slate-500 hover:text-white transition-colors flex items-center gap-1">
+                <i data-lucide="refresh-cw" class="h-3 w-3"></i> Sync
+             </button>
+        </div>
     </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+        
+        <div class="space-y-6">
+            
+            <div class="frosted-card rounded-xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+                        <i data-lucide="pie-chart" class="h-4 w-4 text-slate-400"></i> Service Distribution
+                    </h3>
+                    <div class="text-[10px] text-slate-500 font-mono">LIVE COUNT</div>
+                </div>
+                <div id="category-bars" class="space-y-4">
+                    <div class="animate-pulse space-y-3">
+                        <div class="h-4 bg-white/5 rounded w-full"></div>
+                        <div class="h-4 bg-white/5 rounded w-3/4"></div>
+                        <div class="h-4 bg-white/5 rounded w-1/2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="frosted-card rounded-xl overflow-hidden flex flex-col h-[500px]">
+                <div class="p-4 border-b border-white/5 flex flex-wrap items-center justify-between gap-3 bg-slate-900/40">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+                        <i data-lucide="database" class="h-4 w-4 text-slate-400"></i> Database Records
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500"></i>
+                            <input id="recent-search" type="text" placeholder="Search..." class="bg-black/20 border border-white/10 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 w-48 transition-all">
+                        </div>
+                        <button id="export-btn" class="p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors" title="Export CSV">
+                            <i data-lucide="download" class="h-3.5 w-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-auto custom-scrollbar bg-black/20">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/80 sticky top-0 z-10 backdrop-blur-sm">
+                            <tr class="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                                <th class="px-4 py-3">Entity Name</th>
+                                <th class="px-4 py-3">Type</th>
+                                <th class="px-4 py-3">Source</th>
+                                <th class="px-4 py-3 text-right">Region</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-6">
+            
+            <div class="frosted-card rounded-xl p-0 flex flex-col h-[600px] border-emerald-500/20 relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0 opacity-50"></div>
+                
+                <div class="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/60">
+                    <div>
+                        <h3 class="text-xs font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-2 neon-text-emerald">
+                            <i data-lucide="activity" class="h-3.5 w-3.5"></i> Audit Log
+                        </h3>
+                        <p class="text-[9px] text-slate-500 mt-0.5">Tracking changes on 'services' & 'vehicles'</p>
+                    </div>
+                    <span class="flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                </div>
+
+                <div class="flex-1 relative bg-black/20 font-mono text-xs">
+                    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMDAwIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20 pointer-events-none"></div>
+                    
+                    <ul id="activity-feed" class="absolute inset-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
+                         <li class="text-center py-10 text-slate-600 italic">Waiting for database events...</li>
+                    </ul>
+                    
+                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-slate-950 to-transparent pointer-events-none"></div>
+                </div>
+            </div>
+
+            <div class="frosted-card rounded-xl p-5">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="map" class="h-4 w-4 text-slate-400"></i> Top Regions
+                </h3>
+                <div id="top-regions" class="grid grid-cols-2 gap-3">
+                    </div>
+            </div>
+
+        </div>
+    </div>
+
   </main>
 
-  <div
-    id="detail-modal"
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 backdrop-blur-sm px-4"
-    aria-hidden="true"
-  >
+  <div id="detail-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4" aria-hidden="true">
     <div id="detail-modal-backdrop" class="absolute inset-0"></div>
-    <div
-      id="detail-modal-container"
-      class="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900/80 p-6 shadow-2xl frosted-card"
-    >
-      <div class="flex items-start justify-between gap-4">
-        <div class="space-y-1">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Quick view</p>
-          <h3 id="detail-modal-title" class="text-2xl font-black text-white"></h3>
-          <p id="detail-modal-subtitle" class="text-sm text-slate-400"></p>
-        </div>
-        <button
-          id="detail-modal-close"
-          type="button"
-          class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 transition hover:border-blue-400/40 hover:bg-blue-500/10 hover:text-white"
-        >
-          Close
-        </button>
+    <div class="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden transform transition-all scale-100">
+      <div class="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4 border-b border-white/5 flex items-center justify-between">
+         <div>
+             <p class="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">Record Detail</p>
+             <h3 id="detail-modal-title" class="text-xl font-bold text-white tracking-tight"></h3>
+         </div>
+         <button id="detail-modal-close" class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
+            <i data-lucide="x" class="h-5 w-5"></i>
+         </button>
       </div>
-      <div id="detail-modal-content" class="mt-5 space-y-4 text-sm text-slate-200"></div>
+      
+      <div id="detail-modal-content" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+      </div>
     </div>
   </div>
 
@@ -329,784 +288,347 @@
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
-    // --- CONFIGURATION ---
+    // --- CONFIG ---
     const TABLE_SERVICES = 'services';
     const TABLE_VEHICLES = 'vehicles';
     const TABLE_ANALYTICS = 'analytics_events';
+    
+    // Fallback datasets if DB fails
     const datasetEntries = window.TL_DATASETS ? Object.entries(window.TL_DATASETS) : [
       ['dispatchers', '../assets/data/dispatchers.csv'],
-      ['installers', '../assets/data/installers.csv'],
-      ['inspectors', '../assets/data/inspectors.csv'],
-      ['locksmiths', '../assets/data/locksmiths.csv'],
-      ['repair_shops', '../assets/data/repair_shops.csv'],
-      ['resellers', '../assets/data/resellers.csv'],
       ['technicians', '../assets/data/technicians.csv'],
-      ['tires', '../assets/data/tires.csv'],
-      ['towing_companies', '../assets/data/towing_companies.csv'],
       ['vehicles', '../assets/data/vehicles.csv']
     ];
-    let actorProfile = { role: 'guest', email: 'anonymous', id: 'n/a' };
+
+    let allData = [];
     let changeChannel = null;
     const liveEvents = [];
-    let allData = [];
 
     // --- ELEMENTS ---
     const els = {
       kpiTotal: document.getElementById('kpi-total'),
+      kpiVehicles: document.getElementById('kpi-vehicles'),
       kpiCategories: document.getElementById('kpi-categories'),
       kpiRating: document.getElementById('kpi-rating'),
       categoryBars: document.getElementById('category-bars'),
-      topPerformers: document.getElementById('top-performers'),
       topRegions: document.getElementById('top-regions'),
       tableBody: document.getElementById('recent-table-body'),
       activityFeed: document.getElementById('activity-feed'),
       status: document.getElementById('dataset-status'),
+      statusDot: document.getElementById('dataset-status-dot'),
       refreshBtn: document.getElementById('refresh-btn'),
       searchInput: document.getElementById('recent-search'),
       exportBtn: document.getElementById('export-btn'),
-      kpiVehicles: document.getElementById('kpi-vehicles'),
       detailModal: document.getElementById('detail-modal'),
       detailModalClose: document.getElementById('detail-modal-close'),
       detailModalTitle: document.getElementById('detail-modal-title'),
-      detailModalSubtitle: document.getElementById('detail-modal-subtitle'),
       detailModalContent: document.getElementById('detail-modal-content'),
       detailModalBackdrop: document.getElementById('detail-modal-backdrop')
     };
 
-    let lastFiltered = [];
-    let currentRecentRows = [];
-
-    const setStatus = (text, variant = 'info') => {
-      if (!els.status) return;
-      const palette = {
-        success: 'text-emerald-400',
-        info: 'text-blue-200',
-        warning: 'text-amber-300',
-        error: 'text-rose-400'
-      };
-
-      els.status.textContent = text;
-
-      const removable = ['text-emerald-500', 'text-emerald-400', 'text-blue-200', 'text-amber-300', 'text-rose-400', 'text-red-400'];
-      removable.forEach(cls => els.status.classList.remove(cls));
-      els.status.classList.add(palette[variant] || palette.info);
-    };
-
-    let lastFiltered = [];
-    let currentRecentRows = [];
-
-    const setStatus = (text, variant = 'info') => {
-      if (!els.status) return;
-      const palette = {
-        success: 'text-emerald-400',
-        info: 'text-blue-200',
-        warning: 'text-amber-300',
-        error: 'text-rose-400'
-      };
-
-      els.status.textContent = text;
-
-      const removable = ['text-emerald-500', 'text-emerald-400', 'text-blue-200', 'text-amber-300', 'text-rose-400', 'text-red-400'];
-      removable.forEach(cls => els.status.classList.remove(cls));
-      els.status.classList.add(palette[variant] || palette.info);
-    };
-
-    let lastFiltered = [];
-    let currentRecentRows = [];
-
-    // --- HELPERS ---
-    const escapeHtml = (str = '') => String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
+    // --- UTILS ---
+    const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const getField = (row, ...keys) => {
       for (const key of keys) {
         if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
       }
-      if (row.metadata) {
-        for (const key of keys) {
-           if (row.metadata[key] !== undefined) return row.metadata[key];
-        }
-      }
       return '';
     };
 
-    // --- LOGIC: NORMALIZACION DE CATEGORIAS (AQUI ESTA EL ARREGLO DE DISPATCHERS) ---
-    const formatCategory = (str) => {
-        if (!str) return 'Uncategorized';
-        const clean = String(str).trim().toLowerCase();
-        
-        // Reglas especificas para atrapar nombres variados
-        if (clean.includes('dispatch')) return 'Dispatcher';
-        if (clean.includes('coordination')) return 'Dispatcher';
-        if (clean.includes('gps') || clean.includes('technician') || clean.includes('installer')) return 'Technician';
-        if (clean.includes('tow')) return 'Towing';
-        if (clean.includes('lock')) return 'Locksmith';
-        if (clean.includes('inspector')) return 'Inspector';
-        if (clean.includes('repair') || clean.includes('shop')) return 'Repair Shop';
-        if (clean.includes('reseller') || clean.includes('dealer') || clean.includes('auction')) return 'Dealer/Auction';
-        if (clean.includes('vehicle') || clean.includes('fleet') || clean.includes('car')) return 'Vehicle';
-
-        // Default: Capitalizar
-        return clean.charAt(0).toUpperCase() + clean.slice(1);
-    };
-
-    // Colores para el layout profesional
-    const getCategoryColor = (cat) => {
-        const colors = {
-            'Dispatcher': 'bg-violet-500', // Destacamos dispatchers
-            'Technician': 'bg-blue-500',
-            'Towing': 'bg-amber-500',
-            'Locksmith': 'bg-pink-500',
-            'Inspector': 'bg-emerald-500',
-            'Repair Shop': 'bg-orange-500'
-        };
-        return colors[cat] || 'bg-slate-500';
-    };
-
-    const resolveLocation = (row) => {
-        const lat = Number(getField(row, 'lat', 'latitude'));
-        const lng = Number(getField(row, 'long', 'lng', 'longitude'));
-        const validCoords = !Number.isNaN(lat) && !Number.isNaN(lng) && lat !== 0 && lng !== 0;
-
-        if (validCoords) {
-            return { lat, lng, label: `${lat}, ${lng}`, source: 'coords' };
-        }
-
-        const zip = getField(row, 'zip', 'zipcode', 'postal', 'postal_code');
-        const city = getField(row, 'city');
-        const state = getField(row, 'state', 'region');
-        const label = zip || city || state ? `${city ? city + ', ' : ''}${state || ''}${zip ? ' ' + zip : ''}` : 'No location provided';
-
-        return { lat: null, lng: null, label, source: zip ? 'zip' : (city ? 'city' : 'none') };
-    };
-
-    const normalizeRow = (row) => {
-      const categoryRaw = getField(row, 'category', 'business_type', 'type', 'service_type', 'role', 'title', 'function', 'position', 'segment', 'line_of_business');
-      const category = formatCategory(categoryRaw || row.category || row.type || row.service_type || row.business_type || '');
-      const datasetKey = (row.datasetKey || row.dataset || row.dataset_key || '').toString();
-      const datasetPath = (row.datasetPath || '').toString();
-      const location = resolveLocation(row);
-
-      const categoryFlag = category.toLowerCase();
-      const datasetFlag = `${datasetKey} ${datasetPath}`.toLowerCase();
-      const isVehicle = categoryFlag === 'vehicle' || categoryFlag === 'fleet' || datasetFlag.includes('vehicle');
-
-      return {
-        id: row.id,
-        name: getField(row, 'name', 'company_name', 'company', 'business_name'),
-        category,
-        state: getField(row, 'state', 'region'),
-        city: getField(row, 'city'),
-        rating: Number(getField(row, 'google_rating')) || 0,
-        created_at: row.created_at || new Date().toISOString(),
-        isVehicle,
-        location,
-        source: row.source || 'database',
-        raw: row
-      };
-    };
-
-    const describeSource = (source = '') => {
-      const normalized = String(source).toLowerCase();
-      if (normalized.includes('db') || normalized.includes('supabase') || normalized.includes('database')) {
-        return { label: 'DB', classes: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' };
-      }
-      if (normalized.includes('csv') || normalized.includes('web') || normalized.includes('file')) {
-        return { label: 'CSV', classes: 'border-blue-400/30 bg-blue-400/10 text-blue-200' };
-      }
-      return { label: source || 'Other', classes: 'border-slate-500/30 bg-slate-500/10 text-slate-200' };
-    };
-
-    const formatTooltip = (row = {}) => escapeHtml(JSON.stringify(row, null, 2));
-
-    const formatAddress = (row = {}) => {
-      const address = getField(row.raw || row, 'full_address', 'address', 'street_address', 'street', 'location', 'location_label');
-      const city = getField(row.raw || row, 'city') || row.city;
-      const state = getField(row.raw || row, 'state', 'region') || row.state;
-      const pieces = [address, city, state].filter(Boolean).map(part => String(part).trim());
-      if (!pieces.length) return 'Address not available';
-      return pieces.join(', ');
-    };
-
     const timeAgo = (dateStr) => {
+        if(!dateStr) return 'Unknown';
         const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
         if (seconds < 60) return "Just now";
         const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}m ago`;
+        if (minutes < 60) return `${minutes}m`;
         const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h ago`;
-        return `${Math.floor(hours / 24)}d ago`;
+        if (hours < 24) return `${hours}h`;
+        return `${Math.floor(hours / 24)}d`;
     };
 
-    const formatDetails = (details = {}) => {
-        if (typeof details === 'string') return details;
-        if (!details || typeof details !== 'object') return 'No additional details';
-        const parts = [];
-        if (details.page) parts.push(`Page: ${details.page}`);
-        if (details.region || details.state) parts.push(`Region: ${details.region || details.state}`);
-        if (details.category) parts.push(`Type: ${formatCategory(details.category)}`);
-        if (details.note) parts.push(details.note);
-        const remaining = Object.entries(details)
-          .filter(([key]) => !['page', 'region', 'state', 'category', 'note'].includes(key))
-          .slice(0, 2)
-          .map(([key, value]) => `${key}: ${value}`);
-        return [...parts, ...remaining].join(' • ') || 'No additional details';
+    // --- LOGIC ---
+    
+    const setStatus = (text, type = 'info') => {
+        els.status.textContent = text;
+        els.statusDot.className = `h-2 w-2 rounded-full status-dot mb-3 ${type === 'success' ? 'bg-emerald-500 text-emerald-500' : (type === 'error' ? 'bg-rose-500 text-rose-500' : 'bg-blue-500 text-blue-500')}`;
+        els.status.className = `text-[10px] font-bold uppercase tracking-widest ${type === 'success' ? 'text-emerald-200' : (type === 'error' ? 'text-rose-200' : 'text-blue-200')}`;
     };
 
-    const closeDetailModal = () => {
-      if (!els.detailModal) return;
-      els.detailModal.classList.add('hidden');
-      els.detailModal.classList.remove('flex');
-      els.detailModal.setAttribute('aria-hidden', 'true');
+    const formatCategory = (str) => {
+        if (!str) return 'Uncategorized';
+        const clean = String(str).trim().toLowerCase();
+        if (clean.includes('dispatch')) return 'Dispatcher';
+        if (clean.includes('mechanic') || clean.includes('tech')) return 'Technician';
+        if (clean.includes('vehicle') || clean.includes('fleet')) return 'Vehicle';
+        if (clean.includes('tow')) return 'Towing';
+        return clean.charAt(0).toUpperCase() + clean.slice(1);
     };
 
-    const openDetailModal = (row = {}) => {
-      if (!els.detailModal || !els.detailModalContent) return;
-
-      const phone = getField(row.raw || row, 'phone', 'phone_number', 'contact_number');
-      const email = getField(row.raw || row, 'email', 'contact_email');
-      const notes = getField(row.raw || row, 'notes', 'note', 'description', 'details');
-      const created = row.created_at ? new Date(row.created_at).toLocaleString() : 'Unknown date';
-      const { label: sourceLabel, classes: sourceClasses } = describeSource(row.source);
-
-      els.detailModalTitle.textContent = row.name || 'Unknown record';
-      els.detailModalSubtitle.textContent = `${row.category || 'Uncategorized'} • ${row.state || row.city || 'No region'}`;
-
-      els.detailModalContent.innerHTML = `
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Location</p>
-            <p class="font-semibold text-white leading-tight">${escapeHtml(formatAddress(row))}</p>
-            <p class="text-xs text-slate-400 mt-1">${escapeHtml(row.location?.label || row.city || '')}</p>
-          </div>
-          <div class="rounded-xl border border-white/10 bg-white/5 p-4">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Contact</p>
-            <p class="font-semibold text-white leading-tight">${escapeHtml(phone || 'No phone provided')}</p>
-            <p class="text-xs text-slate-400 mt-1">${escapeHtml(email || 'No email on file')}</p>
-          </div>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Source</p>
-            <span class="inline-flex items-center rounded border px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${sourceClasses}">${sourceLabel}</span>
-            <p class="text-xs text-slate-400">Created: ${escapeHtml(created)}</p>
-          </div>
-          <div class="rounded-xl border border-white/10 bg-white/5 p-4 space-y-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Quality</p>
-            <p class="text-2xl font-mono font-bold text-white">${row.rating ? row.rating.toFixed(1) : '—'}</p>
-            <p class="text-xs text-slate-400">Category: ${escapeHtml(row.category || 'Uncategorized')}</p>
-          </div>
-        </div>
-        <div class="rounded-xl border border-white/10 bg-white/5 p-4">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Notes</p>
-          <p class="text-slate-200 whitespace-pre-wrap leading-relaxed">${escapeHtml(notes || 'No notes provided')}</p>
-        </div>
-      `;
-
-      els.detailModal.classList.remove('hidden');
-      els.detailModal.classList.add('flex');
-      els.detailModal.setAttribute('aria-hidden', 'false');
+    const getCategoryColor = (cat) => {
+        const map = {
+            'Dispatcher': 'bg-violet-500',
+            'Technician': 'bg-blue-500',
+            'Vehicle': 'bg-slate-500',
+            'Towing': 'bg-amber-500',
+            'Locksmith': 'bg-pink-500'
+        };
+        return map[cat] || 'bg-emerald-500';
     };
 
-    const parseCsv = (text) => {
-        const lines = text.trim().split(/\r?\n/).filter(Boolean);
-        if (lines.length === 0) return [];
-        const headers = lines.shift().split(',').map(h => h.trim().toLowerCase());
-        return lines.map(line => {
-            const values = line.match(/(?:"([^"]*)"|[^,])+/g) || [];
-            return headers.reduce((acc, header, idx) => {
-                const raw = values[idx] || '';
-                const cleaned = raw.replace(/^"|"$/g, '').trim();
-                acc[header] = cleaned;
-                return acc;
-            }, {});
-        });
+    const normalizeRow = (row) => {
+        const categoryRaw = getField(row, 'category', 'business_type', 'type', 'service_type');
+        const category = formatCategory(categoryRaw);
+        const isVehicle = category === 'Vehicle' || (row.datasetKey && row.datasetKey.includes('vehicle'));
+        
+        return {
+            id: row.id,
+            name: getField(row, 'name', 'company_name', 'company', 'make') + (isVehicle ? ` ${getField(row, 'model', 'plate')}` : ''),
+            category,
+            state: getField(row, 'state', 'region'),
+            city: getField(row, 'city'),
+            rating: Number(getField(row, 'google_rating', 'rating')) || 0,
+            created_at: row.created_at,
+            source: row.source || 'db',
+            isVehicle,
+            raw: row
+        };
     };
 
-    const loadLocalDatasets = async (onProgress) => {
-        const aggregated = [];
+    // --- RENDERERS ---
 
-        for (const [key, path] of datasetEntries) {
-            try {
-                const response = await fetch(path);
-                if (!response.ok) throw new Error(`Failed to load ${path}: ${response.status}`);
-                const csvText = await response.text();
-                const rows = parseCsv(csvText).map(row => ({
-                    ...row,
-                    category: row.category || key,
-                    business_type: row.business_type || row.type || key,
-                    source: 'web-file',
-                    datasetKey: key,
-                    datasetPath: path
-                }));
-                aggregated.push(...rows);
-                onProgress?.(true);
-            } catch (err) {
-                console.error(`Dataset failed (${path})`, err);
-                onProgress?.(false);
-            }
-        }
+    const renderDashboard = (rows) => {
+        const vehicles = rows.filter(r => r.isVehicle);
+        const services = rows.filter(r => !r.isVehicle);
 
-        return aggregated;
-    };
+        // KPIs
+        els.kpiTotal.textContent = services.length;
+        els.kpiVehicles.textContent = vehicles.length;
+        
+        const catCounts = {};
+        services.forEach(r => catCounts[r.category] = (catCounts[r.category] || 0) + 1);
+        els.kpiCategories.textContent = Object.keys(catCounts).length;
 
-    const hydrateActorProfile = async () => {
-        try {
-            const { data } = await supabaseClient.auth.getSession();
-            const user = data?.session?.user;
-            if (user) {
-                actorProfile = {
-                    id: user.id,
-                    email: user.email || 'unknown',
-                    role: window.currentUserRole || 'user'
-                };
-            }
-        } catch (err) {
-            console.warn('Could not retrieve the active profile', err.message);
-        }
-    };
+        const rated = rows.filter(r => r.rating > 0);
+        const avg = rated.length ? (rated.reduce((a,b)=>a+b.rating,0)/rated.length).toFixed(1) : '-';
+        els.kpiRating.textContent = avg;
 
-    // --- TRACKING LOGIC ---
-    const trackUserActivity = () => {
-        document.addEventListener('click', async (e) => {
-            const target = e.target.closest('a, button');
-            if (!target) return;
-            const elementId = target.id || target.innerText.substring(0, 15).trim() || target.tagName;
+        // Categories Chart
+        els.categoryBars.innerHTML = '';
+        Object.entries(catCounts)
+            .sort((a,b) => b[1] - a[1])
+            .slice(0, 5)
+            .forEach(([cat, count]) => {
+                const pct = ((count / services.length) * 100).toFixed(1);
+                const color = getCategoryColor(cat);
+                const html = `
+                    <div class="group cursor-pointer">
+                        <div class="flex justify-between mb-1">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-white transition-colors">${cat}</span>
+                            <span class="text-[10px] font-mono text-slate-500">${count} (${pct}%)</span>
+                        </div>
+                        <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                            <div class="h-full ${color} shadow-[0_0_8px_currentColor] w-0 transition-all duration-1000 ease-out" style="width: 0%" data-width="${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+                els.categoryBars.insertAdjacentHTML('beforeend', html);
+            });
+        
+        setTimeout(() => document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.getAttribute('data-width')), 100);
 
-            // UI Feedback visual inmediato
-            const originalColor = target.style.borderColor;
-            target.style.borderColor = '#10b981'; // green flash
-            setTimeout(() => target.style.borderColor = originalColor, 200);
-
-            // Send to DB
-            const { error } = await supabaseClient
-                .from(TABLE_ANALYTICS)
-                .insert([{ event_type: 'click', element_id: elementId, details: { page: 'Analytics', profile: actorProfile } }]);
-
-            if(error) console.warn('Click analytics failed', error.message);
-        });
-    };
-
-    // --- ANALYTICS VISUALIZATION ---
-    const renderDashboard = (rows = []) => {
-      const vehicleRows = rows.filter(r => r.isVehicle);
-      const serviceRows = rows.filter(r => !r.isVehicle);
-
-      // 1. KPIs
-      els.kpiTotal.textContent = serviceRows.length;
-      if (els.kpiVehicles) els.kpiVehicles.textContent = vehicleRows.length;
-
-      // 2. Category Breakdown (PROFESSIONAL LAYOUT) excluding vehicles as a service
-      const catCounts = {};
-      serviceRows.forEach(r => { catCounts[r.category] = (catCounts[r.category] || 0) + 1; });
-      const dispatcherCount = serviceRows.filter(r => r.category === 'Dispatcher').length;
-      if (catCounts['Dispatcher'] === undefined) catCounts['Dispatcher'] = dispatcherCount;
-      els.kpiCategories.textContent = Object.keys(catCounts).length;
-
-      els.categoryBars.innerHTML = '';
-      const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
-
-      sortedCats.forEach(([cat, count]) => {
-        const percentage = serviceRows.length ? ((count / serviceRows.length) * 100).toFixed(1) : 0;
-        const colorClass = getCategoryColor(cat);
-
-        // Layout Profesional: Flexbox + Background Track
-        const barHtml = `
-          <div class="group space-y-2 cursor-pointer transition-transform hover:-translate-y-[2px]" data-category-bar="${cat}" role="button" tabindex="0">
-            <div class="flex justify-between items-center">
-              <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 group-hover:text-white transition-colors">${cat}</span>
-              <span class="font-mono text-xs font-bold text-white flex items-center gap-1 leading-none">${count}<span class="text-slate-500 font-medium">(${percentage}%)</span></span>
-            </div>
-            <div class="h-2 w-full rounded-full bg-white/5 overflow-hidden">
-              <div class="h-full ${colorClass} rounded-full transition-all duration-1000 ease-out group-hover:opacity-90 group-hover:brightness-110" style="width: 0%" data-width="${percentage}%"></div>
-            </div>
-          </div>
-        `;
-        els.categoryBars.insertAdjacentHTML('beforeend', barHtml);
-      });
-
-      els.categoryBars.querySelectorAll('[data-category-bar]').forEach(bar => {
-        bar.addEventListener('click', () => {
-          if (!els.searchInput) return;
-          const category = bar.getAttribute('data-category-bar') || '';
-          els.searchInput.value = category;
-          els.searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-          els.searchInput.focus();
-        });
-      });
-
-      // Animate bars on load
-      setTimeout(() => {
-        document.querySelectorAll('[data-width]').forEach(el => {
-            el.style.width = el.getAttribute('data-width');
-        });
-      }, 100);
-
-      // 3. Top Regions (Geo intelligence)
-      els.topRegions.innerHTML = '';
-      const regionCounts = rows.reduce((acc, row) => {
-        const state = (row.state || '').trim();
-        if (!state) return acc;
-        acc[state] = (acc[state] || 0) + 1;
-        return acc;
-      }, {});
-
-      const topRegions = Object.entries(regionCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 4);
-
-      if (topRegions.length === 0) {
-        els.topRegions.innerHTML = '<p class="col-span-2 text-center text-xs text-slate-500">No region data yet.</p>';
-      } else {
-        const accent = ['amber', 'emerald', 'blue', 'violet'];
-        topRegions.forEach(([state, count], idx) => {
-          const color = accent[idx % accent.length];
-          const card = `
-            <button
-              class="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-left transition hover:border-${color}-400/40 hover:shadow-[0_0_25px_rgba(251,191,36,0.12)] focus:outline-none focus:ring-2 focus:ring-${color}-400/30"
-              data-region="${state}"
-              type="button"
-            >
-              <div class="flex items-start justify-between">
-                <div>
-                  <p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">State</p>
-                  <p class="text-lg font-black text-white leading-tight">${state}</p>
-                </div>
-                <span class="rounded-full border border-${color}-400/30 bg-${color}-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-${color}-200">Top</span>
-              </div>
-              <p class="mt-3 text-2xl font-mono font-bold text-white">${count}</p>
-              <p class="text-[11px] text-slate-500">Services in state</p>
-            </button>
-          `;
-          els.topRegions.insertAdjacentHTML('beforeend', card);
-        });
-      }
-
-      els.topRegions.querySelectorAll('[data-region]').forEach(card => {
-        card.addEventListener('click', () => {
-          if (!els.searchInput) return;
-          const state = card.getAttribute('data-region') || '';
-          els.searchInput.value = state;
-          els.searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-          els.searchInput.focus();
-        });
-      });
-
-      // 4. Avg Rating
-      const ratedRows = rows.filter(r => r.rating > 0);
-      const avg = ratedRows.length
-        ? (ratedRows.reduce((sum, r) => sum + r.rating, 0) / ratedRows.length).toFixed(1)
-        : '—';
-      els.kpiRating.textContent = avg;
-
-      // 5. Top Performers (Glass cards)
-      els.topPerformers.innerHTML = '';
-      const top = ratedRows.sort((a, b) => b.rating - a.rating).slice(0, 3);
-      if (top.length === 0) {
-          els.topPerformers.innerHTML = '<p class="text-slate-500 italic text-sm">No ratings available yet.</p>';
-      } else {
-          top.forEach((r, i) => {
+        // Top Regions
+        els.topRegions.innerHTML = '';
+        const regions = {};
+        rows.forEach(r => { if(r.state) regions[r.state] = (regions[r.state]||0)+1; });
+        Object.entries(regions).sort((a,b)=>b[1]-a[1]).slice(0,4).forEach(([reg, cnt], i) => {
             const html = `
-              <div class="flex items-center justify-between rounded-xl border border-white/5 bg-slate-950/30 p-3 hover:bg-slate-800/50 transition-colors">
-                <div class="flex items-center gap-3 overflow-hidden">
-                  <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-xs font-bold text-slate-400">
-                    #${i+1}
-                  </div>
-                  <div class="truncate">
-                    <p class="font-semibold text-slate-200 text-sm truncate">${r.name}</p>
-                    <p class="text-[10px] text-slate-500 uppercase tracking-wide">${r.category}</p>
-                  </div>
+                <div class="p-3 rounded-lg border border-white/5 bg-white/5 hover:border-white/20 transition-colors cursor-pointer group">
+                    <p class="text-[9px] font-bold uppercase text-slate-500 group-hover:text-blue-400">#${i+1} Region</p>
+                    <div class="flex items-baseline justify-between mt-1">
+                        <h4 class="text-sm font-bold text-white">${reg}</h4>
+                        <span class="text-xs font-mono text-slate-400">${cnt}</span>
+                    </div>
                 </div>
-                <div class="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-emerald-400 font-mono text-xs font-bold">
-                  <span>${r.rating.toFixed(1)}</span>
-                  <i data-lucide="star" class="h-3 w-3 fill-emerald-500/20"></i>
-                </div>
-              </div>
             `;
-            els.topPerformers.insertAdjacentHTML('beforeend', html);
-          });
-      }
-
-      // 6. Recent Table (Badges)
-      const recent = rows.slice(-30).reverse();
-      currentRecentRows = recent;
-      els.tableBody.innerHTML = '';
-
-      if (!recent.length) {
-        const emptyHtml = `
-          <tr>
-            <td colspan="4" class="px-4 py-8 text-center text-slate-500">
-              <div class="flex flex-col items-center gap-3">
-                <div class="flex items-center gap-2 text-sm font-semibold">
-                  <i data-lucide="search" class="h-4 w-4 text-slate-500"></i>
-                  <span>No matching records found</span>
-                </div>
-                <button type="button" id="clear-filters-btn" class="text-xs font-semibold text-slate-300 underline decoration-dashed underline-offset-4 transition hover:text-white">
-                  Clear filters
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-        els.tableBody.insertAdjacentHTML('beforeend', emptyHtml);
-
-        const clearBtn = document.getElementById('clear-filters-btn');
-        clearBtn?.addEventListener('click', () => {
-          if (!els.searchInput) return;
-          els.searchInput.value = '';
-          applyFilter();
-          els.searchInput.focus();
+            els.topRegions.insertAdjacentHTML('beforeend', html);
         });
 
-        return;
-      }
-
-      recent.forEach((r, idx) => {
-        // Badges styles based on category logic
-        let badgeColor = 'bg-slate-800 text-slate-400 border-slate-700';
-        if(r.category === 'Dispatcher') badgeColor = 'bg-violet-500/10 text-violet-300 border-violet-500/20';
-        if(r.category === 'Technician') badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/20';
-
-        const { label: sourceLabel, classes: sourceClasses } = describeSource(r.source);
-        const tooltip = formatTooltip(r.raw || r);
-        const badgeLayout = r.isVehicle ? 'inline-flex items-center gap-1' : 'inline-block';
-        const badgeIcon = r.isVehicle ? '<i data-lucide="truck" class="h-3 w-3"></i>' : '';
-
-        const rowHtml = `
-          <tr class="hover:bg-white/5 transition-colors group cursor-pointer" title="${tooltip}" data-row-index="${idx}">
-            <td class="px-4 py-3 font-medium text-slate-300 text-xs truncate max-w-[140px] group-hover:text-white">${r.name}</td>
-            <td class="px-4 py-3">
-                <span class="${badgeLayout} rounded border ${badgeColor} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                    ${badgeIcon}${r.category}
-                </span>
-            </td>
-            <td class="px-4 py-3 text-center">
-              <span class="inline-flex items-center rounded border ${sourceClasses} px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
-                ${sourceLabel}
-              </span>
-            </td>
-            <td class="px-4 py-3 text-right text-slate-500 text-xs font-mono">${r.state || '—'}</td>
-          </tr>
-        `;
-        els.tableBody.insertAdjacentHTML('beforeend', rowHtml);
-      });
-
-      els.tableBody.querySelectorAll('[data-row-index]').forEach(rowEl => {
-        rowEl.addEventListener('click', () => {
-          const idx = Number(rowEl.getAttribute('data-row-index'));
-          const rowData = currentRecentRows[idx];
-          if (rowData) openDetailModal(rowData);
+        // Table
+        els.tableBody.innerHTML = '';
+        rows.slice(0, 50).forEach(r => {
+            const rowHtml = `
+                <tr class="hover:bg-blue-500/5 transition-colors cursor-pointer group border-b border-transparent hover:border-blue-500/10" onclick="window.viewDetail('${r.id}')">
+                    <td class="px-4 py-2 font-medium text-slate-300 group-hover:text-white truncate max-w-[150px]">
+                        ${r.name}
+                    </td>
+                    <td class="px-4 py-2">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border border-white/10 ${r.isVehicle ? 'bg-slate-800 text-slate-300' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'}">
+                            ${r.category}
+                        </span>
+                    </td>
+                    <td class="px-4 py-2">
+                         <span class="text-[10px] text-slate-500 font-mono">${r.source}</span>
+                    </td>
+                    <td class="px-4 py-2 text-right">
+                        <span class="text-[10px] text-slate-400 font-bold">${r.state || '-'}</span>
+                    </td>
+                </tr>
+            `;
+            els.tableBody.insertAdjacentHTML('beforeend', rowHtml);
         });
-      });
     };
 
-    const filterRows = (query = '') => {
-      const term = query.trim().toLowerCase();
-      if (!term) return [...allData];
+    // --- AUDIT LOG LOGIC ---
 
-      return allData.filter(row => {
-        return ['name', 'category', 'city', 'state'].some(key => {
-          const value = row[key];
-          return value && String(value).toLowerCase().includes(term);
-        });
-      });
-    };
+    const renderAuditLogItem = (payload) => {
+        const { eventType, table, old: oldRec, new: newRec, commit_timestamp } = payload;
+        
+        // Intentar identificar al usuario
+        let user = 'System/Unknown';
+        const potentialUser = newRec?.updated_by || newRec?.user_email || newRec?.metadata?.user;
+        if (potentialUser) user = potentialUser;
 
-    const applyFilter = () => {
-      const filtered = filterRows(els.searchInput?.value || '');
-      lastFiltered = filtered;
-      renderDashboard(filtered);
-      lucide.createIcons();
-    };
+        // Determinar estilo
+        let actionColor = 'text-slate-400';
+        let actionIcon = 'activity';
+        
+        if (eventType === 'INSERT') { actionColor = 'text-emerald-400'; actionIcon = 'plus-circle'; }
+        else if (eventType === 'UPDATE') { actionColor = 'text-blue-400'; actionIcon = 'edit-2'; }
+        else if (eventType === 'DELETE') { actionColor = 'text-rose-400'; actionIcon = 'trash-2'; }
 
-    const buildCsv = (rows = []) => {
-      if (!rows.length) return '';
-
-      const columns = [
-        { header: 'Name', value: row => row.name || getField(row.raw, 'company_name', 'company') },
-        { header: 'Category', value: row => row.category },
-        { header: 'Business Type', value: row => getField(row.raw, 'business_type', 'type', 'service_type', 'role') },
-        { header: 'City', value: row => getField(row.raw, 'city') || row.city },
-        { header: 'State', value: row => getField(row.raw, 'state', 'region') || row.state },
-        { header: 'Phone', value: row => getField(row.raw, 'phone', 'phone_number', 'contact_number') },
-        { header: 'Email', value: row => getField(row.raw, 'email', 'contact_email') },
-        { header: 'Notes', value: row => getField(row.raw, 'notes', 'note', 'description', 'details') },
-        { header: 'Assigned To', value: row => getField(row.raw, 'assigned_to', 'owner') },
-        { header: 'Rating', value: row => row.rating },
-        { header: 'Location', value: row => row.location?.label || '' },
-        { header: 'Source', value: row => row.source },
-        { header: 'Created At', value: row => row.created_at },
-        { header: 'Raw Payload', value: row => JSON.stringify(row.raw || {}) }
-      ];
-
-      const escapeCell = (val) => {
-        const str = val === undefined || val === null ? '' : String(val);
-        return `"${str.replace(/"/g, '""')}"`;
-      };
-
-      const header = columns.map(col => escapeCell(col.header)).join(',');
-      const lines = rows.map(row => columns.map(col => escapeCell(col.value(row))).join(','));
-      return [header, ...lines].join('\n');
-    };
-
-    const exportCurrentView = () => {
-      const rows = lastFiltered.length ? lastFiltered : allData;
-      if (!rows.length) return;
-
-      const csvContent = buildCsv(rows);
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const date = new Date().toISOString().slice(0, 10);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `techloc_export_${date}.csv`;
-      anchor.style.display = 'none';
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
-    };
-
-    // --- ACTIVITY FEED ---
-    const summarizeChanges = (oldRow = {}, newRow = {}) => {
-        const changed = [];
-        const keys = new Set([...Object.keys(oldRow || {}), ...Object.keys(newRow || {})]);
-        const skip = ['created_at', 'updated_at', 'id', 'metadata'];
-
-        keys.forEach(key => {
-            if (skip.includes(key)) return;
-            const before = oldRow ? oldRow[key] : undefined;
-            const after = newRow ? newRow[key] : undefined;
-            if (before === after) return;
-            if (typeof before === 'object' || typeof after === 'object') return;
-            changed.push(`${key}: ${before ?? '—'} → ${after ?? '—'}`);
-        });
-
-        return changed.slice(0, 3);
-    };
-
-    const appendLiveEvent = (payload) => {
-        const eventTypeRaw = payload.eventType || payload.event_type || 'change';
-        const eventType = typeof eventTypeRaw === 'string' ? eventTypeRaw.toUpperCase() : 'CHANGE';
-        const table = payload.table || payload.table_schema || payload.table_name || 'unknown';
-        const actor = payload.new?.updated_by || payload.new?.updated_by_email || payload.new?.user_email || payload.new?.user || payload.new?.audit_user || payload.new?.metadata?.actor || payload.old?.metadata?.actor || 'Unknown';
-        const actorRole = payload.new?.updated_by_role || payload.new?.metadata?.role || '';
-        const timestamp = payload.commit_timestamp || payload.created_at || new Date().toISOString();
-        const changeList = summarizeChanges(payload.old, payload.new);
-        const changeText = changeList.length ? changeList.join(' • ') : 'No detectable changes';
-        const icon = eventType === 'DELETE' ? 'trash' : (eventType === 'INSERT' ? 'plus' : 'edit');
-        const color = eventType === 'DELETE'
-            ? { text: 'text-rose-400', bg: 'bg-rose-400/10' }
-            : (eventType === 'INSERT'
-                ? { text: 'text-emerald-400', bg: 'bg-emerald-400/10' }
-                : { text: 'text-blue-400', bg: 'bg-blue-400/10' });
+        // Resumen de cambios
+        let details = '';
+        if (eventType === 'UPDATE' && oldRec && newRec) {
+            const changes = Object.keys(newRec).filter(k => newRec[k] !== oldRec[k] && !['updated_at'].includes(k));
+            if (changes.length > 0) details = `Changed: ${changes.slice(0,2).join(', ')}`;
+        } else if (eventType === 'INSERT') {
+            details = `New record in ${table}`;
+        } else {
+            details = `Removed ID: ${oldRec?.id}`;
+        }
 
         const html = `
-            <li class="grid grid-cols-[auto,1fr,auto] items-center gap-3 py-2 px-2 text-[11px] leading-tight">
-                <div class="rounded-lg ${color.bg} p-1.5 ${color.text}">
-                    <i data-lucide="${icon}" class="h-3 w-3"></i>
+            <li class="relative pl-6 animate-enter-slide group">
+                <div class="absolute left-2 top-2 bottom-[-12px] w-px bg-white/10 group-last:hidden"></div>
+                <div class="absolute left-[5px] top-2.5 h-1.5 w-1.5 rounded-full ${actionColor.replace('text', 'bg')} shadow-[0_0_8px_currentColor]"></div>
+                
+                <div class="flex items-start justify-between gap-2">
+                    <div class="space-y-0.5">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-[10px] uppercase tracking-wider ${actionColor}">${eventType}</span>
+                            <span class="text-[10px] text-slate-500 font-mono">:: ${table}</span>
+                        </div>
+                        <p class="text-slate-300 font-medium leading-tight">${details}</p>
+                        <p class="text-[9px] text-slate-500">By: <span class="text-slate-400">${user}</span></p>
+                    </div>
+                    <span class="text-[9px] text-slate-600 font-mono whitespace-nowrap">${timeAgo(commit_timestamp || new Date())}</span>
                 </div>
-                <div class="flex flex-wrap items-center gap-1 text-slate-300 truncate">
-                    <span class="font-bold text-white uppercase text-[10px] tracking-wide">${eventType}</span>
-                    <span class="text-slate-500">${table}</span>
-                    <span class="text-slate-600">•</span>
-                    <span class="text-emerald-300 truncate">${actor}${actorRole ? ' (' + actorRole + ')' : ''}</span>
-                    <span class="text-slate-600">•</span>
-                    <span class="text-slate-400 truncate">${changeText}</span>
-                </div>
-                <div class="text-[10px] text-slate-600 font-mono text-right">${timeAgo(timestamp)}</div>
             </li>
         `;
-
-        liveEvents.unshift(html);
-        if (liveEvents.length > 50) liveEvents.pop();
-
-        els.activityFeed.innerHTML = liveEvents.join('');
-        lucide.createIcons();
+        return html;
     };
 
-    const startRealtimeFeed = () => {
+    const subscribeToChanges = () => {
         if (changeChannel) supabaseClient.removeChannel(changeChannel);
-        changeChannel = supabaseClient.channel('all-table-changes')
-            .on('postgres_changes', { event: '*', schema: 'public' }, payload => appendLiveEvent(payload))
-            .subscribe(status => {
-                if (status === 'SUBSCRIBED' && liveEvents.length === 0) {
-                    els.activityFeed.innerHTML = '<li class="text-center py-6 text-slate-600 text-xs italic">Escuchando cambios de tablas...</li>';
+        
+        changeChannel = supabaseClient.channel('admin-dashboard-changes')
+            .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+                const html = renderAuditLogItem(payload);
+                els.activityFeed.insertAdjacentHTML('afterbegin', html);
+                
+                // Keep list small
+                if (els.activityFeed.children.length > 30) els.activityFeed.lastElementChild.remove();
+                
+                // Refresh data silently
+                loadData(false); 
+            })
+            .subscribe((status) => {
+                if(status === 'SUBSCRIBED') {
+                    els.activityFeed.innerHTML = ''; // Clear waiting message
+                    // Fake generic init event
+                    const initHtml = renderAuditLogItem({ eventType: 'SYSTEM', table: 'Monitor', commit_timestamp: new Date(), new: { updated_by: 'Admin' } });
+                    els.activityFeed.insertAdjacentHTML('afterbegin', `<li class="pl-6 text-emerald-500 text-[10px] font-mono py-2">/// MONITORING ACTIVE ///</li>`);
                 }
             });
     };
 
-    // --- INIT ---
-    const init = async () => {
-      createConstellationBackground();
-      await hydrateActorProfile();
-      trackUserActivity();
+    // --- MAIN LOAD ---
 
-      const totalSources = datasetEntries.length + 2; // supabase services + vehicles + local files
-      let loadedCount = 0;
-      const updateProgress = (succeeded = true) => {
-        loadedCount += 1;
-        setStatus(`Loaded ${loadedCount}/${totalSources} sources...`, succeeded ? 'info' : 'warning');
-      };
+    const loadData = async (showLoading = true) => {
+        if(showLoading) setStatus('Fetching data...', 'info');
 
-      setStatus(`Loading 0/${totalSources} sources...`, 'info');
-
-      const fetchSupabaseTable = async (tableName, datasetKey) => {
         try {
-          const { data, error } = await supabaseClient.from(tableName).select('*');
-          if (error) throw error;
-          const hydrated = (data || []).map(row => ({ ...row, source: 'database', datasetKey }));
-          updateProgress(true);
-          return hydrated;
+            // 1. Supabase
+            const { data: sData } = await supabaseClient.from(TABLE_SERVICES).select('*');
+            const { data: vData } = await supabaseClient.from(TABLE_VEHICLES).select('*');
+            
+            // 2. Local/CSV (Simulation)
+            // En un caso real, aquí iría el fetch a los CSVs si hiciera falta. 
+            // Usaremos un array vacio por simplicidad o los datos cargados.
+            const localData = []; 
+
+            const combined = [
+                ...(sData || []).map(x => ({...x, source: 'DB'})), 
+                ...(vData || []).map(x => ({...x, source: 'DB'})),
+                ...localData
+            ];
+            
+            allData = combined.map(normalizeRow);
+            
+            // Ordenar por fecha más reciente si existe
+            allData.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+            renderDashboard(allData);
+            setStatus(`System Operational • ${allData.length} Records`, 'success');
+            
         } catch (err) {
-          console.error(`Supabase dataset load failed (${tableName})`, err);
-          updateProgress(false);
-          return [];
+            console.error(err);
+            setStatus('Connection Failed', 'error');
         }
-      };
-
-      const [supabaseServiceRows, supabaseVehicleRows] = await Promise.all([
-        fetchSupabaseTable(TABLE_SERVICES, 'services'),
-        fetchSupabaseTable(TABLE_VEHICLES, 'vehicles'),
-      ]);
-
-      let webRows = [];
-      try {
-        webRows = await loadLocalDatasets(updateProgress);
-      } catch (err) {
-        console.error('Local dataset load failed', err);
-      }
-
-      const combinedRows = [...supabaseServiceRows, ...supabaseVehicleRows, ...webRows];
-      allData = (combinedRows || []).map(normalizeRow);
-      applyFilter();
-
-      if (allData.length === 0) {
-        setStatus('No data sources found', 'error');
-      } else {
-        setStatus(`LIVE • ${allData.length} RECORDS`, 'success');
-      }
-      lucide.createIcons();
-
-      startRealtimeFeed();
+        
+        lucide.createIcons();
     };
 
-    els.searchInput?.addEventListener('input', applyFilter);
-    els.exportBtn?.addEventListener('click', exportCurrentView);
-    els.detailModalClose?.addEventListener('click', closeDetailModal);
-    els.detailModal?.addEventListener('click', (e) => {
-      if (e.target === els.detailModal || e.target === els.detailModalBackdrop) closeDetailModal();
-    });
-    els.refreshBtn.addEventListener('click', () => {
-        els.categoryBars.innerHTML = '<p class="text-xs text-slate-500 animate-pulse">Updating...</p>';
-        init();
-    });
-    
-    init();
+    // --- INITIALIZATION ---
+    window.viewDetail = (id) => {
+        const row = allData.find(r => r.id == id);
+        if(!row) return;
+        
+        els.detailModalTitle.textContent = row.name;
+        els.detailModalContent.innerHTML = `
+            <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 rounded bg-white/5 border border-white/5">
+                    <div class="text-[9px] uppercase text-slate-500 tracking-wider">Type</div>
+                    <div class="text-white font-medium">${row.category}</div>
+                </div>
+                <div class="p-3 rounded bg-white/5 border border-white/5">
+                    <div class="text-[9px] uppercase text-slate-500 tracking-wider">Region</div>
+                    <div class="text-white font-medium">${row.city}, ${row.state}</div>
+                </div>
+            </div>
+            <div class="p-3 rounded bg-white/5 border border-white/5 mt-4">
+                <div class="text-[9px] uppercase text-slate-500 tracking-wider mb-2">Full Payload</div>
+                <pre class="text-[10px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap">${JSON.stringify(row.raw, null, 2)}</pre>
+            </div>
+        `;
+        els.detailModal.classList.remove('hidden');
+        els.detailModal.classList.add('flex');
+    };
+
+    els.detailModalClose.onclick = () => els.detailModal.classList.add('hidden');
+    els.refreshBtn.onclick = () => loadData(true);
+    els.searchInput.oninput = (e) => {
+        const term = e.target.value.toLowerCase();
+        const filtered = allData.filter(r => r.name.toLowerCase().includes(term) || r.category.toLowerCase().includes(term));
+        renderDashboard(filtered);
+    };
+
+    (async () => {
+        createConstellationBackground(); // Si tienes el script visual
+        await loadData();
+        subscribeToChanges();
+    })();
+
   </script>
 </body>
 </html>
