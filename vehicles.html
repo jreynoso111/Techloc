@@ -840,27 +840,13 @@
       };
     };
 
-    const hexToRgba = (hex, alpha = 1) => {
-      if (!hex || typeof hex !== 'string') return `rgba(51, 65, 85, ${alpha})`;
-      const normalized = hex.replace('#', '');
-      if (![3, 6].includes(normalized.length)) return `rgba(51, 65, 85, ${alpha})`;
-      const fullHex = normalized.length === 3
-        ? normalized.split('').map((c) => c + c).join('')
-        : normalized;
-      const intVal = parseInt(fullHex, 16);
-      const r = (intVal >> 16) & 255;
-      const g = (intVal >> 8) & 255;
-      const b = intVal & 255;
-      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-    };
-
     const createPartnerClusterIcon = (cluster, color = '#334155') => {
       const count = cluster.getChildCount();
       return L.divIcon({
-        html: `<div class="text-white text-xs font-semibold rounded-full flex items-center justify-center w-9 h-9 border shadow" style="background:${hexToRgba(color, 0.18)}; border-color:${hexToRgba(color, 0.55)}; color:#e2e8f0; box-shadow:0 8px 20px rgba(0,0,0,0.35)">${count}</div>`,
+        html: `<div class="text-white text-xs font-semibold rounded-full flex items-center justify-center w-10 h-10 border shadow-md" style="background:${color}; border-color:${color}">${count}</div>`,
         className: 'partner-cluster-icon',
-        iconSize: [36, 36],
-        iconAnchor: [18, 18]
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
       });
     };
 
@@ -1679,56 +1665,21 @@
       blacklistLayer = L.layerGroup().addTo(map);
       techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
       vehicleLayer = L.markerClusterGroup({
-        maxClusterRadius: 32,
+        maxClusterRadius: 35,
         disableClusteringAtZoom: 17,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         iconCreateFunction(cluster) {
           const count = cluster.getChildCount();
-          let sizeClass = 'w-9 h-9 text-xs';
-          let iconSize = [36, 36];
+          let sizeClass = 'w-11 h-11 text-sm';
+          let iconSize = [44, 44];
 
           if (count > 100) {
+            sizeClass = 'w-14 h-14 text-lg';
+            iconSize = [56, 56];
+          } else if (count > 10) {
             sizeClass = 'w-12 h-12 text-base';
             iconSize = [48, 48];
-          } else if (count > 10) {
-            sizeClass = 'w-10 h-10 text-sm';
-            iconSize = [40, 40];
-          }
-
-          const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
-          let anyRed = false;
-          let anyAmber = false;
-          let greenCount = 0;
-
-          childMarkers.forEach((marker) => {
-            const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
-            const isStopped = marker?.options?.isStopped;
-
-            if (markerColor) {
-              const colorValue = `${markerColor}`.toLowerCase();
-              if (colorValue === '#ef4444') {
-                anyRed = true;
-                return;
-              }
-              if (colorValue === '#22c55e') {
-                greenCount += 1;
-              }
-              if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
-                anyAmber = true;
-              }
-            }
-
-            if (isStopped && !anyRed) {
-              anyAmber = true;
-            }
-          });
-
-          let clusterColor = '#22c55e';
-          if (anyRed) {
-            clusterColor = '#ef4444';
-          } else if (anyAmber || greenCount !== childMarkers.length) {
-            clusterColor = '#fbbf24';
           }
 
           const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
@@ -1760,7 +1711,7 @@
 
           const [width, height] = iconSize;
           return L.divIcon({
-            html: `<div class="border rounded-full text-white font-semibold flex items-center justify-center shadow ${sizeClass}" style="background:${hexToRgba(clusterColor, 0.2)}; border-color:${hexToRgba(clusterColor, 0.5)}; color:#e2e8f0; box-shadow:0 8px 18px rgba(0,0,0,0.3)">${count}</div>`,
+            html: `<div class="border-2 text-white font-bold rounded-full flex items-center justify-center shadow-lg ${sizeClass}" style="background:${clusterColor}; border-color:${clusterColor}">${count}</div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
