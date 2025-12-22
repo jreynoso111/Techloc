@@ -43,16 +43,15 @@
   </script>
   
   <style>
-    /* Estilos base */
     body { background-color: #020617; }
     
-    /* Scrollbar minimalista */
+    /* Scrollbar */
     .custom-scrollbar::-webkit-scrollbar { width: 5px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 
-    /* Efectos de Vidrio (Glassmorphism) */
+    /* Glassmorphism Cards */
     .frosted-card {
       background: rgba(15, 23, 42, 0.6);
       backdrop-filter: blur(12px);
@@ -61,12 +60,38 @@
       box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
     }
     
+    /* Neon Texts */
     .neon-text-blue { text-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
     .neon-text-emerald { text-shadow: 0 0 10px rgba(16, 185, 129, 0.5); }
+    .neon-text-violet { text-shadow: 0 0 10px rgba(139, 92, 246, 0.5); }
     
-    /* Indicador de actividad */
-    .status-dot {
-      box-shadow: 0 0 15px currentColor;
+    .status-dot { box-shadow: 0 0 15px currentColor; }
+
+    /* Circular Progress (Donut Chart Pure CSS) */
+    .circular-chart {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      max-height: 250px;
+    }
+    .circle-bg {
+      fill: none;
+      stroke: rgba(255,255,255,0.05);
+      stroke-width: 2.8;
+    }
+    .circle {
+      fill: none;
+      stroke-width: 2.8;
+      stroke-linecap: round;
+      animation: progress 1s ease-out forwards;
+    }
+    @keyframes progress { 0% { stroke-dasharray: 0 100; } }
+    .percentage {
+      fill: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: bold;
+      font-size: 0.5em;
+      text-anchor: middle;
     }
   </style>
 </head>
@@ -93,9 +118,7 @@
           <a href="../vehicles.html" class="px-3 py-1.5 hover:text-white hover:bg-white/5 rounded-md transition-all">Live Map</a>
           <a href="./index.html" class="px-3 py-1.5 text-white bg-white/5 border border-white/5 rounded-md shadow-sm">Analytics</a>
         </nav>
-
         <div class="h-4 w-px bg-white/10 hidden md:block"></div>
-
         <div class="flex items-center gap-3">
             <div class="hidden md:flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
                 <span class="relative flex h-1.5 w-1.5">
@@ -112,7 +135,7 @@
 
   <main class="px-4 py-6 lg:px-8 max-w-[1920px] mx-auto space-y-6">
     
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
             <div class="absolute right-0 top-0 w-20 h-20 bg-blue-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-blue-500/20"></div>
@@ -122,7 +145,19 @@
             </div>
             <div class="flex items-end gap-2">
                 <h2 id="kpi-vehicles" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-blue">-</h2>
-                <span class="text-[10px] text-blue-400/80 mb-1">Active Units</span>
+                <span class="text-[10px] text-blue-400/80 mb-1">Units</span>
+            </div>
+        </div>
+
+        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
+            <div class="absolute right-0 top-0 w-20 h-20 bg-emerald-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-emerald-500/20"></div>
+            <div class="flex items-center gap-2 mb-2">
+                <i data-lucide="activity" class="h-4 w-4 text-emerald-400"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Moving Now</span>
+            </div>
+            <div class="flex items-end gap-2">
+                <h2 id="kpi-moving" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-emerald">-</h2>
+                <span class="text-[10px] text-emerald-400/80 mb-1">Active</span>
             </div>
         </div>
 
@@ -133,88 +168,117 @@
                 <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Service Partners</span>
             </div>
             <div class="flex items-end gap-2">
-                <h2 id="kpi-total" class="text-3xl font-mono font-bold text-white tracking-tight leading-none">-</h2>
-                <span class="text-[10px] text-violet-400/80 mb-1">Vendors</span>
+                <h2 id="kpi-services" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-violet">-</h2>
+                <span class="text-[10px] text-violet-400/80 mb-1">Entities</span>
             </div>
         </div>
 
         <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
             <div class="absolute right-0 top-0 w-20 h-20 bg-amber-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-amber-500/20"></div>
             <div class="flex items-center gap-2 mb-2">
-                <i data-lucide="layers" class="h-4 w-4 text-amber-400"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Coverage</span>
+                <i data-lucide="star" class="h-4 w-4 text-amber-400"></i>
+                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Avg Quality</span>
             </div>
             <div class="flex items-end gap-2">
-                <h2 id="kpi-categories" class="text-3xl font-mono font-bold text-white tracking-tight leading-none">-</h2>
-                <span class="text-[10px] text-amber-400/80 mb-1">Service Types</span>
+                <h2 id="kpi-rating" class="text-3xl font-mono font-bold text-white tracking-tight leading-none">-</h2>
+                <span class="text-[10px] text-amber-400/80 mb-1">Google</span>
             </div>
-        </div>
-
-        <div class="frosted-card rounded-xl p-5 relative overflow-hidden group">
-            <div class="absolute right-0 top-0 w-20 h-20 bg-emerald-500/10 rounded-bl-full -mr-4 -mt-4 transition-all group-hover:bg-emerald-500/20"></div>
-            <div class="flex items-center gap-2 mb-2">
-                <i data-lucide="star" class="h-4 w-4 text-emerald-400"></i>
-                <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Quality Score</span>
-            </div>
-            <div class="flex items-end gap-2">
-                <h2 id="kpi-rating" class="text-3xl font-mono font-bold text-white tracking-tight leading-none neon-text-emerald">-</h2>
-                <span class="text-[10px] text-emerald-400/80 mb-1">Avg Rating</span>
-            </div>
-        </div>
-
-        <div class="frosted-card rounded-xl p-5 flex flex-col justify-center items-center text-center relative overflow-hidden border-blue-500/30">
-             <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none"></div>
-             <div id="dataset-status-dot" class="h-2 w-2 rounded-full bg-blue-500 status-dot mb-3"></div>
-             <p id="dataset-status" class="text-[10px] font-bold uppercase tracking-widest text-blue-200">Initializing...</p>
-             <button id="refresh-btn" class="mt-2 text-[9px] uppercase tracking-wider text-slate-500 hover:text-white transition-colors flex items-center gap-1">
-                <i data-lucide="refresh-cw" class="h-3 w-3"></i> Sync
-             </button>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
-        
-        <div class="space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <div class="lg:col-span-1 space-y-6">
+            
+            <div class="frosted-card rounded-xl p-6 relative">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+                        <i data-lucide="navigation" class="h-4 w-4 text-blue-400"></i> Fleet Pulse
+                    </h3>
+                </div>
+                <div class="flex items-center justify-center relative h-40">
+                     <svg viewBox="0 0 36 36" class="circular-chart w-32 h-32">
+                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        <path id="moving-circle" class="circle stroke-emerald-500" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span id="moving-pct" class="text-2xl font-bold text-white font-mono">0%</span>
+                        <span class="text-[9px] uppercase tracking-wider text-slate-400">Moving</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-4 text-center">
+                    <div class="bg-emerald-500/10 rounded p-2 border border-emerald-500/20">
+                        <p class="text-[10px] text-emerald-400 uppercase">Moving</p>
+                        <p id="count-moving" class="font-mono font-bold text-white">-</p>
+                    </div>
+                    <div class="bg-slate-800/50 rounded p-2 border border-slate-700/50">
+                        <p class="text-[10px] text-slate-400 uppercase">Stopped</p>
+                        <p id="count-stopped" class="font-mono font-bold text-white">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="frosted-card rounded-xl p-6">
+                 <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+                        <i data-lucide="check-circle" class="h-4 w-4 text-slate-400"></i> Deal Progress
+                    </h3>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-400">Avg Completion</span>
+                            <span id="avg-completion-text" class="text-white font-mono">0%</span>
+                        </div>
+                        <div class="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="avg-completion-bar" class="h-full bg-gradient-to-r from-blue-600 to-cyan-400" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-white/5">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Unit Types</p>
+                        <div id="unit-types-list" class="space-y-2">
+                            </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
             
             <div class="frosted-card rounded-xl p-6">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                        <i data-lucide="pie-chart" class="h-4 w-4 text-slate-400"></i> Service Distribution
+                        <i data-lucide="pie-chart" class="h-4 w-4 text-violet-400"></i> Partner Categories
                     </h3>
-                    <div class="text-[10px] text-slate-500 font-mono">LIVE COUNT</div>
                 </div>
-                <div id="category-bars" class="space-y-4">
-                    <div class="animate-pulse space-y-3">
-                        <div class="h-4 bg-white/5 rounded w-full"></div>
-                        <div class="h-4 bg-white/5 rounded w-3/4"></div>
-                        <div class="h-4 bg-white/5 rounded w-1/2"></div>
-                    </div>
+                <div id="category-bars" class="space-y-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                     <div class="animate-pulse h-4 bg-white/5 rounded col-span-2"></div>
                 </div>
             </div>
 
-            <div class="frosted-card rounded-xl overflow-hidden flex flex-col h-[500px]">
-                <div class="p-4 border-b border-white/5 flex flex-wrap items-center justify-between gap-3 bg-slate-900/40">
-                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
-                        <i data-lucide="database" class="h-4 w-4 text-slate-400"></i> Database Records
-                    </h3>
-                    <div class="flex items-center gap-2">
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500"></i>
-                            <input id="recent-search" type="text" placeholder="Search..." class="bg-black/20 border border-white/10 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 w-48 transition-all">
-                        </div>
-                        <button id="export-btn" class="p-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors" title="Export CSV">
-                            <i data-lucide="download" class="h-3.5 w-3.5"></i>
-                        </button>
+            <div class="frosted-card rounded-xl p-6">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="map" class="h-4 w-4 text-amber-400"></i> Top Regions (Services)
+                </h3>
+                <div id="top-regions" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     </div>
+            </div>
+            
+             <div class="frosted-card rounded-xl overflow-hidden flex flex-col h-[300px]">
+                <div class="p-4 border-b border-white/5 bg-slate-900/40">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-white flex items-center gap-2">
+                        <i data-lucide="database" class="h-4 w-4 text-slate-400"></i> Live Data Feed
+                    </h3>
                 </div>
                 <div class="flex-1 overflow-auto custom-scrollbar bg-black/20">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/80 sticky top-0 z-10 backdrop-blur-sm">
                             <tr class="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-                                <th class="px-4 py-3">Entity Name</th>
+                                <th class="px-4 py-3">Name / ID</th>
                                 <th class="px-4 py-3">Type</th>
-                                <th class="px-4 py-3">Source</th>
-                                <th class="px-4 py-3 text-right">Region</th>
+                                <th class="px-4 py-3">Status/Loc</th>
+                                <th class="px-4 py-3 text-right">Source</th>
                             </tr>
                         </thead>
                         <tbody id="recent-table-body" class="divide-y divide-white/5 text-slate-300">
@@ -222,67 +286,10 @@
                     </table>
                 </div>
             </div>
-        </div>
-
-        <div class="space-y-6">
-            
-            <div class="frosted-card rounded-xl p-0 flex flex-col h-[600px] border-emerald-500/20 relative overflow-hidden">
-                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0 opacity-50"></div>
-                
-                <div class="p-4 border-b border-white/5 flex items-center justify-between bg-slate-900/60">
-                    <div>
-                        <h3 class="text-xs font-bold uppercase tracking-widest text-emerald-400 flex items-center gap-2 neon-text-emerald">
-                            <i data-lucide="activity" class="h-3.5 w-3.5"></i> Audit Log
-                        </h3>
-                        <p class="text-[9px] text-slate-500 mt-0.5">Tracking changes on 'services' & 'vehicles'</p>
-                    </div>
-                    <span class="flex h-2 w-2">
-                        <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                </div>
-
-                <div class="flex-1 relative bg-black/20 font-mono text-xs">
-                    <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMDAwIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')] opacity-20 pointer-events-none"></div>
-                    
-                    <ul id="activity-feed" class="absolute inset-0 overflow-y-auto custom-scrollbar p-3 space-y-3">
-                         <li class="text-center py-10 text-slate-600 italic">Waiting for database events...</li>
-                    </ul>
-                    
-                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-slate-950 to-transparent pointer-events-none"></div>
-                </div>
-            </div>
-
-            <div class="frosted-card rounded-xl p-5">
-                <h3 class="text-xs font-bold uppercase tracking-widest text-white mb-4 flex items-center gap-2">
-                    <i data-lucide="map" class="h-4 w-4 text-slate-400"></i> Top Regions
-                </h3>
-                <div id="top-regions" class="grid grid-cols-2 gap-3">
-                    </div>
-            </div>
 
         </div>
     </div>
-
   </main>
-
-  <div id="detail-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm px-4" aria-hidden="true">
-    <div id="detail-modal-backdrop" class="absolute inset-0"></div>
-    <div class="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden transform transition-all scale-100">
-      <div class="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-4 border-b border-white/5 flex items-center justify-between">
-         <div>
-             <p class="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-1">Record Detail</p>
-             <h3 id="detail-modal-title" class="text-xl font-bold text-white tracking-tight"></h3>
-         </div>
-         <button id="detail-modal-close" class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
-            <i data-lucide="x" class="h-5 w-5"></i>
-         </button>
-      </div>
-      
-      <div id="detail-modal-content" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-      </div>
-    </div>
-  </div>
 
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
@@ -291,76 +298,32 @@
     // --- CONFIG ---
     const TABLE_SERVICES = 'services';
     const TABLE_VEHICLES = 'vehicles';
-    const TABLE_ANALYTICS = 'analytics_events';
     
-    // Fallback datasets if DB fails
-    const datasetEntries = window.TL_DATASETS ? Object.entries(window.TL_DATASETS) : [
-      ['dispatchers', '../assets/data/dispatchers.csv'],
-      ['technicians', '../assets/data/technicians.csv'],
-      ['vehicles', '../assets/data/vehicles.csv']
-    ];
-
-    let allData = [];
-    let changeChannel = null;
-    const liveEvents = [];
-
     // --- ELEMENTS ---
     const els = {
-      kpiTotal: document.getElementById('kpi-total'),
       kpiVehicles: document.getElementById('kpi-vehicles'),
-      kpiCategories: document.getElementById('kpi-categories'),
+      kpiServices: document.getElementById('kpi-services'),
+      kpiMoving: document.getElementById('kpi-moving'),
       kpiRating: document.getElementById('kpi-rating'),
+      
+      // Charts
       categoryBars: document.getElementById('category-bars'),
       topRegions: document.getElementById('top-regions'),
+      movingCircle: document.getElementById('moving-circle'),
+      movingPct: document.getElementById('moving-pct'),
+      countMoving: document.getElementById('count-moving'),
+      countStopped: document.getElementById('count-stopped'),
+      avgCompletionBar: document.getElementById('avg-completion-bar'),
+      avgCompletionText: document.getElementById('avg-completion-text'),
+      unitTypesList: document.getElementById('unit-types-list'),
+      
       tableBody: document.getElementById('recent-table-body'),
-      activityFeed: document.getElementById('activity-feed'),
-      status: document.getElementById('dataset-status'),
-      statusDot: document.getElementById('dataset-status-dot'),
-      refreshBtn: document.getElementById('refresh-btn'),
-      searchInput: document.getElementById('recent-search'),
-      exportBtn: document.getElementById('export-btn'),
-      detailModal: document.getElementById('detail-modal'),
-      detailModalClose: document.getElementById('detail-modal-close'),
-      detailModalTitle: document.getElementById('detail-modal-title'),
-      detailModalContent: document.getElementById('detail-modal-content'),
-      detailModalBackdrop: document.getElementById('detail-modal-backdrop')
     };
 
-    // --- UTILS ---
-    const escapeHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const getField = (row, ...keys) => {
-      for (const key of keys) {
-        if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') return row[key];
-      }
-      return '';
-    };
-
-    const timeAgo = (dateStr) => {
-        if(!dateStr) return 'Unknown';
-        const seconds = Math.floor((new Date() - new Date(dateStr)) / 1000);
-        if (seconds < 60) return "Just now";
-        const minutes = Math.floor(seconds / 60);
-        if (minutes < 60) return `${minutes}m`;
-        const hours = Math.floor(minutes / 60);
-        if (hours < 24) return `${hours}h`;
-        return `${Math.floor(hours / 24)}d`;
-    };
-
-    // --- LOGIC ---
-    
-    const setStatus = (text, type = 'info') => {
-        els.status.textContent = text;
-        els.statusDot.className = `h-2 w-2 rounded-full status-dot mb-3 ${type === 'success' ? 'bg-emerald-500 text-emerald-500' : (type === 'error' ? 'bg-rose-500 text-rose-500' : 'bg-blue-500 text-blue-500')}`;
-        els.status.className = `text-[10px] font-bold uppercase tracking-widest ${type === 'success' ? 'text-emerald-200' : (type === 'error' ? 'text-rose-200' : 'text-blue-200')}`;
-    };
-
+    // --- HELPER: Normalize Data based on your Image ---
     const formatCategory = (str) => {
         if (!str) return 'Uncategorized';
         const clean = String(str).trim().toLowerCase();
-        if (clean.includes('dispatch')) return 'Dispatcher';
-        if (clean.includes('mechanic') || clean.includes('tech')) return 'Technician';
-        if (clean.includes('vehicle') || clean.includes('fleet')) return 'Vehicle';
-        if (clean.includes('tow')) return 'Towing';
         return clean.charAt(0).toUpperCase() + clean.slice(1);
     };
 
@@ -368,265 +331,210 @@
         const map = {
             'Dispatcher': 'bg-violet-500',
             'Technician': 'bg-blue-500',
-            'Vehicle': 'bg-slate-500',
             'Towing': 'bg-amber-500',
-            'Locksmith': 'bg-pink-500'
+            'Locksmith': 'bg-pink-500',
+            'Truck': 'bg-emerald-500', // Vehicle type
+            'Trailer': 'bg-cyan-500'   // Vehicle type
         };
-        return map[cat] || 'bg-emerald-500';
+        return map[cat] || 'bg-slate-500';
     };
 
-    const normalizeRow = (row) => {
-        const categoryRaw = getField(row, 'category', 'business_type', 'type', 'service_type');
-        const category = formatCategory(categoryRaw);
-        const isVehicle = category === 'Vehicle' || (row.datasetKey && row.datasetKey.includes('vehicle'));
-        
-        return {
-            id: row.id,
-            name: getField(row, 'name', 'company_name', 'company', 'make') + (isVehicle ? ` ${getField(row, 'model', 'plate')}` : ''),
-            category,
-            state: getField(row, 'state', 'region'),
-            city: getField(row, 'city'),
-            rating: Number(getField(row, 'google_rating', 'rating')) || 0,
-            created_at: row.created_at,
-            source: row.source || 'db',
-            isVehicle,
-            raw: row
-        };
+    const normalizeRow = (row, type) => {
+        // Mapeo basado en tu imagen para vehicles
+        if (type === 'vehicle') {
+            return {
+                id: row['Customer ID'] || row.id,
+                name: `${row['model year'] || ''} ${row['model'] || 'Vehicle'}`,
+                category: row['unit type'] || 'Vehicle',
+                state: row['state loc'] || row.state,
+                city: row['pt city'],
+                
+                // Vehicle Specifics from Image
+                moving: String(row['moving']) === '1', // 1 = Moving?
+                completion: parseFloat(row['deal completion']) || 0,
+                ptStatus: row['pt status'],
+                
+                source: 'Fleet DB',
+                isVehicle: true,
+                raw: row
+            };
+        } else {
+            // Services Standard
+            return {
+                id: row.id,
+                name: row.name || row.company_name,
+                category: formatCategory(row.category || row.service_type),
+                state: row.state || row.region,
+                city: row.city,
+                rating: Number(row.google_rating) || 0,
+                source: 'Services DB',
+                isVehicle: false,
+                raw: row
+            };
+        }
     };
 
-    // --- RENDERERS ---
+    // --- RENDER LOGIC ---
 
-    const renderDashboard = (rows) => {
-        const vehicles = rows.filter(r => r.isVehicle);
-        const services = rows.filter(r => !r.isVehicle);
-
-        // KPIs
-        els.kpiTotal.textContent = services.length;
-        els.kpiVehicles.textContent = vehicles.length;
+    const renderDashboard = (serviceRows, vehicleRows) => {
         
+        // 1. SERVICES ANALYTICS
+        // ---------------------
+        
+        // Count Categories
         const catCounts = {};
-        services.forEach(r => catCounts[r.category] = (catCounts[r.category] || 0) + 1);
-        els.kpiCategories.textContent = Object.keys(catCounts).length;
-
-        const rated = rows.filter(r => r.rating > 0);
-        const avg = rated.length ? (rated.reduce((a,b)=>a+b.rating,0)/rated.length).toFixed(1) : '-';
-        els.kpiRating.textContent = avg;
-
-        // Categories Chart
+        serviceRows.forEach(r => catCounts[r.category] = (catCounts[r.category] || 0) + 1);
+        
+        // Render Bars (Count & %)
         els.categoryBars.innerHTML = '';
-        Object.entries(catCounts)
-            .sort((a,b) => b[1] - a[1])
-            .slice(0, 5)
-            .forEach(([cat, count]) => {
-                const pct = ((count / services.length) * 100).toFixed(1);
-                const color = getCategoryColor(cat);
+        const sortedCats = Object.entries(catCounts).sort((a,b) => b[1] - a[1]);
+        
+        sortedCats.forEach(([cat, count]) => {
+            const pct = ((count / serviceRows.length) * 100).toFixed(1);
+            const color = getCategoryColor(cat);
+            
+            const html = `
+                <div class="group">
+                    <div class="flex justify-between mb-1 items-end">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">${cat}</span>
+                        <div class="text-right">
+                             <span class="text-xs font-bold text-white">${count}</span>
+                             <span class="text-[9px] font-mono text-slate-500 ml-1">${pct}%</span>
+                        </div>
+                    </div>
+                    <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                        <div class="h-full ${color} w-0 transition-all duration-1000 ease-out shadow-[0_0_10px_currentColor]" style="width: 0%" data-width="${pct}%"></div>
+                    </div>
+                </div>
+            `;
+            els.categoryBars.insertAdjacentHTML('beforeend', html);
+        });
+
+        // Geo Analysis (States)
+        els.topRegions.innerHTML = '';
+        const regionCounts = {};
+        serviceRows.forEach(r => { if(r.state) regionCounts[r.state] = (regionCounts[r.state]||0)+1; });
+        
+        Object.entries(regionCounts)
+            .sort((a,b)=>b[1]-a[1])
+            .slice(0, 8)
+            .forEach(([state, count], i) => {
+                const intensity = count > 10 ? 'border-amber-500/30 bg-amber-500/10' : 'border-white/5 bg-white/5';
                 const html = `
-                    <div class="group cursor-pointer">
-                        <div class="flex justify-between mb-1">
-                            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-white transition-colors">${cat}</span>
-                            <span class="text-[10px] font-mono text-slate-500">${count} (${pct}%)</span>
-                        </div>
-                        <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                            <div class="h-full ${color} shadow-[0_0_8px_currentColor] w-0 transition-all duration-1000 ease-out" style="width: 0%" data-width="${pct}%"></div>
-                        </div>
+                    <div class="p-2 rounded border ${intensity} text-center hover:scale-105 transition-transform">
+                        <div class="text-[10px] font-mono text-slate-500 uppercase">State</div>
+                        <div class="text-lg font-bold text-white leading-none my-0.5">${state}</div>
+                        <div class="text-[9px] text-amber-400 font-bold">${count} partners</div>
                     </div>
                 `;
-                els.categoryBars.insertAdjacentHTML('beforeend', html);
+                els.topRegions.insertAdjacentHTML('beforeend', html);
             });
-        
-        setTimeout(() => document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.getAttribute('data-width')), 100);
 
-        // Top Regions
-        els.topRegions.innerHTML = '';
-        const regions = {};
-        rows.forEach(r => { if(r.state) regions[r.state] = (regions[r.state]||0)+1; });
-        Object.entries(regions).sort((a,b)=>b[1]-a[1]).slice(0,4).forEach(([reg, cnt], i) => {
-            const html = `
-                <div class="p-3 rounded-lg border border-white/5 bg-white/5 hover:border-white/20 transition-colors cursor-pointer group">
-                    <p class="text-[9px] font-bold uppercase text-slate-500 group-hover:text-blue-400">#${i+1} Region</p>
-                    <div class="flex items-baseline justify-between mt-1">
-                        <h4 class="text-sm font-bold text-white">${reg}</h4>
-                        <span class="text-xs font-mono text-slate-400">${cnt}</span>
-                    </div>
+
+        // 2. VEHICLE ANALYTICS (From Image Columns)
+        // -----------------------------------------
+        
+        // Moving Status
+        const movingCount = vehicleRows.filter(r => r.moving).length;
+        const stoppedCount = vehicleRows.length - movingCount;
+        const movingPct = vehicleRows.length ? Math.round((movingCount / vehicleRows.length) * 100) : 0;
+        
+        els.movingPct.textContent = `${movingPct}%`;
+        els.countMoving.textContent = movingCount;
+        els.countStopped.textContent = stoppedCount;
+        
+        // Animate Circle
+        setTimeout(() => {
+            const circleCircumference = 100; // dasharray logic
+            const dashOffset = circleCircumference - movingPct; // logic simplification for css
+            els.movingCircle.setAttribute('stroke-dasharray', `${movingPct}, 100`);
+        }, 100);
+
+        // Deal Completion
+        const totalCompletion = vehicleRows.reduce((acc, r) => acc + r.completion, 0);
+        const avgCompletion = vehicleRows.length ? (totalCompletion / vehicleRows.length).toFixed(1) : 0;
+        
+        els.avgCompletionText.textContent = `${avgCompletion}%`;
+        setTimeout(() => els.avgCompletionBar.style.width = `${avgCompletion}%`, 200);
+
+        // Unit Types Breakdown
+        const unitTypes = {};
+        vehicleRows.forEach(r => unitTypes[r.category] = (unitTypes[r.category]||0)+1);
+        els.unitTypesList.innerHTML = '';
+        
+        Object.entries(unitTypes).forEach(([type, count]) => {
+             const pct = ((count / vehicleRows.length) * 100).toFixed(0);
+             els.unitTypesList.insertAdjacentHTML('beforeend', `
+                <div class="flex items-center justify-between text-[10px]">
+                    <span class="text-slate-300 font-medium">${type}</span>
+                    <span class="text-slate-500 font-mono">${count} (${pct}%)</span>
                 </div>
-            `;
-            els.topRegions.insertAdjacentHTML('beforeend', html);
+             `);
         });
 
-        // Table
+
+        // 3. KPIs Totals
+        // --------------
+        els.kpiVehicles.textContent = vehicleRows.length;
+        els.kpiServices.textContent = serviceRows.length;
+        els.kpiMoving.textContent = movingCount;
+        
+        const ratedServices = serviceRows.filter(r => r.rating > 0);
+        els.kpiRating.textContent = ratedServices.length 
+            ? (ratedServices.reduce((a,b)=>a+b.rating,0)/ratedServices.length).toFixed(1) 
+            : '-';
+
+
+        // 4. Fill Table
+        // -------------
+        const allRecent = [...vehicleRows, ...serviceRows].slice(0, 20); // Mix
         els.tableBody.innerHTML = '';
-        rows.slice(0, 50).forEach(r => {
-            const rowHtml = `
-                <tr class="hover:bg-blue-500/5 transition-colors cursor-pointer group border-b border-transparent hover:border-blue-500/10" onclick="window.viewDetail('${r.id}')">
-                    <td class="px-4 py-2 font-medium text-slate-300 group-hover:text-white truncate max-w-[150px]">
-                        ${r.name}
-                    </td>
+        allRecent.forEach(r => {
+             els.tableBody.insertAdjacentHTML('beforeend', `
+                <tr class="hover:bg-white/5 transition-colors border-b border-white/5">
+                    <td class="px-4 py-2 text-slate-300 font-medium truncate max-w-[120px]">${r.name}</td>
                     <td class="px-4 py-2">
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border border-white/10 ${r.isVehicle ? 'bg-slate-800 text-slate-300' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'}">
+                         <span class="text-[9px] px-1.5 py-0.5 rounded border border-white/10 ${r.isVehicle ? 'bg-emerald-500/10 text-emerald-300' : 'bg-violet-500/10 text-violet-300'} uppercase font-bold">
                             ${r.category}
-                        </span>
+                         </span>
                     </td>
-                    <td class="px-4 py-2">
-                         <span class="text-[10px] text-slate-500 font-mono">${r.source}</span>
+                    <td class="px-4 py-2 text-[10px] text-slate-400">
+                        ${r.isVehicle ? (r.moving ? 'Moving' : 'Stopped') : (r.city || '-')}
                     </td>
-                    <td class="px-4 py-2 text-right">
-                        <span class="text-[10px] text-slate-400 font-bold">${r.state || '-'}</span>
-                    </td>
+                    <td class="px-4 py-2 text-right text-[9px] text-slate-500 font-mono">${r.source}</td>
                 </tr>
-            `;
-            els.tableBody.insertAdjacentHTML('beforeend', rowHtml);
+             `);
         });
+
+        // Trigger animations
+        setTimeout(() => document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.getAttribute('data-width')), 100);
     };
 
-    // --- AUDIT LOG LOGIC ---
-
-    const renderAuditLogItem = (payload) => {
-        const { eventType, table, old: oldRec, new: newRec, commit_timestamp } = payload;
-        
-        // Intentar identificar al usuario
-        let user = 'System/Unknown';
-        const potentialUser = newRec?.updated_by || newRec?.user_email || newRec?.metadata?.user;
-        if (potentialUser) user = potentialUser;
-
-        // Determinar estilo
-        let actionColor = 'text-slate-400';
-        let actionIcon = 'activity';
-        
-        if (eventType === 'INSERT') { actionColor = 'text-emerald-400'; actionIcon = 'plus-circle'; }
-        else if (eventType === 'UPDATE') { actionColor = 'text-blue-400'; actionIcon = 'edit-2'; }
-        else if (eventType === 'DELETE') { actionColor = 'text-rose-400'; actionIcon = 'trash-2'; }
-
-        // Resumen de cambios
-        let details = '';
-        if (eventType === 'UPDATE' && oldRec && newRec) {
-            const changes = Object.keys(newRec).filter(k => newRec[k] !== oldRec[k] && !['updated_at'].includes(k));
-            if (changes.length > 0) details = `Changed: ${changes.slice(0,2).join(', ')}`;
-        } else if (eventType === 'INSERT') {
-            details = `New record in ${table}`;
-        } else {
-            details = `Removed ID: ${oldRec?.id}`;
-        }
-
-        const html = `
-            <li class="relative pl-6 animate-enter-slide group">
-                <div class="absolute left-2 top-2 bottom-[-12px] w-px bg-white/10 group-last:hidden"></div>
-                <div class="absolute left-[5px] top-2.5 h-1.5 w-1.5 rounded-full ${actionColor.replace('text', 'bg')} shadow-[0_0_8px_currentColor]"></div>
-                
-                <div class="flex items-start justify-between gap-2">
-                    <div class="space-y-0.5">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-[10px] uppercase tracking-wider ${actionColor}">${eventType}</span>
-                            <span class="text-[10px] text-slate-500 font-mono">:: ${table}</span>
-                        </div>
-                        <p class="text-slate-300 font-medium leading-tight">${details}</p>
-                        <p class="text-[9px] text-slate-500">By: <span class="text-slate-400">${user}</span></p>
-                    </div>
-                    <span class="text-[9px] text-slate-600 font-mono whitespace-nowrap">${timeAgo(commit_timestamp || new Date())}</span>
-                </div>
-            </li>
-        `;
-        return html;
-    };
-
-    const subscribeToChanges = () => {
-        if (changeChannel) supabaseClient.removeChannel(changeChannel);
-        
-        changeChannel = supabaseClient.channel('admin-dashboard-changes')
-            .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
-                const html = renderAuditLogItem(payload);
-                els.activityFeed.insertAdjacentHTML('afterbegin', html);
-                
-                // Keep list small
-                if (els.activityFeed.children.length > 30) els.activityFeed.lastElementChild.remove();
-                
-                // Refresh data silently
-                loadData(false); 
-            })
-            .subscribe((status) => {
-                if(status === 'SUBSCRIBED') {
-                    els.activityFeed.innerHTML = ''; // Clear waiting message
-                    // Fake generic init event
-                    const initHtml = renderAuditLogItem({ eventType: 'SYSTEM', table: 'Monitor', commit_timestamp: new Date(), new: { updated_by: 'Admin' } });
-                    els.activityFeed.insertAdjacentHTML('afterbegin', `<li class="pl-6 text-emerald-500 text-[10px] font-mono py-2">/// MONITORING ACTIVE ///</li>`);
-                }
-            });
-    };
-
-    // --- MAIN LOAD ---
-
-    const loadData = async (showLoading = true) => {
-        if(showLoading) setStatus('Fetching data...', 'info');
-
+    // --- LOAD DATA ---
+    const loadData = async () => {
         try {
-            // 1. Supabase
+            // 1. Fetch
             const { data: sData } = await supabaseClient.from(TABLE_SERVICES).select('*');
             const { data: vData } = await supabaseClient.from(TABLE_VEHICLES).select('*');
             
-            // 2. Local/CSV (Simulation)
-            // En un caso real, aquí iría el fetch a los CSVs si hiciera falta. 
-            // Usaremos un array vacio por simplicidad o los datos cargados.
-            const localData = []; 
-
-            const combined = [
-                ...(sData || []).map(x => ({...x, source: 'DB'})), 
-                ...(vData || []).map(x => ({...x, source: 'DB'})),
-                ...localData
-            ];
+            // 2. Normalize
+            const services = (sData || []).map(r => normalizeRow(r, 'service'));
             
-            allData = combined.map(normalizeRow);
-            
-            // Ordenar por fecha más reciente si existe
-            allData.sort((a,b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+            // NOTA: Aquí simulo que los datos de DB vienen con las columnas de tu imagen.
+            // En producción, asegúrate que Supabase retorna 'deal status', 'unit type', etc.
+            const vehicles = (vData || []).map(r => normalizeRow(r, 'vehicle'));
 
-            renderDashboard(allData);
-            setStatus(`System Operational • ${allData.length} Records`, 'success');
+            renderDashboard(services, vehicles);
             
         } catch (err) {
-            console.error(err);
-            setStatus('Connection Failed', 'error');
+            console.error("Error loading data:", err);
         }
-        
         lucide.createIcons();
     };
 
-    // --- INITIALIZATION ---
-    window.viewDetail = (id) => {
-        const row = allData.find(r => r.id == id);
-        if(!row) return;
-        
-        els.detailModalTitle.textContent = row.name;
-        els.detailModalContent.innerHTML = `
-            <div class="grid grid-cols-2 gap-4">
-                <div class="p-3 rounded bg-white/5 border border-white/5">
-                    <div class="text-[9px] uppercase text-slate-500 tracking-wider">Type</div>
-                    <div class="text-white font-medium">${row.category}</div>
-                </div>
-                <div class="p-3 rounded bg-white/5 border border-white/5">
-                    <div class="text-[9px] uppercase text-slate-500 tracking-wider">Region</div>
-                    <div class="text-white font-medium">${row.city}, ${row.state}</div>
-                </div>
-            </div>
-            <div class="p-3 rounded bg-white/5 border border-white/5 mt-4">
-                <div class="text-[9px] uppercase text-slate-500 tracking-wider mb-2">Full Payload</div>
-                <pre class="text-[10px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap">${JSON.stringify(row.raw, null, 2)}</pre>
-            </div>
-        `;
-        els.detailModal.classList.remove('hidden');
-        els.detailModal.classList.add('flex');
-    };
-
-    els.detailModalClose.onclick = () => els.detailModal.classList.add('hidden');
-    els.refreshBtn.onclick = () => loadData(true);
-    els.searchInput.oninput = (e) => {
-        const term = e.target.value.toLowerCase();
-        const filtered = allData.filter(r => r.name.toLowerCase().includes(term) || r.category.toLowerCase().includes(term));
-        renderDashboard(filtered);
-    };
-
     (async () => {
-        createConstellationBackground(); // Si tienes el script visual
+        createConstellationBackground();
         await loadData();
-        subscribeToChanges();
     })();
 
   </script>
