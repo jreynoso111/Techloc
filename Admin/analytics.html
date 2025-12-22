@@ -297,6 +297,31 @@
               </div>
             </div>
 
+            <div class="rounded-2xl border frosted-card p-6 flex flex-col">
+              <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-semibold uppercase tracking-[0.22em] text-blue-200">Change history</p>
+                  <h3 class="text-sm font-bold uppercase tracking-widest text-white">Services &amp; Vehicles actions</h3>
+                </div>
+                <span class="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Audit trail</span>
+              </div>
+              <div class="overflow-hidden rounded-xl border border-white/5 bg-black/20">
+                <div class="max-h-[260px] overflow-y-auto custom-scrollbar">
+                  <table class="w-full text-left text-sm">
+                    <thead class="bg-white/5 text-[10px] uppercase font-bold text-slate-400 sticky top-0 backdrop-blur-sm z-10">
+                      <tr>
+                        <th class="px-4 py-3">Table</th>
+                        <th class="px-4 py-3">Action</th>
+                        <th class="px-4 py-3">Summary</th>
+                        <th class="px-4 py-3 text-right">When</th>
+                      </tr>
+                    </thead>
+                    <tbody id="change-log-body" class="divide-y divide-white/5 text-slate-300"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -324,8 +349,9 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     // --- CONFIG ---
-    const TABLE_SERVICES = 'services';
+    const TABLE_SERVICES = 'Services';
     const TABLE_VEHICLES = 'vehicles';
+    const TABLE_CHANGE_LOG = 'admin_change_log';
     
     const els = {
       kpiVehicles: document.getElementById('kpi-vehicles'),
@@ -348,7 +374,8 @@
       detailModalTitle: document.getElementById('detail-modal-title'),
       detailModalContent: document.getElementById('detail-modal-content'),
       detailModalClose: document.getElementById('detail-modal-close'),
-      status: document.getElementById('dataset-status')
+      status: document.getElementById('dataset-status'),
+      changeLogBody: document.getElementById('change-log-body')
     };
 
     // --- HELPERS ---
@@ -388,11 +415,11 @@
         } else {
             return {
                 id: row.id,
-                name: row.name || row.company_name,
-                category: formatCategory(row.category || row.service_type),
+                name: row.company || row.company_name || row.name || 'Service',
+                category: formatCategory(row.category || row.service_type || row.authorization),
                 state: row.state || row.region,
                 city: row.city,
-                rating: Number(row.google_rating) || 0,
+                rating: Number(row.google_rating || row.rating || (row.verified ? 5 : 0)) || 0,
                 source: 'Services DB',
                 isVehicle: false,
                 raw: row
@@ -408,9 +435,13 @@
         serviceRows.forEach(r => catCounts[r.category] = (catCounts[r.category] || 0) + 1);
         els.categoryBars.innerHTML = '';
         const sortedCats = Object.entries(catCounts).sort((a,b) => b[1] - a[1]);
-        
+
+        if (!sortedCats.length) {
+          els.categoryBars.innerHTML = '<p class="text-sm text-slate-500">No services found.</p>';
+        }
+
         sortedCats.forEach(([cat, count]) => {
-            const pct = ((count / serviceRows.length) * 100).toFixed(1);
+            const pct = serviceRows.length ? ((count / serviceRows.length) * 100).toFixed(1) : '0.0';
             const color = getCategoryColor(cat);
             const html = `
                 <div class="group">
@@ -433,7 +464,11 @@
         els.topRegions.innerHTML = '';
         const regionCounts = {};
         serviceRows.forEach(r => { if(r.state) regionCounts[r.state] = (regionCounts[r.state]||0)+1; });
-        Object.entries(regionCounts).sort((a,b)=>b[1]-a[1]).slice(0, 8).forEach(([state, count]) => {
+        const topRegions = Object.entries(regionCounts).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+        if (!topRegions.length) {
+          els.topRegions.innerHTML = '<p class="text-sm text-slate-500">No region data available.</p>';
+        }
+        topRegions.forEach(([state, count]) => {
              const intensity = count > 10 ? 'border-amber-500/30 bg-amber-500/10' : 'border-white/5 bg-white/5';
              els.topRegions.insertAdjacentHTML('beforeend', `
                 <div class="p-2 rounded border ${intensity} text-center hover:scale-105 transition-transform">
@@ -517,6 +552,44 @@
         lucide.createIcons();
     };
 
+    const renderChangeLog = (rows = []) => {
+      els.changeLogBody.innerHTML = '';
+      if (!rows.length) {
+        els.changeLogBody.innerHTML = '<tr><td colspan="4" class="px-4 py-3 text-center text-slate-500 text-sm">No change history recorded.</td></tr>';
+        return;
+      }
+
+      rows.forEach((row) => {
+        const ts = row.created_at ? new Date(row.created_at).toLocaleString() : '—';
+        els.changeLogBody.insertAdjacentHTML('beforeend', `
+          <tr class="border-b border-white/5">
+            <td class="px-4 py-3 text-sm text-slate-200">${row.table_name || row.table || '—'}</td>
+            <td class="px-4 py-3 text-sm">
+              <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${row.action === 'delete' ? 'bg-red-500/10 text-red-200 border border-red-500/20' : row.action === 'insert' ? 'bg-emerald-500/10 text-emerald-200 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-200 border border-blue-500/20'}">${(row.action || 'update').toUpperCase()}</span>
+            </td>
+            <td class="px-4 py-3 text-sm text-slate-300">${row.summary || row.description || 'Updated record'}</td>
+            <td class="px-4 py-3 text-right text-[12px] text-slate-500 font-mono">${ts}</td>
+          </tr>
+        `);
+      });
+    };
+
+    const loadChangeLog = async () => {
+      try {
+        const { data, error } = await supabaseClient
+          .from(TABLE_CHANGE_LOG)
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        renderChangeLog(data || []);
+      } catch (err) {
+        console.error('Error fetching change log', err);
+        renderChangeLog();
+      }
+    };
+
     // --- MODAL ---
     window.showDetail = (id) => {
        // Simple implementation for modal details
@@ -530,6 +603,7 @@
     (async () => {
         createConstellationBackground();
         await loadData();
+        await loadChangeLog();
     })();
   </script>
 </body>
