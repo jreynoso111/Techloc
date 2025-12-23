@@ -62,6 +62,7 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
+
 <body class="h-screen w-screen flex flex-col bg-slate-950 text-slate-50 overflow-hidden">
 
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
@@ -193,7 +194,7 @@
 
     <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
         <span id="pagination-summary">Ready</span>
-        <span>TechLoc Admin v2.1</span>
+        <span>TechLoc Admin v2.2</span>
     </div>
 
   </main>
@@ -206,7 +207,7 @@
     // CONFIG
     const READ_TABLE = 'Titles';
     const PRIMARY_KEY = 'UID'; 
-    const STORAGE_KEY = `techloc_${READ_TABLE}_prefs_v3_full`; // Nueva key para evitar conflictos
+    const STORAGE_KEY = `techloc_${READ_TABLE}_prefs_v3_full`;
 
     // Cliente Supabase
     const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
@@ -215,7 +216,7 @@
           })
         : null);
 
-    // Referencias DOM
+    // DOM Elements
     const els = {
       status: document.getElementById('dataset-status'),
       searchPrimary: document.getElementById('search-primary'),
@@ -245,28 +246,21 @@
       emptyState: document.getElementById('empty-state')
     };
 
-    // Estado Global
+    // State
     const state = {
       rows: [],
       columns: [],
       columnOrder: [],
       columnVisibility: {},
       columnWidths: {}, 
-      pagination: { page: 1, pageSize: 50 }, // Más filas visibles por defecto en pantalla completa
+      pagination: { page: 1, pageSize: 50 }, 
       sort: { column: null, direction: 'none' },
       search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' }, 
-      isDragging: false,
-      dragSourceIndex: null,
-      isResizing: false,
-      resizeColId: null,
-      resizeStartX: 0,
-      resizeStartWidth: 0,
-      filterCols1: [],
-      filterCols2: [],
-      filterCols3: []
+      isDragging: false, dragSourceIndex: null,
+      isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
+      filterCols1: [], filterCols2: [], filterCols3: []
     };
 
-    // Utils
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
     const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
 
@@ -286,456 +280,3 @@
 
     // Scroll Sync
     const syncScrollbars = () => {
-        let isSyncingTop = false;
-        let isSyncingTable = false;
-        els.topScroller.addEventListener('scroll', () => {
-            if (!isSyncingTable) {
-                isSyncingTop = true;
-                els.tableContainer.scrollLeft = els.topScroller.scrollLeft;
-            }
-            isSyncingTable = false;
-        });
-        els.tableContainer.addEventListener('scroll', () => {
-            if (!isSyncingTop) {
-                isSyncingTable = true;
-                els.topScroller.scrollLeft = els.tableContainer.scrollLeft;
-            }
-            isSyncingTop = false;
-        });
-    };
-    const updateScrollWidths = () => {
-        if(els.mainTable && els.topScrollerContent) {
-            els.topScrollerContent.style.width = els.mainTable.scrollWidth + 'px';
-        }
-    };
-
-    // Sheet Filter
-    const populateSheetFilter = (rows) => {
-        const sheets = new Set();
-        rows.forEach(r => {
-            if(r['Sheet']) sheets.add(r['Sheet']);
-            if(r['sheet']) sheets.add(r['sheet']); 
-        });
-        
-        const sortedSheets = Array.from(sheets).sort();
-        els.sheetTabs.innerHTML = ''; 
-
-        const createTab = (label, value) => {
-            const btn = document.createElement('button');
-            const isActive = state.search.sheet === value;
-            btn.className = `shrink-0 px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap ${
-                isActive 
-                ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20' 
-                : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`;
-            btn.textContent = label || 'Unknown';
-            btn.onclick = () => {
-                state.search.sheet = value;
-                state.pagination.page = 1; 
-                savePrefs();
-                renderTable();
-            };
-            return btn;
-        };
-
-        els.sheetTabs.appendChild(createTab('All Sheets', ''));
-        sortedSheets.forEach(sheet => {
-            els.sheetTabs.appendChild(createTab(sheet, sheet));
-        });
-    };
-
-    // Add Row
-    const addNewRow = async () => {
-        if (!supabaseClient) {
-            showToast('Offline: Cannot add rows', 'error');
-            return;
-        }
-        const originalText = els.addRowBtn.innerHTML;
-        els.addRowBtn.disabled = true;
-        els.addRowBtn.innerHTML = `<i data-lucide="loader-2" class="h-3 w-3 animate-spin"></i>`;
-        if (window.lucide) lucide.createIcons();
-
-        try {
-            const { data, error } = await supabaseClient.from(READ_TABLE).insert({}).select().single();
-            if (error) throw error;
-
-            state.rows.unshift(data);
-            state.pagination.page = 1;
-            renderTable();
-            showToast('Row added', 'info');
-            els.tableContainer.scrollTop = 0;
-        } catch (err) {
-            console.error(err);
-            showToast('Error creating row', 'error');
-        } finally {
-            els.addRowBtn.disabled = false;
-            els.addRowBtn.innerHTML = originalText;
-            if (window.lucide) lucide.createIcons();
-        }
-    };
-
-    // Edit Cell Logic
-    const renderCellContent = (td, val) => {
-        td.innerHTML = ''; 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'line-clamp-1 overflow-hidden text-ellipsis px-1'; // Estilo más compacto
-        wrapper.title = (val === null || val === undefined) ? '' : String(val); // Tooltip nativo
-        wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
-        td.appendChild(wrapper);
-    };
-
-    const editCell = (td, rowId, colId, originalValue) => {
-        if (state.isResizing || state.isDragging) return;
-        if (td.querySelector('input')) return;
-        if (typeof originalValue === 'object' && originalValue !== null) return;
-
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = originalValue === null ? '' : originalValue;
-        input.className = 'cell-input'; 
-        td.textContent = ''; 
-        td.appendChild(input);
-        input.focus();
-        let isSaving = false;
-
-        const save = async () => {
-            if (isSaving) return;
-            isSaving = true;
-            let newValue = input.value.trim();
-            if ((colId === 'Prep Status' || colId === 'prep_status') && newValue) newValue = newValue.replace(/^[\d\-\s]+/, '');
-            
-            const payloadValue = newValue === '' ? null : newValue;
-            renderCellContent(td, payloadValue);
-
-            if (String(payloadValue) === String(originalValue === null ? '' : originalValue) && payloadValue !== '') return;
-            if (payloadValue === null && originalValue === null) return;
-
-            const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
-            if (row) row[colId] = payloadValue;
-
-            if (supabaseClient) {
-                const { error } = await supabaseClient.from(READ_TABLE).update({ [colId]: payloadValue }).eq(PRIMARY_KEY, rowId);
-                if (error) {
-                    showToast('Save failed', 'error');
-                    renderCellContent(td, originalValue); 
-                    if (row) row[colId] = originalValue;
-                } else {
-                    showToast('Saved', 'info');
-                }
-            }
-        };
-
-        const cancel = () => { isSaving = true; renderCellContent(td, originalValue); };
-        input.addEventListener('blur', save);
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); input.blur(); } 
-            else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-        });
-    };
-
-    // Preferences
-    const savePrefs = async () => {
-      const config = {
-        columnOrder: state.columnOrder,
-        columnVisibility: state.columnVisibility,
-        columnWidths: state.columnWidths,
-        pagination: state.pagination,
-        sort: state.sort,
-        search: state.search 
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    };
-
-    const loadPrefs = async () => {
-      let config = null;
-      try { config = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) {}
-      
-      if (config) {
-        if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
-        if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
-        if (config.columnWidths) state.columnWidths = config.columnWidths;
-        if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
-        if (config.sort) state.sort = config.sort;
-        if (config.search) {
-            state.search = { ...state.search, ...config.search };
-            if(els.searchPrimary) els.searchPrimary.value = state.search.primary || '';
-            if(els.searchSecondary) els.searchSecondary.value = state.search.secondary || '';
-            if(els.searchTerms) els.searchTerms.value = state.search.terms || '';
-            if(els.termsOperator) els.termsOperator.value = state.search.termsOperator || '<';
-        }
-      }
-    };
-
-    const inferColumns = (rows = []) => {
-      const keys = new Set();
-      rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
-      const uniqueKeys = Array.from(keys);
-
-      state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
-      state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
-      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
-
-      if (uniqueKeys.length > 0) {
-        state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
-      } else {
-        const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
-        state.columns = defaults.map(id => ({ id, label: labelize(id) }));
-      }
-
-      const known = new Set(state.columns.map(c => c.id));
-      if (!state.columnOrder.length || state.columnOrder.length < 2) {
-          state.columnOrder = state.columns.map(c => c.id);
-      } else {
-          state.columnOrder = state.columnOrder.filter(c => known.has(c));
-          state.columns.forEach(c => {
-             if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
-             if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
-          });
-      }
-    };
-
-    const getVisibleColumns = () => state.columnOrder
-      .map(id => state.columns.find(c => c.id === id))
-      .filter(Boolean)
-      .filter(c => state.columnVisibility[c.id] !== false);
-
-    // Resize & Drag Handlers (Compactados)
-    const initResize = (e, colId) => {
-      e.stopPropagation(); e.preventDefault();
-      state.isResizing = true; state.resizeColId = colId; state.resizeStartX = e.pageX;
-      const colEl = document.getElementById(cleanId(colId));
-      state.resizeStartWidth = colEl ? colEl.offsetWidth : 150; 
-      document.body.classList.add('resizing');
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeUp);
-    };
-    const handleResizeMove = (e) => {
-      if (!state.isResizing) return;
-      const diff = e.pageX - state.resizeStartX;
-      const newWidth = Math.max(50, state.resizeStartWidth + diff); 
-      state.columnWidths[state.resizeColId] = newWidth;
-      const colEl = document.getElementById(cleanId(state.resizeColId));
-      if (colEl) colEl.style.width = `${newWidth}px`;
-      updateScrollWidths();
-    };
-    const handleResizeUp = () => {
-      state.isResizing = false; document.body.classList.remove('resizing');
-      document.removeEventListener('mousemove', handleResizeMove);
-      document.removeEventListener('mouseup', handleResizeUp);
-      savePrefs(); 
-    };
-    const handleDragStart = (e, colId) => {
-      if (state.isResizing) { e.preventDefault(); return; }
-      state.isDragging = true; state.dragSourceIndex = state.columnOrder.indexOf(colId);
-      e.dataTransfer.effectAllowed = 'move';
-      e.target.closest('th').classList.add('opacity-50');
-    };
-    const handleDragOver = (e) => { if (state.isDragging) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } };
-    const handleDrop = (e, targetColId) => {
-      e.stopPropagation();
-      const th = e.target.closest('th'); if (th) th.classList.remove('opacity-50');
-      state.isDragging = false;
-      const sourceIdx = state.dragSourceIndex; const targetIdx = state.columnOrder.indexOf(targetColId);
-      if (sourceIdx !== targetIdx && sourceIdx > -1 && targetIdx > -1) {
-        const [moved] = state.columnOrder.splice(sourceIdx, 1);
-        state.columnOrder.splice(targetIdx, 0, moved);
-        savePrefs(); renderTable();
-      }
-    };
-    const handleSort = (colId) => {
-      if (state.isResizing) return;
-      if (state.sort.column !== colId) state.sort = { column: colId, direction: 'asc' };
-      else if (state.sort.direction === 'asc') state.sort = { column: colId, direction: 'desc' };
-      else state.sort = { column: null, direction: 'none' };
-      savePrefs(); renderTable();
-    };
-
-    // Render Table
-    const renderTable = () => {
-      const visible = getVisibleColumns();
-      els.colgroup.innerHTML = '';
-      visible.forEach(col => {
-        const colEl = document.createElement('col');
-        colEl.id = cleanId(col.id); 
-        colEl.style.width = `${state.columnWidths[col.id] || 150}px`;
-        els.colgroup.appendChild(colEl);
-      });
-
-      let rows = state.rows;
-      const t1 = state.search.primary.trim().toLowerCase();
-      const t2 = state.search.secondary.trim().toLowerCase();
-      const t3_raw = state.search.terms;
-      const t3_op = state.search.termsOperator;
-      const sheet = state.search.sheet;
-
-      // Filter Logic
-      rows = rows.filter(row => {
-          const matches1 = !t1 || (state.filterCols1.length ? state.filterCols1.some(k => String(row[k]||'').toLowerCase().includes(t1)) : Object.values(row).some(v => String(v).toLowerCase().includes(t1)));
-          const matches2 = !t2 || (state.filterCols2.length ? state.filterCols2.some(k => String(row[k]||'').toLowerCase().includes(t2)) : true);
-          let matches3 = true;
-          if (t3_raw) {
-              const termCol = state.filterCols3[0];
-              if (termCol) {
-                  const cellVal = parseFloat(row[termCol]); const searchVal = parseFloat(t3_raw);
-                  if (isNaN(cellVal)) matches3 = false;
-                  else if (!isNaN(searchVal)) matches3 = t3_op === '<' ? cellVal < searchVal : cellVal > searchVal;
-              }
-          }
-          let matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
-          return matches1 && matches2 && matches3 && matchesSheet;
-      });
-
-      // Sort
-      if (state.sort.column && state.sort.direction !== 'none') {
-        const { column, direction } = state.sort;
-        rows = [...rows].sort((a, b) => {
-          let valA = a[column] ?? ''; let valB = b[column] ?? '';
-          if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
-          valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-          return direction === 'asc' ? (valA < valB ? -1 : 1) : (valA > valB ? 1 : -1);
-        });
-      }
-
-      const total = rows.length;
-      const { page, pageSize } = state.pagination;
-      const maxPage = Math.max(1, Math.ceil(total / pageSize));
-      state.pagination.page = Math.min(page, maxPage);
-      const startIdx = (state.pagination.page - 1) * pageSize;
-      const pageRows = rows.slice(startIdx, startIdx + pageSize);
-
-      // Render Head
-      els.thead.innerHTML = '';
-      const headRow = document.createElement('tr');
-      visible.forEach(col => {
-        const th = document.createElement('th');
-        th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none py-2 px-3 border-b border-slate-700 hover:bg-slate-900 transition-colors relative group';
-        th.draggable = true;
-        th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
-        th.addEventListener('dragover', handleDragOver);
-        th.addEventListener('drop', (e) => handleDrop(e, col.id));
-        th.addEventListener('click', () => handleSort(col.id));
-
-        const content = document.createElement('div');
-        content.className = 'flex items-center gap-2 w-full';
-        content.innerHTML = `<span class="truncate flex-1">${col.label}</span>`;
-        
-        if (state.sort.column === col.id) {
-           const icon = document.createElement('i');
-           icon.setAttribute('data-lucide', state.sort.direction === 'asc' ? 'chevron-up' : 'chevron-down');
-           icon.className = 'h-3 w-3 text-blue-400';
-           content.appendChild(icon);
-        }
-
-        th.appendChild(content);
-        const resizer = document.createElement('div');
-        resizer.className = 'resizer';
-        resizer.addEventListener('mousedown', (e) => initResize(e, col.id));
-        th.appendChild(resizer);
-        headRow.appendChild(th);
-      });
-      els.thead.appendChild(headRow);
-
-      // Render Body
-      els.tbody.innerHTML = '';
-      if (pageRows.length === 0) {
-          els.emptyState.classList.remove('hidden');
-      } else {
-          els.emptyState.classList.add('hidden');
-          pageRows.forEach(row => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-blue-900/10 group transition-colors';
-            visible.forEach(col => {
-                const td = document.createElement('td');
-                td.className = 'text-xs text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-8 whitespace-nowrap overflow-hidden relative';
-                let val = row[col.id];
-                if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') val = val.replace(/^[\d\-\s]+/, '');
-                
-                renderCellContent(td, val);
-                td.addEventListener('dblclick', () => {
-                    if (col.id === 'created_at' || col.id === 'updated_at' || col.id === PRIMARY_KEY) { showToast('Read-only', 'info'); return; }
-                    editCell(td, row[PRIMARY_KEY], col.id, val);
-                });
-                tr.appendChild(td);
-            });
-            els.tbody.appendChild(tr);
-          });
-      }
-
-      const start = total === 0 ? 0 : startIdx + 1;
-      const end = Math.min(startIdx + pageRows.length, total);
-      els.paginationSummary.textContent = `${start}-${end} of ${total} records`;
-      els.pageIndicator.textContent = `${state.pagination.page}/${maxPage}`;
-      els.prevPage.disabled = state.pagination.page <= 1;
-      els.nextPage.disabled = state.pagination.page >= maxPage;
-
-      updateScrollWidths();
-      if (window.lucide) lucide.createIcons();
-    };
-
-    const updateColumnsList = () => {
-      els.columnsList.innerHTML = '';
-      state.columns.forEach(col => {
-        const label = document.createElement('label');
-        label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-slate-900 rounded cursor-pointer';
-        label.innerHTML = `<span class="text-xs text-slate-300 truncate">${col.label}</span>`;
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.className = 'h-3.5 w-3.5 accent-blue-600 rounded bg-slate-800 border-slate-600';
-        input.checked = state.columnVisibility[col.id] !== false;
-        input.addEventListener('change', () => {
-          state.columnVisibility[col.id] = input.checked;
-          savePrefs(); renderTable();
-        });
-        label.appendChild(input);
-        els.columnsList.appendChild(label);
-      });
-    };
-
-    // Init
-    const loadData = async () => {
-      if (!supabaseClient) { els.status.textContent = 'Offline'; return; }
-      els.status.textContent = 'Syncing...';
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
-      if (error) { console.error(error); els.status.textContent = 'Error'; return; }
-      state.rows = data || [];
-      els.status.textContent = 'Connected';
-      populateSheetFilter(state.rows); 
-      inferColumns(state.rows);
-      updateColumnsList();
-      renderTable();
-    };
-
-    const attachEvents = () => {
-      els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); });
-      els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); });
-      els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
-      els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
-      
-      els.addRowBtn?.addEventListener('click', addNewRow);
-      els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
-      els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); });
-      els.refresh?.addEventListener('click', loadData);
-      
-      els.columnsBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.columnsPopover.classList.toggle('hidden'); });
-      els.colsAll?.addEventListener('click', () => { state.columns.forEach(c => state.columnVisibility[c.id] = true); savePrefs(); renderTable(); updateColumnsList(); });
-      els.colsNone?.addEventListener('click', () => { state.columns.forEach(c => state.columnVisibility[c.id] = false); savePrefs(); renderTable(); updateColumnsList(); });
-      document.addEventListener('click', (e) => {
-        if (els.columnsPopover && !els.columnsPopover.contains(e.target) && e.target !== els.columnsBtn) els.columnsPopover.classList.add('hidden');
-      });
-      syncScrollbars(); 
-    };
-
-    const init = async () => {
-      try {
-        const cvs = document.getElementById('constellation-canvas');
-        if (cvs && typeof createConstellationBackground === 'function') createConstellationBackground(cvs);
-        await loadPrefs();
-        attachEvents();
-        await loadData();
-      } catch (err) { console.error(err); }
-    };
-
-    init();
-  </script>
-</body>
-</html>
