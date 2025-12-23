@@ -56,6 +56,10 @@
     .custom-scrollbar::-webkit-scrollbar-track { background: #0f172a; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 6px; border: 3px solid #0f172a; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Hide scrollbar for sheet tabs but allow scrolling */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
@@ -156,8 +160,9 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/50 pt-3">
-                <div class="flex items-center gap-3">
-                    <div class="relative">
+                <div class="flex items-center gap-3 overflow-hidden flex-1">
+                    
+                    <div class="relative shrink-0">
                         <button id="columns-btn" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" type="button">
                           <i data-lucide="columns-3" class="h-4 w-4"></i> Columns
                           <i data-lucide="chevron-down" class="h-4 w-4"></i>
@@ -174,21 +179,18 @@
                         </div>
                     </div>
 
-                    <div class="relative">
-                        <i data-lucide="sheet" class="absolute left-3 top-2.5 h-3 w-3 text-blue-400 pointer-events-none"></i>
-                        <select id="sheet-filter" class="appearance-none rounded-full border border-slate-700 bg-slate-950/60 pl-8 pr-8 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition focus:border-blue-500 focus:outline-none hover:border-blue-500/50 cursor-pointer">
-                            <option value="">All Sheets</option>
-                            </select>
-                        <i data-lucide="chevron-down" class="absolute right-3 top-2.5 h-3 w-3 text-slate-500 pointer-events-none"></i>
-                    </div>
+                    <div class="h-6 w-px bg-slate-700 shrink-0"></div>
+
+                    <div id="sheet-tabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar mask-fade flex-1">
+                        </div>
                 </div>
 
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0">
                   <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600/30" type="button">
                     <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
                   </button>
                   <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save active
+                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save
                   </div>
                 </div>
             </div>
@@ -246,7 +248,7 @@
       searchSecondary: document.getElementById('search-secondary'),
       searchTerms: document.getElementById('search-terms'),
       termsOperator: document.getElementById('terms-operator'),
-      sheetFilter: document.getElementById('sheet-filter'), 
+      sheetTabs: document.getElementById('sheet-tabs'), // CHANGED: Now a DIV, not Select
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
@@ -275,7 +277,6 @@
       columnWidths: {}, 
       pagination: { page: 1, pageSize: 20 },
       sort: { column: null, direction: 'none' },
-      // Added 'sheet' to the state.search object for persistence
       search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' }, 
       isDragging: false,
       dragSourceIndex: null,
@@ -330,7 +331,7 @@
         }
     };
 
-    // --- SHEET POPULATE ---
+    // --- SHEET TABS ---
     const populateSheetFilter = (rows) => {
         const sheets = new Set();
         rows.forEach(r => {
@@ -338,26 +339,39 @@
             if(r['sheet']) sheets.add(r['sheet']); 
         });
         
-        // Temporarily hold value if it was set via state load
-        const savedVal = state.search.sheet;
-        
-        els.sheetFilter.innerHTML = '<option value="">All Sheets</option>';
-        
-        Array.from(sheets).sort().forEach(sheet => {
-            const opt = document.createElement('option');
-            opt.value = sheet;
-            opt.textContent = sheet;
-            opt.className = 'bg-slate-900 text-slate-200';
-            els.sheetFilter.appendChild(opt);
-        });
+        const sortedSheets = Array.from(sheets).sort();
+        els.sheetTabs.innerHTML = ''; // Clear existing
 
-        // Restore saved value
-        if (savedVal && sheets.has(savedVal)) {
-            els.sheetFilter.value = savedVal;
-        } else {
-            // Reset state if saved sheet no longer exists
-            state.search.sheet = '';
-        }
+        // Helper to create tab button
+        const createTab = (label, value) => {
+            const btn = document.createElement('button');
+            const isActive = state.search.sheet === value;
+            
+            // Base styles
+            btn.className = `shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide border transition-all duration-200 ${
+                isActive 
+                ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20' 
+                : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white'
+            }`;
+            
+            btn.textContent = label;
+            btn.onclick = () => {
+                state.search.sheet = value;
+                state.pagination.page = 1; // Reset to page 1
+                savePrefs();
+                renderTable();
+                populateSheetFilter(rows); // Re-render tabs to update active state
+            };
+            return btn;
+        };
+
+        // 1. "ALL" Tab
+        els.sheetTabs.appendChild(createTab('All', ''));
+
+        // 2. Specific Sheet Tabs
+        sortedSheets.forEach(sheet => {
+            els.sheetTabs.appendChild(createTab(sheet, sheet));
+        });
     };
 
     // --- RENDER CONTENT ---
@@ -450,7 +464,6 @@
         if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
         if (config.sort) state.sort = config.sort;
         if (config.search) {
-            // Restore search state
             state.search = { ...state.search, ...config.search };
             // Populate inputs
             if(els.searchPrimary) els.searchPrimary.value = state.search.primary || '';
@@ -607,10 +620,9 @@
               }
           }
 
-          // 3. Sheet Filter (Persistence Fix)
+          // 3. Sheet Filter
           let matchesSheet = true;
           if (sheet) {
-              // Try exact match then case-insensitive
               const rowSheet = row['Sheet'] || row['sheet'];
               if (rowSheet !== sheet) matchesSheet = false;
           }
@@ -762,7 +774,6 @@
       els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
       els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
-      els.sheetFilter?.addEventListener('change', (e) => { state.search.sheet = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
 
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); savePrefs(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); savePrefs(); });
@@ -778,7 +789,8 @@
 
     const init = async () => {
       try {
-        createConstellationBackground('constellation-canvas');
+        const cvs = document.getElementById('constellation-canvas');
+        if (cvs) createConstellationBackground(cvs);
         // Load Prefs FIRST, then Data
         await loadPrefs();
         attachEvents();
