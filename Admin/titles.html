@@ -92,9 +92,25 @@
           <h2 class="text-lg font-black text-white">Admin workspace</h2>
         </div>
         <nav class="flex flex-col gap-2 text-sm font-semibold">
-          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">Dashboard <span class="text-xs font-medium text-slate-400">Overview</span></a>
-          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">Titles <span class="text-xs font-medium text-blue-100">Records</span></a>
-          </nav>
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
+          </a>
+          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
+          </a>
+          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
+          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
+            Titles <span class="text-xs font-medium text-blue-100">Records</span>
+          </a>
+          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
+          </a>
+          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
+          </a>
+        </nav>
       </aside>
 
       <section class="flex min-w-0 flex-1 flex-col gap-5">
@@ -211,7 +227,7 @@
     // CONFIG
     const READ_TABLE = 'Titles';
     const PRIMARY_KEY = 'UID'; 
-    const STORAGE_KEY = `techloc_${READ_TABLE}_prefs_v2`; // Updated key version
+    const STORAGE_KEY = `techloc_${READ_TABLE}_prefs_v2`; 
 
     const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -262,7 +278,6 @@
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
-    // Safe ID generator for DOM elements (replaces spaces with underscores)
     const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
 
     // --- TOASTS ---
@@ -355,7 +370,7 @@
         });
     };
 
-    // --- PREFS (Robust Save/Load) ---
+    // --- PREFS ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -365,7 +380,7 @@
         sort: state.sort
       };
       
-      // 1. Save Local (Backup)
+      // 1. Save Local
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
 
       // 2. Save Cloud
@@ -408,12 +423,10 @@
       rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
       const uniqueKeys = Array.from(keys);
 
-      // Filters setup
       state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
       state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
 
-      // Build Columns
       if (uniqueKeys.length > 0) {
         state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
       } else {
@@ -421,22 +434,16 @@
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
 
-      // Merge saved order with new columns
       const known = new Set(state.columns.map(c => c.id));
-      
-      // If we have a saved order, filter out invalid keys but keep the sequence
-      if (state.columnOrder.length) {
-          state.columnOrder = state.columnOrder.filter(c => known.has(c));
-      } else {
-          // No saved order, use default alpha sort
+      if (!state.columnOrder.length || state.columnOrder.length < 2) {
           state.columnOrder = state.columns.map(c => c.id);
+      } else {
+          state.columnOrder = state.columnOrder.filter(c => known.has(c));
+          state.columns.forEach(c => {
+             if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
+             if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
+          });
       }
-
-      // Append any NEW columns that weren't in the saved order
-      state.columns.forEach(c => {
-         if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
-         if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
-      });
     };
 
     const getVisibleColumns = () => state.columnOrder
@@ -450,7 +457,6 @@
       state.isResizing = true;
       state.resizeColId = colId;
       state.resizeStartX = e.pageX;
-      // Use cleanId to safely get element
       const colEl = document.getElementById(cleanId(colId));
       state.resizeStartWidth = colEl ? colEl.offsetWidth : 150; 
       document.body.classList.add('resizing');
@@ -463,8 +469,6 @@
       const diff = e.pageX - state.resizeStartX;
       const newWidth = Math.max(50, state.resizeStartWidth + diff); 
       state.columnWidths[state.resizeColId] = newWidth;
-      
-      // Apply immediate visual update to COL element
       const colEl = document.getElementById(cleanId(state.resizeColId));
       if (colEl) colEl.style.width = `${newWidth}px`;
     };
@@ -474,7 +478,7 @@
       document.body.classList.remove('resizing');
       document.removeEventListener('mousemove', handleResizeMove);
       document.removeEventListener('mouseup', handleResizeUp);
-      savePrefs(); // Persist immediately
+      savePrefs(); 
     };
 
     // --- DRAG ---
@@ -527,7 +531,7 @@
       els.colgroup.innerHTML = '';
       visible.forEach(col => {
         const colEl = document.createElement('col');
-        colEl.id = cleanId(col.id); // Set ID securely
+        colEl.id = cleanId(col.id); 
         const w = state.columnWidths[col.id] || 200; 
         colEl.style.width = `${w}px`;
         els.colgroup.appendChild(colEl);
@@ -568,7 +572,6 @@
         });
       }
 
-      // Paginate
       const total = rows.length;
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -576,7 +579,6 @@
       const startIdx = (state.pagination.page - 1) * pageSize;
       const pageRows = rows.slice(startIdx, startIdx + pageSize);
 
-      // Render Head
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
       visible.forEach(col => {
@@ -621,7 +623,6 @@
       });
       els.thead.appendChild(headRow);
 
-      // Render Body
       els.tbody.innerHTML = '';
       if (pageRows.length === 0) {
         const tr = document.createElement('tr');
@@ -636,11 +637,10 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            // WRAPPER FIX: No line-clamp on TD
             td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 hover:bg-slate-800/30 transition-colors align-top';
             let val = row[col.id];
             
-            // CLEAN PREP (DISPLAY)
+            // CLEAN PREP STATUS (DISPLAY)
             if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') {
                 val = val.replace(/^[\d\-\s]+/, '');
             }
