@@ -3,262 +3,222 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Flota - Tabla Dinámica</title>
+    <title>Sistema de Flota Completo</title>
     <style>
-        /* --- 1. RESET Y ESTRUCTURA GENERAL --- */
+        /* --- 1. RESET PARA PANTALLA COMPLETA --- */
         body, html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: sans-serif;
             background-color: #f4f4f9;
         }
 
-        /* --- 2. HEADER PRINCIPAL (Título y Controles) --- */
+        /* --- 2. HEADER PRINCIPAL (Título + Controles) --- */
         .main-header {
-            background-color: white;
-            padding: 15px 30px;
+            background: white;
+            padding: 10px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #e0e0e0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            position: relative;
-            z-index: 10;
+            border-bottom: 1px solid #ddd;
         }
 
-        .main-header h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            color: #2c3e50;
-        }
-
-        /* Contenedor del Slider */
-        .controls-container {
+        /* Contenedor de controles (Slider) dentro del header */
+        .controls {
             display: flex;
             align-items: center;
             gap: 15px;
-            background: #f8f9fa;
-            padding: 8px 15px;
+            background: #f8f9fa; /* Fondo gris claro para destacar */
+            padding: 5px 15px;
             border-radius: 20px;
-            border: 1px solid #ddd;
-        }
-
-        .controls-container label {
-            font-weight: 600;
-            font-size: 0.9rem;
-            color: #555;
-        }
-
-        input[type=range] {
-            cursor: pointer;
+            border: 1px solid #eee;
         }
 
         /* --- 3. BARRA DE NAVEGACIÓN (Segundo Header) --- */
         .nav-header {
-            background-color: #34495e; /* Color oscuro */
+            background-color: #2c3e50;
             padding: 0;
-            text-align: center; /* Centrar enlaces */
+            text-align: center; /* Centrar los enlaces */
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         .nav-header a {
             display: inline-block;
-            color: #ecf0f1;
+            color: white;
             text-decoration: none;
-            padding: 15px 25px;
+            padding: 12px 25px;
             font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 1px;
             font-weight: 500;
-            transition: background 0.3s, color 0.3s;
+            transition: background 0.3s;
         }
 
         .nav-header a:hover {
-            background-color: #2c3e50;
+            background-color: #34495e;
             color: #3498db;
         }
 
-        /* --- 4. CONTENEDOR DE LA TABLA (Full Width) --- */
-        .table-wrapper {
-            /* VARIABLE MAESTRA: Controla todo el tamaño de la tabla */
-            --base-size: 16px;
-
-            width: 100%;
-            overflow-x: auto; /* Scroll horizontal si es necesario */
+        /* --- 4. CONTENEDOR DE LA TABLA --- */
+        .dynamic-table-container {
+            /* Variable CSS Maestra */
+            --table-font-size: 16px; 
+            
+            width: 100%; /* Ocupa todo el ancho */
+            overflow-x: auto;
             background: white;
-            min-height: calc(100vh - 120px); /* Ocupa el resto de la altura */
+            min-height: calc(100vh - 110px); /* Ocupa el resto de la pantalla */
         }
 
         .dynamic-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: var(--base-size); /* Aplicamos la variable */
+            
+            /* Aplicamos el tamaño de fuente dinámico */
+            font-size: var(--table-font-size);
         }
 
-        /* Headers de la tabla */
-        .dynamic-table th {
-            background-color: #2980b9; /* Azul distinto al nav */
-            color: white;
-            font-weight: 600;
-            text-align: left;
-            position: sticky; /* El header se queda fijo al hacer scroll */
-            top: 0;
-        }
-
-        /* Celdas y Headers: Padding relativo al tamaño de fuente */
         .dynamic-table th, 
         .dynamic-table td {
-            padding: 0.75em 1em; /* Se ajusta automáticamente con la fuente */
-            border-bottom: 1px solid #eee;
-            transition: padding 0.1s ease; /* Suaviza el cambio de tamaño */
+            /* Padding relativo (em) para que las celdas crezcan con la fuente */
+            padding: 0.75em 1em; 
+            text-align: left;
+            border-bottom: 1px solid #ddd;
         }
 
-        /* Columna de botón Eliminar */
+        /* Columna de Acción (Botón Eliminar) */
         .dynamic-table th:first-child,
         .dynamic-table td:first-child {
-            width: 1px; /* Mínimo ancho posible */
+            width: 1px; /* Ancho mínimo ajustado al contenido */
             white-space: nowrap;
             text-align: center;
         }
 
-        .dynamic-table tbody tr:hover {
-            background-color: #f1f8ff; /* Color hover suave */
+        /* Headers */
+        .dynamic-table th {
+            background-color: #34495e; /* Mismo tono base que el nav */
+            color: white;
+            font-weight: 600;
+            font-size: 1.2em; /* 120% del tamaño base */
+            white-space: nowrap;
         }
 
-        /* --- 5. BOTÓN ELIMINAR --- */
-        .btn-delete {
+        .dynamic-table tbody tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        /* Botón de Eliminar */
+        .delete-btn {
             background-color: #e74c3c;
             color: white;
             border: none;
             border-radius: 4px;
-            padding: 0.4em 0.8em; /* También escala con la fuente */
+            padding: 0.4em 0.8em; /* Escala con la fuente */
             cursor: pointer;
-            font-size: 0.85em;
             font-weight: bold;
-            transition: background 0.2s, transform 0.1s;
+            font-size: 0.9em;
         }
-
-        .btn-delete:hover {
+        
+        .delete-btn:hover {
             background-color: #c0392b;
-            transform: scale(1.05);
         }
 
-        .btn-delete:active {
-            transform: scale(0.95);
+        /* Input Range */
+        input[type=range] {
+            cursor: pointer;
         }
-
     </style>
 </head>
 <body>
 
     <header class="main-header">
-        <h1>Dashboard Operativo</h1>
+        <h2 style="margin: 0; color: #333;">Gestión de Flota</h2>
         
-        <div class="controls-container">
-            <label for="sizeSlider">Tamaño:</label>
+        <div class="controls">
+            <label for="sizeSlider"><strong>Zoom:</strong></label>
             <span style="font-size: 12px">A</span>
-            <input type="range" id="sizeSlider" min="12" max="26" value="16" step="1">
-            <span style="font-size: 20px">A</span>
-            <span id="sizeValue" style="color: #666; font-size: 0.85rem; min-width: 45px; text-align: right;">(16px)</span>
+            <input type="range" id="sizeSlider" min="12" max="28" value="16" step="1">
+            <span style="font-size: 24px">A</span>
+            <span id="currentSize" style="color: #666; font-size: 0.9rem;">(16px)</span>
         </div>
     </header>
 
     <nav class="nav-header">
         <a href="#">Inicio</a>
-        <a href="#">Flota Activa</a>
-        <a href="#">Mantenimiento</a>
+        <a href="#">Vehículos</a>
         <a href="#">Choferes</a>
-        <a href="#">Configuración</a>
+        <a href="#">Rutas</a>
+        <a href="#">Mantenimiento</a>
     </nav>
 
-    <div class="table-wrapper" id="tableWrapper">
+    <div class="dynamic-table-container" id="tableContainer">
         <table class="dynamic-table">
             <thead>
                 <tr>
-                    <th>Acción</th> <th>ID Unidad</th>
-                    <th>Modelo</th>
-                    <th>Estado Operativo</th>
-                    <th>Zona Actual</th>
-                    <th>Última Revisión</th>
+                    <th>Acción</th> <th>ID Flota</th>
+                    <th>Tipo de Vehículo</th>
+                    <th>Estado</th>
+                    <th>Ubicación Actual</th>
+                    <th>Mantenimiento</th>
                 </tr>
             </thead>
             <tbody>
                 <tr>
-                    <td><button class="btn-delete" onclick="deleteRow(this)">Eliminar</button></td>
-                    <td>FL-1024</td>
-                    <td>Volvo VNL 760</td>
-                    <td><span style="color: green; font-weight: bold;">En Ruta</span></td>
-                    <td>New Jersey, NJ</td>
-                    <td>15/10/2023</td>
-                </tr>
-                <tr>
-                    <td><button class="btn-delete" onclick="deleteRow(this)">Eliminar</button></td>
-                    <td>FL-2055</td>
-                    <td>Ford Transit</td>
-                    <td>Disponible</td>
-                    <td>Queens, NY</td>
-                    <td>20/12/2023</td>
-                </tr>
-                <tr>
-                    <td><button class="btn-delete" onclick="deleteRow(this)">Eliminar</button></td>
-                    <td>FL-3301</td>
-                    <td>Mack Granite</td>
-                    <td><span style="color: orange; font-weight: bold;">Mantenimiento</span></td>
-                    <td>Bronx, NY</td>
-                    <td>01/01/2024</td>
-                </tr>
-                <tr>
-                    <td><button class="btn-delete" onclick="deleteRow(this)">Eliminar</button></td>
-                    <td>FL-4099</td>
-                    <td>Isuzu NPR</td>
-                    <td><span style="color: red; font-weight: bold;">Inactivo</span></td>
-                    <td>Long Island, NY</td>
-                    <td>10/11/2023</td>
-                </tr>
-                <tr>
-                    <td><button class="btn-delete" onclick="deleteRow(this)">Eliminar</button></td>
-                    <td>FL-5100</td>
-                    <td>Freightliner Cascadia</td>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
+                    <td>TL-001</td>
+                    <td>Camión de Carga</td>
                     <td>En Ruta</td>
-                    <td>Pennsylvania, PA</td>
-                    <td>05/01/2024</td>
+                    <td>Queens, NY</td>
+                    <td>Al día</td>
+                </tr>
+                <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
+                    <td>TL-045</td>
+                    <td>Van de Reparto</td>
+                    <td>Disponible</td>
+                    <td>Brooklyn, NY</td>
+                    <td>Pendiente</td>
+                </tr>
+                <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
+                    <td>TL-102</td>
+                    <td>Grúa Industrial</td>
+                    <td>En Mantenimiento</td>
+                    <td>Taller Central</td>
+                    <td>Crítico</td>
+                </tr>
+                <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
+                    <td>TL-299</td>
+                    <td>Sedán Ejecutivo</td>
+                    <td>Reservado</td>
+                    <td>Manhattan, NY</td>
+                    <td>Al día</td>
                 </tr>
             </tbody>
         </table>
     </div>
 
     <script>
-        // --- LÓGICA DEL SLIDER ---
         const slider = document.getElementById('sizeSlider');
-        const wrapper = document.getElementById('tableWrapper');
-        const sizeValueText = document.getElementById('sizeValue');
+        const tableContainer = document.getElementById('tableContainer');
+        const sizeLabel = document.getElementById('currentSize');
 
+        // Lógica del Slider
         slider.addEventListener('input', (e) => {
-            const size = e.target.value;
-            // Actualizamos la variable CSS '--base-size' en el contenedor
-            // Esto escala automáticamente padding, font-size y botones
-            wrapper.style.setProperty('--base-size', `${size}px`);
-            sizeValueText.textContent = `(${size}px)`;
+            const newSize = e.target.value;
+            // Al actualizar la variable, escala fuente, padding y botones
+            tableContainer.style.setProperty('--table-font-size', `${newSize}px`);
+            sizeLabel.textContent = `(${newSize}px)`;
         });
 
-        // --- LÓGICA PARA ELIMINAR FILA ---
-        function deleteRow(buttonRef) {
-            // Confirmación simple para evitar clics accidentales
-            const confirmDelete = confirm("¿Seguro que deseas eliminar este registro?");
-            
-            if (confirmDelete) {
-                // Navegamos por el DOM: button -> td -> tr
-                const row = buttonRef.parentElement.parentElement;
-                
-                // Efecto visual antes de eliminar (opcional, para que se vea bonito)
-                row.style.backgroundColor = "#ffcccc";
-                
-                // Pequeño delay para ver el color rojo antes de borrar
-                setTimeout(() => {
-                    row.remove();
-                }, 200);
+        // Lógica de Eliminar
+        function deleteRow(btn) {
+            if(confirm('¿Eliminar esta fila?')) {
+                const row = btn.closest('tr');
+                row.remove();
             }
         }
     </script>
