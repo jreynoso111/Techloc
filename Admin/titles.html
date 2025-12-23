@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
   
   <style>
-    /* Table Logic */
+    /* Table Layout Locks */
     table { table-layout: fixed; width: 100%; border-collapse: collapse; }
     
     /* Resizer Handles */
@@ -52,6 +52,13 @@
       top: 0; left: 0;
       font-size: 12px;
       z-index: 10;
+    }
+
+    /* Custom Scrollbar for Dropdown */
+    select {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
     }
   </style>
 </head>
@@ -133,6 +140,7 @@
           
           <div class="flex flex-col gap-4">
             <div class="flex flex-wrap items-center gap-3">
+              
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Vehicle Info</label>
                 <div class="relative">
@@ -141,6 +149,7 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
+
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Title & Lien Info</label>
                 <div class="relative">
@@ -149,14 +158,21 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
-              <div class="w-32">
-                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Terms Left</label>
-                <div class="relative">
-                    <i data-lucide="calendar-clock" class="absolute left-3 top-2.5 h-4 w-4 text-slate-500"></i>
-                    <input id="search-terms" type="search" placeholder="Terms..."
-                        class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
+
+              <div class="w-40">
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Terms Remaining</label>
+                <div class="flex items-center rounded-xl border border-slate-700 bg-slate-950/70 overflow-hidden focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/50">
+                    <div class="relative bg-slate-900/50 border-r border-slate-700">
+                        <select id="terms-operator" class="h-full py-2 pl-2 pr-1 bg-transparent text-xs font-bold text-blue-400 outline-none cursor-pointer">
+                            <option value="<" class="bg-slate-900 text-slate-200">Less (&lt;)</option>
+                            <option value=">" class="bg-slate-900 text-slate-200">More (&gt;)</option>
+                        </select>
+                    </div>
+                    <input id="search-terms" type="number" placeholder="X"
+                        class="w-full bg-transparent pl-2 pr-2 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none appearance-none" />
                 </div>
               </div>
+
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/50 pt-3">
@@ -237,6 +253,7 @@
       searchPrimary: document.getElementById('search-primary'),
       searchSecondary: document.getElementById('search-secondary'),
       searchTerms: document.getElementById('search-terms'),
+      termsOperator: document.getElementById('terms-operator'),
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
@@ -261,14 +278,13 @@
       columnWidths: {}, 
       pagination: { page: 1, pageSize: 20 },
       sort: { column: null, direction: 'none' },
-      search: { primary: '', secondary: '', terms: '' },
+      search: { primary: '', secondary: '', terms: '', termsOperator: '<' },
       isDragging: false,
       dragSourceIndex: null,
       isResizing: false,
       resizeColId: null,
       resizeStartX: 0,
       resizeStartWidth: 0,
-      // Dynamic Filter Columns
       filterCols1: [],
       filterCols2: [],
       filterCols3: []
@@ -292,7 +308,7 @@
 
     // --- RE-USABLE CELL CONTENT RENDERER ---
     const renderCellContent = (td, val) => {
-        td.innerHTML = ''; // Clear cell
+        td.innerHTML = ''; 
         const wrapper = document.createElement('div');
         wrapper.className = 'line-clamp-2 whitespace-normal break-words leading-tight'; 
         wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
@@ -313,7 +329,7 @@
         input.value = originalValue === null ? '' : originalValue;
         input.className = 'cell-input'; 
         
-        td.textContent = ''; // Clear existing wrapper
+        td.textContent = ''; 
         td.appendChild(input);
         input.focus();
         
@@ -324,7 +340,6 @@
             isSaving = true;
             
             const newValue = input.value.trim();
-            // Re-render cell content properly with wrapper
             renderCellContent(td, newValue);
 
             if (newValue === String(originalValue === null ? '' : originalValue)) return;
@@ -341,7 +356,7 @@
                 if (error) {
                     console.error('Update failed:', error);
                     showToast('Failed to save changes.', 'error');
-                    renderCellContent(td, originalValue); // Revert
+                    renderCellContent(td, originalValue); 
                     if (row) row[colId] = originalValue;
                 } else {
                     showToast('Saved', 'info');
@@ -403,17 +418,15 @@
     };
 
     const inferColumns = (rows = []) => {
-      // 1. Get all unique keys
       const keys = new Set();
       rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
       const uniqueKeys = Array.from(keys);
 
-      // 2. Identify keys for filtering (Regex)
+      // Regex matching for categories
       state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
-      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k));
+      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); // Detect 'terms' or 'terms_left'
 
-      // 3. Build Column Definitions
       if (uniqueKeys.length > 0) {
         state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
       } else {
@@ -512,7 +525,6 @@
     const renderTable = () => {
       const visible = getVisibleColumns();
       
-      // Colgroup
       els.colgroup.innerHTML = '';
       visible.forEach(col => {
         const colEl = document.createElement('col');
@@ -522,22 +534,37 @@
         els.colgroup.appendChild(colEl);
       });
 
-      // Filter
+      // --- FILTER LOGIC ---
       let rows = state.rows;
       const t1 = state.search.primary.trim().toLowerCase();
       const t2 = state.search.secondary.trim().toLowerCase();
-      const t3 = state.search.terms.trim().toLowerCase();
+      const t3_raw = state.search.terms; // String input
+      const t3_op = state.search.termsOperator; // < or >
 
-      if (t1 || t2 || t3) {
+      if (t1 || t2 || t3_raw) {
         rows = rows.filter(row => {
             const matches1 = !t1 || state.filterCols1.some(key => String(row[key] || '').toLowerCase().includes(t1));
             const matches2 = !t2 || state.filterCols2.some(key => String(row[key] || '').toLowerCase().includes(t2));
-            const matches3 = !t3 || state.filterCols3.some(key => String(row[key] || '').toLowerCase().includes(t3));
+            
+            // Numeric comparison for terms
+            let matches3 = true;
+            if (t3_raw && state.filterCols3.length > 0) {
+                const termCol = state.filterCols3[0];
+                const cellVal = parseFloat(row[termCol]);
+                const searchVal = parseFloat(t3_raw);
+                
+                if (isNaN(cellVal)) {
+                    matches3 = false; // Don't show non-numeric rows if filtering
+                } else if (!isNaN(searchVal)) {
+                    if (t3_op === '<') matches3 = cellVal < searchVal;
+                    else if (t3_op === '>') matches3 = cellVal > searchVal;
+                }
+            }
+
             return matches1 && matches2 && matches3;
         });
       }
 
-      // Sort
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
         rows = [...rows].sort((a, b) => {
@@ -546,7 +573,6 @@
         });
       }
 
-      // Paginate
       const total = rows.length;
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -554,7 +580,6 @@
       const startIdx = (state.pagination.page - 1) * pageSize;
       const pageRows = rows.slice(startIdx, startIdx + pageSize);
 
-      // Head
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
       visible.forEach(col => {
@@ -600,7 +625,6 @@
       });
       els.thead.appendChild(headRow);
 
-      // Body
       els.tbody.innerHTML = '';
       if (pageRows.length === 0) {
         const tr = document.createElement('tr');
@@ -615,11 +639,10 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            // FIX: Removed line-clamp from TD directly. 
             td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 hover:bg-slate-800/30 transition-colors align-top';
             const val = row[col.id];
             
-            // Use the renderer to put content inside a DIV
+            // Render wrapped text logic
             renderCellContent(td, val);
             
             td.addEventListener('dblclick', () => {
@@ -645,7 +668,6 @@
       lucide.createIcons();
     };
 
-    // --- INIT ---
     const updateColumnsList = () => {
       els.columnsList.innerHTML = '';
       state.columns.forEach(col => {
@@ -682,6 +704,7 @@
       els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); });
       els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); });
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
 
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); savePrefs(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); savePrefs(); });
