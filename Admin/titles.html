@@ -23,41 +23,36 @@
   </script>
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
   <style>
-    /* Ensure the table respects our custom widths */
-    table {
-      table-layout: fixed;
-      width: 100%;
-    }
+    /* Table Layout Locks */
+    table { table-layout: fixed; width: 100%; }
     
-    /* The invisible handle you grab to resize */
+    /* Resizer Handles */
     .resizer {
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 8px; /* Slightly wider for easier grabbing */
-      cursor: col-resize;
-      user-select: none;
-      z-index: 20;
-      touch-action: none;
+      position: absolute; top: 0; right: 0; bottom: 0; width: 8px;
+      cursor: col-resize; user-select: none; z-index: 20; touch-action: none;
     }
-    
-    /* Visual feedback on hover */
-    th:hover .resizer {
-      background: rgba(59, 130, 246, 0.2);
-    }
-    .resizer:hover, .resizing .resizer {
-      background: #3b82f6; /* Blue when grabbing */
-    }
+    th:hover .resizer { background: rgba(59, 130, 246, 0.2); }
+    .resizer:hover, .resizing .resizer { background: #3b82f6; }
+    body.resizing { cursor: col-resize !important; user-select: none; }
 
-    /* Global cursor override while dragging */
-    body.resizing {
-      cursor: col-resize !important;
-      user-select: none;
+    /* Editable Input Styling */
+    .cell-input {
+      width: 100%; height: 100%;
+      background: #1e293b; /* slate-800 */
+      color: #fff;
+      border: 2px solid #3b82f6; /* blue-500 */
+      border-radius: 4px;
+      padding: 0 8px;
+      outline: none;
+      position: absolute;
+      top: 0; left: 0;
     }
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
+  
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="flex items-center justify-between px-6 py-4 lg:px-10">
       <a href="../index.html" class="flex items-center gap-3">
@@ -89,6 +84,7 @@
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Title ledger</p>
             <h2 class="text-2xl font-black text-white">Titles registry and history</h2>
+            <p class="text-sm text-slate-400">Double-click any cell to edit. Drag headers to reorder.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
@@ -123,21 +119,19 @@
                 <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
               </button>
               <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                <i data-lucide="settings-2" class="h-3 w-3"></i>
-                Auto-save
+                <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save
               </div>
             </div>
           </div>
 
           <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/50">
-            <div class="overflow-x-auto">
+            <div class="overflow-x-auto relative min-h-[400px]">
               <table id="main-table" class="divide-y divide-slate-800/80">
                 <colgroup id="table-colgroup"></colgroup>
                 <thead id="table-head" class="bg-slate-950/70"></thead>
                 <tbody id="table-body" class="divide-y divide-slate-800/60"></tbody>
               </table>
             </div>
-
             <div class="flex flex-col gap-2 border-t border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-center gap-2 text-sm text-slate-300">
                 <i data-lucide="rows" class="h-4 w-4"></i>
@@ -183,6 +177,7 @@
       columnsList: document.getElementById('columns-list'),
       colsAll: document.getElementById('cols-all'),
       colsNone: document.getElementById('cols-none'),
+      toastContainer: document.getElementById('toast-container')
     };
 
     const state = {
@@ -194,21 +189,112 @@
       pagination: { page: 1, pageSize: 20 },
       sort: { column: null, direction: 'none' },
       search: '',
-      
-      // Drag & Drop State
       isDragging: false,
       dragSourceIndex: null,
-
-      // Resize State
       isResizing: false,
       resizeColId: null,
       resizeStartX: 0,
-      resizeStartWidth: 0
+      resizeStartWidth: 0,
+      editingCell: null // Track currently editing cell
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
 
-    // --- SAVE / LOAD ---
+    // --- TOAST NOTIFICATIONS ---
+    const showToast = (message, type = 'info') => {
+        const toast = document.createElement('div');
+        const colors = type === 'error' ? 'bg-red-900/80 border-red-500 text-red-100' : 'bg-slate-800/90 border-blue-500 text-blue-100';
+        toast.className = `px-4 py-2 rounded-lg border shadow-lg text-sm font-semibold backdrop-blur transform transition-all duration-300 translate-y-4 opacity-0 ${colors}`;
+        toast.textContent = message;
+        els.toastContainer.appendChild(toast);
+        
+        // Animation
+        requestAnimationFrame(() => {
+            toast.classList.remove('translate-y-4', 'opacity-0');
+        });
+        setTimeout(() => {
+            toast.classList.add('translate-y-4', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    };
+
+    // --- CELL EDITING LOGIC ---
+    const editCell = (td, rowId, colId, originalValue) => {
+        if (state.isResizing || state.isDragging) return;
+        if (td.querySelector('input')) return; // Already editing
+        
+        // Only allow text/number fields (prevent editing IDs or Objects)
+        if (typeof originalValue === 'object' && originalValue !== null) {
+            showToast('Cannot edit complex objects directly', 'error');
+            return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = originalValue === null ? '' : originalValue;
+        input.className = 'cell-input'; // CSS class defined in head
+        
+        // Clear cell visual and mount input
+        td.textContent = '';
+        td.appendChild(input);
+        input.focus();
+        
+        let isSaving = false;
+
+        const save = async () => {
+            if (isSaving) return;
+            isSaving = true;
+            
+            const newValue = input.value.trim(); // Trim whitespace
+            
+            // 1. Optimistic Update (UI)
+            td.textContent = newValue; 
+
+            // 2. No change? Stop.
+            if (newValue === String(originalValue === null ? '' : originalValue)) return;
+
+            // 3. Update Local State
+            const row = state.rows.find(r => r.id === rowId);
+            if (row) row[colId] = newValue;
+
+            // 4. Send to Supabase
+            if (supabaseClient) {
+                const { error } = await supabaseClient
+                    .from(READ_TABLE)
+                    .update({ [colId]: newValue === '' ? null : newValue })
+                    .eq('id', rowId);
+
+                if (error) {
+                    console.error('Update failed:', error);
+                    showToast('Failed to save changes. Permission denied?', 'error');
+                    // Revert
+                    td.textContent = originalValue === null ? '—' : originalValue;
+                    if (row) row[colId] = originalValue;
+                } else {
+                    showToast('Saved', 'info');
+                }
+            }
+        };
+
+        const cancel = () => {
+            isSaving = true; // Block blur save
+            td.textContent = originalValue === null ? '—' : originalValue;
+        };
+
+        // Event Listeners for Input
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Stop newline
+                input.blur(); // Trigger save
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancel();
+            }
+        });
+    };
+
+    // --- SAVE / LOAD PREFS ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -258,7 +344,6 @@
         const defaults = ['id', 'VIN', 'Updated', 'vin_combined', 'created_at'];
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
-      // Ensure state integrity
       const known = new Set(state.columns.map(c => c.id));
       if (!state.columnOrder.length) state.columnOrder = state.columns.map(c => c.id);
       state.columnOrder = state.columnOrder.filter(c => known.has(c));
@@ -275,21 +360,12 @@
 
     // --- RESIZE HANDLERS ---
     const initResize = (e, colId) => {
-      // Vital: Stop event from bubbling to TH so it doesn't trigger drag-and-drop or sort
-      e.stopPropagation(); 
-      e.preventDefault();
-
+      e.stopPropagation(); e.preventDefault();
       state.isResizing = true;
       state.resizeColId = colId;
       state.resizeStartX = e.pageX;
-      
-      // Get current width from the <COL> element, fallback to the TH visual width
       const colEl = document.getElementById(`col-def-${colId}`);
       state.resizeStartWidth = colEl ? colEl.offsetWidth : 150; 
-      // If we haven't rendered widths yet, get offsetWidth of the header
-      const thEl = document.getElementById(`th-${colId}`);
-      if(thEl) state.resizeStartWidth = thEl.offsetWidth;
-
       document.body.classList.add('resizing');
       document.addEventListener('mousemove', handleResizeMove);
       document.addEventListener('mouseup', handleResizeUp);
@@ -297,18 +373,11 @@
 
     const handleResizeMove = (e) => {
       if (!state.isResizing) return;
-      
       const diff = e.pageX - state.resizeStartX;
-      const newWidth = Math.max(50, state.resizeStartWidth + diff); // Min 50px
-      
-      // Update State
+      const newWidth = Math.max(50, state.resizeStartWidth + diff); 
       state.columnWidths[state.resizeColId] = newWidth;
-      
-      // Update DOM (The <col> element controls the whole column)
       const colEl = document.getElementById(`col-def-${state.resizeColId}`);
-      if (colEl) {
-        colEl.style.width = `${newWidth}px`;
-      }
+      if (colEl) colEl.style.width = `${newWidth}px`;
     };
 
     const handleResizeUp = () => {
@@ -339,10 +408,8 @@
       const th = e.target.closest('th');
       if (th) th.classList.remove('opacity-50');
       state.isDragging = false;
-
       const sourceIdx = state.dragSourceIndex;
       const targetIdx = state.columnOrder.indexOf(targetColId);
-
       if (sourceIdx !== targetIdx && sourceIdx > -1 && targetIdx > -1) {
         const [moved] = state.columnOrder.splice(sourceIdx, 1);
         state.columnOrder.splice(targetIdx, 0, moved);
@@ -368,18 +435,17 @@
     const renderTable = () => {
       const visible = getVisibleColumns();
       
-      // 1. Setup COLGROUP (This controls widths for Header AND Body)
+      // COLGROUP
       els.colgroup.innerHTML = '';
       visible.forEach(col => {
         const colEl = document.createElement('col');
         colEl.id = `col-def-${col.id}`;
-        // Default width 200px if not saved
         const w = state.columnWidths[col.id] || 200; 
         colEl.style.width = `${w}px`;
         els.colgroup.appendChild(colEl);
       });
 
-      // 2. Filter & Sort
+      // Filter & Sort
       let rows = state.rows;
       const term = state.search.trim().toLowerCase();
       if (term) rows = rows.filter(r => Object.values(r||{}).some(v => String(v??'').toLowerCase().includes(term)));
@@ -392,7 +458,7 @@
         });
       }
 
-      // 3. Paginate
+      // Paginate
       const total = rows.length;
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -400,28 +466,24 @@
       const startIdx = (state.pagination.page - 1) * pageSize;
       const pageRows = rows.slice(startIdx, startIdx + pageSize);
 
-      // 4. Render Head
+      // Render Head
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
       visible.forEach(col => {
         const th = document.createElement('th');
         th.id = `th-${col.id}`;
-        // Note: No width styles on TH anymore, the COLGROUP handles it
         th.className = 'text-left text-xs font-semibold uppercase tracking-wide text-slate-300 cursor-pointer select-none group hover:text-white transition-colors relative py-3 px-4 border-b border-slate-700 bg-slate-950/70 truncate';
         th.draggable = true;
         
-        // Events
         th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
         th.addEventListener('dragover', handleDragOver);
         th.addEventListener('drop', (e) => handleDrop(e, col.id));
         th.addEventListener('click', () => handleSort(col.id));
 
-        // Content
         const container = document.createElement('div');
         container.className = 'flex items-center gap-2 overflow-hidden';
         container.innerHTML = `<span class="truncate">${col.label}</span>`;
         
-        // Sort Icon
         let iconName = 'chevrons-up-down';
         let iconClass = 'h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100 flex-shrink-0';
         if (state.sort.column === col.id) {
@@ -434,7 +496,6 @@
         container.appendChild(icon);
         th.appendChild(container);
 
-        // Resizer Handle
         const resizer = document.createElement('div');
         resizer.className = 'resizer';
         resizer.addEventListener('mousedown', (e) => initResize(e, col.id));
@@ -444,7 +505,7 @@
       });
       els.thead.appendChild(headRow);
 
-      // 5. Render Body
+      // Render Body
       els.tbody.innerHTML = '';
       if (pageRows.length === 0) {
         const tr = document.createElement('tr');
@@ -459,17 +520,32 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            // Important: 'truncate' class ensures text respects the column width
-            td.className = 'text-sm text-slate-100 border-t border-slate-800/50 py-3 px-4 truncate';
+            // 'relative' is crucial for positioning the input field
+            td.className = 'relative text-sm text-slate-100 border-t border-slate-800/50 py-3 px-4 truncate hover:bg-slate-800/30 transition-colors';
             const val = row[col.id];
             td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
+            
+            // DOUBLE CLICK HANDLER
+            td.addEventListener('dblclick', () => {
+                // Must have an ID to update database
+                if (!row.id) {
+                    showToast('Cannot edit: Row ID missing', 'error');
+                    return;
+                }
+                // Don't edit generated/auto columns
+                if (col.id === 'created_at' || col.id === 'updated_at' || col.id === 'id') {
+                    showToast('This column is read-only', 'info');
+                    return;
+                }
+                editCell(td, row.id, col.id, val);
+            });
+
             tr.appendChild(td);
           });
           els.tbody.appendChild(tr);
         });
       }
 
-      // 6. Footer Controls
       const start = total === 0 ? 0 : startIdx + 1;
       const end = Math.min(startIdx + pageRows.length, total);
       els.paginationSummary.textContent = `Showing ${start}-${end} of ${total}`;
@@ -486,7 +562,6 @@
         const label = document.createElement('label');
         label.className = 'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:border-blue-500/60 cursor-pointer';
         label.innerHTML = `<div class="flex items-center gap-2 min-w-0"><span class="truncate font-semibold">${col.label}</span></div>`;
-        
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.className = 'h-4 w-4 accent-blue-600 rounded';
