@@ -339,7 +339,13 @@
             if (isSaving) return;
             isSaving = true;
             
-            const newValue = input.value.trim();
+            let newValue = input.value.trim();
+            
+            // CLEAN PREP STATUS ON SAVE
+            if ((colId === 'Prep Status' || colId === 'prep_status') && newValue) {
+                newValue = newValue.replace(/^[\d\-\s]+/, '');
+            }
+
             renderCellContent(td, newValue);
 
             if (newValue === String(originalValue === null ? '' : originalValue)) return;
@@ -425,7 +431,7 @@
       // Regex matching for categories
       state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
-      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); // Detect 'terms' or 'terms_left'
+      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
 
       if (uniqueKeys.length > 0) {
         state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
@@ -640,9 +646,13 @@
           visible.forEach(col => {
             const td = document.createElement('td');
             td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 hover:bg-slate-800/30 transition-colors align-top';
-            const val = row[col.id];
+            let val = row[col.id];
             
-            // Render wrapped text logic
+            // CLEAN PREP STATUS (DISPLAY ONLY)
+            if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') {
+                val = val.replace(/^[\d\-\s]+/, '');
+            }
+
             renderCellContent(td, val);
             
             td.addEventListener('dblclick', () => {
