@@ -46,10 +46,11 @@
       color: #fff;
       border: 2px solid #3b82f6; /* blue-500 */
       border-radius: 4px;
-      padding: 0 8px;
+      padding: 4px 6px;
       outline: none;
       position: absolute;
       top: 0; left: 0;
+      font-size: 12px; /* Coincide con text-xs */
     }
   </style>
 </head>
@@ -193,9 +194,9 @@
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
 
     // -------------------------------------------------------------------------
-    // !!! IMPORTANT CONFIGURATION !!!
+    // !!! CONFIGURACION !!!
     const READ_TABLE = 'Titles';
-    const PRIMARY_KEY = 'UID'; // Changed to 'UID' based on your feedback
+    const PRIMARY_KEY = 'UID'; 
     // -------------------------------------------------------------------------
 
     const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
@@ -285,7 +286,6 @@
 
             if (newValue === String(originalValue === null ? '' : originalValue)) return;
 
-            // Find row by PRIMARY_KEY
             const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
             if (row) row[colId] = newValue;
 
@@ -293,7 +293,7 @@
                 const { error } = await supabaseClient
                     .from(READ_TABLE)
                     .update({ [colId]: newValue === '' ? null : newValue })
-                    .eq(PRIMARY_KEY, rowId); // Use PRIMARY_KEY constant
+                    .eq(PRIMARY_KEY, rowId);
 
                 if (error) {
                     console.error('Update failed:', error);
@@ -505,6 +505,11 @@
 
         const container = document.createElement('div');
         container.className = 'flex items-center gap-2 overflow-hidden w-full';
+        
+        // --- TEXT WRAPPING & FONT SIZE ---
+        // line-clamp-2 breaks to max 2 lines
+        // whitespace-normal allows wrapping
+        // leading-tight improves readability on small lines
         container.innerHTML = `<span class="line-clamp-2 leading-tight break-words whitespace-normal flex-1">${col.label}</span>`;
         
         const sortBtn = document.createElement('button');
@@ -556,7 +561,10 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            td.className = 'relative text-sm text-slate-100 border-t border-slate-800/50 py-3 px-4 truncate hover:bg-slate-800/30 transition-colors';
+            // --- CELL FONT SIZE & WRAPPING ---
+            // Changed text-sm to text-xs
+            // Added line-clamp-2, whitespace-normal, leading-tight
+            td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 line-clamp-2 whitespace-normal break-words leading-tight hover:bg-slate-800/30 transition-colors';
             const val = row[col.id];
             td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
             
