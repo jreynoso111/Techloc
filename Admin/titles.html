@@ -50,7 +50,7 @@
       outline: none;
       position: absolute;
       top: 0; left: 0;
-      font-size: 12px; /* Coincide con text-xs */
+      font-size: 12px;
     }
   </style>
 </head>
@@ -120,7 +120,7 @@
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Title ledger</p>
             <h2 class="text-2xl font-black text-white">Titles registry</h2>
-            <p class="text-sm text-slate-400">Double-click to edit. Drag headers to reorder. Use the icon to sort.</p>
+            <p class="text-sm text-slate-400">Manage records, liens, and title processes.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
@@ -130,34 +130,63 @@
 
         <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
           
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex flex-wrap items-center gap-2">
-              <input id="search" type="search" placeholder="Search titles"
-                class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-              <div class="relative">
-                <button id="columns-btn" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" type="button">
-                  <i data-lucide="columns-3" class="h-4 w-4"></i> Columns
-                  <i data-lucide="chevron-down" class="h-4 w-4"></i>
-                </button>
-                <div id="columns-popover" class="popover hidden absolute left-0 top-full mt-2 z-50 w-72 space-y-3 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
-                  <div class="flex items-center justify-between">
-                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Columns</p>
-                    <div class="flex gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                      <button id="cols-all" type="button" class="rounded-full px-3 py-1 transition hover:bg-slate-800/70">All</button>
-                      <button id="cols-none" type="button" class="rounded-full px-3 py-1 transition hover:bg-slate-800/70">None</button>
-                    </div>
-                  </div>
-                  <div id="columns-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+          <div class="flex flex-col gap-4">
+            
+            <div class="flex flex-wrap items-center gap-3">
+              <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Vehicle Info</label>
+                <div class="relative">
+                    <i data-lucide="car" class="absolute left-3 top-2.5 h-4 w-4 text-slate-500"></i>
+                    <input id="search-primary" type="search" placeholder="VIN, Customer, Stock, Prep Status..."
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
+                </div>
+              </div>
+
+              <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Title & Lien Info</label>
+                <div class="relative">
+                    <i data-lucide="file-text" class="absolute left-3 top-2.5 h-4 w-4 text-slate-500"></i>
+                    <input id="search-secondary" type="search" placeholder="Lien Status, Holder, Book, Title Process..."
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
+                </div>
+              </div>
+
+              <div class="w-32">
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Terms Left</label>
+                <div class="relative">
+                    <i data-lucide="calendar-clock" class="absolute left-3 top-2.5 h-4 w-4 text-slate-500"></i>
+                    <input id="search-terms" type="search" placeholder="Terms..."
+                        class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
             </div>
-            <div class="flex items-center gap-2">
-              <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600/30" type="button">
-                <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
-              </button>
-              <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save
-              </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/50 pt-3">
+                <div class="relative">
+                    <button id="columns-btn" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" type="button">
+                      <i data-lucide="columns-3" class="h-4 w-4"></i> Columns
+                      <i data-lucide="chevron-down" class="h-4 w-4"></i>
+                    </button>
+                    <div id="columns-popover" class="popover hidden absolute left-0 top-full mt-2 z-50 w-72 space-y-3 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Columns</p>
+                        <div class="flex gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                          <button id="cols-all" type="button" class="rounded-full px-3 py-1 transition hover:bg-slate-800/70">All</button>
+                          <button id="cols-none" type="button" class="rounded-full px-3 py-1 transition hover:bg-slate-800/70">None</button>
+                        </div>
+                      </div>
+                      <div id="columns-list" class="space-y-2 max-h-64 overflow-y-auto"></div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600/30" type="button">
+                    <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
+                  </button>
+                  <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save
+                  </div>
+                </div>
             </div>
           </div>
 
@@ -207,7 +236,9 @@
 
     const els = {
       status: document.getElementById('dataset-status'),
-      search: document.getElementById('search'),
+      searchPrimary: document.getElementById('search-primary'), // New
+      searchSecondary: document.getElementById('search-secondary'), // New
+      searchTerms: document.getElementById('search-terms'), // New
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
@@ -232,7 +263,12 @@
       columnWidths: {}, 
       pagination: { page: 1, pageSize: 20 },
       sort: { column: null, direction: 'none' },
-      search: '',
+      // Search Object
+      search: {
+        primary: '',
+        secondary: '',
+        terms: ''
+      },
       isDragging: false,
       dragSourceIndex: null,
       isResizing: false,
@@ -469,11 +505,41 @@
         els.colgroup.appendChild(colEl);
       });
 
-      // Filter & Sort
+      // --- FILTERING LOGIC (MULTI-SEARCH) ---
       let rows = state.rows;
-      const term = state.search.trim().toLowerCase();
-      if (term) rows = rows.filter(r => Object.values(r||{}).some(v => String(v??'').toLowerCase().includes(term)));
       
+      const term1 = state.search.primary.trim().toLowerCase();
+      const term2 = state.search.secondary.trim().toLowerCase();
+      const term3 = state.search.terms.trim().toLowerCase();
+
+      // Fields definitions
+      const fields1 = ['VIN', 'Customer', 'Stock', 'Prep Status'];
+      const fields2 = ['Lien Status', 'Book', 'Lien Holder', 'Title Process', 'Title Status'];
+      const fields3 = ['Terms Remaining'];
+
+      rows = rows.filter(row => {
+        // Search 1 Check
+        let match1 = true;
+        if (term1) {
+            match1 = fields1.some(field => String(row[field] || '').toLowerCase().includes(term1));
+        }
+        
+        // Search 2 Check
+        let match2 = true;
+        if (term2) {
+            match2 = fields2.some(field => String(row[field] || '').toLowerCase().includes(term2));
+        }
+
+        // Search 3 Check
+        let match3 = true;
+        if (term3) {
+            match3 = fields3.some(field => String(row[field] || '').toLowerCase().includes(term3));
+        }
+
+        return match1 && match2 && match3;
+      });
+      // ------------------------------------
+
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
         rows = [...rows].sort((a, b) => {
@@ -506,10 +572,6 @@
         const container = document.createElement('div');
         container.className = 'flex items-center gap-2 overflow-hidden w-full';
         
-        // --- TEXT WRAPPING & FONT SIZE ---
-        // line-clamp-2 breaks to max 2 lines
-        // whitespace-normal allows wrapping
-        // leading-tight improves readability on small lines
         container.innerHTML = `<span class="line-clamp-2 leading-tight break-words whitespace-normal flex-1">${col.label}</span>`;
         
         const sortBtn = document.createElement('button');
@@ -553,7 +615,7 @@
         const td = document.createElement('td');
         td.colSpan = visible.length || 1;
         td.className = 'p-8 text-center text-slate-500 text-sm';
-        td.textContent = 'No records found.';
+        td.textContent = 'No records found matching filters.';
         tr.appendChild(td);
         els.tbody.appendChild(tr);
       } else {
@@ -561,9 +623,7 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            // --- CELL FONT SIZE & WRAPPING ---
-            // Changed text-sm to text-xs
-            // Added line-clamp-2, whitespace-normal, leading-tight
+            // --- UPDATED CELL STYLING ---
             td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 line-clamp-2 whitespace-normal break-words leading-tight hover:bg-slate-800/30 transition-colors';
             const val = row[col.id];
             td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
@@ -625,7 +685,11 @@
     };
 
     const attachEvents = () => {
-      els.search?.addEventListener('input', (e) => { state.search = e.target.value; state.pagination.page = 1; renderTable(); });
+      // 3 Event listeners for the 3 search inputs
+      els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
+
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); savePrefs(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); savePrefs(); });
       els.refresh?.addEventListener('click', loadData);
