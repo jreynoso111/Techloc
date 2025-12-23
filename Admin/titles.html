@@ -22,6 +22,35 @@
     };
   </script>
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
+  <style>
+    /* Custom cursor for the resize handle */
+    .resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: col-resize;
+      user-select: none;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    /* Show resizer on hover so user knows it's there */
+    th:hover .resizer {
+      opacity: 1;
+      background: rgba(59, 130, 246, 0.5); /* Blue hint */
+    }
+    .resizer:hover, .resizing .resizer {
+      background: #3b82f6; /* Solid blue when grabbing */
+      opacity: 1;
+    }
+    /* Prevent text selection while resizing */
+    .resizing {
+      cursor: col-resize;
+      user-select: none;
+    }
+  </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
@@ -89,7 +118,7 @@
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Title ledger</p>
             <h2 class="text-2xl font-black text-white">Titles registry and history</h2>
-            <p class="text-sm text-slate-400">Drag headers to reorder, click to sort, and personalize the view per profile.</p>
+            <p class="text-sm text-slate-400">Drag headers to reorder, drag edges to resize.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
@@ -107,7 +136,7 @@
                   <i data-lucide="columns-3" class="h-4 w-4"></i> Columns
                   <i data-lucide="chevron-down" class="h-4 w-4"></i>
                 </button>
-                <div id="columns-popover" class="popover hidden w-72 space-y-3 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
+                <div id="columns-popover" class="popover hidden absolute right-0 top-full mt-2 z-50 w-72 space-y-3 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
                   <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Columns</p>
                     <div class="flex gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
@@ -132,7 +161,7 @@
 
           <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/50">
             <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-slate-800/80">
+              <table class="min-w-full divide-y divide-slate-800/80 table-fixed">
                 <thead id="table-head" class="bg-slate-950/70"></thead>
                 <tbody id="table-body" class="divide-y divide-slate-800/60"></tbody>
               </table>
@@ -190,12 +219,21 @@
       columns: [],
       columnOrder: [],
       columnVisibility: {},
+      columnWidths: {}, // Store custom widths here
       pagination: { page: 1, pageSize: 20 },
-      sort: { column: null, direction: 'none' }, // 'asc', 'desc', 'none'
+      sort: { column: null, direction: 'none' },
       search: '',
       tableName: READ_TABLE,
+      
+      // Drag & Drop State
       isDragging: false,
-      dragSourceIndex: null
+      dragSourceIndex: null,
+
+      // Resize State
+      isResizing: false,
+      resizeColId: null,
+      resizeStartX: 0,
+      resizeStartWidth: 0
     };
 
     // --- UTILS ---
@@ -206,20 +244,17 @@
       .replace(/\b\w/g, (c) => c.toUpperCase());
 
     // --- SAVING & LOADING (Cloud + Local) ---
-
-    // Save to LocalStorage (Fast) AND Supabase (Persistent)
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
         columnVisibility: state.columnVisibility,
+        columnWidths: state.columnWidths,
         pagination: state.pagination,
         sort: state.sort
       };
 
-      // 1. Save Local
       localStorage.setItem(`techloc_${READ_TABLE}_prefs`, JSON.stringify(config));
 
-      // 2. Save Cloud (if logged in)
       if (supabaseClient) {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (user) {
@@ -238,7 +273,6 @@
     const loadPrefs = async () => {
       let config = null;
 
-      // 1. Try Cloud First
       if (supabaseClient) {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (user) {
@@ -252,7 +286,6 @@
         }
       }
 
-      // 2. Fallback to LocalStorage
       if (!config) {
         const raw = localStorage.getItem(`techloc_${READ_TABLE}_prefs`);
         if (raw) {
@@ -260,10 +293,10 @@
         }
       }
 
-      // 3. Apply Config
       if (config) {
         if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
         if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
+        if (config.columnWidths) state.columnWidths = config.columnWidths;
         if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
         if (config.sort) state.sort = config.sort;
       }
@@ -272,11 +305,8 @@
     // --- COLUMN LOGIC ---
     const applyPrefsToColumns = () => {
       const known = new Set(state.columns.map((c) => c.id));
-      // Initialize order if empty
       if (!state.columnOrder.length) state.columnOrder = state.columns.map((c) => c.id);
-      // Clean out dead columns
       state.columnOrder = state.columnOrder.filter((c) => known.has(c));
-      // Ensure new columns are added
       state.columns.forEach((c) => {
         if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
         if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
@@ -284,13 +314,11 @@
     };
 
     const inferColumns = (rows = []) => {
-      // Logic: If data exists, use keys. If empty, define defaults so table isn't blank.
       if (rows.length > 0) {
         const keys = new Set();
         rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
         state.columns = Array.from(keys).sort().map((key) => ({ id: key, label: labelize(key) }));
       } else {
-        // Fallback columns so headers appear even when empty
         const defaults = ['id', 'VIN', 'Updated', 'vin_combined', 'created_at'];
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
@@ -302,17 +330,22 @@
       .filter(Boolean)
       .filter((col) => state.columnVisibility[col.id] !== false);
 
-    // --- DRAG AND DROP HANDLERS ---
+    // --- DRAG & DROP HANDLERS (Reordering) ---
     const handleDragStart = (e, colId) => {
+      // Don't start drag if we are resizing
+      if (state.isResizing) {
+        e.preventDefault();
+        return;
+      }
       state.isDragging = true;
       state.dragSourceIndex = state.columnOrder.indexOf(colId);
       e.dataTransfer.effectAllowed = 'move';
-      e.target.classList.add('opacity-50');
+      e.target.closest('th').classList.add('opacity-50');
     };
 
     const handleDragOver = (e) => {
       if (!state.isDragging) return;
-      e.preventDefault(); // Necessary to allow dropping
+      e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
     };
 
@@ -326,20 +359,70 @@
       const targetIdx = state.columnOrder.indexOf(targetColId);
 
       if (sourceIdx !== targetIdx && sourceIdx > -1 && targetIdx > -1) {
-        // Remove from old spot
         const [movedCol] = state.columnOrder.splice(sourceIdx, 1);
-        // Insert at new spot
         state.columnOrder.splice(targetIdx, 0, movedCol);
-
         savePrefs();
         renderTable();
         updateColumnsList();
       }
     };
 
+    // --- RESIZE HANDLERS ---
+    const initResize = (e, colId) => {
+      e.stopPropagation(); // Stop click from triggering Sort or Drag
+      e.preventDefault();
+
+      state.isResizing = true;
+      state.resizeColId = colId;
+      state.resizeStartX = e.pageX;
+
+      // Find the TH element
+      const th = e.target.parentElement;
+      state.resizeStartWidth = th.offsetWidth;
+
+      document.body.classList.add('resizing');
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeUp);
+    };
+
+    const handleResizeMove = (e) => {
+      if (!state.isResizing) return;
+      const diff = e.pageX - state.resizeStartX;
+      const newWidth = Math.max(50, state.resizeStartWidth + diff); // Min width 50px
+      
+      // Update State
+      state.columnWidths[state.resizeColId] = newWidth;
+      
+      // Update DOM directly for performance (prevent full re-render lag)
+      requestAnimationFrame(() => {
+        const th = document.getElementById(`th-${state.resizeColId}`);
+        if (th) th.style.width = `${newWidth}px`;
+        
+        // Also update cells in body to match visual alignment immediately
+        const idx = getVisibleColumns().findIndex(c => c.id === state.resizeColId);
+        if (idx !== -1) {
+           // We only update the cells via CSS width if using table-fixed, 
+           // but updating the TH width usually handles it for table-fixed.
+        }
+      });
+    };
+
+    const handleResizeUp = (e) => {
+      if (!state.isResizing) return;
+      state.isResizing = false;
+      document.body.classList.remove('resizing');
+      document.removeEventListener('mousemove', handleResizeMove);
+      document.removeEventListener('mouseup', handleResizeUp);
+      
+      savePrefs(); // Save the final width
+      renderTable(); // Re-render to ensure clean state
+    };
+
     // --- SORT LOGIC ---
     const handleSort = (colId) => {
-      // Cycle: None -> Asc -> Desc -> None
+      // Don't sort if we just finished resizing
+      if (state.isResizing) return;
+
       if (state.sort.column !== colId) {
         state.sort = { column: colId, direction: 'asc' };
       } else if (state.sort.direction === 'asc') {
@@ -355,7 +438,7 @@
     const renderTable = () => {
       const visibleColumns = getVisibleColumns();
 
-      // 1. Filter
+      // Filter & Sort
       let processedRows = state.rows;
       const term = state.search.trim().toLowerCase();
       if (term) {
@@ -364,7 +447,6 @@
         );
       }
 
-      // 2. Sort
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
         processedRows = [...processedRows].sort((a, b) => {
@@ -376,50 +458,53 @@
         });
       }
 
-      // 3. Paginate
+      // Pagination
       const total = processedRows.length;
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
-      state.pagination.page = Math.min(page, maxPage); // correction
-
+      state.pagination.page = Math.min(page, maxPage);
       const startIdx = (state.pagination.page - 1) * pageSize;
       const pageRows = processedRows.slice(startIdx, startIdx + pageSize);
 
-      // 4. Render Headers
+      // Render Headers
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
 
       visibleColumns.forEach((col) => {
         const th = document.createElement('th');
-        th.className = 'compact-th text-left text-xs font-semibold uppercase tracking-wide text-slate-300 cursor-pointer select-none group hover:text-white transition-colors relative';
+        th.id = `th-${col.id}`;
+        th.className = 'compact-th text-left text-xs font-semibold uppercase tracking-wide text-slate-300 cursor-pointer select-none group hover:text-white transition-colors relative py-3 px-4 border-b border-slate-700';
+        
+        // Apply saved width
+        const width = state.columnWidths[col.id];
+        if (width) {
+            th.style.width = `${width}px`;
+            th.style.minWidth = `${width}px`;
+        }
 
         // Drag Attributes
         th.draggable = true;
         th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
         th.addEventListener('dragover', handleDragOver);
         th.addEventListener('drop', (e) => handleDrop(e, col.id));
-
-        // Sort Click
         th.addEventListener('click', () => handleSort(col.id));
 
-        // Content
+        // Content Container
         const container = document.createElement('div');
-        container.className = 'flex items-center gap-2';
-
-        // Label
+        container.className = 'flex items-center gap-2 overflow-hidden';
+        
         const span = document.createElement('span');
         span.textContent = col.label;
-
-        // Sort Icon logic
-        let iconName = 'chevrons-up-down'; // default neutral
-        let iconClass = 'h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100'; // hidden by default
-
+        span.className = 'truncate';
+        
+        // Sort Icon
+        let iconName = 'chevrons-up-down';
+        let iconClass = 'h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100 flex-shrink-0';
         if (state.sort.column === col.id) {
-           iconClass = 'h-3 w-3 text-blue-400 opacity-100';
+           iconClass = 'h-3 w-3 text-blue-400 opacity-100 flex-shrink-0';
            if (state.sort.direction === 'asc') iconName = 'chevron-up';
            if (state.sort.direction === 'desc') iconName = 'chevron-down';
         }
-
         const icon = document.createElement('i');
         icon.setAttribute('data-lucide', iconName);
         icon.className = iconClass;
@@ -427,11 +512,18 @@
         container.appendChild(span);
         container.appendChild(icon);
         th.appendChild(container);
+
+        // RESIZER HANDLE
+        const resizer = document.createElement('div');
+        resizer.className = 'resizer'; // CSS defined in <head>
+        resizer.addEventListener('mousedown', (e) => initResize(e, col.id));
+        th.appendChild(resizer);
+
         headRow.appendChild(th);
       });
       els.thead.appendChild(headRow);
 
-      // 5. Render Body
+      // Render Body
       els.tbody.innerHTML = '';
       if (pageRows.length === 0) {
         const tr = document.createElement('tr');
@@ -446,7 +538,14 @@
           const tr = document.createElement('tr');
           visibleColumns.forEach((col) => {
             const td = document.createElement('td');
-            td.className = 'compact-td text-sm text-slate-100 border-t border-slate-800/50';
+            td.className = 'compact-td text-sm text-slate-100 border-t border-slate-800/50 py-3 px-4 truncate';
+            // Apply widths to cells too to maintain grid
+            const width = state.columnWidths[col.id];
+            if (width) {
+                td.style.width = `${width}px`;
+                td.style.minWidth = `${width}px`;
+                td.style.maxWidth = `${width}px`;
+            }
             const value = row[col.id];
             td.textContent = value === null || value === undefined || String(value).trim() === '' ? '—' : String(value);
             tr.appendChild(td);
@@ -455,7 +554,7 @@
         });
       }
 
-      // 6. Update Controls
+      // Update Controls
       const start = total === 0 ? 0 : startIdx + 1;
       const end = Math.min(startIdx + pageRows.length, total);
       els.paginationSummary.textContent = `Showing ${start}-${end} of ${total}`;
@@ -505,7 +604,7 @@
 
     const loadData = async () => {
       if (!supabaseClient) {
-        els.status.textContent = 'Offline mode';
+        els.status.textContent = 'Offline';
         return;
       }
       els.status.textContent = 'Loading...';
@@ -544,10 +643,12 @@
       });
       els.refresh?.addEventListener('click', loadData);
 
-      els.columnsBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        els.columnsPopover.classList.toggle('hidden');
-      });
+      if (els.columnsBtn) {
+        els.columnsBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          els.columnsPopover.classList.toggle('hidden');
+        });
+      }
       els.colsAll?.addEventListener('click', () => setAllColumns(true));
       els.colsNone?.addEventListener('click', () => setAllColumns(false));
       document.addEventListener('click', (e) => {
@@ -558,10 +659,15 @@
     };
 
     const init = async () => {
-      createConstellationBackground(document.getElementById('constellation-canvas'));
-      await loadPrefs();
-      attachEvents();
-      loadData();
+      try {
+        const canvas = document.getElementById('constellation-canvas');
+        if (canvas) createConstellationBackground(canvas);
+        await loadPrefs();
+        attachEvents();
+        await loadData();
+      } catch (err) {
+        console.error("Critical Init Error", err);
+      }
     };
 
     init();
