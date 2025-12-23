@@ -3,72 +3,117 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tabla Ajustable</title>
+    <title>Tabla Full Screen con Acciones</title>
     <style>
-        /* Estilos Generales */
-        body {
+        /* Reset básico para ocupar toda la pantalla */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
             font-family: sans-serif;
-            padding: 20px;
             background-color: #f4f4f9;
         }
 
-        /* Contenedor de controles */
-        .controls {
+        /* --- HEADER PRINCIPAL (Controles) --- */
+        .main-header {
             background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: inline-flex;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .controls {
+            display: flex;
             align-items: center;
             gap: 15px;
         }
 
-        /* LA MAGIA DE LA TABLA */
+        /* --- BARRA DE NAVEGACIÓN (Segundo Header) --- */
+        .nav-header {
+            background-color: #2c3e50; /* Mismo tono que el header de la tabla por estética */
+            padding: 10px 0;
+            text-align: center; /* Centra el contenido */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .nav-header a {
+            color: #ecf0f1;
+            text-decoration: none;
+            margin: 0 20px;
+            font-weight: 500;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: color 0.3s;
+        }
+
+        .nav-header a:hover {
+            color: #3498db;
+        }
+
+        /* --- CONTENEDOR DE LA TABLA --- */
         .dynamic-table-container {
-            /* Variable CSS para controlar el tamaño base. 
-               Por defecto 16px. */
+            /* Variable CSS para el tamaño dinámico */
             --table-font-size: 16px; 
             
-            overflow-x: auto; /* Permite scroll horizontal si crece mucho */
+            width: 100%; /* Ocupa todo el ancho */
+            overflow-x: auto;
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .dynamic-table {
-            width: 100%;
+            width: 100%; /* Forza a la tabla a estirarse */
             border-collapse: collapse;
-            
-            /* Aplicamos el tamaño de fuente dinámico */
             font-size: var(--table-font-size);
         }
 
         .dynamic-table th, 
         .dynamic-table td {
-            /* CLAVE: Usar 'em' para el padding. 
-               1em = tamaño de fuente actual.
-               Si la fuente crece, el padding crece, y la columna se ensancha. */
+            /* Padding relativo (em) para que las celdas crezcan con la fuente */
             padding: 0.75em 1em; 
-            
             text-align: left;
             border-bottom: 1px solid #ddd;
         }
 
-        /* Los Headers escalan relativo al tamaño base (siempre 1.2 veces más grandes) */
+        /* Estilo específico para la columna de acciones (la primera) */
+        .dynamic-table th:first-child,
+        .dynamic-table td:first-child {
+            width: 1px; /* Se ajusta al contenido (el botón) */
+            white-space: nowrap;
+            text-align: center;
+        }
+
         .dynamic-table th {
-            background-color: #2c3e50;
+            background-color: #34495e; /* Un tono ligeramente diferente al nav */
             color: white;
             font-weight: 600;
-            font-size: 1.2em; /* 120% del tamaño base */
-            white-space: nowrap; /* Evita que el título se rompa en dos líneas */
+            font-size: 1.2em; 
+            white-space: nowrap;
         }
 
         .dynamic-table tbody tr:hover {
             background-color: #f1f1f1;
         }
 
-        /* Input Range Estilizado */
+        /* --- BOTÓN DE ELIMINAR --- */
+        .delete-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.4em 0.8em; /* Padding relativo al tamaño de fuente */
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+
+        .delete-btn:hover {
+            background-color: #c0392b;
+        }
+
         input[type=range] {
             cursor: pointer;
         }
@@ -76,19 +121,31 @@
 </head>
 <body>
 
-    <div class="controls">
-        <label for="sizeSlider"><strong>Tamaño de Fuente:</strong></label>
-        <span style="font-size: 12px">A</span>
-        <input type="range" id="sizeSlider" min="12" max="28" value="16" step="1">
-        <span style="font-size: 24px">A</span>
-        <span id="currentSize" style="color: #666; font-size: 0.9rem;">(16px)</span>
-    </div>
+    <header class="main-header">
+        <h2 style="margin:0; color:#333;">Sistema de Flota</h2>
+        
+        <div class="controls">
+            <label for="sizeSlider"><strong>Zoom:</strong></label>
+            <span style="font-size: 12px">A</span>
+            <input type="range" id="sizeSlider" min="12" max="28" value="16" step="1">
+            <span style="font-size: 24px">A</span>
+            <span id="currentSize" style="color: #666; font-size: 0.9rem;">(16px)</span>
+        </div>
+    </header>
+
+    <nav class="nav-header">
+        <a href="#">Inicio</a>
+        <a href="#">Vehículos</a>
+        <a href="#">Choferes</a>
+        <a href="#">Rutas</a>
+        <a href="#">Reportes</a>
+    </nav>
 
     <div class="dynamic-table-container" id="tableContainer">
-        <table class="dynamic-table">
+        <table class="dynamic-table" id="myTable">
             <thead>
                 <tr>
-                    <th>ID Flota</th>
+                    <th>Eliminar</th> <th>ID Flota</th>
                     <th>Tipo de Vehículo</th>
                     <th>Estado</th>
                     <th>Ubicación Actual</th>
@@ -97,6 +154,7 @@
             </thead>
             <tbody>
                 <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
                     <td>TL-001</td>
                     <td>Camión de Carga</td>
                     <td>En Ruta</td>
@@ -104,6 +162,7 @@
                     <td>Al día</td>
                 </tr>
                 <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
                     <td>TL-045</td>
                     <td>Van de Reparto</td>
                     <td>Disponible</td>
@@ -111,31 +170,46 @@
                     <td>Pendiente</td>
                 </tr>
                 <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
                     <td>TL-102</td>
                     <td>Grúa Industrial</td>
                     <td>En Mantenimiento</td>
                     <td>Taller Central</td>
                     <td>Crítico</td>
                 </tr>
+                <tr>
+                    <td><button class="delete-btn" onclick="deleteRow(this)">✕</button></td>
+                    <td>TL-299</td>
+                    <td>Sedán Ejecutivo</td>
+                    <td>Reservado</td>
+                    <td>Manhattan, NY</td>
+                    <td>Al día</td>
+                </tr>
             </tbody>
         </table>
     </div>
 
     <script>
+        // Lógica del Slider (Mantiene la funcionalidad anterior)
         const slider = document.getElementById('sizeSlider');
         const tableContainer = document.getElementById('tableContainer');
         const sizeLabel = document.getElementById('currentSize');
 
         slider.addEventListener('input', (e) => {
             const newSize = e.target.value;
-            
-            // Actualizamos la variable CSS
-            // Esto escala fuente, padding y headers simultáneamente
             tableContainer.style.setProperty('--table-font-size', `${newSize}px`);
-            
-            // Actualizar etiqueta de texto
             sizeLabel.textContent = `(${newSize}px)`;
         });
+
+        // Lógica para Eliminar Fila
+        function deleteRow(btn) {
+            // Confirmación opcional
+            if (confirm('¿Estás seguro de que deseas eliminar esta fila?')) {
+                // btn -> td -> tr
+                var row = btn.parentNode.parentNode;
+                row.parentNode.removeChild(row);
+            }
+        }
     </script>
 
 </body>
