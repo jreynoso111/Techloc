@@ -201,6 +201,28 @@
           </form>
           <p class="text-xs leading-relaxed text-slate-400">Include the vehicle columns used in the table: Deal Status, Customer ID, Unit Type, Model Year, Model, ShortVIN, Inv. Prep. Stat., Phys Loc, Deal Completion, GPS Fix, GPS Fix Reason, PT Status, PT Serial, Encore Serial, Moving, PT Last Read, State Loc, PT City, PT ZipCode, Lat, and Long.</p>
         </section>
+
+        <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
+              <h3 class="text-lg font-bold text-white">Import Deals CSV</h3>
+              <p class="text-sm text-slate-400">Files are parsed client-side and upserted into DealsJP1 using VIN + Current Stock No.</p>
+            </div>
+            <span class="rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">VIN + Stock No.</span>
+          </div>
+          <form id="deals-upload-form" class="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <div class="space-y-2">
+              <label for="deals-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
+              <input id="deals-file" name="deals-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-emerald-500 focus:outline-none" />
+            </div>
+            <button id="deals-upload-button" type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
+              <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+              <span>Upload &amp; upsert</span>
+            </button>
+          </form>
+          <p class="text-xs leading-relaxed text-slate-400">Include VIN and Current Stock No. columns to update matching deals. Additional columns will be mapped when headers match table fields.</p>
+        </section>
       </section>
     </div>
   </main>
@@ -272,6 +294,18 @@
         return acc;
       }, {});
 
+    const normalizeDealsRow = (row = {}) =>
+      Object.entries(row).reduce((acc, [key, val]) => {
+        const normalizedKey = (key || '')
+          .toString()
+          .trim()
+          .toLowerCase()
+          .replace(/\.+$/g, '');
+        if (!normalizedKey) return acc;
+        acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
+        return acc;
+      }, {});
+
     const cleanValue = (value) => {
       if (value === undefined || value === null) return null;
       const stringValue = typeof value === 'string' ? value.trim() : value;
@@ -321,6 +355,32 @@
       };
 
       return pickAllowed(raw);
+    };
+
+    const mapDealsRow = (row) => {
+      const r = normalizeDealsRow(row);
+      const cleaned = Object.fromEntries(
+        Object.entries(r).map(([key, value]) => [key, cleanValue(value)])
+      );
+
+      const vin = cleanValue(getCsv(r, 'vin', 'vehicle vin', 'vehicle_vin', 'vin number'));
+      const stockNo = cleanValue(
+        getCsv(
+          r,
+          'current stock no',
+          'current stock no.',
+          'current_stock_no',
+          'current stock number',
+          'stock no',
+          'stock number',
+          'current stock#'
+        )
+      );
+
+      if (vin) cleaned['vin'] = vin;
+      if (stockNo) cleaned['current stock no'] = stockNo;
+
+      return cleaned;
     };
 
     const isRlsBlocked = (error) => {
@@ -591,6 +651,51 @@
       showToast(summary, 'success');
     };
 
+    const uploadDealsRows = async (rows, parseErrors = 0) => {
+      if (!supabaseClient) throw new Error('Supabase client unavailable.');
+      if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
+
+      const processed = rows.length;
+      let skippedInvalid = 0;
+
+      const mapped = rows
+        .map(mapDealsRow)
+        .filter((row) => {
+          const vin = row.vin;
+          const stockNo = row['current stock no'];
+          const valid = !!(vin && `${vin}`.trim() !== '' && stockNo && `${stockNo}`.trim() !== '');
+          if (!valid) skippedInvalid += 1;
+          return valid;
+        });
+
+      if (!mapped.length) {
+        showToast('No valid rows detected. Each row must include VIN and Current Stock No.', 'error');
+        return;
+      }
+
+      const { data, error } = await supabaseClient
+        .from('DealsJP1')
+        .upsert(mapped, { onConflict: 'vin,current stock no', ignoreDuplicates: false })
+        .select('vin');
+
+      if (error) {
+        console.error('Supabase upsert error:', { message: error.message, details: error.details, hint: error.hint });
+        if (isRlsBlocked(error)) {
+          showToast('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.', 'error');
+          return;
+        }
+        throw error;
+      }
+
+      const upserted = Array.isArray(data) ? data.length : 0;
+      const summary =
+        'Processed: ' + processed +
+        '\nUpserted: ' + upserted +
+        '\nSkipped invalid: ' + skippedInvalid +
+        '\nErrors: ' + parseErrors;
+      showToast(summary, 'success');
+    };
+
     const wireCsvUpload = () => {
       const form = document.getElementById('csv-upload-form');
       const fileInput = document.getElementById('csv-file');
@@ -657,6 +762,72 @@
       });
     };
 
+    const wireDealsUpload = () => {
+      const form = document.getElementById('deals-upload-form');
+      const fileInput = document.getElementById('deals-file');
+      const submitBtn = document.getElementById('deals-upload-button');
+
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
+        return allowed;
+      };
+
+      if (!form || !fileInput || !submitBtn) return;
+
+      const syncAccess = () => requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
+
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+
+        if (!requireAdmin()) {
+          showToast('Only administrators can upload deals data.', 'error');
+          return;
+        }
+
+        const file = fileInput.files?.[0];
+        if (!file) {
+          showToast('Please select a CSV file to upload.', 'error');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Uploading…</span>';
+
+        window.Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results) => {
+            try {
+              const parseErrors = results.errors?.length || 0;
+              if (parseErrors) console.warn('CSV parse warnings:', results.errors);
+              await uploadDealsRows(results.data || [], parseErrors);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
+          },
+          error: (err) => {
+            console.error('CSV parse error:', err);
+            showToast('CSV parse error: ' + err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          },
+        });
+      });
+    };
+
     const mount = async () => {
       const container = document.getElementById('datasets');
       let totalRows = 0;
@@ -680,6 +851,7 @@
     createConstellationBackground();
     mount();
     wireCsvUpload();
+    wireDealsUpload();
   </script>
 </div>
 </body>
