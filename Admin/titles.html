@@ -4,13 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TechLoc • Titles Admin</title>
+  
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
+  
   <script>
     tailwind.config = {
       theme: {
@@ -22,8 +25,9 @@
     };
   </script>
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
+  
   <style>
-    /* Table Layout Locks */
+    /* Table Logic */
     table { table-layout: fixed; width: 100%; }
     
     /* Resizer Handles */
@@ -50,10 +54,10 @@
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
-  
+
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
-  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40">
     <div class="flex items-center justify-between px-6 py-4 lg:px-10">
       <a href="../index.html" class="flex items-center gap-3">
         <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
@@ -68,6 +72,8 @@
       <div class="flex flex-wrap items-center justify-end gap-3">
         <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
           <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+          <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
+          <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
         </nav>
         <div class="flex items-center gap-2">
            <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
@@ -79,12 +85,41 @@
   <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
   <main class="px-6 py-8 lg:px-10">
-    <div class="flex flex-col gap-5">
+    <div class="flex flex-col gap-8 lg:flex-row">
+      
+      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:block">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
+          <h2 class="text-lg font-black text-white">Admin workspace</h2>
+        </div>
+        <nav class="flex flex-col gap-2 text-sm font-semibold">
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
+          </a>
+          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
+          </a>
+          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
+          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
+            Titles <span class="text-xs font-medium text-blue-100">Records</span>
+          </a>
+          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
+          </a>
+          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
+          </a>
+        </nav>
+      </aside>
+
+      <section class="flex min-w-0 flex-1 flex-col gap-5">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Title ledger</p>
-            <h2 class="text-2xl font-black text-white">Titles registry and history</h2>
-            <p class="text-sm text-slate-400">Double-click any cell to edit. Drag headers to reorder.</p>
+            <h2 class="text-2xl font-black text-white">Titles registry</h2>
+            <p class="text-sm text-slate-400">Double-click to edit. Drag headers to reorder.</p>
           </div>
           <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
             <i data-lucide="cloud" class="h-4 w-4"></i>
@@ -93,6 +128,7 @@
         </div>
 
         <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
+          
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-wrap items-center gap-2">
               <input id="search" type="search" placeholder="Search titles"
@@ -132,6 +168,7 @@
                 <tbody id="table-body" class="divide-y divide-slate-800/60"></tbody>
               </table>
             </div>
+            
             <div class="flex flex-col gap-2 border-t border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="flex items-center gap-2 text-sm text-slate-300">
                 <i data-lucide="rows" class="h-4 w-4"></i>
@@ -145,6 +182,7 @@
             </div>
           </div>
         </section>
+      </section>
     </div>
   </main>
 
@@ -194,8 +232,7 @@
       isResizing: false,
       resizeColId: null,
       resizeStartX: 0,
-      resizeStartWidth: 0,
-      editingCell: null // Track currently editing cell
+      resizeStartWidth: 0
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -208,7 +245,6 @@
         toast.textContent = message;
         els.toastContainer.appendChild(toast);
         
-        // Animation
         requestAnimationFrame(() => {
             toast.classList.remove('translate-y-4', 'opacity-0');
         });
@@ -218,12 +254,11 @@
         }, 3000);
     };
 
-    // --- CELL EDITING LOGIC ---
+    // --- CELL EDITING ---
     const editCell = (td, rowId, colId, originalValue) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return; // Already editing
         
-        // Only allow text/number fields (prevent editing IDs or Objects)
         if (typeof originalValue === 'object' && originalValue !== null) {
             showToast('Cannot edit complex objects directly', 'error');
             return;
@@ -232,9 +267,8 @@
         const input = document.createElement('input');
         input.type = 'text';
         input.value = originalValue === null ? '' : originalValue;
-        input.className = 'cell-input'; // CSS class defined in head
+        input.className = 'cell-input'; 
         
-        // Clear cell visual and mount input
         td.textContent = '';
         td.appendChild(input);
         input.focus();
@@ -245,19 +279,15 @@
             if (isSaving) return;
             isSaving = true;
             
-            const newValue = input.value.trim(); // Trim whitespace
-            
-            // 1. Optimistic Update (UI)
+            const newValue = input.value.trim();
             td.textContent = newValue; 
 
-            // 2. No change? Stop.
             if (newValue === String(originalValue === null ? '' : originalValue)) return;
 
-            // 3. Update Local State
+            // Optimistic update
             const row = state.rows.find(r => r.id === rowId);
             if (row) row[colId] = newValue;
 
-            // 4. Send to Supabase
             if (supabaseClient) {
                 const { error } = await supabaseClient
                     .from(READ_TABLE)
@@ -266,8 +296,7 @@
 
                 if (error) {
                     console.error('Update failed:', error);
-                    showToast('Failed to save changes. Permission denied?', 'error');
-                    // Revert
+                    showToast('Failed to save changes.', 'error');
                     td.textContent = originalValue === null ? '—' : originalValue;
                     if (row) row[colId] = originalValue;
                 } else {
@@ -277,24 +306,18 @@
         };
 
         const cancel = () => {
-            isSaving = true; // Block blur save
+            isSaving = true;
             td.textContent = originalValue === null ? '—' : originalValue;
         };
 
-        // Event Listeners for Input
         input.addEventListener('blur', save);
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault(); // Stop newline
-                input.blur(); // Trigger save
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                cancel();
-            }
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
         });
     };
 
-    // --- SAVE / LOAD PREFS ---
+    // --- STATE MANAGEMENT ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -358,7 +381,7 @@
       .filter(Boolean)
       .filter(c => state.columnVisibility[c.id] !== false);
 
-    // --- RESIZE HANDLERS ---
+    // --- RESIZE LOGIC ---
     const initResize = (e, colId) => {
       e.stopPropagation(); e.preventDefault();
       state.isResizing = true;
@@ -388,7 +411,7 @@
       savePrefs();
     };
 
-    // --- DRAG HANDLERS ---
+    // --- DRAG & DROP ---
     const handleDragStart = (e, colId) => {
       if (state.isResizing) { e.preventDefault(); return; }
       state.isDragging = true;
@@ -431,11 +454,11 @@
       renderTable();
     };
 
-    // --- RENDER ---
+    // --- RENDER FUNCTION ---
     const renderTable = () => {
       const visible = getVisibleColumns();
       
-      // COLGROUP
+      // Setup Colgroup
       els.colgroup.innerHTML = '';
       visible.forEach(col => {
         const colEl = document.createElement('col');
@@ -458,7 +481,7 @@
         });
       }
 
-      // Paginate
+      // Pagination
       const total = rows.length;
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -520,32 +543,25 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            // 'relative' is crucial for positioning the input field
             td.className = 'relative text-sm text-slate-100 border-t border-slate-800/50 py-3 px-4 truncate hover:bg-slate-800/30 transition-colors';
             const val = row[col.id];
             td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
             
-            // DOUBLE CLICK HANDLER
+            // Edit Trigger
             td.addEventListener('dblclick', () => {
-                // Must have an ID to update database
-                if (!row.id) {
-                    showToast('Cannot edit: Row ID missing', 'error');
-                    return;
-                }
-                // Don't edit generated/auto columns
+                if (!row.id) { showToast('Row ID missing', 'error'); return; }
                 if (col.id === 'created_at' || col.id === 'updated_at' || col.id === 'id') {
-                    showToast('This column is read-only', 'info');
-                    return;
+                    showToast('Read-only column', 'info'); return;
                 }
                 editCell(td, row.id, col.id, val);
             });
-
             tr.appendChild(td);
           });
           els.tbody.appendChild(tr);
         });
       }
 
+      // Footer
       const start = total === 0 ? 0 : startIdx + 1;
       const end = Math.min(startIdx + pageRows.length, total);
       els.paginationSummary.textContent = `Showing ${start}-${end} of ${total}`;
@@ -556,6 +572,7 @@
       lucide.createIcons();
     };
 
+    // --- EVENTS & INIT ---
     const updateColumnsList = () => {
       els.columnsList.innerHTML = '';
       state.columns.forEach(col => {
