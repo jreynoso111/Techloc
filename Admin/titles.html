@@ -49,7 +49,6 @@
       font-size: 12px; z-index: 10;
     }
 
-    /* Custom select appearance */
     select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
     
     /* Custom Scrollbar */
@@ -247,7 +246,7 @@
       searchSecondary: document.getElementById('search-secondary'),
       searchTerms: document.getElementById('search-terms'),
       termsOperator: document.getElementById('terms-operator'),
-      sheetFilter: document.getElementById('sheet-filter'), // New
+      sheetFilter: document.getElementById('sheet-filter'), 
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
@@ -276,7 +275,8 @@
       columnWidths: {}, 
       pagination: { page: 1, pageSize: 20 },
       sort: { column: null, direction: 'none' },
-      search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' }, // Added sheet
+      // Added 'sheet' to the state.search object for persistence
+      search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' }, 
       isDragging: false,
       dragSourceIndex: null,
       isResizing: false,
@@ -332,17 +332,15 @@
 
     // --- SHEET POPULATE ---
     const populateSheetFilter = (rows) => {
-        // Find all unique values in 'Sheet' column
         const sheets = new Set();
         rows.forEach(r => {
             if(r['Sheet']) sheets.add(r['Sheet']);
-            if(r['sheet']) sheets.add(r['sheet']); // handle lowercase
+            if(r['sheet']) sheets.add(r['sheet']); 
         });
         
-        // Save current selection to restore it if possible
-        const currentSelection = els.sheetFilter.value;
+        // Temporarily hold value if it was set via state load
+        const savedVal = state.search.sheet;
         
-        // Clear except first
         els.sheetFilter.innerHTML = '<option value="">All Sheets</option>';
         
         Array.from(sheets).sort().forEach(sheet => {
@@ -353,9 +351,12 @@
             els.sheetFilter.appendChild(opt);
         });
 
-        // Restore selection if it still exists
-        if (sheets.has(currentSelection)) {
-            els.sheetFilter.value = currentSelection;
+        // Restore saved value
+        if (savedVal && sheets.has(savedVal)) {
+            els.sheetFilter.value = savedVal;
+        } else {
+            // Reset state if saved sheet no longer exists
+            state.search.sheet = '';
         }
     };
 
@@ -422,7 +423,8 @@
         columnVisibility: state.columnVisibility,
         columnWidths: state.columnWidths,
         pagination: state.pagination,
-        sort: state.sort
+        sort: state.sort,
+        search: state.search // Save search state (including sheet)
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       if (supabaseClient) {
@@ -447,6 +449,15 @@
         if (config.columnWidths) state.columnWidths = config.columnWidths;
         if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
         if (config.sort) state.sort = config.sort;
+        if (config.search) {
+            // Restore search state
+            state.search = { ...state.search, ...config.search };
+            // Populate inputs
+            if(els.searchPrimary) els.searchPrimary.value = state.search.primary || '';
+            if(els.searchSecondary) els.searchSecondary.value = state.search.secondary || '';
+            if(els.searchTerms) els.searchTerms.value = state.search.terms || '';
+            if(els.termsOperator) els.termsOperator.value = state.search.termsOperator || '<';
+        }
       }
     };
 
@@ -596,9 +607,10 @@
               }
           }
 
-          // 3. Sheet Filter
+          // 3. Sheet Filter (Persistence Fix)
           let matchesSheet = true;
           if (sheet) {
+              // Try exact match then case-insensitive
               const rowSheet = row['Sheet'] || row['sheet'];
               if (rowSheet !== sheet) matchesSheet = false;
           }
@@ -739,19 +751,18 @@
       state.rows = data || [];
       els.status.textContent = `${state.rows.length} records`;
       
-      populateSheetFilter(state.rows); // Populate sheets
+      populateSheetFilter(state.rows); 
       inferColumns(state.rows);
       updateColumnsList();
       renderTable();
     };
 
     const attachEvents = () => {
-      els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); });
-      els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); });
-      els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
-      els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
-      
-      els.sheetFilter?.addEventListener('change', (e) => { state.search.sheet = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
+      els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
+      els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
+      els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
+      els.sheetFilter?.addEventListener('change', (e) => { state.search.sheet = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
 
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); savePrefs(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); savePrefs(); });
@@ -769,6 +780,7 @@
       try {
         const cvs = document.getElementById('constellation-canvas');
         if (cvs) createConstellationBackground(cvs);
+        // Load Prefs FIRST, then Data
         await loadPrefs();
         attachEvents();
         await loadData();
