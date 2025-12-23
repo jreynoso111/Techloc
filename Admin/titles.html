@@ -203,9 +203,17 @@
 
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
-    import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
+    import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
+    import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
 
     const READ_TABLE = 'Titles';
+    const supabaseClient =
+      supabaseClientModule ||
+      (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: { persistSession: true, autoRefreshToken: true },
+          })
+        : null);
 
     const els = {
       status: document.getElementById('dataset-status'),
@@ -231,6 +239,7 @@
       columnVisibility: {},
       pagination: { page: 1, pageSize: 20 },
       search: '',
+      tableName: READ_TABLE,
     };
 
     const STORAGE_KEY = 'techloc_titles_table_prefs_v1';
@@ -391,7 +400,11 @@
       els.pageIndicator.textContent = `${state.pagination.page} / ${maxPage}`;
       els.prevPage.disabled = state.pagination.page <= 1;
       els.nextPage.disabled = state.pagination.page >= maxPage;
-      els.status.textContent = total ? `Connected • ${total} records` : 'No data available';
+      if (supabaseClient) {
+        els.status.textContent = total
+          ? `Connected to ${state.tableName} • ${total} records`
+          : `Connected to ${state.tableName} • No data available`;
+      }
     };
 
     const toggleColumnsPopover = () => {
@@ -447,8 +460,26 @@
     };
 
     const loadData = async () => {
+      if (!supabaseClient) {
+        console.error('Supabase client not initialized. Check SUPABASE_URL and SUPABASE_KEY.');
+        els.status.textContent = 'Supabase client unavailable';
+        return;
+      }
+
       skeleton.show();
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+      let activeTable = READ_TABLE;
+      let { data, error } = await supabaseClient.from(activeTable).select('*');
+
+      if (error && error.code === '42P01') {
+        const fallback = READ_TABLE.toLowerCase();
+        const retry = await supabaseClient.from(fallback).select('*');
+        if (!retry.error) {
+          activeTable = fallback;
+          data = retry.data;
+          error = null;
+        }
+      }
+
       if (error) {
         console.error('Error fetching Titles', error);
         els.status.textContent = 'Failed to load data';
@@ -456,6 +487,7 @@
         return;
       }
 
+      state.tableName = activeTable;
       state.rows = data || [];
       inferColumns(state.rows);
       updateColumnsList();
