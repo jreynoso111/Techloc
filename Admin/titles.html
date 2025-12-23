@@ -32,7 +32,7 @@
     
     /* Resizer Handles */
     .resizer {
-      position: absolute; top: 0; right: 0; bottom: 0; width: 8px;
+      position: absolute; top: 0; right: 0; bottom: 0; width: 10px;
       cursor: col-resize; user-select: none; z-index: 20; touch-action: none;
     }
     th:hover .resizer { background: rgba(59, 130, 246, 0.2); }
@@ -42,24 +42,14 @@
     /* Editable Input Styling */
     .cell-input {
       width: 100%; height: 100%;
-      background: #1e293b; /* slate-800 */
-      color: #fff;
-      border: 2px solid #3b82f6; /* blue-500 */
-      border-radius: 4px;
-      padding: 4px 6px;
-      outline: none;
-      position: absolute;
-      top: 0; left: 0;
-      font-size: 12px;
-      z-index: 10;
+      background: #1e293b; color: #fff;
+      border: 2px solid #3b82f6; border-radius: 4px;
+      padding: 4px 6px; outline: none;
+      position: absolute; top: 0; left: 0;
+      font-size: 12px; z-index: 10;
     }
 
-    /* Custom Scrollbar for Dropdown */
-    select {
-        -webkit-appearance: none;
-        -moz-appearance: none;
-        appearance: none;
-    }
+    select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
   </style>
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50">
@@ -102,25 +92,9 @@
           <h2 class="text-lg font-black text-white">Admin workspace</h2>
         </div>
         <nav class="flex flex-col gap-2 text-sm font-semibold">
-          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
-          </a>
-          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
-          </a>
-          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
-          </a>
-          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
-            Titles <span class="text-xs font-medium text-blue-100">Records</span>
-          </a>
-          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
-          </a>
-          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
-          </a>
-        </nav>
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">Dashboard <span class="text-xs font-medium text-slate-400">Overview</span></a>
+          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">Titles <span class="text-xs font-medium text-blue-100">Records</span></a>
+          </nav>
       </aside>
 
       <section class="flex min-w-0 flex-1 flex-col gap-5">
@@ -172,7 +146,6 @@
                         class="w-full bg-transparent pl-2 pr-2 py-2 text-xs text-slate-100 placeholder:text-slate-600 outline-none appearance-none" />
                 </div>
               </div>
-
             </div>
 
             <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/50 pt-3">
@@ -198,14 +171,13 @@
                     <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
                   </button>
                   <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save
+                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save active
                   </div>
                 </div>
             </div>
           </div>
 
           <div class="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/50 flex flex-col">
-            
             <div class="flex flex-col gap-2 border-b border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-center sm:justify-between order-1">
               <div class="flex items-center gap-2 text-sm text-slate-300">
                 <i data-lucide="rows" class="h-4 w-4"></i>
@@ -236,11 +208,10 @@
     import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
 
-    // -------------------------------------------------------------------------
-    // CONFIGURATION
+    // CONFIG
     const READ_TABLE = 'Titles';
     const PRIMARY_KEY = 'UID'; 
-    // -------------------------------------------------------------------------
+    const STORAGE_KEY = `techloc_${READ_TABLE}_prefs_v2`; // Updated key version
 
     const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -291,6 +262,8 @@
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+    // Safe ID generator for DOM elements (replaces spaces with underscores)
+    const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
 
     // --- TOASTS ---
     const showToast = (message, type = 'info') => {
@@ -306,7 +279,7 @@
         }, 3000);
     };
 
-    // --- RE-USABLE CELL CONTENT RENDERER ---
+    // --- RENDER CONTENT (With Wrapper) ---
     const renderCellContent = (td, val) => {
         td.innerHTML = ''; 
         const wrapper = document.createElement('div');
@@ -382,7 +355,7 @@
         });
     };
 
-    // --- PREFS ---
+    // --- PREFS (Robust Save/Load) ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -391,7 +364,11 @@
         pagination: state.pagination,
         sort: state.sort
       };
-      localStorage.setItem(`techloc_${READ_TABLE}_prefs`, JSON.stringify(config));
+      
+      // 1. Save Local (Backup)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+
+      // 2. Save Cloud
       if (supabaseClient) {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (user) {
@@ -403,6 +380,7 @@
 
     const loadPrefs = async () => {
       let config = null;
+      // 1. Try Cloud
       if (supabaseClient) {
         const { data: { user } } = await supabaseClient.auth.getUser();
         if (user) {
@@ -411,9 +389,11 @@
           if (data) config = data.config;
         }
       }
+      // 2. Fallback Local
       if (!config) {
-        try { config = JSON.parse(localStorage.getItem(`techloc_${READ_TABLE}_prefs`)); } catch (e) {}
+        try { config = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) {}
       }
+      // 3. Apply
       if (config) {
         if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
         if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
@@ -428,11 +408,12 @@
       rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
       const uniqueKeys = Array.from(keys);
 
-      // Regex matching for categories
+      // Filters setup
       state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
       state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
 
+      // Build Columns
       if (uniqueKeys.length > 0) {
         state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
       } else {
@@ -440,9 +421,18 @@
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
 
+      // Merge saved order with new columns
       const known = new Set(state.columns.map(c => c.id));
-      if (!state.columnOrder.length) state.columnOrder = state.columns.map(c => c.id);
-      state.columnOrder = state.columnOrder.filter(c => known.has(c));
+      
+      // If we have a saved order, filter out invalid keys but keep the sequence
+      if (state.columnOrder.length) {
+          state.columnOrder = state.columnOrder.filter(c => known.has(c));
+      } else {
+          // No saved order, use default alpha sort
+          state.columnOrder = state.columns.map(c => c.id);
+      }
+
+      // Append any NEW columns that weren't in the saved order
       state.columns.forEach(c => {
          if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
          if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
@@ -460,7 +450,8 @@
       state.isResizing = true;
       state.resizeColId = colId;
       state.resizeStartX = e.pageX;
-      const colEl = document.getElementById(`col-def-${colId}`);
+      // Use cleanId to safely get element
+      const colEl = document.getElementById(cleanId(colId));
       state.resizeStartWidth = colEl ? colEl.offsetWidth : 150; 
       document.body.classList.add('resizing');
       document.addEventListener('mousemove', handleResizeMove);
@@ -472,7 +463,9 @@
       const diff = e.pageX - state.resizeStartX;
       const newWidth = Math.max(50, state.resizeStartWidth + diff); 
       state.columnWidths[state.resizeColId] = newWidth;
-      const colEl = document.getElementById(`col-def-${state.resizeColId}`);
+      
+      // Apply immediate visual update to COL element
+      const colEl = document.getElementById(cleanId(state.resizeColId));
       if (colEl) colEl.style.width = `${newWidth}px`;
     };
 
@@ -481,7 +474,7 @@
       document.body.classList.remove('resizing');
       document.removeEventListener('mousemove', handleResizeMove);
       document.removeEventListener('mouseup', handleResizeUp);
-      savePrefs();
+      savePrefs(); // Persist immediately
     };
 
     // --- DRAG ---
@@ -534,39 +527,35 @@
       els.colgroup.innerHTML = '';
       visible.forEach(col => {
         const colEl = document.createElement('col');
-        colEl.id = `col-def-${col.id}`;
+        colEl.id = cleanId(col.id); // Set ID securely
         const w = state.columnWidths[col.id] || 200; 
         colEl.style.width = `${w}px`;
         els.colgroup.appendChild(colEl);
       });
 
-      // --- FILTER LOGIC ---
+      // Filter
       let rows = state.rows;
       const t1 = state.search.primary.trim().toLowerCase();
       const t2 = state.search.secondary.trim().toLowerCase();
-      const t3_raw = state.search.terms; // String input
-      const t3_op = state.search.termsOperator; // < or >
+      const t3_raw = state.search.terms;
+      const t3_op = state.search.termsOperator;
 
       if (t1 || t2 || t3_raw) {
         rows = rows.filter(row => {
             const matches1 = !t1 || state.filterCols1.some(key => String(row[key] || '').toLowerCase().includes(t1));
             const matches2 = !t2 || state.filterCols2.some(key => String(row[key] || '').toLowerCase().includes(t2));
             
-            // Numeric comparison for terms
             let matches3 = true;
             if (t3_raw && state.filterCols3.length > 0) {
                 const termCol = state.filterCols3[0];
                 const cellVal = parseFloat(row[termCol]);
                 const searchVal = parseFloat(t3_raw);
-                
-                if (isNaN(cellVal)) {
-                    matches3 = false; // Don't show non-numeric rows if filtering
-                } else if (!isNaN(searchVal)) {
+                if (isNaN(cellVal)) matches3 = false;
+                else if (!isNaN(searchVal)) {
                     if (t3_op === '<') matches3 = cellVal < searchVal;
                     else if (t3_op === '>') matches3 = cellVal > searchVal;
                 }
             }
-
             return matches1 && matches2 && matches3;
         });
       }
@@ -579,6 +568,7 @@
         });
       }
 
+      // Paginate
       const total = rows.length;
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
@@ -586,11 +576,11 @@
       const startIdx = (state.pagination.page - 1) * pageSize;
       const pageRows = rows.slice(startIdx, startIdx + pageSize);
 
+      // Render Head
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
       visible.forEach(col => {
         const th = document.createElement('th');
-        th.id = `th-${col.id}`;
         th.className = 'text-left text-xs font-semibold uppercase tracking-wide text-slate-300 cursor-default select-none group hover:text-white transition-colors relative py-3 px-4 border-b border-slate-700 bg-slate-950/70 align-bottom';
         th.draggable = true;
         
@@ -631,6 +621,7 @@
       });
       els.thead.appendChild(headRow);
 
+      // Render Body
       els.tbody.innerHTML = '';
       if (pageRows.length === 0) {
         const tr = document.createElement('tr');
@@ -645,10 +636,11 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
+            // WRAPPER FIX: No line-clamp on TD
             td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 hover:bg-slate-800/30 transition-colors align-top';
             let val = row[col.id];
             
-            // CLEAN PREP STATUS (DISPLAY ONLY)
+            // CLEAN PREP (DISPLAY)
             if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') {
                 val = val.replace(/^[\d\-\s]+/, '');
             }
@@ -731,6 +723,7 @@
       try {
         const cvs = document.getElementById('constellation-canvas');
         if (cvs) createConstellationBackground(cvs);
+        // Load Prefs FIRST, then Data
         await loadPrefs();
         attachEvents();
         await loadData();
