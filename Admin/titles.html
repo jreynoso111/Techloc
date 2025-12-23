@@ -186,11 +186,16 @@
                 </div>
 
                 <div class="flex items-center gap-2 shrink-0">
+                  
+                  <button id="add-row-btn" class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/90 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white transition hover:bg-emerald-500 shadow-lg shadow-emerald-900/50" type="button">
+                    <i data-lucide="plus" class="h-4 w-4"></i> Add Row
+                  </button>
+
                   <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600/30" type="button">
                     <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
                   </button>
                   <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
-                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save
+                    <i data-lucide="settings-2" class="h-3 w-3"></i> Auto-save active
                   </div>
                 </div>
             </div>
@@ -248,12 +253,13 @@
       searchSecondary: document.getElementById('search-secondary'),
       searchTerms: document.getElementById('search-terms'),
       termsOperator: document.getElementById('terms-operator'),
-      sheetTabs: document.getElementById('sheet-tabs'), // CHANGED: Now a DIV, not Select
+      sheetTabs: document.getElementById('sheet-tabs'), 
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
       pageIndicator: document.getElementById('page-indicator'),
       refresh: document.getElementById('refresh-button'),
+      addRowBtn: document.getElementById('add-row-btn'), // New Button
       colgroup: document.getElementById('table-colgroup'),
       thead: document.getElementById('table-head'),
       tbody: document.getElementById('table-body'),
@@ -340,38 +346,65 @@
         });
         
         const sortedSheets = Array.from(sheets).sort();
-        els.sheetTabs.innerHTML = ''; // Clear existing
+        els.sheetTabs.innerHTML = ''; 
 
-        // Helper to create tab button
         const createTab = (label, value) => {
             const btn = document.createElement('button');
             const isActive = state.search.sheet === value;
-            
-            // Base styles
             btn.className = `shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wide border transition-all duration-200 ${
                 isActive 
                 ? 'bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20' 
                 : 'bg-slate-900/50 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white'
             }`;
-            
             btn.textContent = label;
             btn.onclick = () => {
                 state.search.sheet = value;
-                state.pagination.page = 1; // Reset to page 1
+                state.pagination.page = 1; 
                 savePrefs();
                 renderTable();
-                populateSheetFilter(rows); // Re-render tabs to update active state
+                populateSheetFilter(rows); 
             };
             return btn;
         };
 
-        // 1. "ALL" Tab
         els.sheetTabs.appendChild(createTab('All', ''));
-
-        // 2. Specific Sheet Tabs
         sortedSheets.forEach(sheet => {
             els.sheetTabs.appendChild(createTab(sheet, sheet));
         });
+    };
+
+    // --- ADD ROW LOGIC ---
+    const addNewRow = async () => {
+        if (!supabaseClient) {
+            showToast('Offline mode: Cannot add rows', 'error');
+            return;
+        }
+
+        // 1. Insert blank row to get ID
+        const { data, error } = await supabaseClient
+            .from(READ_TABLE)
+            .insert({}) // Inserting empty object triggers default values
+            .select()
+            .single();
+
+        if (error) {
+            console.error(error);
+            showToast('Error creating row. Check DB constraints (e.g. NOT NULL).', 'error');
+            return;
+        }
+
+        // 2. Add to local state at TOP
+        state.rows.unshift(data);
+        
+        // 3. Reset pagination to page 1 to see the new row
+        state.pagination.page = 1;
+        
+        // 4. Render and notify
+        renderTable();
+        showToast('New row added', 'info');
+        
+        // Optional: Scroll to top
+        els.tableContainer.scrollTop = 0;
     };
 
     // --- RENDER CONTENT ---
@@ -438,7 +471,7 @@
         columnWidths: state.columnWidths,
         pagination: state.pagination,
         sort: state.sort,
-        search: state.search // Save search state (including sheet)
+        search: state.search 
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       if (supabaseClient) {
@@ -465,7 +498,6 @@
         if (config.sort) state.sort = config.sort;
         if (config.search) {
             state.search = { ...state.search, ...config.search };
-            // Populate inputs
             if(els.searchPrimary) els.searchPrimary.value = state.search.primary || '';
             if(els.searchSecondary) els.searchSecondary.value = state.search.secondary || '';
             if(els.searchTerms) els.searchTerms.value = state.search.terms || '';
@@ -603,11 +635,9 @@
 
       // Apply Filters
       rows = rows.filter(row => {
-          // 1. Text Filters
           const matches1 = !t1 || state.filterCols1.some(key => String(row[key] || '').toLowerCase().includes(t1));
           const matches2 = !t2 || state.filterCols2.some(key => String(row[key] || '').toLowerCase().includes(t2));
           
-          // 2. Numeric Filter
           let matches3 = true;
           if (t3_raw && state.filterCols3.length > 0) {
               const termCol = state.filterCols3[0];
@@ -620,7 +650,6 @@
               }
           }
 
-          // 3. Sheet Filter
           let matchesSheet = true;
           if (sheet) {
               const rowSheet = row['Sheet'] || row['sheet'];
@@ -774,6 +803,9 @@
       els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
       els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); savePrefs(); });
+      
+      // New Add Row Button Event
+      els.addRowBtn?.addEventListener('click', addNewRow);
 
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); savePrefs(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); savePrefs(); });
