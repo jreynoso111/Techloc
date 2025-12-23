@@ -181,7 +181,6 @@
                 <tbody id="table-body" class="divide-y divide-slate-800/60"></tbody>
               </table>
             </div>
-            
           </div>
         </section>
       </section>
@@ -193,7 +192,11 @@
     import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
 
+    // -------------------------------------------------------------------------
+    // !!! IMPORTANT CONFIGURATION !!!
     const READ_TABLE = 'Titles';
+    const PRIMARY_KEY = 'UID'; // Changed to 'UID' based on your feedback
+    // -------------------------------------------------------------------------
 
     const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -282,14 +285,15 @@
 
             if (newValue === String(originalValue === null ? '' : originalValue)) return;
 
-            const row = state.rows.find(r => r.id === rowId);
+            // Find row by PRIMARY_KEY
+            const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
             if (row) row[colId] = newValue;
 
             if (supabaseClient) {
                 const { error } = await supabaseClient
                     .from(READ_TABLE)
                     .update({ [colId]: newValue === '' ? null : newValue })
-                    .eq('id', rowId);
+                    .eq(PRIMARY_KEY, rowId); // Use PRIMARY_KEY constant
 
                 if (error) {
                     console.error('Update failed:', error);
@@ -361,7 +365,7 @@
         rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
         state.columns = Array.from(keys).sort().map((key) => ({ id: key, label: labelize(key) }));
       } else {
-        const defaults = ['id', 'VIN', 'Updated', 'vin_combined', 'created_at'];
+        const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
       const known = new Set(state.columns.map(c => c.id));
@@ -492,7 +496,6 @@
       visible.forEach(col => {
         const th = document.createElement('th');
         th.id = `th-${col.id}`;
-        // cursor-default -> no click on cell
         th.className = 'text-left text-xs font-semibold uppercase tracking-wide text-slate-300 cursor-default select-none group hover:text-white transition-colors relative py-3 px-4 border-b border-slate-700 bg-slate-950/70 align-bottom';
         th.draggable = true;
         
@@ -502,10 +505,8 @@
 
         const container = document.createElement('div');
         container.className = 'flex items-center gap-2 overflow-hidden w-full';
-        
         container.innerHTML = `<span class="line-clamp-2 leading-tight break-words whitespace-normal flex-1">${col.label}</span>`;
         
-        // SORT BUTTON
         const sortBtn = document.createElement('button');
         sortBtn.type = 'button';
         sortBtn.className = 'p-1 rounded hover:bg-slate-800 transition-colors flex-shrink-0 focus:outline-none';
@@ -523,8 +524,6 @@
         icon.className = iconClass;
         
         sortBtn.appendChild(icon);
-        
-        // Click ONLY button sorts
         sortBtn.addEventListener('click', (e) => {
             e.stopPropagation(); 
             handleSort(col.id);
@@ -562,11 +561,11 @@
             td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
             
             td.addEventListener('dblclick', () => {
-                if (!row.id) { showToast('Row ID missing', 'error'); return; }
-                if (col.id === 'created_at' || col.id === 'updated_at' || col.id === 'id') {
+                if (!row[PRIMARY_KEY]) { showToast(`Row ${PRIMARY_KEY} missing`, 'error'); return; }
+                if (col.id === 'created_at' || col.id === 'updated_at' || col.id === PRIMARY_KEY) {
                     showToast('Read-only column', 'info'); return;
                 }
-                editCell(td, row.id, col.id, val);
+                editCell(td, row[PRIMARY_KEY], col.id, val);
             });
             tr.appendChild(td);
           });
