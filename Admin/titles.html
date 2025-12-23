@@ -27,8 +27,8 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
   
   <style>
-    /* Table Logic */
-    table { table-layout: fixed; width: 100%; }
+    /* Table Layout Locks */
+    table { table-layout: fixed; width: 100%; border-collapse: collapse; }
     
     /* Resizer Handles */
     .resizer {
@@ -131,13 +131,12 @@
         <section class="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
           
           <div class="flex flex-col gap-4">
-            
             <div class="flex flex-wrap items-center gap-3">
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Vehicle Info</label>
                 <div class="relative">
                     <i data-lucide="car" class="absolute left-3 top-2.5 h-4 w-4 text-slate-500"></i>
-                    <input id="search-primary" type="search" placeholder="VIN, Customer, Stock, Prep Status..."
+                    <input id="search-primary" type="search" placeholder="VIN, Customer, Stock, Prep..."
                         class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
@@ -146,7 +145,7 @@
                 <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Title & Lien Info</label>
                 <div class="relative">
                     <i data-lucide="file-text" class="absolute left-3 top-2.5 h-4 w-4 text-slate-500"></i>
-                    <input id="search-secondary" type="search" placeholder="Lien Status, Holder, Book, Title Process..."
+                    <input id="search-secondary" type="search" placeholder="Lien Status, Holder, Book, Process..."
                         class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
@@ -195,7 +194,7 @@
             <div class="flex flex-col gap-2 border-b border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-center sm:justify-between order-1">
               <div class="flex items-center gap-2 text-sm text-slate-300">
                 <i data-lucide="rows" class="h-4 w-4"></i>
-                <span id="pagination-summary">Showing 0-0 of 0</span>
+                <span id="pagination-summary">Loading...</span>
               </div>
               <div class="flex items-center gap-2 text-sm font-semibold text-slate-200">
                 <button id="prev-page" class="rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 disabled:opacity-40 disabled:cursor-not-allowed" type="button">Prev</button>
@@ -223,7 +222,7 @@
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
 
     // -------------------------------------------------------------------------
-    // !!! CONFIGURACION !!!
+    // CONFIGURATION
     const READ_TABLE = 'Titles';
     const PRIMARY_KEY = 'UID'; 
     // -------------------------------------------------------------------------
@@ -236,9 +235,9 @@
 
     const els = {
       status: document.getElementById('dataset-status'),
-      searchPrimary: document.getElementById('search-primary'), // New
-      searchSecondary: document.getElementById('search-secondary'), // New
-      searchTerms: document.getElementById('search-terms'), // New
+      searchPrimary: document.getElementById('search-primary'),
+      searchSecondary: document.getElementById('search-secondary'),
+      searchTerms: document.getElementById('search-terms'),
       paginationSummary: document.getElementById('pagination-summary'),
       prevPage: document.getElementById('prev-page'),
       nextPage: document.getElementById('next-page'),
@@ -263,18 +262,17 @@
       columnWidths: {}, 
       pagination: { page: 1, pageSize: 20 },
       sort: { column: null, direction: 'none' },
-      // Search Object
-      search: {
-        primary: '',
-        secondary: '',
-        terms: ''
-      },
+      search: { primary: '', secondary: '', terms: '' },
       isDragging: false,
       dragSourceIndex: null,
       isResizing: false,
       resizeColId: null,
       resizeStartX: 0,
-      resizeStartWidth: 0
+      resizeStartWidth: 0,
+      // Dynamic Filter Columns (Calculated after data load)
+      filterCols1: [], // VIN, Customer, Stock...
+      filterCols2: [], // Lien, Title...
+      filterCols3: []  // Terms
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -297,7 +295,6 @@
     const editCell = (td, rowId, colId, originalValue) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return;
-        
         if (typeof originalValue === 'object' && originalValue !== null) {
             showToast('Cannot edit complex objects directly', 'error'); return;
         }
@@ -354,7 +351,7 @@
         });
     };
 
-    // --- PREFS ---
+    // --- PREFS & COLUMNS ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -396,14 +393,25 @@
     };
 
     const inferColumns = (rows = []) => {
-      if (rows.length > 0) {
-        const keys = new Set();
-        rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
-        state.columns = Array.from(keys).sort().map((key) => ({ id: key, label: labelize(key) }));
+      // 1. Get all unique keys
+      const keys = new Set();
+      rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
+      const uniqueKeys = Array.from(keys);
+
+      // 2. Identify keys for filtering (Regex to handle cases like "prep_status" or "Prep Status")
+      state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
+      state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
+      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k));
+
+      // 3. Build Column Definitions
+      if (uniqueKeys.length > 0) {
+        state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
       } else {
         const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
+
+      // 4. Update Order
       const known = new Set(state.columns.map(c => c.id));
       if (!state.columnOrder.length) state.columnOrder = state.columns.map(c => c.id);
       state.columnOrder = state.columnOrder.filter(c => known.has(c));
@@ -505,40 +513,20 @@
         els.colgroup.appendChild(colEl);
       });
 
-      // --- FILTERING LOGIC (MULTI-SEARCH) ---
+      // --- FILTER LOGIC (FIXED) ---
       let rows = state.rows;
-      
-      const term1 = state.search.primary.trim().toLowerCase();
-      const term2 = state.search.secondary.trim().toLowerCase();
-      const term3 = state.search.terms.trim().toLowerCase();
+      const t1 = state.search.primary.trim().toLowerCase();
+      const t2 = state.search.secondary.trim().toLowerCase();
+      const t3 = state.search.terms.trim().toLowerCase();
 
-      // Fields definitions
-      const fields1 = ['VIN', 'Customer', 'Stock', 'Prep Status'];
-      const fields2 = ['Lien Status', 'Book', 'Lien Holder', 'Title Process', 'Title Status'];
-      const fields3 = ['Terms Remaining'];
-
-      rows = rows.filter(row => {
-        // Search 1 Check
-        let match1 = true;
-        if (term1) {
-            match1 = fields1.some(field => String(row[field] || '').toLowerCase().includes(term1));
-        }
-        
-        // Search 2 Check
-        let match2 = true;
-        if (term2) {
-            match2 = fields2.some(field => String(row[field] || '').toLowerCase().includes(term2));
-        }
-
-        // Search 3 Check
-        let match3 = true;
-        if (term3) {
-            match3 = fields3.some(field => String(row[field] || '').toLowerCase().includes(term3));
-        }
-
-        return match1 && match2 && match3;
-      });
-      // ------------------------------------
+      if (t1 || t2 || t3) {
+        rows = rows.filter(row => {
+            const matches1 = !t1 || state.filterCols1.some(key => String(row[key] || '').toLowerCase().includes(t1));
+            const matches2 = !t2 || state.filterCols2.some(key => String(row[key] || '').toLowerCase().includes(t2));
+            const matches3 = !t3 || state.filterCols3.some(key => String(row[key] || '').toLowerCase().includes(t3));
+            return matches1 && matches2 && matches3;
+        });
+      }
 
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
@@ -591,10 +579,7 @@
         icon.className = iconClass;
         
         sortBtn.appendChild(icon);
-        sortBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); 
-            handleSort(col.id);
-        });
+        sortBtn.addEventListener('click', (e) => { e.stopPropagation(); handleSort(col.id); });
 
         container.appendChild(sortBtn);
         th.appendChild(container);
@@ -615,7 +600,7 @@
         const td = document.createElement('td');
         td.colSpan = visible.length || 1;
         td.className = 'p-8 text-center text-slate-500 text-sm';
-        td.textContent = 'No records found matching filters.';
+        td.textContent = total === 0 && state.rows.length > 0 ? 'No results found.' : 'No records found.';
         tr.appendChild(td);
         els.tbody.appendChild(tr);
       } else {
@@ -623,7 +608,6 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            // --- UPDATED CELL STYLING ---
             td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 line-clamp-2 whitespace-normal break-words leading-tight hover:bg-slate-800/30 transition-colors';
             const val = row[col.id];
             td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
@@ -685,7 +669,6 @@
     };
 
     const attachEvents = () => {
-      // 3 Event listeners for the 3 search inputs
       els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); });
       els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); });
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
