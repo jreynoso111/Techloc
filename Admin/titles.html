@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
   
   <style>
-    /* Table Layout Locks */
+    /* Table Logic */
     table { table-layout: fixed; width: 100%; border-collapse: collapse; }
     
     /* Resizer Handles */
@@ -51,6 +51,7 @@
       position: absolute;
       top: 0; left: 0;
       font-size: 12px;
+      z-index: 10;
     }
   </style>
 </head>
@@ -140,7 +141,6 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
-
               <div class="flex-1 min-w-[200px]">
                 <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Title & Lien Info</label>
                 <div class="relative">
@@ -149,7 +149,6 @@
                         class="w-full rounded-xl border border-slate-700 bg-slate-950/70 pl-9 pr-4 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50" />
                 </div>
               </div>
-
               <div class="w-32">
                 <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1 ml-1">Terms Left</label>
                 <div class="relative">
@@ -269,10 +268,10 @@
       resizeColId: null,
       resizeStartX: 0,
       resizeStartWidth: 0,
-      // Dynamic Filter Columns (Calculated after data load)
-      filterCols1: [], // VIN, Customer, Stock...
-      filterCols2: [], // Lien, Title...
-      filterCols3: []  // Terms
+      // Dynamic Filter Columns
+      filterCols1: [],
+      filterCols2: [],
+      filterCols3: []
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -291,10 +290,20 @@
         }, 3000);
     };
 
+    // --- RE-USABLE CELL CONTENT RENDERER ---
+    const renderCellContent = (td, val) => {
+        td.innerHTML = ''; // Clear cell
+        const wrapper = document.createElement('div');
+        wrapper.className = 'line-clamp-2 whitespace-normal break-words leading-tight'; 
+        wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
+        td.appendChild(wrapper);
+    };
+
     // --- EDIT CELL ---
     const editCell = (td, rowId, colId, originalValue) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return;
+        
         if (typeof originalValue === 'object' && originalValue !== null) {
             showToast('Cannot edit complex objects directly', 'error'); return;
         }
@@ -304,7 +313,7 @@
         input.value = originalValue === null ? '' : originalValue;
         input.className = 'cell-input'; 
         
-        td.textContent = '';
+        td.textContent = ''; // Clear existing wrapper
         td.appendChild(input);
         input.focus();
         
@@ -315,7 +324,8 @@
             isSaving = true;
             
             const newValue = input.value.trim();
-            td.textContent = newValue; 
+            // Re-render cell content properly with wrapper
+            renderCellContent(td, newValue);
 
             if (newValue === String(originalValue === null ? '' : originalValue)) return;
 
@@ -331,7 +341,7 @@
                 if (error) {
                     console.error('Update failed:', error);
                     showToast('Failed to save changes.', 'error');
-                    td.textContent = originalValue === null ? '—' : originalValue;
+                    renderCellContent(td, originalValue); // Revert
                     if (row) row[colId] = originalValue;
                 } else {
                     showToast('Saved', 'info');
@@ -341,7 +351,7 @@
 
         const cancel = () => {
             isSaving = true;
-            td.textContent = originalValue === null ? '—' : originalValue;
+            renderCellContent(td, originalValue);
         };
 
         input.addEventListener('blur', save);
@@ -351,7 +361,7 @@
         });
     };
 
-    // --- PREFS & COLUMNS ---
+    // --- PREFS ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -398,7 +408,7 @@
       rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
       const uniqueKeys = Array.from(keys);
 
-      // 2. Identify keys for filtering (Regex to handle cases like "prep_status" or "Prep Status")
+      // 2. Identify keys for filtering (Regex)
       state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
       state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k));
@@ -411,7 +421,6 @@
         state.columns = defaults.map(id => ({ id, label: labelize(id) }));
       }
 
-      // 4. Update Order
       const known = new Set(state.columns.map(c => c.id));
       if (!state.columnOrder.length) state.columnOrder = state.columns.map(c => c.id);
       state.columnOrder = state.columnOrder.filter(c => known.has(c));
@@ -513,7 +522,7 @@
         els.colgroup.appendChild(colEl);
       });
 
-      // --- FILTER LOGIC (FIXED) ---
+      // Filter
       let rows = state.rows;
       const t1 = state.search.primary.trim().toLowerCase();
       const t2 = state.search.secondary.trim().toLowerCase();
@@ -528,6 +537,7 @@
         });
       }
 
+      // Sort
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
         rows = [...rows].sort((a, b) => {
@@ -544,7 +554,7 @@
       const startIdx = (state.pagination.page - 1) * pageSize;
       const pageRows = rows.slice(startIdx, startIdx + pageSize);
 
-      // Render Head
+      // Head
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
       visible.forEach(col => {
@@ -559,7 +569,6 @@
 
         const container = document.createElement('div');
         container.className = 'flex items-center gap-2 overflow-hidden w-full';
-        
         container.innerHTML = `<span class="line-clamp-2 leading-tight break-words whitespace-normal flex-1">${col.label}</span>`;
         
         const sortBtn = document.createElement('button');
@@ -568,12 +577,10 @@
         
         let iconName = 'chevrons-up-down';
         let iconClass = 'h-3 w-3 text-slate-500 opacity-60 hover:opacity-100 hover:text-white';
-        
         if (state.sort.column === col.id) {
            iconClass = 'h-3 w-3 text-blue-400 opacity-100 font-bold';
            iconName = state.sort.direction === 'asc' ? 'chevron-up' : 'chevron-down';
         }
-        
         const icon = document.createElement('i');
         icon.setAttribute('data-lucide', iconName);
         icon.className = iconClass;
@@ -593,7 +600,7 @@
       });
       els.thead.appendChild(headRow);
 
-      // Render Body
+      // Body
       els.tbody.innerHTML = '';
       if (pageRows.length === 0) {
         const tr = document.createElement('tr');
@@ -608,9 +615,12 @@
           const tr = document.createElement('tr');
           visible.forEach(col => {
             const td = document.createElement('td');
-            td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 line-clamp-2 whitespace-normal break-words leading-tight hover:bg-slate-800/30 transition-colors';
+            // FIX: Removed line-clamp from TD directly. 
+            td.className = 'relative text-xs text-slate-100 border-t border-slate-800/50 py-2 px-3 hover:bg-slate-800/30 transition-colors align-top';
             const val = row[col.id];
-            td.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
+            
+            // Use the renderer to put content inside a DIV
+            renderCellContent(td, val);
             
             td.addEventListener('dblclick', () => {
                 if (!row[PRIMARY_KEY]) { showToast(`Row ${PRIMARY_KEY} missing`, 'error'); return; }
