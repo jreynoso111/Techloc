@@ -47,7 +47,7 @@
       border: 2px solid #3b82f6; border-radius: 0;
       padding: 4px 6px; outline: none;
       position: absolute; top: 0; left: 0;
-      font-size: 12px; z-index: 10;
+      font-size: 11px; z-index: 10;
     }
 
     select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
@@ -60,6 +60,17 @@
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Text Wrapping Styles */
+    .wrap-2-lines {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: normal;
+        line-height: 1.2;
+    }
   </style>
 </head>
 
@@ -194,7 +205,7 @@
 
     <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
         <span id="pagination-summary">Ready</span>
-        <span>TechLoc Admin v2.3</span>
+        <span>TechLoc Admin v2.5</span>
     </div>
 
   </main>
@@ -206,7 +217,7 @@
 
     const READ_TABLE = 'Titles';
     const PRIMARY_KEY = 'UID'; 
-    const STORAGE_KEY = `techloc_${READ_TABLE}_prefs_v4_stable`;
+    const CONFIG_TABLE = 'user_table_configs';
 
     const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -244,6 +255,7 @@
     };
 
     const state = {
+      user_id: null,
       rows: [],
       columns: [],
       columnOrder: [],
@@ -291,7 +303,6 @@
         }
     };
 
-    // --- SHEET FILTER LOGIC (CORREGIDO) ---
     const populateSheetFilter = (rows) => {
         const currentScroll = els.sheetTabs.scrollLeft;
         const sheets = new Set();
@@ -306,14 +317,11 @@
         const createTab = (label, value) => {
             const btn = document.createElement('button');
             const isActive = state.search.sheet === value;
-            
             const baseClass = "shrink-0 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap mb-1";
             const activeClass = "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/40 transform scale-105";
             const inactiveClass = "bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-500";
-
             btn.className = `${baseClass} ${isActive ? activeClass : inactiveClass}`;
             btn.textContent = label || 'Unknown';
-            
             btn.onclick = () => {
                 state.search.sheet = value;
                 state.pagination.page = 1; 
@@ -360,10 +368,33 @@
         }
     };
 
+    // --- BORRAR FILA ---
+    const deleteRow = async (rowId, btn) => {
+        if (!confirm('Are you sure you want to delete this row? This cannot be undone.')) return;
+        
+        // UI optimista
+        const tr = btn.closest('tr');
+        tr.style.opacity = '0.5';
+
+        if (supabaseClient) {
+            const { error } = await supabaseClient.from(READ_TABLE).delete().eq(PRIMARY_KEY, rowId);
+            if (error) {
+                showToast('Error deleting row', 'error');
+                tr.style.opacity = '1';
+                return;
+            }
+        }
+        
+        // Actualizar estado local
+        state.rows = state.rows.filter(r => r[PRIMARY_KEY] !== rowId);
+        renderTable();
+        showToast('Row deleted', 'info');
+    };
+
     const renderCellContent = (td, val) => {
         td.innerHTML = ''; 
         const wrapper = document.createElement('div');
-        wrapper.className = 'line-clamp-1 overflow-hidden text-ellipsis px-1';
+        wrapper.className = 'wrap-2-lines px-1 text-[11px]'; // APLICADO: Estilo 2 líneas
         wrapper.title = (val === null || val === undefined) ? '' : String(val);
         wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
         td.appendChild(wrapper);
@@ -418,6 +449,7 @@
         });
     };
 
+    // --- PREFS REALES (USER TABLE CONFIGS) ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -427,12 +459,44 @@
         sort: state.sort,
         search: state.search 
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      
+      // Fallback localstorage
+      localStorage.setItem(`local_${READ_TABLE}_prefs`, JSON.stringify(config));
+
+      // Guardado Remoto en Supabase
+      if (supabaseClient && state.user_id) {
+        // Upsert simple basado en user_id + table_name
+        await supabaseClient.from(CONFIG_TABLE).upsert(
+            { user_id: state.user_id, table_name: READ_TABLE, config: config },
+            { onConflict: 'user_id, table_name' }
+        );
+      }
     };
 
     const loadPrefs = async () => {
       let config = null;
-      try { config = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch (e) {}
+      
+      // 1. Intentar cargar de Supabase primero
+      if (supabaseClient) {
+         const { data: { user } } = await supabaseClient.auth.getUser();
+         if (user) {
+            state.user_id = user.id;
+            const { data, error } = await supabaseClient.from(CONFIG_TABLE)
+                .select('config')
+                .eq('user_id', user.id)
+                .eq('table_name', READ_TABLE)
+                .maybeSingle(); // maybeSingle evita errores 406 si no existe
+            
+            if (data && data.config) config = data.config;
+         }
+      }
+
+      // 2. Si falla Supabase, intentar LocalStorage
+      if (!config) {
+         try { config = JSON.parse(localStorage.getItem(`local_${READ_TABLE}_prefs`)); } catch (e) {}
+      }
+
+      // 3. Aplicar configuración
       if (config) {
         if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
         if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
@@ -532,6 +596,13 @@
     const renderTable = () => {
       const visible = getVisibleColumns();
       els.colgroup.innerHTML = '';
+      
+      // 1. COLUMNA DE BORRADO (Ancho Fijo)
+      const deleteCol = document.createElement('col');
+      deleteCol.style.width = '40px';
+      els.colgroup.appendChild(deleteCol);
+
+      // 2. COLUMNAS DE DATOS
       visible.forEach(col => {
         const colEl = document.createElement('col');
         colEl.id = cleanId(col.id); 
@@ -581,27 +652,53 @@
 
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
+      
+      // HEADER DE BORRADO
+      const thDel = document.createElement('th');
+      thDel.className = 'w-[40px] border-b border-slate-700 bg-slate-900';
+      headRow.appendChild(thDel);
+
       visible.forEach(col => {
         const th = document.createElement('th');
-        th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none py-2 px-3 border-b border-slate-700 hover:bg-slate-900 transition-colors relative group';
+        // APLICADO: Clase wrap-2-lines para headers
+        th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none py-2 px-3 border-b border-slate-700 hover:bg-slate-900 transition-colors relative group';
         th.draggable = true;
         th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
         th.addEventListener('dragover', handleDragOver);
         th.addEventListener('drop', (e) => handleDrop(e, col.id));
-        th.addEventListener('click', () => handleSort(col.id));
 
         const content = document.createElement('div');
-        content.className = 'flex items-center gap-2 w-full';
-        content.innerHTML = `<span class="truncate flex-1">${col.label}</span>`;
+        content.className = 'flex items-center gap-2 w-full h-full'; // h-full para alinear
         
+        // Texto con Wrap de 2 lineas
+        const span = document.createElement('span');
+        span.className = 'wrap-2-lines flex-1';
+        span.textContent = col.label;
+        content.appendChild(span);
+        
+        // BOTÓN DE SORT (Solo este dispara el sort)
+        const sortBtn = document.createElement('button');
+        sortBtn.className = 'p-1 hover:bg-slate-700 rounded transition-colors shrink-0';
+        let iconName = 'chevrons-up-down';
+        let iconClass = 'h-3 w-3 text-slate-600';
         if (state.sort.column === col.id) {
-           const icon = document.createElement('i');
-           icon.setAttribute('data-lucide', state.sort.direction === 'asc' ? 'chevron-up' : 'chevron-down');
-           icon.className = 'h-3 w-3 text-blue-400';
-           content.appendChild(icon);
+           iconName = state.sort.direction === 'asc' ? 'chevron-up' : 'chevron-down';
+           iconClass = 'h-3 w-3 text-blue-400';
         }
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', iconName);
+        icon.className = iconClass;
+        sortBtn.appendChild(icon);
+        
+        // Evento exclusivo al botón
+        sortBtn.onclick = (e) => {
+            e.stopPropagation(); // Detiene propagación
+            handleSort(col.id);
+        };
 
+        content.appendChild(sortBtn);
         th.appendChild(content);
+
         const resizer = document.createElement('div');
         resizer.className = 'resizer';
         resizer.addEventListener('mousedown', (e) => initResize(e, col.id));
@@ -618,9 +715,20 @@
           pageRows.forEach(row => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-blue-900/10 group transition-colors';
+            
+            // CELDA DE BORRADO
+            const tdDel = document.createElement('td');
+            tdDel.className = 'border-r border-slate-800/50 border-b border-slate-800/50 text-center align-middle';
+            const delBtn = document.createElement('button');
+            delBtn.className = 'text-slate-600 hover:text-red-500 transition-colors p-1';
+            delBtn.innerHTML = '<i data-lucide="trash-2" class="h-3.5 w-3.5"></i>';
+            delBtn.onclick = () => deleteRow(row[PRIMARY_KEY], delBtn);
+            tdDel.appendChild(delBtn);
+            tr.appendChild(tdDel);
+
             visible.forEach(col => {
                 const td = document.createElement('td');
-                td.className = 'text-xs text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-8 whitespace-nowrap overflow-hidden relative';
+                td.className = 'text-xs text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-10 align-middle relative'; // h-10 fija altura mínima
                 let val = row[col.id];
                 if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') val = val.replace(/^[\d\-\s]+/, '');
                 
@@ -702,7 +810,10 @@
       try {
         const cvs = document.getElementById('constellation-canvas');
         if (cvs && typeof createConstellationBackground === 'function') createConstellationBackground(cvs);
+        
+        // Carga de preferencias con autenticación
         await loadPrefs();
+        
         attachEvents();
         await loadData();
       } catch (err) { console.error(err); }
