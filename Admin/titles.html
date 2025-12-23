@@ -1,215 +1,12 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Titles Admin</title>
-
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
-  <script type="module" src="../assets/scripts/authManager.js"></script>
-  <script type="module" src="../assets/scripts/admin-auth.js"></script>
-
-  <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          colors: { slate: { 950: '#020617' } },
-        },
-      },
-    };
-  </script>
-
-  <link rel="stylesheet" href="../assets/visuals/theme.css" />
-
-  <style>
-    html, body { width: 100%; height: auto; }
-    body { overflow-x: hidden; overflow-y: auto; }
-    main { width: 100%; height: auto; overflow: visible; }
-
-    .directory-shell { display: flex; flex-direction: column; gap: 0.75rem; overflow: visible; height: auto !important; min-height: 0 !important; }
-
-    .table-window { display: flex; flex-direction: column; gap: 0.6rem; flex: none; min-height: 0; overflow: visible; }
-
-    #table-scroll { overflow-x: auto; overflow-y: visible; width: 100%; max-width: 100%; border-radius: 0.75rem; }
-    #table-scroll::-webkit-scrollbar { height: 12px; width: 12px; }
-    #table-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
-    #table-scroll::-webkit-scrollbar-track { background: rgba(15,23,42,.35); border-radius: 999px; }
-
-    thead.sticky-head th { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
-
-    table.fixed-layout { table-layout: fixed; width: max-content; min-width: 100%; }
-
-    #titles-table th, #titles-table td { white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
-    .compact-th { padding: 0.5rem 0.8rem; }
-    .compact-td { padding: 0.5rem 0.8rem; }
-    .compact-text { font-size: 12.5px; line-height: 1.25rem; }
-
-    .popover { position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, 92vw); z-index: 50; }
-  </style>
-</head>
-
-<body class="min-h-screen bg-slate-950 text-slate-50 relative">
-
-  <!-- HEADER -->
-  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur" style="height:72px;">
-    <div class="flex items-center justify-between px-6 py-4 lg:px-10">
-      <a href="../index.html" class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-          <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
-        </div>
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
-          <h1 class="text-base font-black leading-tight text-white">Titles</h1>
-        </div>
-      </a>
-
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-          <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-          <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
-          <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
-        </nav>
-
-        <div class="flex items-center gap-2">
-          <a id="nav-login" href="../login.html" class="hidden rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
-          <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
-          <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex" data-admin-actions>
-            <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span> Admin Tools
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
-
-  <main class="px-6 py-5 lg:px-10">
-    <div class="flex flex-col gap-5 lg:flex-row">
-      <!-- LEFT NAV -->
-      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-6 lg:h-[calc(100svh-96px)] lg:overflow-y-auto lg:block">
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
-          <h2 class="text-lg font-black text-white">Admin workspace</h2>
-        </div>
-
-        <nav class="flex flex-col gap-2 text-sm font-semibold">
-          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Dashboard <span class="text-xs font-medium text-slate-400">Overview</span>
-          </a>
-          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
-          </a>
-          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
-          </a>
-          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
-            Titles <span class="text-xs font-medium text-blue-100">Records</span>
-          </a>
-          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
-          </a>
-          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
-          </a>
-        </nav>
-      </aside>
-
-      <!-- MAIN -->
-      <section class="flex min-w-0 flex-1 flex-col gap-4">
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Data table</p>
-            <h2 class="text-2xl font-black text-white">Titles dataset</h2>
-            <p class="text-sm text-slate-400">Search and choose which columns to display.</p>
-          </div>
-
-          <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300">
-            <i data-lucide="database" class="h-4 w-4"></i>
-            <span id="dataset-status">Connecting…</span>
-          </div>
-        </div>
-
-        <section class="directory-shell rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/60">
-          <div class="flex flex-col gap-3">
-            <div class="flex flex-col gap-2">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Directory</p>
-                <h3 class="text-lg font-bold text-white">Titles table</h3>
-              </div>
-
-              <div class="flex flex-wrap items-center gap-2">
-                <input id="search" type="search" placeholder="Search all fields"
-                  class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-
-                <div class="relative">
-                  <button id="columns-btn" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/60 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white" type="button">
-                    <i data-lucide="columns-3" class="h-4 w-4"></i> Columns
-                    <i data-lucide="chevron-down" class="h-4 w-4"></i>
-                  </button>
-
-                  <div id="columns-popover" class="popover hidden rounded-2xl border border-slate-800 bg-slate-950/95 p-3 shadow-2xl shadow-black">
-                    <div class="flex items-center justify-between px-2 pb-2">
-                      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Visible columns</p>
-                      <div class="flex items-center gap-2">
-                        <button id="cols-all" type="button" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">All</button>
-                        <button id="cols-none" type="button" class="rounded-full px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-800/70">None</button>
-                      </div>
-                    </div>
-                    <div id="columns-list" class="max-h-56 overflow-y-auto px-2 pb-2"></div>
-                    <p class="px-2 pt-1 text-[11px] text-slate-500">Toggle which fields are visible in the grid.</p>
-                  </div>
-                </div>
-
-                <button id="refresh-button" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow shadow-blue-600/30 transition hover:-translate-y-0.5" type="button">
-                  <i data-lucide="refresh-ccw" class="h-4 w-4"></i> Refresh
-                </button>
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p id="pagination-summary" class="text-sm text-slate-300">Showing 0-0 of 0</p>
-              <div class="flex items-center gap-2">
-                <button id="prev-page" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  <i data-lucide="chevron-left" class="h-4 w-4"></i> Prev
-                </button>
-                <span id="page-indicator" class="text-sm font-semibold text-slate-100">1 / 1</span>
-                <button id="next-page" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
-                  Next <i data-lucide="chevron-right" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="table-window">
-              <div id="table-scroll" class="w-full border border-slate-800 bg-slate-950/25">
-                <table id="titles-table" class="fixed-layout divide-y divide-slate-800 compact-text">
-                  <thead id="table-head" class="sticky-head bg-slate-950/60 text-slate-300"></thead>
-                  <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
-                </table>
-              </div>
-            </div>
-
-          </div>
-        </section>
-      </section>
-    </div>
-  </main>
-
-  <script type="module">
+<script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
 
     const READ_TABLE = 'Titles';
-    const supabaseClient =
-      supabaseClientModule ||
-      (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
+    
+    // Initialize Supabase
+    const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
         ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
             auth: { persistSession: true, autoRefreshToken: true },
           })
@@ -238,57 +35,109 @@
       columnOrder: [],
       columnVisibility: {},
       pagination: { page: 1, pageSize: 20 },
+      sort: { column: null, direction: 'none' }, // 'asc', 'desc', 'none'
       search: '',
       tableName: READ_TABLE,
+      isDragging: false,
+      dragSourceIndex: null
     };
 
-    const STORAGE_KEY = 'techloc_titles_table_prefs_v1';
-
+    // --- UTILS ---
     const labelize = (key = '') => key
       .replace(/_/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
       .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    const savePrefs = () => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    // --- SAVING & LOADING (Cloud + Local) ---
+    
+    // Save to LocalStorage (Fast) AND Supabase (Persistent)
+    const savePrefs = async () => {
+      const config = {
         columnOrder: state.columnOrder,
         columnVisibility: state.columnVisibility,
         pagination: state.pagination,
-      }));
-    };
+        sort: state.sort
+      };
 
-    const loadPrefs = () => {
-      const raw = localStorage.getItem(STORAGE_KEY) || '';
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed.columnOrder)) state.columnOrder = parsed.columnOrder;
-        if (parsed.columnVisibility) state.columnVisibility = parsed.columnVisibility;
-        if (parsed.pagination) state.pagination = { ...state.pagination, ...parsed.pagination };
-      } catch {
-        /* ignore */
+      // 1. Save Local
+      localStorage.setItem(`techloc_${READ_TABLE}_prefs`, JSON.stringify(config));
+
+      // 2. Save Cloud (if logged in)
+      if (supabaseClient) {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (user) {
+          await supabaseClient
+            .from('user_table_configs')
+            .upsert({ 
+              user_id: user.id, 
+              table_name: READ_TABLE, 
+              config: config,
+              updated_at: new Date()
+            });
+        }
       }
     };
 
+    const loadPrefs = async () => {
+      let config = null;
+
+      // 1. Try Cloud First
+      if (supabaseClient) {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (user) {
+          const { data } = await supabaseClient
+            .from('user_table_configs')
+            .select('config')
+            .eq('user_id', user.id)
+            .eq('table_name', READ_TABLE)
+            .single();
+          if (data) config = data.config;
+        }
+      }
+
+      // 2. Fallback to LocalStorage
+      if (!config) {
+        const raw = localStorage.getItem(`techloc_${READ_TABLE}_prefs`);
+        if (raw) {
+          try { config = JSON.parse(raw); } catch (e) {}
+        }
+      }
+
+      // 3. Apply Config
+      if (config) {
+        if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
+        if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
+        if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
+        if (config.sort) state.sort = config.sort;
+      }
+    };
+
+    // --- COLUMN LOGIC ---
     const applyPrefsToColumns = () => {
       const known = new Set(state.columns.map((c) => c.id));
+      // Initialize order if empty
       if (!state.columnOrder.length) state.columnOrder = state.columns.map((c) => c.id);
+      // Clean out dead columns
       state.columnOrder = state.columnOrder.filter((c) => known.has(c));
+      // Ensure new columns are added
       state.columns.forEach((c) => {
+        if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
         if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
       });
     };
 
     const inferColumns = (rows = []) => {
-      const keys = new Set();
-      rows.forEach((row) => {
-        Object.keys(row || {}).forEach((key) => keys.add(key));
-      });
-      const columns = Array.from(keys).sort().map((key) => ({
-        id: key,
-        label: labelize(key),
-      }));
-      state.columns = columns;
+      // Logic: If data exists, use keys. If empty, define defaults so table isn't blank.
+      if (rows.length > 0) {
+        const keys = new Set();
+        rows.forEach((row) => Object.keys(row || {}).forEach((key) => keys.add(key)));
+        state.columns = Array.from(keys).sort().map((key) => ({ id: key, label: labelize(key) }));
+      } else {
+        // Fallback columns so headers appear even when empty
+        const defaults = ['id', 'VIN', 'Updated', 'vin_combined', 'created_at'];
+        state.columns = defaults.map(id => ({ id, label: labelize(id) }));
+      }
       applyPrefsToColumns();
     };
 
@@ -297,12 +146,175 @@
       .filter(Boolean)
       .filter((col) => state.columnVisibility[col.id] !== false);
 
+    // --- DRAG AND DROP HANDLERS ---
+    const handleDragStart = (e, colId) => {
+      state.isDragging = true;
+      state.dragSourceIndex = state.columnOrder.indexOf(colId);
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.classList.add('opacity-50');
+    };
+
+    const handleDragOver = (e) => {
+      if (!state.isDragging) return;
+      e.preventDefault(); // Necessary to allow dropping
+      e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = (e, targetColId) => {
+      e.stopPropagation();
+      e.target.closest('th').classList.remove('opacity-50');
+      state.isDragging = false;
+
+      const sourceIdx = state.dragSourceIndex;
+      const targetIdx = state.columnOrder.indexOf(targetColId);
+
+      if (sourceIdx !== targetIdx && sourceIdx > -1 && targetIdx > -1) {
+        // Remove from old spot
+        const [movedCol] = state.columnOrder.splice(sourceIdx, 1);
+        // Insert at new spot
+        state.columnOrder.splice(targetIdx, 0, movedCol);
+        
+        savePrefs();
+        renderTable();
+      }
+    };
+
+    // --- SORT LOGIC ---
+    const handleSort = (colId) => {
+      // Cycle: None -> Asc -> Desc -> None
+      if (state.sort.column !== colId) {
+        state.sort = { column: colId, direction: 'asc' };
+      } else if (state.sort.direction === 'asc') {
+        state.sort = { column: colId, direction: 'desc' };
+      } else {
+        state.sort = { column: null, direction: 'none' };
+      }
+      savePrefs();
+      renderTable();
+    };
+
+    // --- RENDERING ---
+    const renderTable = () => {
+      const visibleColumns = getVisibleColumns();
+      
+      // 1. Filter
+      let processedRows = state.rows;
+      const term = state.search.trim().toLowerCase();
+      if (term) {
+        processedRows = processedRows.filter((row) => 
+          Object.values(row || {}).some((val) => String(val ?? '').toLowerCase().includes(term))
+        );
+      }
+
+      // 2. Sort
+      if (state.sort.column && state.sort.direction !== 'none') {
+        const { column, direction } = state.sort;
+        processedRows.sort((a, b) => {
+          const valA = a[column] ?? '';
+          const valB = b[column] ?? '';
+          if (valA < valB) return direction === 'asc' ? -1 : 1;
+          if (valA > valB) return direction === 'asc' ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // 3. Paginate
+      const total = processedRows.length;
+      const { page, pageSize } = state.pagination;
+      const maxPage = Math.max(1, Math.ceil(total / pageSize));
+      state.pagination.page = Math.min(page, maxPage); // correction
+      
+      const startIdx = (state.pagination.page - 1) * pageSize;
+      const pageRows = processedRows.slice(startIdx, startIdx + pageSize);
+
+      // 4. Render Headers
+      els.thead.innerHTML = '';
+      const headRow = document.createElement('tr');
+      
+      visibleColumns.forEach((col) => {
+        const th = document.createElement('th');
+        th.className = 'compact-th text-left text-xs font-semibold uppercase tracking-wide text-slate-300 cursor-pointer select-none group hover:text-white transition-colors relative';
+        
+        // Drag Attributes
+        th.draggable = true;
+        th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
+        th.addEventListener('dragover', handleDragOver);
+        th.addEventListener('drop', (e) => handleDrop(e, col.id));
+        
+        // Sort Click
+        th.addEventListener('click', () => handleSort(col.id));
+
+        // Content
+        const container = document.createElement('div');
+        container.className = 'flex items-center gap-2';
+        
+        // Label
+        const span = document.createElement('span');
+        span.textContent = col.label;
+        
+        // Sort Icon logic
+        let iconName = 'chevrons-up-down'; // default neutral
+        let iconClass = 'h-3 w-3 text-slate-600 opacity-0 group-hover:opacity-100'; // hidden by default
+
+        if (state.sort.column === col.id) {
+           iconClass = 'h-3 w-3 text-blue-400 opacity-100';
+           if (state.sort.direction === 'asc') iconName = 'chevron-up';
+           if (state.sort.direction === 'desc') iconName = 'chevron-down';
+        }
+
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', iconName);
+        icon.className = iconClass;
+
+        container.appendChild(span);
+        container.appendChild(icon);
+        th.appendChild(container);
+        headRow.appendChild(th);
+      });
+      els.thead.appendChild(headRow);
+
+      // 5. Render Body
+      els.tbody.innerHTML = '';
+      if (pageRows.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = visibleColumns.length;
+        td.className = 'p-8 text-center text-slate-500 text-sm';
+        td.textContent = 'No records found.';
+        tr.appendChild(td);
+        els.tbody.appendChild(tr);
+      } else {
+        pageRows.forEach((row) => {
+          const tr = document.createElement('tr');
+          visibleColumns.forEach((col) => {
+            const td = document.createElement('td');
+            td.className = 'compact-td text-sm text-slate-100 border-t border-slate-800/50';
+            const value = row[col.id];
+            td.textContent = value === null || value === undefined || String(value).trim() === '' ? '—' : String(value);
+            tr.appendChild(td);
+          });
+          els.tbody.appendChild(tr);
+        });
+      }
+
+      // 6. Update Controls
+      const start = total === 0 ? 0 : startIdx + 1;
+      const end = Math.min(startIdx + pageRows.length, total);
+      els.paginationSummary.textContent = `Showing ${start}-${end} of ${total}`;
+      els.pageIndicator.textContent = `${state.pagination.page} / ${maxPage}`;
+      els.prevPage.disabled = state.pagination.page <= 1;
+      els.nextPage.disabled = state.pagination.page >= maxPage;
+
+      lucide.createIcons();
+    };
+
+    // --- POPUPS & EVENTS ---
     const updateColumnsList = () => {
       els.columnsList.innerHTML = '';
       state.columns.forEach((col, idx) => {
-        const id = `col-${idx}`;
+        const id = `col-toggle-${idx}`;
         const label = document.createElement('label');
-        label.className = 'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:border-blue-500/60';
+        label.className = 'flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 hover:border-blue-500/60 cursor-pointer';
 
         const left = document.createElement('div');
         left.className = 'flex items-center gap-2 min-w-0';
@@ -310,9 +322,9 @@
 
         const input = document.createElement('input');
         input.type = 'checkbox';
-        input.className = 'h-4 w-4 accent-blue-600';
-        input.id = id;
+        input.className = 'h-4 w-4 accent-blue-600 rounded';
         input.checked = state.columnVisibility[col.id] !== false;
+        
         input.addEventListener('change', () => {
           state.columnVisibility[col.id] = input.checked;
           savePrefs();
@@ -325,98 +337,24 @@
       });
     };
 
-    const skeleton = {
-      show: () => {
-        els.status.textContent = 'Loading data…';
-        els.paginationSummary.textContent = 'Loading…';
-        els.pageIndicator.textContent = '—';
-        els.prevPage.disabled = true;
-        els.nextPage.disabled = true;
-        if (els.refresh) els.refresh.disabled = true;
-
-        els.tbody.innerHTML = '';
-        const visible = getVisibleColumns();
-        for (let i = 0; i < 6; i += 1) {
-          const tr = document.createElement('tr');
-          visible.forEach(() => {
-            const td = document.createElement('td');
-            td.className = 'compact-td';
-            td.innerHTML = '<div class="h-4 w-full rounded bg-slate-800/70 animate-pulse"></div>';
-            tr.appendChild(td);
-          });
-          els.tbody.appendChild(tr);
-        }
-      },
-      hide: () => {
-        els.prevPage.disabled = false;
-        els.nextPage.disabled = false;
-        if (els.refresh) els.refresh.disabled = false;
+    const loadData = async () => {
+      if (!supabaseClient) return;
+      els.status.textContent = 'Loading...';
+      
+      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+      
+      if (error) {
+        console.error('Error:', error);
+        els.status.textContent = 'Error';
+        return;
       }
-    };
-
-    const applyFilters = () => {
-      const term = state.search.trim().toLowerCase();
-      if (!term) return state.rows;
-      return state.rows.filter((row) => Object.values(row || {}).some((value) => String(value ?? '').toLowerCase().includes(term)));
-    };
-
-    const renderTable = () => {
-      const visibleColumns = getVisibleColumns();
-      const filtered = applyFilters();
-      const total = filtered.length;
-      const { page, pageSize } = state.pagination;
-      const maxPage = Math.max(1, Math.ceil(total / pageSize));
-      state.pagination.page = Math.min(page, maxPage);
-
-      const startIdx = (state.pagination.page - 1) * pageSize;
-      const pageRows = filtered.slice(startIdx, startIdx + pageSize);
-
-      els.thead.innerHTML = '';
-      const headRow = document.createElement('tr');
-      visibleColumns.forEach((col) => {
-        const th = document.createElement('th');
-        th.className = 'compact-th text-left text-xs font-semibold uppercase tracking-wide text-slate-300';
-        th.textContent = col.label;
-        headRow.appendChild(th);
-      });
-      els.thead.appendChild(headRow);
-
-      els.tbody.innerHTML = '';
-      pageRows.forEach((row) => {
-        const tr = document.createElement('tr');
-        visibleColumns.forEach((col) => {
-          const td = document.createElement('td');
-          td.className = 'compact-td text-sm text-slate-100';
-          const value = row[col.id];
-          td.textContent = value === null || value === undefined || String(value).trim() === '' ? '—' : String(value);
-          tr.appendChild(td);
-        });
-        els.tbody.appendChild(tr);
-      });
-
-      const start = total === 0 ? 0 : startIdx + 1;
-      const end = Math.min(startIdx + pageRows.length, total);
-      els.paginationSummary.textContent = `Showing ${start}-${end} of ${total}`;
-      els.pageIndicator.textContent = `${state.pagination.page} / ${maxPage}`;
-      els.prevPage.disabled = state.pagination.page <= 1;
-      els.nextPage.disabled = state.pagination.page >= maxPage;
-      if (supabaseClient) {
-        els.status.textContent = total
-          ? `Connected to ${state.tableName} • ${total} records`
-          : `Connected to ${state.tableName} • No data available`;
-      }
-    };
-
-    const toggleColumnsPopover = () => {
-      els.columnsPopover.classList.toggle('hidden');
-    };
-
-    const closeColumnsPopover = (event) => {
-      if (!els.columnsPopover) return;
-      if (els.columnsPopover.classList.contains('hidden')) return;
-      if (!els.columnsPopover.contains(event.target) && !els.columnsBtn.contains(event.target)) {
-        els.columnsPopover.classList.add('hidden');
-      }
+      
+      state.rows = data || [];
+      els.status.textContent = `${state.rows.length} records`;
+      
+      inferColumns(state.rows);
+      updateColumnsList();
+      renderTable();
     };
 
     const attachEvents = () => {
@@ -424,86 +362,36 @@
         state.search = e.target.value;
         state.pagination.page = 1;
         renderTable();
-        savePrefs();
       });
-
       els.prevPage?.addEventListener('click', () => {
-        state.pagination.page = Math.max(1, state.pagination.page - 1);
+        state.pagination.page--;
         renderTable();
         savePrefs();
       });
-
       els.nextPage?.addEventListener('click', () => {
-        state.pagination.page += 1;
+        state.pagination.page++;
         renderTable();
         savePrefs();
       });
-
       els.refresh?.addEventListener('click', loadData);
-
-      els.columnsBtn?.addEventListener('click', toggleColumnsPopover);
-      document.addEventListener('click', closeColumnsPopover);
-
-      els.colsAll?.addEventListener('click', () => {
-        state.columns.forEach((c) => { state.columnVisibility[c.id] = true; });
-        updateColumnsList();
-        renderTable();
-        savePrefs();
+      
+      els.columnsBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        els.columnsPopover.classList.toggle('hidden');
       });
-
-      els.colsNone?.addEventListener('click', () => {
-        state.columns.forEach((c) => { state.columnVisibility[c.id] = false; });
-        updateColumnsList();
-        renderTable();
-        savePrefs();
-      });
-    };
-
-    const loadData = async () => {
-      if (!supabaseClient) {
-        console.error('Supabase client not initialized. Check SUPABASE_URL and SUPABASE_KEY.');
-        els.status.textContent = 'Supabase client unavailable';
-        return;
-      }
-
-      skeleton.show();
-      let activeTable = READ_TABLE;
-      let { data, error } = await supabaseClient.from(activeTable).select('*');
-
-      if (error && error.code === '42P01') {
-        const fallback = READ_TABLE.toLowerCase();
-        const retry = await supabaseClient.from(fallback).select('*');
-        if (!retry.error) {
-          activeTable = fallback;
-          data = retry.data;
-          error = null;
+      document.addEventListener('click', (e) => {
+        if (!els.columnsPopover.contains(e.target) && e.target !== els.columnsBtn) {
+          els.columnsPopover.classList.add('hidden');
         }
-      }
-
-      if (error) {
-        console.error('Error fetching Titles', error);
-        els.status.textContent = 'Failed to load data';
-        skeleton.hide();
-        return;
-      }
-
-      state.tableName = activeTable;
-      state.rows = data || [];
-      inferColumns(state.rows);
-      updateColumnsList();
-      renderTable();
-      skeleton.hide();
+      });
     };
 
-    const init = () => {
+    const init = async () => {
       createConstellationBackground(document.getElementById('constellation-canvas'));
-      loadPrefs();
+      await loadPrefs();
       attachEvents();
       loadData();
-      lucide.createIcons();
     };
 
     init();
   </script>
-</body>
-</html>
