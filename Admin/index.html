@@ -463,7 +463,8 @@
         }
         const cleaned = cleanValue(value);
         if (cleaned === null) return;
-        mapped[originalHeader] = cleaned;
+        const targetHeader = normalizedKey === 'stock no' ? 'TAM Legacy Stock #' : originalHeader;
+        mapped[targetHeader] = cleaned;
       });
       return mapped;
     };
@@ -787,7 +788,16 @@
         return;
       }
 
-      setProgress(0, 'Preparing invoice rows...');
+      setProgress(0, 'Clearing previous invoice data...');
+
+      const { error: truncateError } = await supabaseClient.rpc('truncate_ns_invoices');
+      if (truncateError) {
+        console.error('Supabase truncate error:', truncateError);
+        showToast('Cannot clear previous NS invoices: ' + truncateError.message, 'error');
+        return;
+      }
+
+      setProgress(5, 'Preparing invoice rows...');
 
       const uniqueInvoices = new Map();
       let skippedInvalid = 0;
@@ -805,7 +815,7 @@
         const mapped = mapInvoiceRow(normalizedRow, columnMap);
         if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
 
-        const stockNumber = normalizedRow['stock no'] || normalizedRow['stock number'];
+        const stockNumber = normalizedRow['stock no'] || normalizedRow['stock number'] || normalizedRow['tam legacy stock #'];
         const uniqueKey = stockNumber ? `${documentNumber}_${stockNumber}` : `${documentNumber}`;
         if (uniqueInvoices.has(uniqueKey)) {
           duplicatesRemoved++;
@@ -837,7 +847,7 @@
 
         const { data, error } = await supabaseClient
           .from(NS_INVOICES_TABLE)
-          .upsert(batch, { onConflict: conflictColumn, ignoreDuplicates: false })
+          .upsert(batch, { onConflict: conflictColumn, ignoreDuplicates: true })
           .select();
 
         if (error) {
