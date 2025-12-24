@@ -228,7 +228,7 @@
                     <span>Upload &amp; upsert</span>
                     </button>
                 </form>
-                <p class="text-xs leading-relaxed text-slate-400">Requires: VIN, Stock No & Sales Channel containing 'Finance'.</p>
+                <p class="text-xs leading-relaxed text-slate-400">Requires: VIN, Current Stock No. & Sales Channel containing 'Finance'.</p>
               </div>
             </section>
 
@@ -656,7 +656,7 @@
       showToast(summary, 'success');
     };
 
-    // --- UPLOAD DEALS (MODIFICADO CON FILTRO FINANCE) ---
+    // --- UPLOAD DEALS (MODIFICADO CON FILTRO FINANCE Y CURRENT STOCK NO.) ---
     const uploadDealsRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
@@ -667,8 +667,9 @@
         .map(mapDealsRow) // Values cleaned, keys preserved
         .filter((row) => {
           // 1. Check Primary Keys
+          // Validar "Current Stock No." específicamente como pidió el usuario
           const hasVin = row['VIN'] || row['vin']; 
-          const hasStock = row['Current Stock No.'] || row['current stock no.'];
+          const hasStock = row['Current Stock No.']; 
 
           // 2. CHECK SALES CHANNEL FOR "FINANCE"
           // We look for 'Sales Channel' key (case insensitive check for key)
@@ -682,7 +683,7 @@
         });
 
       if (!mapped.length) {
-        showToast('No valid FINANCE rows detected. Check "Sales Channel" column.', 'error');
+        showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
         return;
       }
 
