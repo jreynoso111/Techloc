@@ -1286,7 +1286,18 @@
         const vin = row?.['VIN'];
         if (!vin) return;
         if (!vinSet.has(String(vin).trim())) return;
-        validRows.push(row);
+
+        const normalizedRow = { ...row };
+        if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Serial #')) {
+          normalizedRow['Serial'] = normalizedRow['Serial #'];
+          delete normalizedRow['Serial #'];
+        }
+        if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Account #')) {
+          normalizedRow['Account'] = normalizedRow['Account #'];
+          delete normalizedRow['Account #'];
+        }
+
+        validRows.push(normalizedRow);
       });
 
       if (!validRows.length) {
@@ -1298,7 +1309,7 @@
       setStatus(`Uploading ${validRows.length} rows...`);
       const { error } = await supabaseClient
         .from('PT-LastPing')
-        .upsert(validRows, { onConflict: 'VIN,Serial #', ignoreDuplicates: false });
+        .upsert(validRows, { onConflict: 'VIN,Serial', ignoreDuplicates: false });
 
       if (error) {
         console.error('Supabase upsert error:', error);
