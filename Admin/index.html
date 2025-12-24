@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
@@ -58,23 +59,38 @@
   </div>
 </header>
 
-  <nav class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3 lg:px-10">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Admin navigation</span>
-      <div class="flex flex-wrap items-center gap-1">
-        <a href="./index.html" class="rounded-lg border border-blue-500 bg-blue-600/90 px-4 py-2 text-xs font-semibold text-white shadow shadow-blue-500/30 transition">Dashboard</a>
-        <a href="./profiles.html" data-admin-only class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Profiles</a>
-        <a href="./services.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Services</a>
-        <a href="./titles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Titles</a>
-        <a href="./vehicles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
-        <a href="./analytics.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Analytics</a>
-      </div>
-    </div>
-  </nav>
-
     <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
-    <main class="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10 space-y-8">
+    <main class="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10">
+    <div class="flex flex-col gap-8 lg:flex-row">
+      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
+          <h2 class="text-lg font-black text-white">Admin workspace</h2>
+        </div>
+        <nav class="flex flex-col gap-2 text-sm font-semibold">
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
+            Dashboard <span class="text-xs font-medium text-blue-100">Overview</span>
+          </a>
+          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
+          </a>
+          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
+          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Titles <span class="text-xs font-medium text-slate-400">Records</span>
+          </a>
+          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
+          </a>
+          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
+          </a>
+        </nav>
+      </aside>
+
+      <section class="flex-1 space-y-8">
         <section class="space-y-6 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
           <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div class="space-y-3">
@@ -172,7 +188,7 @@
                   <h3 class="text-lg font-bold text-white">Import Vehicles CSV</h3>
                   <p class="text-sm text-slate-400">Upsert into vehicles table using ShortVIN.</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
               </div>
               
               <div class="mt-auto space-y-4">
@@ -197,7 +213,7 @@
                   <h3 class="text-lg font-bold text-white">Import Deals CSV</h3>
                   <p class="text-sm text-slate-400">Upsert into DealsJP1 (Finance Only).</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Filter: Finance</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Filter: Finance</span>
               </div>
 
               <div class="mt-auto space-y-4">
@@ -217,6 +233,7 @@
 
         </div>
       </section>
+    </div>
   </main>
 
   <template id="dataset-card-template">
@@ -252,6 +269,26 @@
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
     const DEALS_TABLE = 'DealsJP1';
+    
+    // --- SOLUCIÓN FINAL: DEFINICIÓN EXPLÍCITA DE COLUMNAS ---
+    // En lugar de preguntar a la base de datos (lo que falla por permisos),
+    // validamos contra esta lista "Maestra" que sabemos que es correcta.
+    const KNOWN_DEALS_COLUMNS = [
+      'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model',
+      'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #',
+      'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By',
+      'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract',
+      'Cash Down', 'Total due on Deal', 'Amount', 'Reg. Contract Payment', 'Payment Schedule',
+      'Total Payments in Months', 'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth',
+      'TAM Legacy Created Date', 'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #',
+      'Trade In VIN', 'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date',
+      'Bucket', 'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount', 'Total Contract Scheduled Amount',
+      'Inventory Valuation Value', 'Sales Channel', 'Partner Name', 'Remaining Scheduled Payments To Invoice',
+      'Deposit', 'PassTime Serial No', 'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode',
+      'Secondary Payment Mode', 'Plate Number', 'Number OF Schedule Remaining_1', 'Mobile Phone', 'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No',
+      'Plate Number_1', 'Current Title Number', 'Current Title Subsidiary', 'Current Title Physical Location', 'Title In Date', 'Title Out Date', 'Financing Company', 'Broker',
+      'Return Type', 'Actual System Return Date', 'Returned By'
+    ];
 
     const DATASETS = [
       {
@@ -308,42 +345,6 @@
       const stringValue = typeof value === 'string' ? value.trim() : value;
       if (`${stringValue}`.trim() === '') return null;
       return stringValue;
-    };
-
-    const tableColumnCache = new Map();
-
-    const fetchTableColumns = async (tableName) => {
-      if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
-      if (!supabaseClient) return [];
-
-      try {
-        const { data, error } = await supabaseClient
-          .from('information_schema.columns')
-          .select('column_name')
-          .ilike('table_name', tableName);
-
-        if (error) throw error;
-
-        let columns = (data || []).map((row) => row.column_name);
-
-        if (!columns.length) {
-          const { data: sampleRows, error: sampleError } = await supabaseClient
-            .from(tableName)
-            .select('*')
-            .limit(1);
-
-          if (!sampleError && sampleRows?.length) {
-            columns = Object.keys(sampleRows[0]);
-          }
-        }
-
-        tableColumnCache.set(tableName, columns);
-        return columns;
-      } catch (err) {
-        console.error(`Failed to fetch columns for ${tableName}:`, err);
-        tableColumnCache.set(tableName, []);
-        return [];
-      }
     };
 
     const buildColumnMap = (columns = []) => {
@@ -598,29 +599,36 @@
       showToast(summary, 'success');
     };
 
-    // --- UPLOAD DEALS (MODIFICADO CON FILTRO FINANCE Y CURRENT STOCK NO.) ---
+    // --- UPLOAD DEALS (CON VALIDACIÓN LOCAL) ---
     const uploadDealsRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
       const submitBtn = document.getElementById('deals-upload-button');
-      const tableColumns = await fetchTableColumns(DEALS_TABLE);
-      const columnMap = buildColumnMap(tableColumns);
+      
+      // 1. Usar la lista LOCAL (Known Columns) en lugar de consultar la DB
+      // Esto evita el error de permisos RLS
+      const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
+      
       const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
       if (!conflictColumn) {
-        showToast('La tabla de Supabase no tiene la columna "Current Stock No." necesaria para el upsert.', 'error');
+        // Esto solo pasaría si quitas la columna de KNOWN_DEALS_COLUMNS
+        showToast('Error de configuración: "Current Stock No." no está en la lista de columnas conocidas.', 'error');
         return;
       }
 
       let skippedInvalid = 0;
       const filteredRows = rows.reduce((acc, rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
+        
+        // --- VALIDACIONES DE NEGOCIO ---
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
         const stockNumber = normalizedRow['current stock no.'];
+        const vin = normalizedRow['vin'];
 
-        if (!isFinance || !stockNumber) {
+        if (!isFinance || !stockNumber || !vin) {
           skippedInvalid += 1;
           return acc;
         }
@@ -633,17 +641,12 @@
           mapped[columnName] = cleanedValue;
         });
 
-        if (!mapped[conflictColumn]) {
-          skippedInvalid += 1;
-          return acc;
-        }
-
         acc.push(mapped);
         return acc;
       }, []);
 
       if (!filteredRows.length) {
-        showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
+        showToast('No valid FINANCE rows detected.\nCheck "Current Stock No.", "VIN" and "Sales Channel".', 'error');
         return;
       }
 
@@ -659,9 +662,11 @@
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
 
+        // --- UPSERT ---
+        // Usamos la combinación de columnas que definiste: VIN y Current Stock No.
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
-          .upsert(batch, { onConflict: conflictColumn, ignoreDuplicates: false })
+          .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false })
           .select();
 
         if (error) {
@@ -724,7 +729,7 @@
           header: true,
           skipEmptyLines: true,
           transformHeader: (h) => h.trim(),
-          worker: false, // WORKER DISABLED TO FIX HANGING
+          worker: false, // WORKER DISABLED
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
@@ -789,7 +794,7 @@
           header: true,
           skipEmptyLines: true,
           transformHeader: (h) => h.trim(),
-          worker: false, // WORKER DISABLED TO FIX HANGING
+          worker: false, // WORKER DISABLED
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
