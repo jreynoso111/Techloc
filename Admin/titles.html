@@ -815,6 +815,7 @@
             savePrefs(); renderTable();
         };
 
+        let filterDebounce;
         const handleMenuAction = (action) => {
             if (action === 'sort-asc') {
                 state.sort = { column: col.id, direction: 'asc' };
@@ -829,6 +830,10 @@
             else if (action === 'clear-filter') { clearFilter(); }
         };
 
+        filterInput.addEventListener('input', () => {
+            clearTimeout(filterDebounce);
+            filterDebounce = setTimeout(applyFilter, 200);
+        });
         filterInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { applyFilter(); closeColumnMenus(); }
             if (e.key === 'Escape') { closeColumnMenus(); }
