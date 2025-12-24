@@ -176,7 +176,7 @@
             </div>
             <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
           </div>
-          <div id="datasets" class="grid gap-4 md:grid-cols-2"></div>
+          <div id="datasets" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
           <canvas id="fleet-chart" class="mt-6 max-h-64 w-full"></canvas>
         </section>
 
@@ -269,13 +269,13 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
-    // --- MAPPING: Frontend Keys to Actual Supabase Tables ---
+    // --- AGREGADA LA TABLA DEALS A LA LISTA DE VISUALIZACIÓN ---
     const DATASETS = [
       {
         table: 'Services',
         scope: 'Partners',
         title: 'Service Providers',
-        description: 'Unified services directory filtered by category values (Towing, Tires Services, dealer/auction, Repair Shop, Locksmiths, inspector, GPS Technician, Dispatcher).',
+        description: 'Unified services directory filtered by category values.',
         displayName: 'Services'
       },
       {
@@ -284,6 +284,14 @@
         title: 'Vehicles',
         description: 'Live vehicle and asset records.',
         displayName: 'Vehicles'
+      },
+      // --- NUEVA TARJETA PARA DEALS ---
+      {
+        table: 'DealsJP1',
+        scope: 'Sales',
+        title: 'Active Deals',
+        description: 'Imported deals data (VIN + Stock No).',
+        displayName: 'Deals'
       }
     ];
 
@@ -373,24 +381,20 @@
       return pickAllowed(raw);
     };
 
-    // --- CORRECCIÓN CLAVE: NOMBRES EXACTOS DE SUPABASE ---
+    // --- CORRECCIÓN FINAL: NOMBRE EXACTO 'Current Stock No.' ---
     const mapDealsRow = (row) => {
       const r = normalizeDealsRow(row);
       const cleaned = {};
 
-      // Buscamos los valores en el CSV (usando nombres flexibles)
       const vin = cleanValue(getCsv(r, 'vin', 'vehicle vin', 'vehicle_vin'));
       const stockNo = cleanValue(getCsv(r, 'current stock no', 'current stock no.', 'stock no', 'stock number'));
       const status = cleanValue(getCsv(r, 'deal status', 'status'));
       const customer = cleanValue(getCsv(r, 'customer', 'customer id'));
 
-      // ASIGNAMOS A LA BASE DE DATOS (NOMBRES EXACTOS)
-      // Si la DB tiene "Current Stock No." (con mayúsculas y punto), la clave JSON debe ser idéntica.
+      // USAMOS 'Current Stock No.' TAL CUAL LO PIDE SUPABASE (CON MAYÚSCULAS)
+      if (vin) cleaned['vin'] = vin; 
+      if (stockNo) cleaned['Current Stock No.'] = stockNo; 
       
-      if (vin) cleaned['vin'] = vin; // Asumimos 'vin' en minúsculas (lo estándar)
-      if (stockNo) cleaned['Current Stock No.'] = stockNo; // CORREGIDO: Exacto como en DB
-      
-      // Opcional: Si tienes más columnas, agrégalas aquí con su nombre EXACTO de DB:
       if (status) cleaned['deal status'] = status; 
       if (customer) cleaned['customer'] = customer;
 
@@ -690,7 +694,7 @@
       const mapped = rows
         .map(mapDealsRow)
         .filter((row) => {
-          // 'Current Stock No.' con mayúsculas por ser la clave corregida
+          // Usamos 'Current Stock No.' con mayúsculas
           const valid = !!(row.vin && row['Current Stock No.']);
           return valid;
         });
@@ -714,7 +718,7 @@
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
 
-        // CORRECCIÓN: el onConflict debe usar el nombre exacto de la DB
+        // CORRECCIÓN: el onConflict usa 'Current Stock No.'
         const { data, error } = await supabaseClient
           .from('DealsJP1')
           .upsert(batch, { onConflict: 'vin,Current Stock No.', ignoreDuplicates: false })
@@ -887,4 +891,22 @@
         const { card, stats } = await renderDatasetCard(dataset);
         container.appendChild(card);
         totalRows += stats.rows || 0;
-        if ((stats.rows
+        if ((stats.rows || 0) > 0 && !stats.restricted) activities.push(stats);
+      }
+
+      document.getElementById('dataset-count').textContent = DATASETS.length;
+      document.getElementById('records-count').textContent = totalRows.toLocaleString();
+
+      renderActivityLog(activities);
+      await renderFleetChart();
+      lucide.createIcons();
+    };
+
+    createConstellationBackground();
+    mount();
+    wireCsvUpload();
+    wireDealsUpload();
+  </script>
+</div>
+</body>
+</html>
