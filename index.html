@@ -1,442 +1,370 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Admin Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
-  <script type="module" src="../assets/scripts/authManager.js"></script>
-  <script type="module" src="../assets/scripts/admin-auth.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          colors: { slate: { 950: '#020617' } },
-        },
-      },
-    };
-  </script>
-  <link rel="stylesheet" href="../assets/visuals/theme.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc System | M&T Service Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          animation: {
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="assets/scripts/supabaseClient.js"></script>
+  <script type="module" src="assets/scripts/authManager.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="assets/scripts/datasets.js"></script>
+  <link rel="stylesheet" href="assets/visuals/theme.css" />
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50">
-  <div data-auth-loading class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950">
-    <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-3 shadow-xl shadow-slate-900/60">
-      <span class="h-3 w-3 animate-pulse rounded-full bg-blue-400"></span>
-      <p class="text-sm font-semibold text-slate-200">Validating secure session…</p>
-    </div>
-  </div>
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50 selection:bg-blue-500/30">
+    
+  <div class="pointer-events-none fixed inset-0 z-10 opacity-60 mix-blend-screen">
+    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
+  </div>
 
-  <div data-auth-protected class="hidden">
-<header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40">
-  <div class="flex items-center justify-between px-6 py-4 lg:px-10">
-    <a href="../index.html" class="flex items-center gap-3">
-      <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-        <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
-      </div>
-      <div>
-        <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
-        <h1 class="text-base font-black leading-tight text-white">Secure Operations</h1>
-      </div>
-    </a>
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="mx-auto relative max-w-6xl px-6 py-4 flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
 
-    <div class="flex flex-wrap items-center justify-end gap-3">
-      <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-        <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-        <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
-        <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
-      </nav>
-      <div class="flex items-center gap-2">
-        <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
-      </div>
-    </div>
-  </div>
-</header>
+      <div class="flex items-center justify-between gap-4 md:flex-none">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+          </div>
+          <div>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Network</p>
+            <h1 class="text-base font-black leading-tight text-white">Home</h1>
+          </div>
+        </a>
 
-    <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
+        <button id="mobile-menu-toggle" class="inline-flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 p-2 text-slate-200 transition hover:border-blue-500 hover:text-white md:hidden" aria-label="Toggle navigation" aria-expanded="false">
+          <i data-lucide="menu" class="h-5 w-5"></i>
+        </button>
+      </div>
 
-    <main class="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10">
-    <div class="flex flex-col gap-8 lg:flex-row">
-      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
-        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
-          <h2 class="text-lg font-black text-white">Admin workspace</h2>
-        </div>
-        <nav class="flex flex-col gap-2 text-sm font-semibold">
-          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
-            Dashboard <span class="text-xs font-medium text-blue-100">Overview</span>
-          </a>
-          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
-          </a>
-          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
-          </a>
-          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Titles <span class="text-xs font-medium text-slate-400">Records</span>
-          </a>
-          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
-          </a>
-          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
-            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
-          </a>
-        </nav>
-      </aside>
+      <div id="primary-nav" class="hidden flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 text-sm font-semibold text-slate-200 shadow-lg shadow-blue-900/20 md:mt-0 md:flex md:flex-1 md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+        <nav class="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:flex-1 md:gap-2">
+          <a id="nav-home" href="index.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Home</a>
+          <a id="nav-control-view" href="vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control View</a>
+          <a id="nav-services" href="services-request.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Service Requests</a>
+          <a
+            id="nav-dashboard"
+            href="Admin/index.html"
+            data-dashboard-link
+            aria-hidden="true"
+            tabindex="-1"
+            class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex"
+          >
+            Dashboard
+          </a>
+          <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About Us</a>
+          <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
+        </nav>
 
-      <section class="flex-1 space-y-8">
-        <section class="space-y-6 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
-          <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div class="space-y-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Dashboard</p>
-              <h1 class="text-3xl font-black text-white">Command center for field operations</h1>
-              <p class="text-sm leading-relaxed text-slate-300">Monitor providers, fleet assets, and live data from a compact console. Quickly access key modules or review table health before loading new sources.</p>
-              <div class="flex flex-wrap gap-2">
-                <a href="./services.html" class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-400">
-                  <i data-lucide="wrench" class="h-4 w-4"></i>
-                  Open services
-                </a>
-                <a href="./vehicles.html" class="inline-flex items-center gap-2 rounded-full border border-blue-600 bg-blue-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:-translate-y-0.5 hover:border-blue-400">
-                  <i data-lucide="car" class="h-4 w-4"></i>
-                  View vehicles
-                </a>
-                <a href="./analytics.html" class="inline-flex items-center gap-2 rounded-full border border-amber-600 bg-amber-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-amber-100 transition hover:-translate-y-0.5 hover:border-amber-400">
-                  <i data-lucide="activity" class="h-4 w-4"></i>
-                  Analytics panel
-                </a>
-              </div>
-            </div>
-            <div class="grid w-full max-w-md grid-cols-3 gap-3 rounded-2xl border border-blue-900/60 bg-blue-950/40 p-4 shadow-inner shadow-blue-900/40">
-              <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-                <p id="dataset-count" class="text-2xl font-black text-white">-</p>
-                <p class="text-[11px] uppercase tracking-wide text-slate-400">Tables</p>
-              </div>
-              <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-                <p id="records-count" class="text-2xl font-black text-amber-300">-</p>
-                <p class="text-[11px] uppercase tracking-wide text-slate-400">Live rows</p>
-              </div>
-              <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-                  <p id="uploaded-count" class="text-2xl font-black text-emerald-300">Active</p>
-                <p class="text-[11px] uppercase tracking-wide text-slate-400">Status</p>
-              </div>
-            </div>
-          </div>
+        <div class="flex flex-col gap-3 border-t border-slate-800 pt-3 md:flex-row md:items-center md:gap-3 md:border-0 md:pt-0 md:flex-none md:justify-end" data-admin-actions>
+          <a id="nav-login" href="login.html" class="rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+          <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+        </div>
+      </div>
 
-          <div class="grid gap-4 lg:grid-cols-[2fr_1fr]">
-            <div class="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Progress</p>
-                  <h3 class="text-lg font-bold text-white">Operational tracking</h3>
-                </div>
-                <span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Live data</span>
-              </div>
-              <div class="grid gap-3 md:grid-cols-3">
-                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-                  <p class="text-sm font-semibold text-slate-200">Active providers</p>
-                  <p class="text-xs text-slate-400">Synced directly from Supabase Services.</p>
-                </div>
-                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-                  <p class="text-sm font-semibold text-slate-200">Monitored fleet</p>
-                  <p class="text-xs text-slate-400">Real-time metrics for vehicles.</p>
-                </div>
-                <div class="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-                  <p class="text-sm font-semibold text-slate-200">Data integrity</p>
-                  <p class="text-xs text-slate-400">Analytics connected to tables and RPCs.</p>
-                </div>
-              </div>
-            </div>
-            <div class="space-y-3 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-                <div class="flex items-center justify-between">
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Activity</p>
-                <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                  <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span>
-                  Live
-                </div>
-              </div>
-              <ul id="activity-log" class="space-y-2" aria-live="polite">
-                <li class="text-slate-500 italic text-xs">Scanning tables...</li>
-              </ul>
-            </div>
-          </div>
-        </section>
+    </div>
+  </header>
 
-        <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Data room</p>
-              <h3 class="text-xl font-bold text-white">Supabase live tables</h3>
-              <p class="text-sm text-slate-400">Updated statistics for every connected dataset.</p>
-            </div>
-            <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
-          </div>
-          <div id="datasets" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
-          <canvas id="fleet-chart" class="mt-6 max-h-64 w-full"></canvas>
-        </section>
+  <main class="relative z-20 flex min-h-[calc(100vh-80px)] items-center justify-center px-6 py-12">
+    
+    <div class="w-full max-w-3xl">
+      
+      <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/40 p-8 text-center shadow-2xl shadow-blue-900/10 backdrop-blur-xl sm:p-14">
+        
+        <div class="absolute left-1/2 top-0 -z-10 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/20 blur-[100px]"></div>
 
-        <div class="grid gap-6 lg:grid-cols-2">
-            
-            <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
-                  <h3 class="text-lg font-bold text-white">Import Vehicles CSV</h3>
-                  <p class="text-sm text-slate-400">Upsert into vehicles table using ShortVIN.</p>
-                </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
-              </div>
-              
-              <div class="mt-auto space-y-4">
-                <form id="csv-upload-form" class="grid gap-3">
-                    <div class="space-y-2">
-                    <label for="csv-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
-                    <input id="csv-file" name="csv-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-blue-500 focus:outline-none" />
-                    </div>
-                    <button id="upload-button" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
-                    <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
-                    </button>
-                </form>
-                <p class="text-xs leading-relaxed text-slate-400">Required: ShortVIN. Updates Status, Loc, GPS, etc.</p>
-              </div>
-            </section>
+        <div class="mb-8 flex justify-center">
+            <div class="group relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-b from-slate-800 to-slate-950 border border-slate-700 shadow-2xl transition-transform duration-500 hover:scale-105">
+                <div class="absolute inset-0 rounded-3xl bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <span class="text-4xl font-black uppercase tracking-[0.2em] text-white drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">TL</span>
+            </div>
+        </div>
 
-            <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
-                  <h3 class="text-lg font-bold text-white">Import Deals CSV</h3>
-                  <p class="text-sm text-slate-400">Upsert into DealsJP1 (Finance Only).</p>
-                </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Filter: Finance</span>
-              </div>
+        <h2 class="mb-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-400">
+            Service Provided for <span class="text-white">M&T Equipment Funding</span>
+        </h2>
+        <h1 class="mb-6 text-4xl font-black tracking-tight text-white drop-shadow-lg sm:text-6xl">
+            TechLoc <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">System</span>
+        </h1>
+        
+        <p class="mx-auto mb-10 max-w-lg text-lg text-slate-400">
+            Secure gateway for fleet analytics, dispatch management, and nationwide technician coordination.
+        </p>
 
-              <div class="mt-auto space-y-4">
-                <form id="deals-upload-form" class="grid gap-3">
-                    <div class="space-y-2">
-                    <label for="deals-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
-                    <input id="deals-file" name="deals-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-emerald-500 focus:outline-none" />
-                    </div>
-                    <button id="deals-upload-button" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
-                    <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
-                    </button>
-                </form>
-                <p class="text-xs leading-relaxed text-slate-400">Requires: VIN, Current Stock No. & Sales Channel containing 'Finance'.</p>
-              </div>
-            </section>
+        <div class="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <a
+              href="Admin/index.html"
+              data-dashboard-link
+              aria-hidden="true"
+              tabindex="-1"
+              class="group relative hidden inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-500 hover:shadow-blue-500/40 hover:-translate-y-0.5"
+            >
+                <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+                <span>Access Dashboard</span>
+            </a>
+            <a href="vehicles.html" class="group inline-flex items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-800/50 px-8 py-3 text-sm font-bold text-slate-300 transition-all hover:bg-slate-800 hover:text-white hover:border-slate-600 hover:-translate-y-0.5">
+                <i data-lucide="map" class="h-4 w-4 text-emerald-400"></i>
+                <span>Live Map View</span>
+            </a>
+        </div>
 
-        </div>
-      </section>
-    </div>
-  </main>
+        <div class="border-t border-slate-800/60 pt-8">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Network Real-time Data</p>
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <p id="tech-count" class="text-xl font-bold text-white">-</p>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">Active Partners</p>
+                </div>
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <p id="available-count" class="text-xl font-bold text-emerald-400">-</p>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">Available Now</p>
+                </div>
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <p id="states-count" class="text-xl font-bold text-blue-400">-</p>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">States Active</p>
+                </div>
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <div class="flex items-center justify-center gap-1.5">
+                        <span id="avg-rating" class="text-xl font-bold text-amber-300">-</span>
+                    </div>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">SLA Rating</p>
+                </div>
+            </div>
+        </div>
 
-  <template id="dataset-card-template">
-    <div class="flex h-full flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/70 hover:border-slate-700 transition-colors">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-blue-200" data-dataset-scope></p>
-          <p class="text-lg font-bold text-white" data-dataset-title></p>
-          <p class="text-xs text-slate-400" data-dataset-description></p>
-        </div>
-        <span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300" data-dataset-status>Table</span>
-      </div>
-      <div class="grid grid-cols-2 gap-3 text-sm text-slate-200">
-        <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-          <p class="text-lg font-black" data-dataset-rows>--</p>
-          <p class="text-[11px] uppercase tracking-wide text-slate-500">Live Rows</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-          <p class="text-lg font-black text-emerald-200" data-dataset-columns>--</p>
-          <p class="text-[11px] uppercase tracking-wide text-slate-500">Columns</p>
-        </div>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
-        <p class="font-semibold text-white">Database Signal</p>
-        <p class="mt-1 leading-relaxed" data-dataset-signal>Fetching live stats...</p>
-      </div>
-    </div>
-  </template>
-   
-  <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
-    import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
-    import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
+      </div>
+      
+      <div class="mt-8 text-center space-y-2">
+        <p class="text-xs text-slate-600">
+          <span class="font-semibold text-slate-500">TechLoc System Platform</span> owned and operated by <a href="mailto:JReynoso111@gmail.com" class="hover:text-slate-400 transition-colors">JReynoso111@gmail.com</a>.
+        </p>
+        <p class="text-[10px] uppercase tracking-wide text-slate-700">
+          Exclusively licensed for use by M&T Equipment Funding
+        </p>
+      </div>
 
-    const DEALS_TABLE = 'DealsJP1';
-    
-    // --- LISTA MAESTRA DE COLUMNAS (Validación Local) ---
-    // Incluye "Current Stock No." explícitamente (con punto).
-    const KNOWN_DEALS_COLUMNS = [
-      'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model',
-      'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #',
-      'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By',
-      'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract',
-      'Cash Down', 'Total due on Deal', 'Amount', 'Reg. Contract Payment', 'Payment Schedule',
-      'Total Payments in Months', 'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth',
-      'TAM Legacy Created Date', 'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #',
-      'Trade In VIN', 'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date',
-      'Bucket', 'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount', 'Total Contract Scheduled Amount',
-      'Inventory Valuation Value', 'Sales Channel', 'Partner Name', 'Remaining Scheduled Payments To Invoice',
-      'Deposit', 'PassTime Serial No', 'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode',
-      'Secondary Payment Mode', 'Plate Number', 'Number OF Schedule Remaining_1', 'Mobile Phone', 
-      'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No', 'Plate Number_1', 'Current Title Number', 
-      'Current Title Subsidiary', 'Current Title Physical Location', 'Title In Date', 'Title Out Date', 
-      'Financing Company', 'Broker', 'Return Type', 'Actual System Return Date', 'Returned By'
-    ];
+    </div>
+  </main>
 
-    const DATASETS = [
-      {
-        table: 'Services',
-        scope: 'Partners',
-        title: 'Service Providers',
-        description: 'Unified services directory filtered by category values.',
-        displayName: 'Services'
-      },
-      {
-        table: 'vehicles',
-        scope: 'Fleet',
-        title: 'Vehicles',
-        description: 'Live vehicle and asset records.',
-        displayName: 'Vehicles'
-      },
-      {
-        table: DEALS_TABLE,
-        scope: 'Sales',
-        title: 'Active Deals',
-        description: 'Imported deals data (VIN + Stock No).',
-        displayName: 'Deals'
-      }
-    ];
+  <script type="module">
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
 
-    const ADMIN_ROLE = 'administrator';
-    const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
+    // --- 1. LÓGICA DE ESTADÍSTICAS (SUPABASE) ---
+    const animateValue = (id, start, end, duration) => {
+      const el = document.getElementById(id);
+      if (!el) return;
 
-    const toNumber = (value) => {
-      if (value === undefined || value === null) return null;
-      const cleaned = typeof value === 'string' ? value.replace(/,/g, '').trim() : value;
-      const num = Number(cleaned);
-      return Number.isFinite(num) ? num : null;
-    };
+      const decimalPlaces = Number.isInteger(end)
+        ? 0
+        : ((end.toString().split('.')[1] || '').length);
 
-    const cleanHeaderKey = (key) => {
-      return (key || '')
-        .toString()
-        .trim()                
-        .replace(/\s+/g, ' ')  
-        .toLowerCase();
-    };
+      const startTime = performance.now();
+      el.classList.add('animate-pulse');
 
-    const normalizeRow = (row = {}) =>
-      Object.entries(row).reduce((acc, [key, val]) => {
-        const normalizedKey = cleanHeaderKey(key);
-        if (!normalizedKey) return acc;
-        acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
-        return acc;
-      }, {});
+      const step = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const currentValue = start + (end - start) * progress;
 
-    const cleanValue = (value) => {
-      if (value === undefined || value === null) return null;
-      const stringValue = typeof value === 'string' ? value.trim() : value;
-      if (`${stringValue}`.trim() === '') return null;
-      return stringValue;
-    };
+        const formattedValue = decimalPlaces > 0
+          ? currentValue.toFixed(decimalPlaces)
+          : Math.round(currentValue);
 
-    // --- CORRECCIÓN CLAVE: Alias para "Current Stock No." ---
-    // Si la lista maestra tiene "Current Stock No.", mapeamos tanto la llave con punto 
-    // COMO la llave sin punto a ese nombre correcto.
-    const buildColumnMap = (columns = []) => {
-      const map = new Map();
-      columns.forEach((col) => {
-        const clean = cleanHeaderKey(col);
-        map.set(clean, col);
-        
-        // HACK: Si la columna es "Current Stock No." (con punto), agregamos un alias sin punto
-        // para que si el CSV trae "Current Stock No" (sin punto), se mapee correctamente.
-        if (clean === 'current stock no.') {
-            map.set('current stock no', col); 
-        }
-      });
-      return map;
-    };
+        el.textContent = formattedValue;
 
-    const pickAllowed = (obj) =>
-      Object.fromEntries(
-        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMNS.has(k) && v !== undefined)
-      );
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          el.textContent = Number.isInteger(end) ? end : end.toFixed(decimalPlaces);
+          setTimeout(() => el.classList.remove('animate-pulse'), 300);
+        }
+      };
 
-    const getCsv = (row, ...possibleHeaders) => {
-      for (const header of possibleHeaders) {
-        const searchKey = cleanHeaderKey(header);
-        const v = row[searchKey]; 
-        if (v !== undefined && v !== null && `${v}`.trim() !== '') return v;
-      }
-      return '';
-    };
+      requestAnimationFrame(step);
+    };
 
-    const mapVehicleRow = (row) => {
-      const r = normalizeRow(row);
-      const raw = {
-        'deal status': cleanValue(getCsv(r, 'deal status', 'deal_status', 'dealstatus')),
-        'customer id': cleanValue(getCsv(r, 'customer id', 'customer_id', 'customerid')),
-        'unit type': cleanValue(getCsv(r, 'unit type', 'unit_type', 'unittype')),
-        'model year': cleanValue(getCsv(r, 'model year', 'model_year', 'modelyear')),
-        'model': cleanValue(getCsv(r, 'model')),
-        'shortvin': cleanValue(getCsv(r, 'shortvin', 'short vin', 'short_vin')),
-        'inv. prep. stat.': cleanValue(getCsv(r, 'inv. prep. stat.', 'inv prep stat', 'inv_prep_stat', 'inv prep. stat.')),
-        'phys_loc': cleanValue(getCsv(r, 'phys_loc', 'phys loc', 'physloc', 'physical loc', 'physical location')),
-        'deal completion': cleanValue(getCsv(r, 'deal completion', 'deal_completion', 'dealcompletion')),
-        'gps fix': cleanValue(getCsv(r, 'gps fix', 'gps_fix')),
-        'gps fix reason': cleanValue(getCsv(r, 'gps fix reason', 'gps_fix_reason')),
-        'pt status': cleanValue(getCsv(r, 'pt status', 'pt_status')),
-        'pt serial': cleanValue(getCsv(r, 'pt serial', 'pt_serial')),
-        'encore serial': cleanValue(getCsv(r, 'encore serial', 'encore_serial')),
-        'moving': cleanValue(getCsv(r, 'moving')),
-        'pt last read': cleanValue(getCsv(r, 'pt last read', 'pt_last_read')),
-        'state loc': cleanValue(getCsv(r, 'state loc', 'state_loc')),
-        'pt city': cleanValue(getCsv(r, 'pt city', 'pt_city')),
-        'pt zipcode': cleanValue(getCsv(r, 'pt zipcode', 'pt zip code', 'pt_zipcode')),
-        'lat': toNumber(getCsv(r, 'lat', 'latitude')),
-        'long': toNumber(getCsv(r, 'long', 'lng', 'longitude')),
-      };
-      return pickAllowed(raw);
-    };
+    const fetchServiceStats = async () => {
+      const CACHE_KEY = 'techloc_home_stats';
+      const CACHE_DURATION = 300000; // 5 minutos
 
-    const isRlsBlocked = (error) => {
-      const message = (error?.message || '').toLowerCase();
-      return message.includes('row-level') || message.includes('rls') || message.includes('permission');
-    };
+      // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
+      const client = window.supabaseClient || window.supabase;
 
-    const getTableStats = async (dataset) => {
-      if (!supabaseClient) {
-        return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: 'Client unavailable' };
-      }
-      try {
-        const { count, error: countError } = await supabaseClient
-          .from(dataset.table)
-          .select('*', { count: 'exact', head: true });
-        if (countError) {
-          return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: countError.message || 'Restricted' };
-        }
-        const { data, error: dataError } = await supabaseClient
-          .from(dataset.table)
-          .select('*')
-          .limit(1);
-        if (dataError) {
-          return { rows: count || 0, columns: 0, lastUpdated: null, restricted: true, message: dataError.message || 'Restricted' };
-        }
-        let columnCount = 0;
-        let lastUpdated = null;
-        if (data && data.length > 0) {
-          columnCount = Object.keys(data[0]).length;
-          lastUpdated = data[0].created_at || data[0].updated_at || null;
-        }
-        return { rows: count || 0, columns: columnCount, lastUpdated, restricted: false };
-      } catch (err) {
-        return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: err.message };
+      if (!client) {
+        console.error("Supabase client not initialized.");
+        return;
+      }
+
+      const cachedStats = sessionStorage.getItem(CACHE_KEY);
+      if (cachedStats) {
+        try {
+          const { totalCount, availableCount, uniqueStates, avgRating, timestamp } = JSON.parse(cachedStats);
+
+          const isFresh = typeof timestamp === 'number'
+            && (Date.now() - timestamp) < CACHE_DURATION;
+
+          if (isFresh) {
+            animateValue('tech-count', 0, totalCount ?? 0, 2000);
+            animateValue('available-count', 0, availableCount ?? 0, 2000);
+            animateValue('states-count', 0, uniqueStates ?? 0, 2000);
+            animateValue('avg-rating', 0, avgRating ?? 0, 2000);
+            return;
+          }
+        } catch (parseError) {
+          console.warn('Invalid cached stats, fetching fresh data.');
+        }
+      }
+
+      try {
+        // Consultamos la tabla 'Services' en Supabase para obtener las métricas en vivo.
+        const { data = [], error, count } = await client
+          .from('Services')
+          .select('state, status, availability', { count: 'exact' });
+
+        if (error) {
+            console.error('Error fetching stats:', error);
+            throw error;
+        }
+
+        // A. Total Partners: Total de filas retornadas
+        const totalCount = count ?? data.length ?? 0;
+
+        // B. Available Now: Filtramos filas que tengan "24/7", "Available" o "Active"
+        const availableCount = data.filter(row => {
+            const availText = String(row.availability || '').toLowerCase();
+            const statusText = String(row.status || '').toLowerCase();
+            return availText.includes('24/7') || statusText === 'available' || statusText === 'active';
+        }).length;
+
+        // C. States Active: Contamos estados únicos (ignorando mayúsculas/minúsculas)
+        const uniqueStates = new Set(
+            data
+            .map(row => row.state ? row.state.trim().toUpperCase() : null)
+            .filter(Boolean) // Elimina valores nulos
+        ).size;
+
+        // D. SLA Rating: Valor estático alto (hasta que tengas columna de rating real)
+        const avgRating = 4.8;
+
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          totalCount,
+          availableCount,
+          uniqueStates,
+          avgRating,
+          timestamp: Date.now(),
+        }));
+
+        // Actualizamos el DOM con animación
+        animateValue('tech-count', 0, totalCount, 2000);
+        animateValue('available-count', 0, availableCount, 2000);
+        animateValue('states-count', 0, uniqueStates, 2000);
+        animateValue('avg-rating', 0, avgRating, 2000);
+
+      } catch (err) {
+        // En caso de error, dejamos los guiones o ponemos 0
+        console.warn('Could not load live stats');
+      }
+    };
+
+    // --- 2. LÓGICA DE LOG IN / LOG OUT ---
+    const handleAuthUI = async () => {
+        const loginBtn = document.getElementById('nav-login');
+        const logoutBtn = document.getElementById('nav-logout');
+        const client = window.supabase || window.supabaseClient;
+
+        if (!client) return;
+
+        const updateButtonState = (session) => {
+            if (session) {
+                // Si hay sesión: Ocultar Login, Mostrar Logout
+                if (loginBtn) loginBtn.classList.add('hidden');
+                if (logoutBtn) {
+                    logoutBtn.classList.remove('hidden');
+                    logoutBtn.onclick = async () => {
+                        logoutBtn.textContent = '...';
+                        await client.auth.signOut();
+                        window.location.reload();
+                    };
+                }
+            } else {
+                // Si NO hay sesión: Mostrar Login, Ocultar Logout
+                if (loginBtn) loginBtn.classList.remove('hidden');
+                if (logoutBtn) logoutBtn.classList.add('hidden');
+            }
+        };
+
+        // Verificar estado inicial y escuchar cambios
+        const { data: { session } } = await client.auth.getSession();
+        updateButtonState(session);
+
+        client.auth.onAuthStateChange((_event, session) => {
+            updateButtonState(session);
+        });
+    };
+
+    // --- 3. INICIALIZACIÓN ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // Iniciar iconos Lucide
+      if (window.lucide) window.lucide.createIcons();
+
+      const mobileToggle = document.getElementById('mobile-menu-toggle');
+      const primaryNav = document.getElementById('primary-nav');
+
+      const setMenuState = (expanded) => {
+        if (!primaryNav || !mobileToggle) return;
+        mobileToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (expanded) {
+          primaryNav.classList.remove('hidden');
+        } else {
+          primaryNav.classList.add('hidden');
+        }
+      };
+
+      if (mobileToggle && primaryNav) {
+        setMenuState(window.innerWidth >= 768);
+
+        mobileToggle.addEventListener('click', () => {
+          const expanded = mobileToggle.getAttribute('aria-expanded') === 'true';
+          setMenuState(!expanded);
+        });
+
+        primaryNav.querySelectorAll('a').forEach((link) => {
+          link.addEventListener('click', () => {
+            if (window.innerWidth < 768) setMenuState(false);
+          });
+        });
+
+        window.addEventListener('resize', () => {
+          setMenuState(window.innerWidth >= 768);
+        });
+      }
+
+      // Iniciar fondo de constelación
+      createConstellationBackground();
+
+      // Ejecutar lógica de autenticación
+      handleAuthUI();
+
+      // Cargar estadísticas de la base de datos
+      fetchServiceStats();
+    });
+  </script>
+</body>
+</html>
+
