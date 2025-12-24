@@ -387,19 +387,28 @@
 
     const tableColumnCache = new Map();
 
-    const fetchTableColumns = async (tableName) => {
-      if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
-      if (!supabaseClient) return [];
+    const fetchTableColumns = async (tableName, schema = 'public') => {
+      const cacheKey = `${schema}:${tableName}`;
+      if (tableColumnCache.has(cacheKey)) return tableColumnCache.get(cacheKey);
+      if (!supabaseClient || !tableName) return [];
 
       try {
-        const { data, error } = await supabaseClient
-          .from('information_schema.columns')
-          .select('column_name')
-          .ilike('table_name', tableName);
+        const { data, error } = await supabaseClient.rpc('get_table_columns', {
+          table_name: tableName,
+          table_schema: schema,
+        });
 
         if (error) throw error;
 
-        let columns = (data || []).map((row) => row.column_name);
+        let columns = Array.isArray(data)
+          ? data
+              .map((col) => {
+                if (typeof col === 'string') return col;
+                if (col && typeof col === 'object') return col.column_name || col.name;
+                return null;
+              })
+              .filter(Boolean)
+          : [];
 
         if (!columns.length) {
           const { data: sampleRows, error: sampleError } = await supabaseClient
@@ -412,11 +421,11 @@
           }
         }
 
-        tableColumnCache.set(tableName, columns);
+        tableColumnCache.set(cacheKey, columns);
         return columns;
       } catch (err) {
         console.error(`Failed to fetch columns for ${tableName}:`, err);
-        tableColumnCache.set(tableName, []);
+        tableColumnCache.set(cacheKey, []);
         return [];
       }
     };
@@ -680,6 +689,10 @@
 
       const submitBtn = document.getElementById('deals-upload-button');
       const tableColumns = await fetchTableColumns(DEALS_TABLE);
+      if (!tableColumns.length) {
+        showToast('No se pudieron obtener las columnas de DealsJP1 desde Supabase (get_table_columns).', 'error');
+        return;
+      }
       const columnMap = buildColumnMap(tableColumns);
       const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
