@@ -352,6 +352,8 @@
       'Returned By',
     ];
 
+    const KNOWN_DEALS_COLUMNS = ['Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model', 'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #', 'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By', 'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract', 'Cash Down', 'Total due on Deal', 'Amount', 'Reg. Contract Payment', 'Payment Schedule', 'Total Payments in Months', 'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth', 'TAM Legacy Created Date', 'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #', 'Trade In VIN', 'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date', 'Bucket', 'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount', 'Total Contract Scheduled Amount', 'Inventory Valuation Value', 'Sales Channel', 'Partner Name', 'Remaining Scheduled Payments To Invoice', 'Deposit', 'PassTime Serial No', 'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode', 'Secondary Payment Mode', 'Plate Number', 'Number OF Schedule Remaining_1', 'Mobile Phone', 'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No', 'Plate Number_1', 'Current Title Number', 'Current Title Subsidiary', 'Current Title Physical Location', 'Title In Date', 'Title Out Date', 'Financing Company', 'Broker', 'Return Type', 'Actual System Return Date', 'Returned By'];
+
     const ADMIN_ROLE = 'administrator';
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
@@ -383,42 +385,6 @@
       const stringValue = typeof value === 'string' ? value.trim() : value;
       if (`${stringValue}`.trim() === '') return null;
       return stringValue;
-    };
-
-    const tableColumnCache = new Map();
-
-    const fetchTableColumns = async (tableName) => {
-      if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
-      if (!supabaseClient) return [];
-
-      try {
-        const { data, error } = await supabaseClient
-          .from('information_schema.columns')
-          .select('column_name')
-          .ilike('table_name', tableName);
-
-        if (error) throw error;
-
-        let columns = (data || []).map((row) => row.column_name);
-
-        if (!columns.length) {
-          const { data: sampleRows, error: sampleError } = await supabaseClient
-            .from(tableName)
-            .select('*')
-            .limit(1);
-
-          if (!sampleError && sampleRows?.length) {
-            columns = Object.keys(sampleRows[0]);
-          }
-        }
-
-        tableColumnCache.set(tableName, columns);
-        return columns;
-      } catch (err) {
-        console.error(`Failed to fetch columns for ${tableName}:`, err);
-        tableColumnCache.set(tableName, []);
-        return [];
-      }
     };
 
     const buildColumnMap = (columns = []) => {
@@ -679,12 +645,11 @@
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
       const submitBtn = document.getElementById('deals-upload-button');
-      const tableColumns = await fetchTableColumns(DEALS_TABLE);
-      const columnMap = buildColumnMap(tableColumns);
+      const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
       const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
       if (!conflictColumn) {
-        showToast('La tabla de Supabase no tiene la columna "Current Stock No." necesaria para el upsert.', 'error');
+        showToast('La configuración local no incluye la columna "Current Stock No." necesaria para el upsert.', 'error');
         return;
       }
 
