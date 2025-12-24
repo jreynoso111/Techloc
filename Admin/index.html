@@ -228,7 +228,7 @@
                     <span>Upload &amp; upsert</span>
                     </button>
                 </form>
-                <p class="text-xs leading-relaxed text-slate-400">Required: VIN & Stock No. Updates matching deals only.</p>
+                <p class="text-xs leading-relaxed text-slate-400">Required: VIN & Stock No. Updates all matching columns.</p>
               </div>
             </section>
 
@@ -263,13 +263,12 @@
       </div>
     </div>
   </template>
-  
+   
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
-    // --- AGREGADA LA TABLA DEALS A LA LISTA DE VISUALIZACIÓN ---
     const DATASETS = [
       {
         table: 'Services',
@@ -285,7 +284,6 @@
         description: 'Live vehicle and asset records.',
         displayName: 'Vehicles'
       },
-      // --- NUEVA TARJETA PARA DEALS ---
       {
         table: 'DealsJP1',
         scope: 'Sales',
@@ -305,7 +303,6 @@
       return Number.isFinite(num) ? num : null;
     };
 
-    // --- LIMPIEZA DE HEADERS (Espacios y normalización) ---
     const cleanHeaderKey = (key) => {
       return (key || '')
         .toString()
@@ -317,14 +314,6 @@
     const normalizeRow = (row = {}) =>
       Object.entries(row).reduce((acc, [key, val]) => {
         const normalizedKey = cleanHeaderKey(key);
-        if (!normalizedKey) return acc;
-        acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
-        return acc;
-      }, {});
-
-    const normalizeDealsRow = (row = {}) =>
-      Object.entries(row).reduce((acc, [key, val]) => {
-        const normalizedKey = cleanHeaderKey(key).replace(/\.+$/g, ''); 
         if (!normalizedKey) return acc;
         acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
         return acc;
@@ -351,7 +340,9 @@
       return '';
     };
 
+    // --- MAPPING FOR VEHICLES (STRICT) ---
     const mapVehicleRow = (row) => {
+      // Logic for vehicles stays strict because we need specific mappings
       const r = normalizeRow(row);
 
       const raw = {
@@ -381,23 +372,23 @@
       return pickAllowed(raw);
     };
 
-    // --- CORRECCIÓN FINAL: NOMBRE EXACTO 'Current Stock No.' ---
+    // --- MAPPING FOR DEALS (PASS-THROUGH) ---
     const mapDealsRow = (row) => {
-      const r = normalizeDealsRow(row);
+      // We do NOT lowercase or normalize keys here, because Supabase
+      // created the table "DealsJP1" based on the CSV headers (Case Sensitive).
+      // PapaParse 'transformHeader' (see below) has already trimmed the spaces for us.
+      
       const cleaned = {};
 
-      const vin = cleanValue(getCsv(r, 'vin', 'vehicle vin', 'vehicle_vin'));
-      const stockNo = cleanValue(getCsv(r, 'current stock no', 'current stock no.', 'stock no', 'stock number'));
-      const status = cleanValue(getCsv(r, 'deal status', 'status'));
-      const customer = cleanValue(getCsv(r, 'customer', 'customer id'));
-
-      // USAMOS 'Current Stock No.' TAL CUAL LO PIDE SUPABASE (CON MAYÚSCULAS)
-      if (vin) cleaned['vin'] = vin; 
-      if (stockNo) cleaned['Current Stock No.'] = stockNo; 
+      Object.keys(row).forEach(key => {
+        // We clean the VALUE (empty string -> null)
+        const value = cleanValue(row[key]);
+        // We keep the KEY exactly as the CSV gave it (after trim)
+        if (value !== null) {
+          cleaned[key] = value;
+        }
+      });
       
-      if (status) cleaned['deal status'] = status; 
-      if (customer) cleaned['customer'] = customer;
-
       return cleaned;
     };
 
@@ -406,10 +397,8 @@
       return message.includes('row-level') || message.includes('rls') || message.includes('permission');
     };
 
-    // --- FETCH FUNCTION: Queries Real Tables (Not Storage) ---
     const getTableStats = async (dataset) => {
       if (!supabaseClient) {
-        console.warn('Supabase client unavailable. Skipping stats fetch.');
         return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: 'Client unavailable' };
       }
 
@@ -419,7 +408,6 @@
           .select('*', { count: 'exact', head: true });
 
         if (countError) {
-          console.warn(`Could not fetch stats for ${dataset.table}`, countError);
           return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: countError.message || 'Restricted' };
         }
 
@@ -429,7 +417,6 @@
           .limit(1);
 
         if (dataError) {
-          console.warn(`Could not read sample row for ${dataset.table}`, dataError);
           return { rows: count || 0, columns: 0, lastUpdated: null, restricted: true, message: dataError.message || 'Restricted' };
         }
 
@@ -443,7 +430,6 @@
 
         return { rows: count || 0, columns: columnCount, lastUpdated, restricted: false };
       } catch (err) {
-        console.error('Unexpected error fetching table stats:', err);
         return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: err.message };
       }
     };
@@ -555,10 +541,7 @@
     const renderFleetChart = async () => {
       const canvas = document.getElementById('fleet-chart');
       if (!canvas || !window.Chart) return;
-      if (!supabaseClient) {
-        console.warn('Supabase client unavailable. Skipping fleet chart render.');
-        return;
-      }
+      if (!supabaseClient) return;
 
       try {
         const { data, error } = await supabaseClient
@@ -622,12 +605,10 @@
         });
       } catch (error) {
         console.error('Failed to render fleet chart:', error);
-        showToast('Unable to render fleet chart: ' + error.message, 'error');
       }
     };
 
-    // --- UPLOAD LOGIC OPTIMIZADA CON BATCHING (LOTES) ---
-    
+    // --- UPLOAD VEHICLES ---
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
@@ -646,7 +627,6 @@
         return;
       }
 
-      // Batching Logic
       const BATCH_SIZE = 1000;
       let totalUpserted = 0;
       let skippedInvalid = rows.length - mapped.length;
@@ -685,6 +665,7 @@
       showToast(summary, 'success');
     };
 
+    // --- UPLOAD DEALS ---
     const uploadDealsRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
@@ -692,11 +673,13 @@
       const submitBtn = document.getElementById('deals-upload-button');
 
       const mapped = rows
-        .map(mapDealsRow)
+        .map(mapDealsRow) // Maps ALL valid columns
         .filter((row) => {
-          // Usamos 'Current Stock No.' con mayúsculas
-          const valid = !!(row.vin && row['Current Stock No.']);
-          return valid;
+          // Validation: Ensure the primary composite keys exist
+          // Be strict about VIN and Current Stock No. existing
+          const hasVin = row['VIN'] || row['vin']; 
+          const hasStock = row['Current Stock No.'] || row['current stock no.'];
+          return !!(hasVin && hasStock);
         });
 
       if (!mapped.length) {
@@ -704,7 +687,6 @@
         return;
       }
 
-      // Batching Logic
       const BATCH_SIZE = 1000;
       let totalUpserted = 0;
       let skippedInvalid = rows.length - mapped.length;
@@ -718,11 +700,11 @@
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
 
-        // CORRECCIÓN: el onConflict usa 'Current Stock No.'
+        // We assume the constraint name is implicity handled by Supabase or named 'vin,Current Stock No.'
         const { data, error } = await supabaseClient
           .from('DealsJP1')
-          .upsert(batch, { onConflict: 'vin,Current Stock No.', ignoreDuplicates: false })
-          .select('vin');
+          .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false }) 
+          .select();
 
         if (error) {
           console.error('Supabase upsert error:', error);
@@ -760,14 +742,12 @@
       };
 
       if (!form || !fileInput || !submitBtn) return;
-
       const syncAccess = () => requireAdmin();
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
-
         if (!requireAdmin()) {
           showToast('Only administrators can upload vehicle data.', 'error');
           return;
@@ -785,12 +765,11 @@
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          worker: true, // WORKER ACTIVADO
+          transformHeader: (h) => h.trim(), // <--- CRITICAL FIX FOR SPACES IN HEADERS
+          worker: true,
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
-              if (parseErrors) console.warn('CSV parse warnings:', results.errors);
-              
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadCsvRows(results.data || [], parseErrors);
             } catch (err) {
@@ -803,7 +782,6 @@
             }
           },
           error: (err) => {
-            console.error('CSV parse error:', err);
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
@@ -829,14 +807,12 @@
       };
 
       if (!form || !fileInput || !submitBtn) return;
-
       const syncAccess = () => requireAdmin();
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
-
         if (!requireAdmin()) {
           showToast('Only administrators can upload deals data.', 'error');
           return;
@@ -854,12 +830,11 @@
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          worker: true, // WORKER ACTIVADO
+          transformHeader: (h) => h.trim(), // <--- CRITICAL FIX FOR SPACES IN HEADERS
+          worker: true,
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
-              if (parseErrors) console.warn('CSV parse warnings:', results.errors);
-              
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadDealsRows(results.data || [], parseErrors);
             } catch (err) {
@@ -872,7 +847,6 @@
             }
           },
           error: (err) => {
-            console.error('CSV parse error:', err);
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
@@ -907,6 +881,5 @@
     wireCsvUpload();
     wireDealsUpload();
   </script>
-</div>
 </body>
 </html>
