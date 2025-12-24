@@ -782,6 +782,7 @@
 
       const columnMap = buildColumnMap(NS_INVOICES_COLUMNS);
       const conflictColumn = columnMap.get('document number');
+      const conflictColumns = 'TAM Legacy Stock #,Document Number,Date';
 
       if (!conflictColumn) {
         showToast('Local configuration error: "Document Number" missing from invoice columns.', 'error');
@@ -847,7 +848,7 @@
 
         const { data, error } = await supabaseClient
           .from(NS_INVOICES_TABLE)
-          .upsert(batch, { onConflict: conflictColumn, ignoreDuplicates: true })
+          .upsert(batch, { onConflict: conflictColumns, ignoreDuplicates: true })
           .select();
 
         if (error) {
