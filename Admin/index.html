@@ -287,20 +287,27 @@
       return Number.isFinite(num) ? num : null;
     };
 
+    // --- LIMPIEZA DE HEADERS (Espacios y normalización) ---
+    // Esta función elimina espacios externos e internos redundantes
+    const cleanHeaderKey = (key) => {
+      return (key || '')
+        .toString()
+        .trim()                // 1. Elimina espacios al inicio y final
+        .replace(/\s+/g, ' ')  // 2. Convierte dobles espacios internos en uno solo
+        .toLowerCase();
+    };
+
     const normalizeRow = (row = {}) =>
       Object.entries(row).reduce((acc, [key, val]) => {
-        const normalizedKey = (key || '').toString().trim().toLowerCase();
+        const normalizedKey = cleanHeaderKey(key);
+        if (!normalizedKey) return acc;
         acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
         return acc;
       }, {});
 
     const normalizeDealsRow = (row = {}) =>
       Object.entries(row).reduce((acc, [key, val]) => {
-        const normalizedKey = (key || '')
-          .toString()
-          .trim()
-          .toLowerCase()
-          .replace(/\.+$/g, '');
+        const normalizedKey = cleanHeaderKey(key).replace(/\.+$/g, ''); // Quita puntos finales si existen
         if (!normalizedKey) return acc;
         acc[normalizedKey] = typeof val === 'string' ? val.trim() : val;
         return acc;
@@ -321,7 +328,9 @@
     // Accept common CSV header variations (case-insensitive). Output keys MUST match DB columns exactly.
     const getCsv = (row, ...possibleHeaders) => {
       for (const header of possibleHeaders) {
-        const v = row[header.toLowerCase()];
+        // Aseguramos que buscamos usando la misma lógica de limpieza
+        const searchKey = cleanHeaderKey(header);
+        const v = row[searchKey]; 
         if (v !== undefined && v !== null && `${v}`.trim() !== '') return v;
       }
       return '';
@@ -608,18 +617,18 @@
       }
     };
 
+    // --- UPLOAD LOGIC OPTIMIZADA CON BATCHING (LOTES) ---
+    
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
 
-      const processed = rows.length;
-      let skippedInvalid = 0;
-
+      const submitBtn = document.getElementById('upload-button');
+      
       const mapped = rows
         .map(mapVehicleRow)
         .filter((row) => {
           const valid = !!(row.shortvin && `${row.shortvin}`.trim() !== '');
-          if (!valid) skippedInvalid += 1;
           return valid;
         });
 
@@ -628,25 +637,41 @@
         return;
       }
 
-      const { data, error } = await supabaseClient
-        .from('vehicles')
-        .upsert(mapped, { onConflict: 'shortvin', ignoreDuplicates: false })
-        .select('shortvin');
+      // Batching Logic
+      const BATCH_SIZE = 1000;
+      let totalUpserted = 0;
+      let skippedInvalid = rows.length - mapped.length;
+      const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
 
-      if (error) {
-        console.error('Supabase upsert error:', { message: error.message, details: error.details, hint: error.hint });
-        if (isRlsBlocked(error)) {
-          showToast('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.', 'error');
-          return;
+      for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
+        const batch = mapped.slice(i, i + BATCH_SIZE);
+        const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+
+        if (submitBtn) {
+          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
-        throw error;
+
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .upsert(batch, { onConflict: 'shortvin', ignoreDuplicates: false })
+          .select('shortvin');
+
+        if (error) {
+          console.error('Supabase upsert error:', error);
+          if (isRlsBlocked(error)) {
+            showToast('Upload blocked by security policy (RLS).', 'error');
+            return;
+          }
+          throw error;
+        }
+        totalUpserted += (data ? data.length : 0);
       }
 
-      const upserted = Array.isArray(data) ? data.length : 0;
       const summary =
-        'Processed: ' + processed +
-        '\nUpserted: ' + upserted +
-        '\nSkipped invalid: ' + skippedInvalid +
+        'Completed.' +
+        '\nProcessed: ' + rows.length +
+        '\nUpserted: ' + totalUpserted +
+        '\nSkipped (No ShortVIN): ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
       showToast(summary, 'success');
     };
@@ -655,8 +680,7 @@
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
-      const processed = rows.length;
-      let skippedInvalid = 0;
+      const submitBtn = document.getElementById('deals-upload-button');
 
       const mapped = rows
         .map(mapDealsRow)
@@ -664,7 +688,6 @@
           const vin = row.vin;
           const stockNo = row['current stock no'];
           const valid = !!(vin && `${vin}`.trim() !== '' && stockNo && `${stockNo}`.trim() !== '');
-          if (!valid) skippedInvalid += 1;
           return valid;
         });
 
@@ -673,25 +696,41 @@
         return;
       }
 
-      const { data, error } = await supabaseClient
-        .from('DealsJP1')
-        .upsert(mapped, { onConflict: 'vin,current stock no', ignoreDuplicates: false })
-        .select('vin');
+      // Batching Logic
+      const BATCH_SIZE = 1000;
+      let totalUpserted = 0;
+      let skippedInvalid = rows.length - mapped.length;
+      const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
 
-      if (error) {
-        console.error('Supabase upsert error:', { message: error.message, details: error.details, hint: error.hint });
-        if (isRlsBlocked(error)) {
-          showToast('Upload blocked by security policy (RLS). Check Supabase policies for INSERT and UPDATE.', 'error');
-          return;
+      for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
+        const batch = mapped.slice(i, i + BATCH_SIZE);
+        const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+
+        if (submitBtn) {
+          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
-        throw error;
+
+        const { data, error } = await supabaseClient
+          .from('DealsJP1')
+          .upsert(batch, { onConflict: 'vin,current stock no', ignoreDuplicates: false })
+          .select('vin');
+
+        if (error) {
+          console.error('Supabase upsert error:', error);
+          if (isRlsBlocked(error)) {
+            showToast('Upload blocked by security policy (RLS).', 'error');
+            return;
+          }
+          throw error;
+        }
+        totalUpserted += (data ? data.length : 0);
       }
 
-      const upserted = Array.isArray(data) ? data.length : 0;
       const summary =
-        'Processed: ' + processed +
-        '\nUpserted: ' + upserted +
-        '\nSkipped invalid: ' + skippedInvalid +
+        'Completed.' +
+        '\nProcessed: ' + rows.length +
+        '\nUpserted: ' + totalUpserted +
+        '\nSkipped (Invalid Keys): ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
       showToast(summary, 'success');
     };
@@ -732,15 +771,18 @@
         }
 
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Uploading…</span>';
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
 
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
+          worker: true, // HABILITADO WORKER PARA NO CONGELAR UI
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
               if (parseErrors) console.warn('CSV parse warnings:', results.errors);
+              
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadCsvRows(results.data || [], parseErrors);
             } catch (err) {
               console.error('Upload failed:', err);
@@ -798,15 +840,18 @@
         }
 
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Uploading…</span>';
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
 
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
+          worker: true, // HABILITADO WORKER
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
               if (parseErrors) console.warn('CSV parse warnings:', results.errors);
+              
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadDealsRows(results.data || [], parseErrors);
             } catch (err) {
               console.error('Upload failed:', err);
