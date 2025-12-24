@@ -453,6 +453,21 @@
         showToast('Row deleted', 'info');
     };
 
+    const cleanLeadingPrefix = (value, removeEnDash = false) => {
+        if (typeof value !== 'string') return value;
+        let cleaned = value;
+        if (removeEnDash) cleaned = cleaned.replace(/^–\s*/, '');
+        cleaned = cleaned.replace(/^[\d\s-]+/, '');
+        return cleaned;
+    };
+
+    const sanitizeForColumn = (colId, value) => {
+        if (typeof value !== 'string') return value;
+        if (colId === 'Prep Status' || colId === 'prep_status') return cleanLeadingPrefix(value, true);
+        if (colId === 'Location' || colId === 'location') return cleanLeadingPrefix(value);
+        return value;
+    };
+
     const renderCellContent = (td, val) => {
         td.innerHTML = ''; 
         const wrapper = document.createElement('div');
@@ -480,7 +495,7 @@
             if (isSaving) return;
             isSaving = true;
             let newValue = input.value.trim();
-            if ((colId === 'Prep Status' || colId === 'prep_status') && newValue) newValue = newValue.replace(/^[\d\-\s]+/, '');
+            newValue = sanitizeForColumn(colId, newValue);
             
             const payloadValue = newValue === '' ? null : newValue;
             renderCellContent(td, payloadValue);
@@ -703,11 +718,21 @@
 
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
+        const normalizeText = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string') return value.trim().toLowerCase();
+            const asString = String(value);
+            return asString.trim().toLowerCase();
+        };
         rows = [...rows].sort((a, b) => {
-          let valA = a[column] ?? ''; let valB = b[column] ?? '';
-          if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
-          valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-          return direction === 'asc' ? (valA < valB ? -1 : 1) : (valA > valB ? 1 : -1);
+          const valA = a[column]; const valB = b[column];
+          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
+          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
+
+          const textA = normalizeText(valA);
+          const textB = normalizeText(valB);
+          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
+          return direction === 'asc' ? result : -result;
         });
       }
 
@@ -926,7 +951,7 @@
                 const td = document.createElement('td');
                 td.className = 'text-xs text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-10 align-middle relative'; // h-10 fija altura mínima
                 let val = row[col.id];
-                if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') val = val.replace(/^[\d\-\s]+/, '');
+                val = sanitizeForColumn(col.id, val);
                 
                 renderCellContent(td, val);
                 td.addEventListener('dblclick', () => {
