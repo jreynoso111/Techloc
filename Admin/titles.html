@@ -453,6 +453,21 @@
         showToast('Row deleted', 'info');
     };
 
+    const cleanLeadingPrefix = (value, removeEnDash = false) => {
+        if (typeof value !== 'string') return value;
+        let cleaned = value;
+        if (removeEnDash) cleaned = cleaned.replace(/^–\s*/, '');
+        cleaned = cleaned.replace(/^[\d\s-]+/, '');
+        return cleaned;
+    };
+
+    const sanitizeForColumn = (colId, value) => {
+        if (typeof value !== 'string') return value;
+        if (colId === 'Prep Status' || colId === 'prep_status') return cleanLeadingPrefix(value, true);
+        if (colId === 'Location' || colId === 'location') return cleanLeadingPrefix(value);
+        return value;
+    };
+
     const renderCellContent = (td, val) => {
         td.innerHTML = ''; 
         const wrapper = document.createElement('div');
@@ -480,7 +495,7 @@
             if (isSaving) return;
             isSaving = true;
             let newValue = input.value.trim();
-            if ((colId === 'Prep Status' || colId === 'prep_status') && newValue) newValue = newValue.replace(/^[\d\-\s]+/, '');
+            newValue = sanitizeForColumn(colId, newValue);
             
             const payloadValue = newValue === '' ? null : newValue;
             renderCellContent(td, payloadValue);
@@ -936,7 +951,7 @@
                 const td = document.createElement('td');
                 td.className = 'text-xs text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-10 align-middle relative'; // h-10 fija altura mínima
                 let val = row[col.id];
-                if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') val = val.replace(/^[\d\-\s]+/, '');
+                val = sanitizeForColumn(col.id, val);
                 
                 renderCellContent(td, val);
                 td.addEventListener('dblclick', () => {
