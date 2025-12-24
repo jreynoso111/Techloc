@@ -400,11 +400,25 @@
         displayName: 'Deals'
       },
       {
+        table: 'Titles',
+        scope: 'Compliance',
+        title: 'Titles table',
+        description: 'Lifecycle tracking for vehicle titles.',
+        displayName: 'Titles'
+      },
+      {
         table: NS_INVOICES_TABLE,
         scope: 'Finance',
         title: 'NS Invoices & Payments',
         description: 'NetSuite feed mapped by Document Number.',
         displayName: 'NS Invoices'
+      },
+      {
+        table: 'PT-LastPing',
+        scope: 'Telematics',
+        title: 'Import Last Ping',
+        description: 'Latest PassTime ping uploads gated by VIN.',
+        displayName: 'PT Last Ping'
       }
     ];
 
@@ -671,6 +685,7 @@
           throw error;
         }
         totalUpserted += (data ? data.length : 0);
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
       const summary =
         'Completed.' +
@@ -790,6 +805,7 @@
         totalUpserted += (data ? data.length : 0);
         processed += batch.length;
         setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       const summary =
@@ -1266,6 +1282,21 @@
 
       const submitBtn = document.getElementById('pt-ping-upload-button');
       const status = document.getElementById('pt-ping-status');
+      const rejectedRows = [];
+
+      const downloadRejected = () => {
+        if (!rejectedRows.length || !window.Papa?.unparse) return;
+        const csv = window.Papa.unparse(rejectedRows);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'errores_carga.csv';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      };
 
       const setStatus = (text) => {
         if (status) status.textContent = text;
@@ -1284,8 +1315,14 @@
       const validRows = [];
       (rows || []).forEach((row) => {
         const vin = row?.['VIN'];
-        if (!vin) return;
-        if (!vinSet.has(String(vin).trim())) return;
+        if (!vin) {
+          rejectedRows.push({ ...row, error: 'Missing VIN' });
+          return;
+        }
+        if (!vinSet.has(String(vin).trim())) {
+          rejectedRows.push({ ...row, error: 'VIN not found in DealsJP1' });
+          return;
+        }
 
         const normalizedRow = { ...row };
         if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Serial #')) {
@@ -1303,6 +1340,7 @@
       if (!validRows.length) {
         setStatus('No rows matched VINs in DealsJP1.');
         showToast('No rows matched VINs in DealsJP1.', 'error');
+        downloadRejected();
         return;
       }
 
@@ -1329,6 +1367,7 @@
         '\nErrors: ' + parseErrors;
       setStatus('Upload complete.');
       showToast(summary, 'success');
+      downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
       lucide.createIcons();
     };
