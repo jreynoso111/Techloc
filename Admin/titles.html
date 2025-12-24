@@ -267,6 +267,7 @@
       user_id: null,
       rows: [],
       columns: [],
+      columnLabels: {},
       columnOrder: [],
       columnVisibility: {},
       columnWidths: {}, 
@@ -280,6 +281,20 @@
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
     const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const renameColumn = (colId) => {
+        if (!colId) return;
+        const currentLabel = state.columns.find(c => c.id === colId)?.label || labelize(colId);
+        const next = prompt('Nuevo nombre de columna', currentLabel);
+        if (next === null) return;
+        const trimmed = next.trim();
+        if (!trimmed) return;
+        state.columnLabels[colId] = trimmed;
+        const col = state.columns.find(c => c.id === colId);
+        if (col) col.label = trimmed;
+        savePrefs();
+        renderTable();
+        updateColumnsList();
+    };
 
     const showToast = (message, type = 'info') => {
         const toast = document.createElement('div');
@@ -464,6 +479,7 @@
         columnOrder: state.columnOrder,
         columnVisibility: state.columnVisibility,
         columnWidths: state.columnWidths,
+        columnLabels: state.columnLabels,
         pagination: state.pagination,
         sort: state.sort,
         search: state.search 
@@ -510,6 +526,7 @@
         if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
         if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
         if (config.columnWidths) state.columnWidths = config.columnWidths;
+        if (config.columnLabels) state.columnLabels = config.columnLabels;
         if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
         if (config.sort) state.sort = config.sort;
         if (config.search) {
@@ -530,10 +547,10 @@
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
       state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
       if (uniqueKeys.length > 0) {
-        state.columns = uniqueKeys.sort().map(key => ({ id: key, label: labelize(key) }));
+        state.columns = uniqueKeys.sort().map(key => ({ id: key, label: state.columnLabels[key] || labelize(key) }));
       } else {
         const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
-        state.columns = defaults.map(id => ({ id, label: labelize(id) }));
+        state.columns = defaults.map(id => ({ id, label: state.columnLabels[id] || labelize(id) }));
       }
       const known = new Set(state.columns.map(c => c.id));
       if (!state.columnOrder.length || state.columnOrder.length < 2) {
@@ -681,8 +698,13 @@
         
         // Texto con Wrap de 2 lineas
         const span = document.createElement('span');
-        span.className = 'wrap-2-lines flex-1';
+        span.className = 'wrap-2-lines flex-1 cursor-text';
         span.textContent = col.label;
+        span.title = 'Doble click para renombrar';
+        span.addEventListener('dblclick', (ev) => {
+          ev.stopPropagation();
+          renameColumn(col.id);
+        });
         content.appendChild(span);
         
         // BOTÓN DE SORT (Solo este dispara el sort)

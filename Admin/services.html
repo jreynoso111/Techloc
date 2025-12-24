@@ -70,10 +70,13 @@
 
     #services-table th, #services-table td { white-space: normal !important; overflow-wrap: anywhere; word-break: break-word; vertical-align: top; }
     .th-inner { display: flex; align-items: center; gap: .5rem; justify-content: space-between; width: 100%; padding-right: 10px; min-width: 0; }
+    .th-label { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(226,232,240,.85); line-height: 1.2; }
+    .sort-btn { padding: 4px 6px; height: 24px; width: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: 1px solid rgba(71,85,105,.8); background: rgba(2,6,23,.75); }
+    .sort-btn:hover { border-color: rgba(59,130,246,.8); color: #fff; }
     .popover { position: absolute; right: 0; top: calc(100% + 8px); width: min(340px, 92vw); z-index: 50; }
     .compact-th { padding: 0.5rem 0.8rem; }
     .compact-td { padding: 0.5rem 0.8rem; }
-    .compact-text { font-size: 12.5px; line-height: 1.25rem; }
+    .compact-text { font-size: 12px; line-height: 1.25rem; }
     .stats-grid { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
 
     /* Inline editing visuals */
@@ -440,6 +443,7 @@
       columnOrder: ['actions', ...ALL_COLUMNS.map(c => c.id)],
       columnVisibility: Object.fromEntries([['actions', true], ...ALL_COLUMNS.map(c => [c.id, true])]),
       columnWidths: Object.fromEntries([['actions', 140], ...ALL_COLUMNS.map(c => [c.id, c.defaultWidth])]),
+      columnLabels: {},
       drag: { resizing: null, draggingCol: null },
 
       // inline edit session
@@ -456,6 +460,7 @@
         columnOrder: state.columnOrder,
         columnVisibility: state.columnVisibility,
         columnWidths: state.columnWidths,
+        columnLabels: state.columnLabels,
         filters: state.filters,
         pagination: state.pagination,
       }));
@@ -488,6 +493,14 @@
           if (validCols.has(k) && Number.isFinite(+v)) next[k] = +v;
         }
         state.columnWidths = next;
+      }
+
+      if (prefs.columnLabels && typeof prefs.columnLabels === 'object') {
+        const next = {};
+        for (const [k, v] of Object.entries(prefs.columnLabels)) {
+          if (validCols.has(k) && typeof v === 'string') next[k] = v;
+        }
+        state.columnLabels = next;
       }
 
       if (prefs.filters && typeof prefs.filters === 'object') {
@@ -891,6 +904,18 @@
       return state.sort.dir === 'asc' ? 'arrow-up' : 'arrow-down';
     };
 
+    const renameColumn = (colId) => {
+      if (!colId || colId === 'actions') return;
+      const baseLabel = state.columnLabels[colId] || (ALL_COLUMNS.find(c => c.id === colId)?.label) || colId;
+      const next = prompt('Nuevo nombre de columna', baseLabel);
+      if (next === null) return;
+      const trimmed = next.trim();
+      if (!trimmed) return;
+      state.columnLabels[colId] = trimmed;
+      savePrefs();
+      renderTable();
+    };
+
     const toggleSort = (colId) => {
       if (state.sort.key === colId) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
       else { state.sort.key = colId; state.sort.dir = 'asc'; }
@@ -922,16 +947,16 @@
       }
 
       const col = ALL_COLUMNS.find(c => c.id === colId);
-      const label = col?.label || colId;
+      const label = state.columnLabels[colId] || col?.label || colId;
 
       th.setAttribute('draggable', 'true');
       th.innerHTML = `
         <div class="th-inner">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="truncate">${label}</span>
+            <span class="truncate th-label" data-rename-col="${colId}" title="Doble click para renombrar">${label}</span>
           </div>
           <button type="button"
-            class="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-950/50 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-blue-500 hover:text-white"
+            class="sort-btn text-[11px] font-semibold text-slate-200"
             data-sort-col="${colId}" title="Sort">
             <i data-lucide="${sortIcon(colId)}" class="h-3.5 w-3.5"></i>
           </button>
@@ -950,6 +975,10 @@
 
       els.thead.querySelectorAll('th[draggable="true"]').forEach((th) => {
         th.addEventListener('dragstart', (e) => {
+          if (state.drag.resizing) {
+            e.preventDefault();
+            return;
+          }
           const colId = th.dataset.col;
           state.drag.draggingCol = colId;
           th.classList.add('dragging');
@@ -993,6 +1022,14 @@
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           toggleSort(btn.getAttribute('data-sort-col'));
+        });
+      });
+
+      els.thead.querySelectorAll('[data-rename-col]').forEach((el) => {
+        el.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          const colId = el.getAttribute('data-rename-col');
+          renameColumn(colId);
         });
       });
 
@@ -1503,22 +1540,28 @@
 
     // ---------------- RESIZE ----------------
     const onMouseMoveResize = (e) => {
-      if (!state.drag.resizing) return;
-      const { colId, startX, startW } = state.drag.resizing;
+      const session = state.drag.resizing;
+      if (!session) return;
+      if (session.pointerId !== undefined && session.pointerId !== null && e.pointerId !== undefined && e.pointerId !== session.pointerId) return;
+      e.preventDefault();
+      const { colId, startX, startW } = session;
       const dx = e.clientX - startX;
       setColWidth(colId, startW + dx);
     };
 
-    const stopResize = () => {
-      if (!state.drag.resizing) return;
+    const stopResize = (e) => {
+      const session = state.drag.resizing;
+      if (!session) return;
+      if (session.pointerId !== undefined && session.pointerId !== null && e && e.pointerId !== undefined && e.pointerId !== session.pointerId) return;
       state.drag.resizing = null;
       document.body.style.cursor = '';
-      document.removeEventListener('mousemove', onMouseMoveResize);
-      document.removeEventListener('mouseup', stopResize);
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', onMouseMoveResize);
+      window.removeEventListener('pointerup', stopResize, true);
     };
 
     const attachResizeHandles = () => {
-      els.thead.addEventListener('mousedown', (e) => {
+      els.thead.addEventListener('pointerdown', (e) => {
         const handle = e.target.closest('[data-resize]');
         if (!handle) return;
         e.preventDefault();
@@ -1529,10 +1572,12 @@
         const thWidth = th ? parseFloat(getComputedStyle(th).width) : 0;
         const startWidth = Number.isFinite(state.columnWidths[colId]) ? state.columnWidths[colId] : (thWidth || 140);
 
-        state.drag.resizing = { colId, startX: e.clientX, startW: startWidth };
+        state.drag.resizing = { colId, startX: e.clientX, startW: startWidth, pointerId: e.pointerId };
         document.body.style.cursor = 'col-resize';
-        document.addEventListener('mousemove', onMouseMoveResize);
-        document.addEventListener('mouseup', stopResize);
+        document.body.style.userSelect = 'none';
+        if (handle.setPointerCapture) handle.setPointerCapture(e.pointerId);
+        window.addEventListener('pointermove', onMouseMoveResize);
+        window.addEventListener('pointerup', stopResize, true);
       });
     };
 
@@ -1548,7 +1593,7 @@
         left.className = 'flex items-center gap-2 min-w-0';
         left.innerHTML = `
           <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">${locked ? 'Locked' : 'Show'}</span>
-          <span class="truncate font-semibold">${label}</span>
+          <span class="truncate font-semibold">${state.columnLabels[colId] || label}</span>
         `;
 
         const input = document.createElement('input');
