@@ -47,6 +47,28 @@
   </script>
 
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
+  <style>
+    .admin-table th {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgb(148 163 184);
+    }
+    .admin-table td {
+      font-size: 12px;
+      line-height: 1.35rem;
+      word-break: break-word;
+    }
+    .admin-table .header-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: text;
+    }
+    .admin-table .header-label:hover {
+      color: #e2e8f0;
+    }
+  </style>
 
 </head>
 
@@ -255,9 +277,9 @@
 
             </div>
 
-            <div class="overflow-x-auto rounded-xl border border-slate-800">
+            <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
 
-              <table class="min-w-full divide-y divide-slate-800 text-xs leading-tight">
+              <table class="min-w-full table-fixed divide-y divide-slate-800 text-xs leading-tight admin-table">
 
                 <thead id="table-head" class="bg-slate-950/60 text-slate-300"></thead>
 
@@ -682,9 +704,19 @@
 
         const th = document.createElement('th');
 
-        th.className = 'px-3 py-2 text-left text-xs font-semibold whitespace-nowrap';
+        th.className = 'px-3 py-2 text-left font-semibold whitespace-nowrap bg-slate-950/80 border-b border-slate-800';
 
-        th.textContent = header;
+        const labelBtn = document.createElement('button');
+        labelBtn.type = 'button';
+        labelBtn.className = 'header-label text-[11px] font-semibold text-slate-300';
+        labelBtn.title = 'Doble click para renombrar';
+        labelBtn.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          renameHeader(header);
+        });
+        labelBtn.textContent = getHeaderLabel(header);
+
+        th.appendChild(labelBtn);
 
         headerRow.appendChild(th);
 
@@ -731,11 +763,11 @@
         const actionCell = allowEdit
           ? [
 
-              '<td class="px-3 py-2 align-top">',
+              '<td class="px-2 py-2 align-top text-center">',
 
-              '<button type="button" class="inline-flex items-center justify-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-100 transition hover:border-blue-500 hover:text-white">',
+              '<button type="button" class="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">',
 
-              '<i data-lucide="pencil" class="h-3.5 w-3.5"></i>',
+              '<i data-lucide="pencil" class="h-3 w-3"></i>',
 
               '<span class="sr-only">Edit row</span>',
 
@@ -744,21 +776,21 @@
               '</td>',
 
             ].join('')
-          : '<td class="px-3 py-2 align-top text-xs font-semibold uppercase tracking-wide text-slate-600">Read only</td>';
+          : '<td class="px-2 py-2 align-top text-[10px] font-semibold uppercase tracking-wide text-slate-600">Read only</td>';
 
         const dataCells = state.headers.map((header, idx) => {
 
           const value = row[header] ?? '';
 
-          const baseClass = 'px-3 py-2';
+          const baseClass = 'px-2 py-2';
 
           if (idx === 0) {
 
-            return `<td class="${baseClass} font-semibold text-white whitespace-nowrap leading-snug">${value || ''}</td>`;
+            return `<td class="${baseClass} font-semibold text-white whitespace-normal leading-snug">${value || ''}</td>`;
 
           }
 
-          return `<td class="${baseClass} text-slate-200 whitespace-nowrap leading-snug">${value || ''}</td>`;
+          return `<td class="${baseClass} text-slate-200 whitespace-normal leading-snug">${value || ''}</td>`;
 
         }).join('');
 
@@ -1026,6 +1058,8 @@
 
       rows: [],
 
+      columnLabels: {},
+
       filters: {
 
         search: '',
@@ -1052,6 +1086,25 @@
 
       remoteTotal: null,
 
+    };
+
+    const LABEL_STORAGE_KEY = 'techloc_vehicle_column_labels';
+    const loadColumnLabels = () => {
+      try { return JSON.parse(localStorage.getItem(LABEL_STORAGE_KEY)) || {}; } catch { return {}; }
+    };
+    const saveColumnLabels = () => {
+      localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(state.columnLabels || {}));
+    };
+    const getHeaderLabel = (header) => state.columnLabels[header] || header;
+    const renameHeader = (header) => {
+      const current = getHeaderLabel(header);
+      const next = prompt('Nuevo nombre de columna', current);
+      if (next === null) return;
+      const trimmed = next.trim();
+      if (!trimmed) return;
+      state.columnLabels[header] = trimmed;
+      saveColumnLabels();
+      refreshTable();
     };
 
 
@@ -1423,6 +1476,7 @@
       const { headers, rows } = parseCsvText(text);
 
       state.headers = headers;
+      state.columnLabels = loadColumnLabels();
 
       state.rows = rows;
 
