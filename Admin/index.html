@@ -211,6 +211,15 @@
                     <span>Upload &amp; upsert</span>
                     </button>
                 </form>
+                <div id="deals-progress" class="hidden space-y-1">
+                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div id="deals-progress-bar" class="h-2 w-0 bg-gradient-to-r from-emerald-500 via-emerald-400 to-blue-500 transition-all duration-200"></div>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                    <span id="deals-progress-label">Waiting to start…</span>
+                    <span id="deals-progress-count">0%</span>
+                  </div>
+                </div>
                 <p class="text-xs leading-relaxed text-slate-400">Requires: VIN, Current Stock No. & Sales Channel containing 'Finance'.</p>
               </div>
             </section>
@@ -352,6 +361,8 @@
       'Returned By',
     ];
 
+    const KNOWN_DEALS_COLUMNS = ['Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model', 'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #', 'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By', 'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract', 'Cash Down', 'Total due on Deal', 'Amount', 'Reg. Contract Payment', 'Payment Schedule', 'Total Payments in Months', 'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth', 'TAM Legacy Created Date', 'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #', 'Trade In VIN', 'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date', 'Bucket', 'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount', 'Total Contract Scheduled Amount', 'Inventory Valuation Value', 'Sales Channel', 'Partner Name', 'Remaining Scheduled Payments To Invoice', 'Deposit', 'PassTime Serial No', 'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode', 'Secondary Payment Mode', 'Plate Number', 'Number OF Schedule Remaining_1', 'Mobile Phone', 'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No', 'Plate Number_1', 'Current Title Number', 'Current Title Subsidiary', 'Current Title Physical Location', 'Title In Date', 'Title Out Date', 'Financing Company', 'Broker', 'Return Type', 'Actual System Return Date', 'Returned By'];
+
     const ADMIN_ROLE = 'administrator';
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
@@ -383,42 +394,6 @@
       const stringValue = typeof value === 'string' ? value.trim() : value;
       if (`${stringValue}`.trim() === '') return null;
       return stringValue;
-    };
-
-    const tableColumnCache = new Map();
-
-    const fetchTableColumns = async (tableName) => {
-      if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
-      if (!supabaseClient) return [];
-
-      try {
-        const { data, error } = await supabaseClient
-          .from('information_schema.columns')
-          .select('column_name')
-          .ilike('table_name', tableName);
-
-        if (error) throw error;
-
-        let columns = (data || []).map((row) => row.column_name);
-
-        if (!columns.length) {
-          const { data: sampleRows, error: sampleError } = await supabaseClient
-            .from(tableName)
-            .select('*')
-            .limit(1);
-
-          if (!sampleError && sampleRows?.length) {
-            columns = Object.keys(sampleRows[0]);
-          }
-        }
-
-        tableColumnCache.set(tableName, columns);
-        return columns;
-      } catch (err) {
-        console.error(`Failed to fetch columns for ${tableName}:`, err);
-        tableColumnCache.set(tableName, []);
-        return [];
-      }
     };
 
     const buildColumnMap = (columns = []) => {
@@ -679,15 +654,26 @@
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
       const submitBtn = document.getElementById('deals-upload-button');
-      const tableColumns = await fetchTableColumns(DEALS_TABLE);
-      const columnMap = buildColumnMap(tableColumns);
+      const progressWrap = document.getElementById('deals-progress');
+      const progressBar = document.getElementById('deals-progress-bar');
+      const progressLabel = document.getElementById('deals-progress-label');
+      const progressCount = document.getElementById('deals-progress-count');
+
+      const setProgress = (percent, label) => {
+        if (progressWrap) progressWrap.classList.remove('hidden');
+        if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+        if (progressLabel) progressLabel.textContent = label;
+        if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
+      };
+      const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
       const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
       if (!conflictColumn) {
-        showToast('La tabla de Supabase no tiene la columna "Current Stock No." necesaria para el upsert.', 'error');
+        showToast('Local configuration is missing the required "Current Stock No." column.', 'error');
         return;
       }
 
+      setProgress(0, 'Preparing rows...');
       let skippedInvalid = 0;
       const filteredRows = rows.reduce((acc, rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
@@ -720,6 +706,7 @@
       }, []);
 
       if (!filteredRows.length) {
+        setProgress(0, 'No finance rows detected.');
         showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
         return;
       }
@@ -727,6 +714,7 @@
       const BATCH_SIZE = 1000;
       let totalUpserted = 0;
       const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
+      let processed = 0;
 
       for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
@@ -735,6 +723,7 @@
         if (submitBtn) {
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
+        setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
@@ -750,6 +739,8 @@
           throw error;
         }
         totalUpserted += (data ? data.length : 0);
+        processed += batch.length;
+        setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
       }
 
       const summary =
@@ -759,6 +750,7 @@
         '\nSkipped (Not Finance/Invalid): ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
       showToast(summary, 'success');
+      setProgress(100, 'Upload complete.');
     };
 
     const wireCsvUpload = () => {
