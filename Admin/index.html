@@ -172,7 +172,7 @@
                   <h3 class="text-lg font-bold text-white">Import Vehicles CSV</h3>
                   <p class="text-sm text-slate-400">Upsert into vehicles table using ShortVIN.</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
               </div>
               
               <div class="mt-auto space-y-4">
@@ -181,7 +181,7 @@
                     <label for="csv-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
                     <input id="csv-file" name="csv-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-blue-500 focus:outline-none" />
                     </div>
-                    <button id="upload-button" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
+                    <button id="upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
                     <span>Upload &amp; upsert</span>
                     </button>
@@ -206,7 +206,7 @@
                     <label for="deals-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
                     <input id="deals-file" name="deals-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-emerald-500 focus:outline-none" />
                     </div>
-                    <button id="deals-upload-button" type="submit" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
+                    <button id="deals-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
                     <span>Upload &amp; upsert</span>
                     </button>
@@ -263,8 +263,7 @@
 
     const DEALS_TABLE = 'DealsJP1';
     
-    // --- LISTA MAESTRA DE COLUMNAS (Validación Local) ---
-    // Incluye "Current Stock No." explícitamente (con punto).
+    // --- LISTA MAESTRA (Validación Local) ---
     const KNOWN_DEALS_COLUMNS = [
       'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model',
       'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #',
@@ -340,14 +339,12 @@
       return stringValue;
     };
 
-    // --- CORRECCIÓN CLAVE: Alias para "Current Stock No." ---
     const buildColumnMap = (columns = []) => {
       const map = new Map();
       columns.forEach((col) => {
         const clean = cleanHeaderKey(col);
         map.set(clean, col);
-        
-        // HACK: Forzar alias para "current stock no" -> "Current Stock No."
+        // HACK: Alias para encontrar "Current Stock No." incluso si viene sin punto
         if (clean === 'current stock no.') {
             map.set('current stock no', col); 
         }
@@ -369,7 +366,6 @@
       return '';
     };
 
-    // --- MAPPING FOR VEHICLES ---
     const mapVehicleRow = (row) => {
       const r = normalizeRow(row);
       const raw = {
@@ -521,6 +517,7 @@
       }, 4200);
     };
 
+    // --- UPLOAD VEHICLES ---
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
@@ -568,7 +565,7 @@
       showToast(summary, 'success');
     };
 
-    // --- UPLOAD DEALS: AHORA ROBUSTO CONTRA EL PROBLEMA DEL PUNTO ---
+    // --- UPLOAD DEALS: FIX REINICIO Y COLUMNA ---
     const uploadDealsRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
@@ -587,11 +584,11 @@
       };
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
-      // OJO: Recuperamos usando la key LIMPIA ("currentstockno.") que mapea a "Current Stock No."
-      const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
+      // Obtenemos el nombre "real" con punto, que es el que espera Supabase
+      const realStockColumnName = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
-      if (!conflictColumn) {
-        showToast('Local configuration is missing the required "Current Stock No." column.', 'error');
+      if (!realStockColumnName) {
+        showToast('Local configuration error: "Current Stock No." missing from whitelist.', 'error');
         return;
       }
 
@@ -604,8 +601,7 @@
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
         
-        // Intentar leer Stock No con ambos nombres posibles (con y sin punto)
-        // Esto soluciona el "Does not exist": Leemos del CSV (quizás sin punto)
+        // Leemos "stock number" usando ambas posibilidades (con o sin punto)
         const stockNumber = normalizedRow['current stock no.'] || normalizedRow['current stock no'];
         const vin = normalizedRow['vin'];
 
@@ -626,8 +622,9 @@
         // --- FORZAR LA LLAVE CORRECTA CON PUNTO ---
         // Si el mapeo automático falló (porque el CSV no tenía punto),
         // Insertamos el valor manualmente en la columna correcta "Current Stock No."
-        if (!mapped[conflictColumn]) {
-            mapped['Current Stock No.'] = stockNumber;
+        // que es la que Supabase espera.
+        if (!mapped[realStockColumnName]) {
+            mapped[realStockColumnName] = stockNumber;
         }
 
         acc.push(mapped);
@@ -655,7 +652,7 @@
         setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
         // --- UPSERT SEGURO ---
-        // Usamos la llave explícita 'VIN,Current Stock No.'
+        // Usamos la llave explícita 'VIN,Current Stock No.' (con punto)
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
           .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false }) 
@@ -682,6 +679,128 @@
         '\nErrors: ' + parseErrors;
       showToast(summary, 'success');
       setProgress(100, 'Upload complete.');
+    };
+
+    const wireCsvUpload = () => {
+      const form = document.getElementById('csv-upload-form');
+      const fileInput = document.getElementById('csv-file');
+      const submitBtn = document.getElementById('upload-button');
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
+        return allowed;
+      };
+      if (!form || !fileInput || !submitBtn) return;
+      const syncAccess = () => requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
+      
+      // CAMBIO: Evento 'click' en lugar de 'submit' del formulario
+      submitBtn.addEventListener('click', (event) => {
+        event.preventDefault(); // Doble seguridad
+        if (!requireAdmin()) {
+          showToast('Only administrators can upload vehicle data.', 'error');
+          return;
+        }
+        const file = fileInput.files?.[0];
+        if (!file) {
+          showToast('Please select a CSV file to upload.', 'error');
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
+        window.Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h) => h.trim(),
+          worker: false, // WORKER DISABLED
+          complete: async (results) => {
+            try {
+              const parseErrors = results.errors?.length || 0;
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+              await uploadCsvRows(results.data || [], parseErrors);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
+          },
+          error: (err) => {
+            showToast('CSV parse error: ' + err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          },
+        });
+      });
+    };
+
+    const wireDealsUpload = () => {
+      const form = document.getElementById('deals-upload-form');
+      const fileInput = document.getElementById('deals-file');
+      const submitBtn = document.getElementById('deals-upload-button');
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
+        return allowed;
+      };
+      if (!form || !fileInput || !submitBtn) return;
+      const syncAccess = () => requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
+      
+      // CAMBIO: Evento 'click' en lugar de 'submit' del formulario
+      submitBtn.addEventListener('click', (event) => {
+        event.preventDefault(); // Doble seguridad
+        if (!requireAdmin()) {
+          showToast('Only administrators can upload deals data.', 'error');
+          return;
+        }
+        const file = fileInput.files?.[0];
+        if (!file) {
+          showToast('Please select a CSV file to upload.', 'error');
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
+        window.Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h) => h.trim(),
+          worker: false, // WORKER DISABLED
+          complete: async (results) => {
+            try {
+              const parseErrors = results.errors?.length || 0;
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+              await uploadDealsRows(results.data || [], parseErrors);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
+          },
+          error: (err) => {
+            showToast('CSV parse error: ' + err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          },
+        });
+      });
     };
 
     const mount = async () => {
