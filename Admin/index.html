@@ -8,6 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
@@ -58,23 +59,38 @@
   </div>
 </header>
 
-  <nav class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3 lg:px-10">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Admin navigation</span>
-      <div class="flex flex-wrap items-center gap-1">
-        <a href="./index.html" class="rounded-lg border border-blue-500 bg-blue-600/90 px-4 py-2 text-xs font-semibold text-white shadow shadow-blue-500/30 transition">Dashboard</a>
-        <a href="./profiles.html" data-admin-only class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Profiles</a>
-        <a href="./services.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Services</a>
-        <a href="./titles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Titles</a>
-        <a href="./vehicles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
-        <a href="./analytics.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Analytics</a>
-      </div>
-    </div>
-  </nav>
-
     <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10"></canvas>
 
-    <main class="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10 space-y-8">
+    <main class="mx-auto w-full max-w-7xl px-6 py-8 lg:px-10">
+    <div class="flex flex-col gap-8 lg:flex-row">
+      <aside class="hidden w-64 shrink-0 space-y-4 lg:sticky lg:top-8 lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto lg:block">
+        <div class="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+          <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Navigation</p>
+          <h2 class="text-lg font-black text-white">Admin workspace</h2>
+        </div>
+        <nav class="flex flex-col gap-2 text-sm font-semibold">
+          <a href="./index.html" class="flex items-center justify-between gap-2 rounded-xl border border-blue-500 bg-blue-600/90 px-3 py-2 text-white shadow shadow-blue-500/40">
+            Dashboard <span class="text-xs font-medium text-blue-100">Overview</span>
+          </a>
+          <a href="./profiles.html" data-admin-only class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Profiles <span class="text-xs font-medium text-slate-400">Access levels</span>
+          </a>
+          <a href="./services.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Services <span class="text-xs font-medium text-slate-400">Technicians</span>
+          </a>
+          <a href="./titles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Titles <span class="text-xs font-medium text-slate-400">Records</span>
+          </a>
+          <a href="./vehicles.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Vehicles <span class="text-xs font-medium text-slate-400">Fleet</span>
+          </a>
+          <a href="./analytics.html" class="flex items-center justify-between gap-2 rounded-xl border border-slate-800/60 bg-slate-950/60 px-3 py-2 text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Analytics <span class="text-xs font-medium text-slate-400">Insights</span>
+          </a>
+        </nav>
+      </aside>
+
+      <section class="flex-1 space-y-8">
         <section class="space-y-6 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
           <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div class="space-y-3">
@@ -161,6 +177,7 @@
             <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
           </div>
           <div id="datasets" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
+          <canvas id="fleet-chart" class="mt-6 max-h-64 w-full"></canvas>
         </section>
 
         <div class="grid gap-6 lg:grid-cols-2">
@@ -172,7 +189,7 @@
                   <h3 class="text-lg font-bold text-white">Import Vehicles CSV</h3>
                   <p class="text-sm text-slate-400">Upsert into vehicles table using ShortVIN.</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
               </div>
               
               <div class="mt-auto space-y-4">
@@ -197,7 +214,7 @@
                   <h3 class="text-lg font-bold text-white">Import Deals CSV</h3>
                   <p class="text-sm text-slate-400">Upsert into DealsJP1 (Finance Only).</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Filter: Finance</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Filter: Finance</span>
               </div>
 
               <div class="mt-auto space-y-4">
@@ -226,6 +243,7 @@
 
         </div>
       </section>
+    </div>
   </main>
 
   <template id="dataset-card-template">
@@ -261,6 +279,25 @@
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
     const DEALS_TABLE = 'DealsJP1';
+    
+    // --- LISTA MAESTRA DE COLUMNAS (Validación Local) ---
+    const KNOWN_DEALS_COLUMNS = [
+      'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model',
+      'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #',
+      'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By',
+      'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract',
+      'Cash Down', 'Total due on Deal', 'Amount', 'Reg. Contract Payment', 'Payment Schedule',
+      'Total Payments in Months', 'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth',
+      'TAM Legacy Created Date', 'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #',
+      'Trade In VIN', 'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date',
+      'Bucket', 'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount', 'Total Contract Scheduled Amount',
+      'Inventory Valuation Value', 'Sales Channel', 'Partner Name', 'Remaining Scheduled Payments To Invoice',
+      'Deposit', 'PassTime Serial No', 'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode',
+      'Secondary Payment Mode', 'Plate Number', 'Number OF Schedule Remaining_1', 'Mobile Phone', 
+      'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No', 'Plate Number_1', 'Current Title Number', 
+      'Current Title Subsidiary', 'Current Title Physical Location', 'Title In Date', 'Title Out Date', 
+      'Financing Company', 'Broker', 'Return Type', 'Actual System Return Date', 'Returned By'
+    ];
 
     const DATASETS = [
       {
@@ -285,83 +322,6 @@
         displayName: 'Deals'
       }
     ];
-
-    const DEALS_ALLOWED_HEADERS = [
-      'Deal Status',
-      'Deal Date',
-      'HOLD',
-      'Current Stock No.',
-      'Customer',
-      'Brand',
-      'Model',
-      'Model Year',
-      'VIN',
-      'Corrected VIN',
-      'Vehicle Status',
-      'Mileage',
-      'Driver License #',
-      'Inventory Preparation Status',
-      'Inventory Preparation Status Changed On',
-      'Inventory Preparation Status Changed By',
-      'Physical Location',
-      'Physical Location Last Changed on',
-      'ENTITY',
-      'Retail Price On Contract',
-      'Cash Down',
-      'Total due on Deal',
-      'Amount',
-      'Reg. Contract Payment',
-      'Payment Schedule',
-      'Total Payments in Months',
-      'Number OF Schedule Remaining',
-      'Lead Source',
-      'Date of Birth',
-      'TAM Legacy Created Date',
-      'Payment Schedule Start',
-      'Last Payment Date',
-      'TAM Legacy Stock #',
-      'Trade In VIN',
-      'Trade In Amount',
-      'Sales Person',
-      'Subsidiary',
-      'Location',
-      'Lease End Date',
-      'Bucket',
-      'Bucket Sub Type',
-      'Payment Schedule_1',
-      'Lease Term',
-      'Regular Amount',
-      'Total Contract Scheduled Amount',
-      'Inventory Valuation Value',
-      'Sales Channel',
-      'Partner Name',
-      'Remaining Scheduled Payments To Invoice',
-      'Deposit',
-      'PassTime Serial No',
-      'PassTime Vehicle Status',
-      'EFT Available',
-      'Primary Payment Mode',
-      'Secondary Payment Mode',
-      'Plate Number',
-      'Number OF Schedule Remaining_1',
-      'Mobile Phone',
-      'Encore Serial Number',
-      'Encore Serial #2',
-      'GPS Serial No',
-      'Plate Number_1',
-      'Current Title Number',
-      'Current Title Subsidiary',
-      'Current Title Physical Location',
-      'Title In Date',
-      'Title Out Date',
-      'Financing Company',
-      'Broker',
-      'Return Type',
-      'Actual System Return Date',
-      'Returned By',
-    ];
-
-    const KNOWN_DEALS_COLUMNS = ['Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model', 'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #', 'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By', 'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract', 'Cash Down', 'Total due on Deal', 'Amount', 'Reg. Contract Payment', 'Payment Schedule', 'Total Payments in Months', 'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth', 'TAM Legacy Created Date', 'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #', 'Trade In VIN', 'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date', 'Bucket', 'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount', 'Total Contract Scheduled Amount', 'Inventory Valuation Value', 'Sales Channel', 'Partner Name', 'Remaining Scheduled Payments To Invoice', 'Deposit', 'PassTime Serial No', 'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode', 'Secondary Payment Mode', 'Plate Number', 'Number OF Schedule Remaining_1', 'Mobile Phone', 'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No', 'Plate Number_1', 'Current Title Number', 'Current Title Subsidiary', 'Current Title Physical Location', 'Title In Date', 'Title Out Date', 'Financing Company', 'Broker', 'Return Type', 'Actual System Return Date', 'Returned By'];
 
     const ADMIN_ROLE = 'administrator';
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
@@ -396,9 +356,20 @@
       return stringValue;
     };
 
+    // --- CORRECCIÓN MAGICA: ALIAS PARA EL PUNTO ---
     const buildColumnMap = (columns = []) => {
       const map = new Map();
-      columns.forEach((col) => map.set(cleanHeaderKey(col), col));
+      columns.forEach((col) => {
+        const clean = cleanHeaderKey(col);
+        map.set(clean, col);
+        
+        // SI LA COLUMNA ES "CURRENT STOCK NO." (CON PUNTO)
+        // AGREGAMOS UN ALIAS SIN PUNTO AL MAPA.
+        // ASÍ, SI EL CSV TRAE "Current Stock No", EL CÓDIGO LO ENTIENDE IGUAL.
+        if (clean === 'current stock no.') {
+            map.set('current stock no', col); 
+        }
+      });
       return map;
     };
 
@@ -416,10 +387,9 @@
       return '';
     };
 
-    // --- MAPPING FOR VEHICLES (STRICT) ---
+    // --- MAPPING FOR VEHICLES ---
     const mapVehicleRow = (row) => {
       const r = normalizeRow(row);
-
       const raw = {
         'deal status': cleanValue(getCsv(r, 'deal status', 'deal_status', 'dealstatus')),
         'customer id': cleanValue(getCsv(r, 'customer id', 'customer_id', 'customerid')),
@@ -443,7 +413,6 @@
         'lat': toNumber(getCsv(r, 'lat', 'latitude')),
         'long': toNumber(getCsv(r, 'long', 'lng', 'longitude')),
       };
-
       return pickAllowed(raw);
     };
 
@@ -456,33 +425,26 @@
       if (!supabaseClient) {
         return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: 'Client unavailable' };
       }
-
       try {
         const { count, error: countError } = await supabaseClient
           .from(dataset.table)
           .select('*', { count: 'exact', head: true });
-
         if (countError) {
           return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: countError.message || 'Restricted' };
         }
-
         const { data, error: dataError } = await supabaseClient
           .from(dataset.table)
           .select('*')
           .limit(1);
-
         if (dataError) {
           return { rows: count || 0, columns: 0, lastUpdated: null, restricted: true, message: dataError.message || 'Restricted' };
         }
-
         let columnCount = 0;
         let lastUpdated = null;
-
         if (data && data.length > 0) {
           columnCount = Object.keys(data[0]).length;
           lastUpdated = data[0].created_at || data[0].updated_at || null;
         }
-
         return { rows: count || 0, columns: columnCount, lastUpdated, restricted: false };
       } catch (err) {
         return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: err.message };
@@ -493,12 +455,10 @@
       const container = document.getElementById('activity-log');
       if (!container) return;
       container.innerHTML = '';
-
       if (activities.length === 0) {
         container.innerHTML = '<li class="text-slate-500 italic text-xs">No recent activity detected.</li>';
         return;
       }
-
       activities.slice(0, 4).forEach((item) => {
         const row = document.createElement('li');
         row.className = 'flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2';
@@ -525,16 +485,12 @@
         columns: clone.querySelector('[data-dataset-columns]'),
         signal: clone.querySelector('[data-dataset-signal]'),
       };
-
       els.scope.textContent = dataset.scope;
       els.title.textContent = dataset.title;
       els.description.textContent = dataset.description;
-
       const stats = await getTableStats(dataset);
-
       els.rows.textContent = stats.rows ? stats.rows.toLocaleString() : '--';
       els.columns.textContent = stats.columns || '--';
-
       if (stats.restricted) {
         els.status.textContent = 'Restricted';
         els.status.className = 'rounded-full border border-amber-600 bg-amber-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200';
@@ -547,7 +503,6 @@
         els.status.textContent = 'Empty';
         els.signal.textContent = 'Table exists but contains no records.';
       }
-
       return { card: clone, stats: { ...stats, table: dataset.displayName } };
     };
 
@@ -565,69 +520,118 @@
     const showToast = (message, type = 'info') => {
       const container = ensureToastContainer();
       const toast = document.createElement('div');
-
       const variantClasses =
         type === 'success'
           ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-50 shadow-emerald-500/30'
           : 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30';
-
       toast.className = `flex min-w-[260px] max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${variantClasses}`;
-
       const icon = document.createElement('span');
       icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${type === 'success' ? 'bg-emerald-400' : 'bg-red-400'}`;
-
       const text = document.createElement('p');
       text.className = 'whitespace-pre-line font-semibold leading-relaxed';
       text.textContent = message;
-
       toast.appendChild(icon);
       toast.appendChild(text);
-
       container.appendChild(toast);
-
       setTimeout(() => {
         toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
         setTimeout(() => toast.remove(), 320);
       }, 4200);
     };
 
+    let fleetChartInstance = null;
+
+    const renderFleetChart = async () => {
+      const canvas = document.getElementById('fleet-chart');
+      if (!canvas || !window.Chart) return;
+      if (!supabaseClient) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .select('"deal status"');
+        if (error) throw error;
+        const counts = (data || []).reduce((acc, row) => {
+          const status = ((row['deal status'] ?? 'Unknown').toString() || 'Unknown').trim() || 'Unknown';
+          acc[status] = (acc[status] || 0) + 1;
+          return acc;
+        }, {});
+        const labels = Object.keys(counts);
+        const values = labels.map((label) => counts[label]);
+        const chartLabels = labels.length ? labels : ['No data'];
+        const chartValues = labels.length ? values : [1];
+        const palette = ['#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#f97316', '#facc15', '#34d399'];
+        const backgroundColors = chartLabels.map((_, idx) => palette[idx % palette.length]);
+        if (fleetChartInstance) fleetChartInstance.destroy();
+        Chart.defaults.color = '#cbd5e1';
+        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+        fleetChartInstance = new Chart(canvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [
+              {
+                data: chartValues,
+                backgroundColor: backgroundColors,
+                borderColor: '#0f172a',
+                borderWidth: 2,
+                hoverOffset: 10,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '58%',
+            layout: { padding: 8 },
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { color: '#e2e8f0', boxWidth: 14, boxHeight: 14 },
+              },
+              tooltip: {
+                backgroundColor: '#0f172a',
+                titleColor: '#e2e8f0',
+                bodyColor: '#e2e8f0',
+                borderColor: '#334155',
+                borderWidth: 1,
+              },
+            },
+          },
+        });
+      } catch (error) {
+        console.error('Failed to render fleet chart:', error);
+      }
+    };
+
     // --- UPLOAD VEHICLES ---
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
-
       const submitBtn = document.getElementById('upload-button');
-      
       const mapped = rows
         .map(mapVehicleRow)
         .filter((row) => {
           const valid = !!(row.shortvin && `${row.shortvin}`.trim() !== '');
           return valid;
         });
-
       if (!mapped.length) {
         showToast('No valid rows detected. Each row must include a ShortVIN value.', 'error');
         return;
       }
-
       const BATCH_SIZE = 1000;
       let totalUpserted = 0;
       let skippedInvalid = rows.length - mapped.length;
       const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
-
       for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
         const batch = mapped.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
-
         if (submitBtn) {
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
-
         const { data, error } = await supabaseClient
           .from('vehicles')
           .upsert(batch, { onConflict: 'shortvin', ignoreDuplicates: false })
           .select('shortvin');
-
         if (error) {
           console.error('Supabase upsert error:', error);
           if (isRlsBlocked(error)) {
@@ -638,7 +642,6 @@
         }
         totalUpserted += (data ? data.length : 0);
       }
-
       const summary =
         'Completed.' +
         '\nProcessed: ' + rows.length +
@@ -665,7 +668,9 @@
         if (progressLabel) progressLabel.textContent = label;
         if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
       };
+      
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
+      // OJO: Recuperamos usando la key LIMPIA ("currentstockno.") que mapea a "Current Stock No."
       const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
       if (!conflictColumn) {
@@ -677,28 +682,33 @@
       let skippedInvalid = 0;
       const filteredRows = rows.reduce((acc, rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
+        
+        // --- VALIDACIONES DE NEGOCIO ---
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
-        const stockNumber = normalizedRow['current stock no.'];
+        
+        // Intentar leer Stock No con ambos nombres posibles (con y sin punto)
+        const stockNumber = normalizedRow['current stock no.'] || normalizedRow['current stock no'];
+        const vin = normalizedRow['vin'];
 
-        if (!isFinance || !stockNumber) {
+        if (!isFinance || !stockNumber || !vin) {
           skippedInvalid += 1;
           return acc;
         }
 
         const mapped = {};
-        DEALS_ALLOWED_HEADERS.forEach((header) => {
-          const normalizedKey = cleanHeaderKey(header);
-          const columnName = columnMap.get(normalizedKey);
-          if (!columnName) return;
-          const cleanedValue = cleanValue(normalizedRow[normalizedKey]);
-          if (cleanedValue === null) return;
+        Object.entries(normalizedRow).forEach(([key, value]) => {
+          // Buscamos si la columna del CSV existe en nuestra lista maestra
+          const columnName = columnMap.get(key);
+          const cleanedValue = cleanValue(value);
+          if (!columnName || cleanedValue === null) return;
           mapped[columnName] = cleanedValue;
         });
 
+        // Asegurar que la llave primaria está presente
+        // Si falló el mapeo automático por el nombre, lo forzamos
         if (!mapped[conflictColumn]) {
-          skippedInvalid += 1;
-          return acc;
+            mapped[conflictColumn] = stockNumber;
         }
 
         acc.push(mapped);
@@ -727,7 +737,7 @@
 
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
-          .upsert(batch, { onConflict: conflictColumn, ignoreDuplicates: false })
+          .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false }) 
           .select();
 
         if (error) {
@@ -757,7 +767,6 @@
       const form = document.getElementById('csv-upload-form');
       const fileInput = document.getElementById('csv-file');
       const submitBtn = document.getElementById('upload-button');
-
       const requireAdmin = () => {
         const allowed = isAdminUser();
         if (fileInput) fileInput.disabled = !allowed;
@@ -767,28 +776,23 @@
         if (submitBtn) submitBtn.title = titleText;
         return allowed;
       };
-
       if (!form || !fileInput || !submitBtn) return;
       const syncAccess = () => requireAdmin();
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
-
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         if (!requireAdmin()) {
           showToast('Only administrators can upload vehicle data.', 'error');
           return;
         }
-
         const file = fileInput.files?.[0];
         if (!file) {
           showToast('Please select a CSV file to upload.', 'error');
           return;
         }
-
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
@@ -822,7 +826,6 @@
       const form = document.getElementById('deals-upload-form');
       const fileInput = document.getElementById('deals-file');
       const submitBtn = document.getElementById('deals-upload-button');
-
       const requireAdmin = () => {
         const allowed = isAdminUser();
         if (fileInput) fileInput.disabled = !allowed;
@@ -832,28 +835,23 @@
         if (submitBtn) submitBtn.title = titleText;
         return allowed;
       };
-
       if (!form || !fileInput || !submitBtn) return;
       const syncAccess = () => requireAdmin();
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
-
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         if (!requireAdmin()) {
           showToast('Only administrators can upload deals data.', 'error');
           return;
         }
-
         const file = fileInput.files?.[0];
         if (!file) {
           showToast('Please select a CSV file to upload.', 'error');
           return;
         }
-
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
@@ -887,18 +885,16 @@
       const container = document.getElementById('datasets');
       let totalRows = 0;
       let activities = [];
-
       for (const dataset of DATASETS) {
         const { card, stats } = await renderDatasetCard(dataset);
         container.appendChild(card);
         totalRows += stats.rows || 0;
         if ((stats.rows || 0) > 0 && !stats.restricted) activities.push(stats);
       }
-
       document.getElementById('dataset-count').textContent = DATASETS.length;
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
-
       renderActivityLog(activities);
+      await renderFleetChart();
       lucide.createIcons();
     };
 
