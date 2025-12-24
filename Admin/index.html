@@ -264,8 +264,9 @@
     const DEALS_TABLE = 'DealsJP1';
     
     // --- LISTA MAESTRA (Validación Local) ---
+    // NOTA: Hemos eliminado el punto de "Current Stock No" para que coincida con la BD normalizada
     const KNOWN_DEALS_COLUMNS = [
-      'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No.', 'Customer', 'Brand', 'Model',
+      'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No', 'Customer', 'Brand', 'Model',
       'Model Year', 'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #',
       'Inventory Preparation Status', 'Inventory Preparation Status Changed On', 'Inventory Preparation Status Changed By',
       'Physical Location', 'Physical Location Last Changed on', 'ENTITY', 'Retail Price On Contract',
@@ -321,7 +322,9 @@
         .toString()
         .trim()                
         .replace(/\s+/g, ' ')  
-        .toLowerCase();
+        .toLowerCase()
+        // Eliminamos puntos finales para normalizar "Stock No." vs "Stock No"
+        .replace(/\.$/, ''); 
     };
 
     const normalizeRow = (row = {}) =>
@@ -344,10 +347,6 @@
       columns.forEach((col) => {
         const clean = cleanHeaderKey(col);
         map.set(clean, col);
-        // HACK: Alias para encontrar "Current Stock No." incluso si viene sin punto
-        if (clean === 'current stock no.') {
-            map.set('current stock no', col); 
-        }
       });
       return map;
     };
@@ -565,7 +564,7 @@
       showToast(summary, 'success');
     };
 
-    // --- UPLOAD DEALS: FIX REINICIO Y COLUMNA ---
+    // --- UPLOAD DEALS: AHORA ROBUSTO Y NORMALIZADO ---
     const uploadDealsRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
@@ -584,11 +583,11 @@
       };
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
-      // Obtenemos el nombre "real" con punto, que es el que espera Supabase
-      const realStockColumnName = columnMap.get(cleanHeaderKey('Current Stock No.'));
+      // OJO: "current stock no" sin punto final, porque cleanHeaderKey elimina el punto
+      const conflictColumn = columnMap.get('current stock no'); 
 
-      if (!realStockColumnName) {
-        showToast('Local configuration error: "Current Stock No." missing from whitelist.', 'error');
+      if (!conflictColumn) {
+        showToast('Local configuration error: "Current Stock No" missing from whitelist.', 'error');
         return;
       }
 
@@ -601,8 +600,8 @@
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
         
-        // Leemos "stock number" usando ambas posibilidades (con o sin punto)
-        const stockNumber = normalizedRow['current stock no.'] || normalizedRow['current stock no'];
+        // Leemos "stock number" usando la llave normalizada (sin punto final)
+        const stockNumber = normalizedRow['current stock no'];
         const vin = normalizedRow['vin'];
 
         if (!isFinance || !stockNumber || !vin) {
@@ -612,19 +611,15 @@
 
         const mapped = {};
         Object.entries(normalizedRow).forEach(([key, value]) => {
-          // Buscamos si la columna del CSV existe en nuestra lista maestra
           const columnName = columnMap.get(key);
           const cleanedValue = cleanValue(value);
           if (!columnName || cleanedValue === null) return;
           mapped[columnName] = cleanedValue;
         });
 
-        // --- FORZAR LA LLAVE CORRECTA CON PUNTO ---
-        // Si el mapeo automático falló (porque el CSV no tenía punto),
-        // Insertamos el valor manualmente en la columna correcta "Current Stock No."
-        // que es la que Supabase espera.
-        if (!mapped[realStockColumnName]) {
-            mapped[realStockColumnName] = stockNumber;
+        // Asegurar que la llave de conflicto está presente
+        if (!mapped[conflictColumn]) {
+            mapped[conflictColumn] = stockNumber;
         }
 
         acc.push(mapped);
@@ -651,11 +646,11 @@
         }
         setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
-        // --- UPSERT SEGURO ---
-        // Usamos la llave explícita 'VIN,Current Stock No.' (con punto)
+        // --- UPSERT SIN PUNTOS ---
+        // Usamos la llave 'VIN,Current Stock No' (sin punto final)
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
-          .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false }) 
+          .upsert(batch, { onConflict: 'VIN,Current Stock No', ignoreDuplicates: false }) 
           .select();
 
         if (error) {
@@ -699,9 +694,9 @@
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
       
-      // CAMBIO: Evento 'click' en lugar de 'submit' del formulario
+      // FIX REINICIO: Evento click en lugar de submit
       submitBtn.addEventListener('click', (event) => {
-        event.preventDefault(); // Doble seguridad
+        event.preventDefault(); 
         if (!requireAdmin()) {
           showToast('Only administrators can upload vehicle data.', 'error');
           return;
@@ -760,9 +755,9 @@
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
       
-      // CAMBIO: Evento 'click' en lugar de 'submit' del formulario
+      // FIX REINICIO: Evento click en lugar de submit
       submitBtn.addEventListener('click', (event) => {
-        event.preventDefault(); // Doble seguridad
+        event.preventDefault(); 
         if (!requireAdmin()) {
           showToast('Only administrators can upload deals data.', 'error');
           return;
