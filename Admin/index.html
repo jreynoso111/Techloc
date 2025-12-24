@@ -381,7 +381,7 @@
       // Si el CSV trae "actual system return date" y la DB no lo tiene, esto lo ignorará
       const ALLOWED_COLUMNS = [
         'vin',
-        'current stock no',
+        'current stock no.',
         'deal status',
         'customer',
         // 'actual_system_return_date', // <--- Descomenta esto SOLO si creaste la columna en Supabase
@@ -401,7 +401,7 @@
       const stockNo = cleanValue(getCsv(r, 'current stock no', 'current stock no.', 'stock no', 'stock number'));
 
       if (vin) cleaned['vin'] = vin;
-      if (stockNo) cleaned['current stock no'] = stockNo;
+      if (stockNo) cleaned['current stock no.'] = stockNo;
 
       return cleaned;
     };
@@ -700,7 +700,7 @@
         .map(mapDealsRow)
         .filter((row) => {
           // Asegurar que hay datos válidos (las columnas extras ya fueron ignoradas en mapDealsRow)
-          const valid = !!(row.vin && row['current stock no']);
+          const valid = !!(row.vin && row['current stock no.']);
           return valid;
         });
 
@@ -725,7 +725,7 @@
 
         const { data, error } = await supabaseClient
           .from('DealsJP1')
-          .upsert(batch, { onConflict: 'vin,current stock no', ignoreDuplicates: false })
+          .upsert(batch, { onConflict: 'vin,current stock no.', ignoreDuplicates: false })
           .select('vin');
 
         if (error) {
