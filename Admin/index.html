@@ -217,7 +217,7 @@
                     <span id="deals-progress-count">0%</span>
                   </div>
                   <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div id="deals-progress-bar" class="h-2 w-0 bg-blue-500 transition-all duration-200"></div>
+                    <div id="deals-progress-bar" class="h-2 w-0 bg-emerald-500 transition-all duration-200"></div>
                   </div>
                 </div>
                 <p class="text-xs leading-relaxed text-slate-400">Requires: VIN, Current Stock No. & Sales Channel containing 'Finance'.</p>
@@ -562,27 +562,81 @@
       showToast(summary, 'success');
     };
 
-    // --- UPLOAD DEALS: LOGICA OPTIMIZADA PARA ARCHIVOS GRANDES ---
-    // Recibe el array final ya filtrado desde la función de lectura
-    const uploadFilteredDeals = async (filteredRows, duplicateCount, parseErrors) => {
+    // --- UPLOAD DEALS: AHORA ROBUSTO Y NORMALIZADO (CON FILTRO DE DUPLICADOS) ---
+    const uploadDealsRows = async (rows, parseErrors = 0) => {
+      if (!supabaseClient) throw new Error('Supabase client unavailable.');
+      if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
+
       const submitBtn = document.getElementById('deals-upload-button');
+      const progressWrap = document.getElementById('deals-progress');
       const progressBar = document.getElementById('deals-progress-bar');
       const progressLabel = document.getElementById('deals-progress-label');
       const progressCount = document.getElementById('deals-progress-count');
 
-      // Helper para actualizar UI (ahora en verde para upload)
-      const setUploadProgress = (percent, label) => {
-        if (progressBar) {
-            progressBar.classList.remove('bg-blue-500'); // Quitar azul de escaneo
-            progressBar.classList.add('bg-emerald-500'); // Poner verde de subida
-            progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
-        }
+      const setProgress = (percent, label) => {
+        if (progressWrap) progressWrap.classList.remove('hidden');
+        if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
         if (progressLabel) progressLabel.textContent = label;
-        if (progressCount) progressCount.textContent = `${Math.round(percent)}%`;
+        if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
       };
+      
+      const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
+      const conflictColumn = columnMap.get('current stock no'); 
+
+      if (!conflictColumn) {
+        showToast('Local configuration error: "Current Stock No" missing from whitelist.', 'error');
+        return;
+      }
+
+      setProgress(0, 'Preparing & deduplicating rows...');
+      
+      // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
+      const uniqueDealsMap = new Map();
+      let skippedInvalid = 0;
+      let duplicatesRemoved = 0;
+
+      rows.forEach((rawRow) => {
+        const normalizedRow = normalizeRow(rawRow);
+        
+        // Validaciones
+        const salesChannel = normalizedRow['sales channel'];
+        const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
+        
+        const stockNumber = normalizedRow['current stock no'];
+        const vin = normalizedRow['vin'];
+
+        if (!isFinance || !stockNumber || !vin) {
+          skippedInvalid += 1;
+          return; 
+        }
+
+        const mapped = {};
+        Object.entries(normalizedRow).forEach(([key, value]) => {
+          const columnName = columnMap.get(key);
+          const cleanedValue = cleanValue(value);
+          if (!columnName || cleanedValue === null) return;
+          mapped[columnName] = cleanedValue;
+        });
+
+        if (!mapped[conflictColumn]) {
+            mapped[conflictColumn] = stockNumber;
+        }
+
+        // LLAVE UNICA: VIN + Stock
+        const uniqueKey = `${vin}_${stockNumber}`;
+
+        if (uniqueDealsMap.has(uniqueKey)) {
+            duplicatesRemoved++;
+        }
+        // Sobrescribimos (se queda el último del CSV)
+        uniqueDealsMap.set(uniqueKey, mapped);
+      });
+
+      const filteredRows = Array.from(uniqueDealsMap.values());
 
       if (!filteredRows.length) {
-        showToast('No finance rows detected in the entire file.', 'error');
+        setProgress(0, 'No finance rows detected.');
+        showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
         return;
       }
 
@@ -598,9 +652,9 @@
         if (submitBtn) {
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
-        setUploadProgress((processed / filteredRows.length) * 100, `Uploading to Supabase...`);
+        setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
-        // --- UPSERT ---
+        // UPSERT
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
           .upsert(batch, { onConflict: 'VIN,Current Stock No', ignoreDuplicates: false }) 
@@ -616,38 +670,94 @@
         }
         totalUpserted += (data ? data.length : 0);
         processed += batch.length;
-        setUploadProgress((processed / filteredRows.length) * 100, `Uploaded ${processed} records...`);
+        setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
       }
 
       const summary =
         'Completed.' +
-        '\nFinance Deals Uploaded: ' + totalUpserted +
-        '\nDuplicates Fixed: ' + duplicateCount +
-        '\nParse Errors: ' + parseErrors;
+        '\nProcessed (Unique Finance): ' + filteredRows.length +
+        '\nUpserted: ' + totalUpserted +
+        '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
+        '\nDuplicates Removed: ' + duplicatesRemoved + 
+        '\nErrors: ' + parseErrors;
       
       showToast(summary, 'success');
-      setUploadProgress(100, 'Done.');
+      setProgress(100, 'Upload complete.');
     };
 
+    const wireCsvUpload = () => {
+      const form = document.getElementById('csv-upload-form');
+      const fileInput = document.getElementById('csv-file');
+      const submitBtn = document.getElementById('upload-button');
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
+        return allowed;
+      };
+      if (!form || !fileInput || !submitBtn) return;
+      const syncAccess = () => requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
+      
+      submitBtn.addEventListener('click', (event) => {
+        event.preventDefault(); 
+        if (!requireAdmin()) {
+          showToast('Only administrators can upload vehicle data.', 'error');
+          return;
+        }
+        const file = fileInput.files?.[0];
+        if (!file) {
+          showToast('Please select a CSV file to upload.', 'error');
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
+        window.Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h) => h.trim(),
+          worker: false, 
+          complete: async (results) => {
+            try {
+              const parseErrors = results.errors?.length || 0;
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+              await uploadCsvRows(results.data || [], parseErrors);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
+          },
+          error: (err) => {
+            showToast('CSV parse error: ' + err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          },
+        });
+      });
+    };
 
     const wireDealsUpload = () => {
       const form = document.getElementById('deals-upload-form');
       const fileInput = document.getElementById('deals-file');
       const submitBtn = document.getElementById('deals-upload-button');
-      
-      // UI Elements
-      const progressWrap = document.getElementById('deals-progress');
-      const progressBar = document.getElementById('deals-progress-bar');
-      const progressLabel = document.getElementById('deals-progress-label');
-      const progressCount = document.getElementById('deals-progress-count');
-
       const requireAdmin = () => {
         const allowed = isAdminUser();
         if (fileInput) fileInput.disabled = !allowed;
         if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
         return allowed;
       };
-
       if (!form || !fileInput || !submitBtn) return;
       const syncAccess = () => requireAdmin();
       syncAccess();
@@ -659,121 +769,38 @@
           showToast('Only administrators can upload deals data.', 'error');
           return;
         }
-        
         const file = fileInput.files?.[0];
         if (!file) {
-          showToast('Please select a CSV file.', 'error');
+          showToast('Please select a CSV file to upload.', 'error');
           return;
         }
-
-        // --- PREPARACIÓN DE UI ---
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Scanning file...</span>';
-        if (progressWrap) progressWrap.classList.remove('hidden');
-        if (progressBar) {
-            progressBar.style.width = '0%';
-            progressBar.classList.remove('bg-emerald-500');
-            progressBar.classList.add('bg-blue-500'); // Azul para lectura
-        }
-
-        // --- CONFIGURACIÓN DE LÓGICA DE MAPEO ---
-        const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
-        const conflictColumn = columnMap.get('current stock no');
-        if (!conflictColumn) {
-             showToast('Config Error: Missing "Current Stock No".', 'error');
-             submitBtn.disabled = false;
-             return;
-        }
-
-        const uniqueDealsMap = new Map();
-        let duplicatesRemoved = 0;
-        let parseErrors = 0;
-        let totalRowsScanned = 0;
-
-        // --- LECTURA STREAMING (STEP) ---
-        Papa.parse(file, {
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
+        window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
           transformHeader: (h) => h.trim(),
-          worker: false, // Usamos Main Thread con Step para poder actualizar UI
-          
-          step: function(results) {
-             // 1. Actualizar Progreso de LECTURA
-             totalRowsScanned++;
-             
-             // Actualizar UI cada 500 filas para no saturar el DOM
-             if (totalRowsScanned % 500 === 0 && file.size > 0) {
-                 // results.meta.cursor nos dice el byte actual
-                 const percent = (results.meta.cursor / file.size) * 100;
-                 if (progressBar) progressBar.style.width = `${percent}%`;
-                 if (progressLabel) progressLabel.textContent = `Scanning: ${totalRowsScanned} rows...`;
-                 if (progressCount) progressCount.textContent = `${Math.round(percent)}%`;
-             }
-
-             // 2. Procesar Fila Individual
-             if (results.errors.length) {
-                 parseErrors += results.errors.length;
-                 return;
-             }
-
-             const rawRow = results.data;
-             const normalizedRow = normalizeRow(rawRow);
-
-             // 3. Filtrar Inmediatamente (Ahorra Memoria)
-             const salesChannel = normalizedRow['sales channel'];
-             const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
-             const stockNumber = normalizedRow['current stock no'];
-             const vin = normalizedRow['vin'];
-
-             if (!isFinance || !stockNumber || !vin) {
-                 return; // Descartar fila
-             }
-
-             // 4. Mapear y Guardar en Memoria
-             const mapped = {};
-             Object.entries(normalizedRow).forEach(([key, value]) => {
-                const columnName = columnMap.get(key);
-                const cleanedValue = cleanValue(value);
-                if (!columnName || cleanedValue === null) return;
-                mapped[columnName] = cleanedValue;
-             });
-
-             if (!mapped[conflictColumn]) mapped[conflictColumn] = stockNumber;
-
-             // 5. Deduplicar (Last wins)
-             const uniqueKey = `${vin}_${stockNumber}`;
-             if (uniqueDealsMap.has(uniqueKey)) duplicatesRemoved++;
-             uniqueDealsMap.set(uniqueKey, mapped);
+          worker: false, 
+          complete: async (results) => {
+            try {
+              const parseErrors = results.errors?.length || 0;
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+              await uploadDealsRows(results.data || [], parseErrors);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
           },
-
-          complete: async () => {
-             // Lectura completada
-             if (progressBar) progressBar.style.width = '100%';
-             submitBtn.innerHTML = '<span class="animate-pulse">Starting upload...</span>';
-             
-             // Convertir Mapa a Array
-             const finalRows = Array.from(uniqueDealsMap.values());
-             
-             console.log(`Scan complete. Found ${finalRows.length} finance deals.`);
-             
-             try {
-                await uploadFilteredDeals(finalRows, duplicatesRemoved, parseErrors);
-             } catch (err) {
-                console.error('Upload Process Failed:', err);
-                showToast('Error during upload: ' + err.message, 'error');
-             } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
-                lucide.createIcons();
-             }
-          },
-          
           error: (err) => {
-             showToast('CSV Read Error: ' + err.message, 'error');
-             submitBtn.disabled = false;
-             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
-             lucide.createIcons();
-          }
+            showToast('CSV parse error: ' + err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          },
         });
       });
     };
