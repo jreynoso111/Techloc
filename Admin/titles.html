@@ -703,11 +703,21 @@
 
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
+        const normalizeText = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string') return value.trim().toLowerCase();
+            if (typeof value === 'number') return value;
+            return String(value).trim().toLowerCase();
+        };
         rows = [...rows].sort((a, b) => {
-          let valA = a[column] ?? ''; let valB = b[column] ?? '';
-          if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
-          valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-          return direction === 'asc' ? (valA < valB ? -1 : 1) : (valA > valB ? 1 : -1);
+          const valA = a[column]; const valB = b[column];
+          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
+          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
+
+          const textA = normalizeText(valA);
+          const textB = normalizeText(valB);
+          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
+          return direction === 'asc' ? result : -result;
         });
       }
 
