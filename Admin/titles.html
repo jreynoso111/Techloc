@@ -742,8 +742,47 @@
         menuTrigger.dataset.columnMenuTrigger = 'true';
 
         const menu = document.createElement('div');
-        menu.className = 'absolute right-0 top-full mt-1 min-w-[160px] rounded-lg border border-slate-800 bg-slate-900 shadow-xl hidden z-50';
-        menu.innerHTML = `
+        menu.className = 'absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-slate-800 bg-slate-900 shadow-xl hidden z-50';
+        
+        const filterSection = document.createElement('div');
+        filterSection.className = 'px-3 py-2 border-b border-slate-800/80 space-y-2';
+        
+        const filterTitle = document.createElement('p');
+        filterTitle.className = 'text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500';
+        filterTitle.textContent = 'Filter this column';
+        filterSection.appendChild(filterTitle);
+
+        const filterField = document.createElement('div');
+        filterField.className = 'relative';
+        const filterIcon = document.createElement('i');
+        filterIcon.setAttribute('data-lucide', 'search');
+        filterIcon.className = 'absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500';
+        const filterInput = document.createElement('input');
+        filterInput.type = 'search';
+        filterInput.placeholder = `Search ${col.label}`;
+        filterInput.value = state.columnFilters[col.id] || '';
+        filterInput.className = 'w-full bg-slate-800 border border-slate-700 rounded-md py-1.5 pl-8 pr-2 text-[11px] text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none';
+        filterField.appendChild(filterIcon);
+        filterField.appendChild(filterInput);
+        filterSection.appendChild(filterField);
+
+        const filterActions = document.createElement('div');
+        filterActions.className = 'flex items-center justify-end gap-2';
+        const clearFilterBtn = document.createElement('button');
+        clearFilterBtn.dataset.action = 'clear-filter';
+        clearFilterBtn.className = `text-[10px] font-semibold px-2 py-1 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white ${hasFilter ? '' : 'opacity-50 cursor-not-allowed'}`;
+        clearFilterBtn.textContent = 'Clear';
+        const applyFilterBtn = document.createElement('button');
+        applyFilterBtn.dataset.action = 'apply-filter';
+        applyFilterBtn.className = 'text-[10px] font-semibold px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-500';
+        applyFilterBtn.textContent = 'Apply';
+        filterActions.appendChild(clearFilterBtn);
+        filterActions.appendChild(applyFilterBtn);
+        filterSection.appendChild(filterActions);
+
+        const sortSection = document.createElement('div');
+        sortSection.className = 'py-1';
+        sortSection.innerHTML = `
           <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2\" data-action=\"sort-asc\">
             <i data-lucide=\"chevron-up\" class=\"h-3.5 w-3.5\"></i> Sort A → Z
           </button>
@@ -753,14 +792,28 @@
           <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2\" data-action=\"clear-sort\">
             <i data-lucide=\"x\" class=\"h-3.5 w-3.5\"></i> Clear sort
           </button>
-          <div class=\"border-t border-slate-800 my-1\"></div>
-          <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2\" data-action=\"filter\">
-            <i data-lucide=\"filter\" class=\"h-3.5 w-3.5\"></i> Set filter…
-          </button>
-          <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2 ${hasFilter ? '' : 'opacity-50 cursor-not-allowed'}\" data-action=\"clear-filter\">
-            <i data-lucide=\"eraser\" class=\"h-3.5 w-3.5\"></i> Clear filter
-          </button>
         `;
+
+        menu.appendChild(filterSection);
+        menu.appendChild(sortSection);
+
+        const applyFilter = () => {
+            const trimmed = filterInput.value.trim();
+            if (!trimmed) {
+                delete state.columnFilters[col.id];
+            } else {
+                state.columnFilters[col.id] = trimmed;
+            }
+            state.pagination.page = 1;
+            savePrefs(); renderTable();
+        };
+
+        const clearFilter = () => {
+            delete state.columnFilters[col.id];
+            filterInput.value = '';
+            state.pagination.page = 1;
+            savePrefs(); renderTable();
+        };
 
         const handleMenuAction = (action) => {
             if (action === 'sort-asc') {
@@ -772,20 +825,14 @@
                 savePrefs(); renderTable();
             }
             else if (action === 'clear-sort') { state.sort = { column: null, direction: 'none' }; savePrefs(); renderTable(); }
-            else if (action === 'filter') {
-                const current = state.columnFilters[col.id] || '';
-                const next = prompt('Enter filter value for this column', current);
-                if (next === null) return;
-                const trimmed = next.trim();
-                if (!trimmed) delete state.columnFilters[col.id];
-                else state.columnFilters[col.id] = trimmed;
-                state.pagination.page = 1;
-                savePrefs(); renderTable();
-            } else if (action === 'clear-filter' && hasFilter) {
-                delete state.columnFilters[col.id];
-                savePrefs(); renderTable();
-            }
+            else if (action === 'apply-filter') { applyFilter(); }
+            else if (action === 'clear-filter') { clearFilter(); }
         };
+
+        filterInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { applyFilter(); closeColumnMenus(); }
+            if (e.key === 'Escape') { closeColumnMenus(); }
+        });
 
         menu.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-action]');
