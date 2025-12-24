@@ -625,7 +625,8 @@
         savePrefs(); renderTable();
       }
     };
-    const renderTable = () => {
+    const renderTable = (options = {}) => {
+      const { keepFilterOpen = null } = options;
       columnMenus = [];
       const visible = getVisibleColumns();
       els.colgroup.innerHTML = '';
@@ -797,7 +798,7 @@
         menu.appendChild(filterSection);
         menu.appendChild(sortSection);
 
-        const applyFilter = () => {
+        const applyFilter = (keepOpen = false) => {
             const trimmed = filterInput.value.trim();
             if (!trimmed) {
                 delete state.columnFilters[col.id];
@@ -805,14 +806,14 @@
                 state.columnFilters[col.id] = trimmed;
             }
             state.pagination.page = 1;
-            savePrefs(); renderTable();
+            savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
         };
 
-        const clearFilter = () => {
+        const clearFilter = (keepOpen = false) => {
             delete state.columnFilters[col.id];
             filterInput.value = '';
             state.pagination.page = 1;
-            savePrefs(); renderTable();
+            savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
         };
 
         let filterDebounce;
@@ -826,16 +827,16 @@
                 savePrefs(); renderTable();
             }
             else if (action === 'clear-sort') { state.sort = { column: null, direction: 'none' }; savePrefs(); renderTable(); }
-            else if (action === 'apply-filter') { applyFilter(); }
-            else if (action === 'clear-filter') { clearFilter(); }
+            else if (action === 'apply-filter') { applyFilter(true); }
+            else if (action === 'clear-filter') { clearFilter(true); }
         };
 
         filterInput.addEventListener('input', () => {
             clearTimeout(filterDebounce);
-            filterDebounce = setTimeout(applyFilter, 200);
+            filterDebounce = setTimeout(() => applyFilter(true), 200);
         });
         filterInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { applyFilter(); closeColumnMenus(); }
+            if (e.key === 'Enter') { applyFilter(true); closeColumnMenus(); }
             if (e.key === 'Escape') { closeColumnMenus(); }
         });
 
@@ -857,6 +858,15 @@
             closeColumnMenus(menu);
             menu.classList.toggle('hidden');
         });
+
+        if (keepFilterOpen === col.id) {
+            menu.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                filterInput?.focus({ preventScroll: true });
+                const len = filterInput?.value.length || 0;
+                if (len > -1 && filterInput.setSelectionRange) filterInput.setSelectionRange(len, len);
+            });
+        }
         th.appendChild(content);
 
         const resizer = document.createElement('div');
