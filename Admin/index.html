@@ -274,7 +274,7 @@
                 <form id="pt-ping-upload-form" class="grid gap-3">
                   <div class="space-y-2">
                     <label for="pt-ping-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
-                    <input id="pt-ping-file" name="pt-ping-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-indigo-500 focus:outline-none" />
+                    <input id="pt-ping-file" name="pt-ping-file" type="file" accept=".csv,.xlsx" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-indigo-500 focus:outline-none" />
                   </div>
                   <button id="pt-ping-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
@@ -339,6 +339,23 @@
       'Subsidiary',
       'TAM Legacy Stock #',
       'Payment Method'
+    ];
+    const PT_PING_COLUMNS = [
+      'Name',
+      'Serial #',
+      'Account #',
+      'address',
+      'Lat',
+      'Long',
+      'Type',
+      'Date',
+      'VIN',
+      'InventoryStockNumber',
+      'TimeSinceLastRpt',
+      'Make',
+      'Model',
+      'Year',
+      'Color',
     ];
     
     // --- LISTA MAESTRA (Validación Local) ---
@@ -1118,17 +1135,21 @@
         }
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="animate-pulse">Fetching VINs…</span>';
-        setStatus('Fetching active VINs from Deals...');
-        window.Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          worker: false,
-          complete: async (results) => {
+        setStatus('Parsing file...');
+        parsePtPingFile(file)
+          .then(async ({ rows, headers, errors }) => {
+            const { valid, missing } = validatePtPingHeaders(headers);
+            if (!valid) {
+              setStatus('Missing headers: ' + missing.join(', '));
+              showToast('Missing required headers: ' + missing.join(', '), 'error');
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+              return;
+            }
             try {
-              const parseErrors = results.errors?.length || 0;
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              setStatus('Parsing file...');
-              await uploadPtPingRows(results.data || [], parseErrors);
+              await uploadPtPingRows(rows || [], errors?.length || 0);
             } catch (err) {
               console.error('Upload failed:', err);
               showToast('Upload failed: ' + err.message, 'error');
@@ -1138,15 +1159,15 @@
               submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
               lucide.createIcons();
             }
-          },
-          error: (err) => {
-            showToast('CSV parse error: ' + err.message, 'error');
+          })
+          .catch((err) => {
+            console.error('Parse error:', err);
+            showToast('File parse error: ' + err.message, 'error');
+            setStatus('File parse error: ' + err.message);
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
-            setStatus('CSV parse error: ' + err.message);
             lucide.createIcons();
-          },
-        });
+          });
       });
     };
 
@@ -1184,6 +1205,59 @@
         from += PAGE_SIZE;
       }
       return vinSet;
+    };
+
+    const ensureXlsxLibrary = () => {
+      if (window.XLSX) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load XLSX parser.'));
+        document.head.appendChild(script);
+      });
+    };
+
+    const parsePtPingFile = async (file) => {
+      const name = file?.name || '';
+      const lowerName = name.toLowerCase();
+      if (lowerName.endsWith('.csv')) {
+        return new Promise((resolve, reject) => {
+          window.Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            worker: false,
+            complete: (results) => {
+              const headers = results.meta?.fields || [];
+              resolve({ rows: results.data || [], headers, errors: results.errors || [] });
+            },
+            error: (err) => reject(err),
+          });
+        });
+      }
+      if (lowerName.endsWith('.xlsx')) {
+        await ensureXlsxLibrary();
+        const data = await file.arrayBuffer();
+        const workbook = window.XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[firstSheet];
+        const rowsMatrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
+        const headers = (rowsMatrix[0] || []).map((h) => (h === undefined || h === null ? '' : String(h)));
+        const rows = rowsMatrix.slice(1).map((row) => {
+          const obj = {};
+          headers.forEach((header, idx) => {
+            obj[header] = row[idx];
+          });
+          return obj;
+        });
+        return { rows, headers, errors: [] };
+      }
+      throw new Error('Unsupported file type. Please upload CSV or XLSX.');
+    };
+
+    const validatePtPingHeaders = (headers = []) => {
+      const missing = PT_PING_COLUMNS.filter((col) => !headers.includes(col));
+      return { valid: missing.length === 0, missing };
     };
 
     const uploadPtPingRows = async (rows, parseErrors = 0) => {
