@@ -212,9 +212,9 @@
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
                   <h3 class="text-lg font-bold text-white">Import Deals CSV</h3>
-                  <p class="text-sm text-slate-400">Upsert into DealsJP1 using VIN + Stock No.</p>
+                  <p class="text-sm text-slate-400">Upsert into DealsJP1 (Finance Only).</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">VIN + Stock</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-950 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Filter: Finance</span>
               </div>
 
               <div class="mt-auto space-y-4">
@@ -228,7 +228,7 @@
                     <span>Upload &amp; upsert</span>
                     </button>
                 </form>
-                <p class="text-xs leading-relaxed text-slate-400">Required: VIN & Stock No. Updates all matching columns.</p>
+                <p class="text-xs leading-relaxed text-slate-400">Requires: VIN, Stock No & Sales Channel containing 'Finance'.</p>
               </div>
             </section>
 
@@ -342,7 +342,6 @@
 
     // --- MAPPING FOR VEHICLES (STRICT) ---
     const mapVehicleRow = (row) => {
-      // Logic for vehicles stays strict because we need specific mappings
       const r = normalizeRow(row);
 
       const raw = {
@@ -372,23 +371,15 @@
       return pickAllowed(raw);
     };
 
-    // --- MAPPING FOR DEALS (PASS-THROUGH) ---
+    // --- MAPPING FOR DEALS ---
     const mapDealsRow = (row) => {
-      // We do NOT lowercase or normalize keys here, because Supabase
-      // created the table "DealsJP1" based on the CSV headers (Case Sensitive).
-      // PapaParse 'transformHeader' (see below) has already trimmed the spaces for us.
-      
       const cleaned = {};
-
       Object.keys(row).forEach(key => {
-        // We clean the VALUE (empty string -> null)
         const value = cleanValue(row[key]);
-        // We keep the KEY exactly as the CSV gave it (after trim)
         if (value !== null) {
           cleaned[key] = value;
         }
       });
-      
       return cleaned;
     };
 
@@ -665,7 +656,7 @@
       showToast(summary, 'success');
     };
 
-    // --- UPLOAD DEALS ---
+    // --- UPLOAD DEALS (MODIFICADO CON FILTRO FINANCE) ---
     const uploadDealsRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
@@ -673,17 +664,25 @@
       const submitBtn = document.getElementById('deals-upload-button');
 
       const mapped = rows
-        .map(mapDealsRow) // Maps ALL valid columns
+        .map(mapDealsRow) // Values cleaned, keys preserved
         .filter((row) => {
-          // Validation: Ensure the primary composite keys exist
-          // Be strict about VIN and Current Stock No. existing
+          // 1. Check Primary Keys
           const hasVin = row['VIN'] || row['vin']; 
           const hasStock = row['Current Stock No.'] || row['current stock no.'];
-          return !!(hasVin && hasStock);
+
+          // 2. CHECK SALES CHANNEL FOR "FINANCE"
+          // We look for 'Sales Channel' key (case insensitive check for key)
+          // Then we check if the value contains 'finance'
+          const salesChannelKey = Object.keys(row).find(k => k.toLowerCase() === 'sales channel');
+          const channelValue = salesChannelKey ? row[salesChannelKey] : '';
+          
+          const isFinance = String(channelValue).toLowerCase().includes('finance');
+
+          return !!(hasVin && hasStock && isFinance);
         });
 
       if (!mapped.length) {
-        showToast('No valid rows detected. Each row must include VIN and Current Stock No.', 'error');
+        showToast('No valid FINANCE rows detected. Check "Sales Channel" column.', 'error');
         return;
       }
 
@@ -700,7 +699,6 @@
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
 
-        // We assume the constraint name is implicity handled by Supabase or named 'vin,Current Stock No.'
         const { data, error } = await supabaseClient
           .from('DealsJP1')
           .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false }) 
@@ -719,9 +717,9 @@
 
       const summary =
         'Completed.' +
-        '\nProcessed: ' + rows.length +
+        '\nProcessed (Finance Only): ' + mapped.length +
         '\nUpserted: ' + totalUpserted +
-        '\nSkipped (Invalid/Unmapped): ' + skippedInvalid +
+        '\nSkipped (Not Finance/Invalid): ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
       showToast(summary, 'success');
     };
@@ -765,8 +763,8 @@
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          transformHeader: (h) => h.trim(), // <--- CRITICAL FIX FOR SPACES IN HEADERS
-          worker: true,
+          transformHeader: (h) => h.trim(),
+          worker: false, // WORKER DISABLED TO FIX HANGING
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
@@ -830,8 +828,8 @@
         window.Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          transformHeader: (h) => h.trim(), // <--- CRITICAL FIX FOR SPACES IN HEADERS
-          worker: true,
+          transformHeader: (h) => h.trim(),
+          worker: false, // WORKER DISABLED TO FIX HANGING
           complete: async (results) => {
             try {
               const parseErrors = results.errors?.length || 0;
