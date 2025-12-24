@@ -8,7 +8,6 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
@@ -177,7 +176,6 @@
             <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
           </div>
           <div id="datasets" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
-          <canvas id="fleet-chart" class="mt-6 max-h-64 w-full"></canvas>
         </section>
 
         <div class="grid gap-6 lg:grid-cols-2">
@@ -269,6 +267,8 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
+    const DEALS_TABLE = 'DealsJP1';
+
     const DATASETS = [
       {
         table: 'Services',
@@ -285,7 +285,7 @@
         displayName: 'Vehicles'
       },
       {
-        table: 'DealsJP1',
+        table: DEALS_TABLE,
         scope: 'Sales',
         title: 'Active Deals',
         description: 'Imported deals data (VIN + Stock No).',
@@ -324,6 +324,48 @@
       const stringValue = typeof value === 'string' ? value.trim() : value;
       if (`${stringValue}`.trim() === '') return null;
       return stringValue;
+    };
+
+    const tableColumnCache = new Map();
+
+    const fetchTableColumns = async (tableName) => {
+      if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
+      if (!supabaseClient) return [];
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('information_schema.columns')
+          .select('column_name')
+          .ilike('table_name', tableName);
+
+        if (error) throw error;
+
+        let columns = (data || []).map((row) => row.column_name);
+
+        if (!columns.length) {
+          const { data: sampleRows, error: sampleError } = await supabaseClient
+            .from(tableName)
+            .select('*')
+            .limit(1);
+
+          if (!sampleError && sampleRows?.length) {
+            columns = Object.keys(sampleRows[0]);
+          }
+        }
+
+        tableColumnCache.set(tableName, columns);
+        return columns;
+      } catch (err) {
+        console.error(`Failed to fetch columns for ${tableName}:`, err);
+        tableColumnCache.set(tableName, []);
+        return [];
+      }
+    };
+
+    const buildColumnMap = (columns = []) => {
+      const map = new Map();
+      columns.forEach((col) => map.set(cleanHeaderKey(col), col));
+      return map;
     };
 
     const pickAllowed = (obj) =>
@@ -369,18 +411,6 @@
       };
 
       return pickAllowed(raw);
-    };
-
-    // --- MAPPING FOR DEALS ---
-    const mapDealsRow = (row) => {
-      const cleaned = {};
-      Object.keys(row).forEach(key => {
-        const value = cleanValue(row[key]);
-        if (value !== null) {
-          cleaned[key] = value;
-        }
-      });
-      return cleaned;
     };
 
     const isRlsBlocked = (error) => {
@@ -527,78 +557,6 @@
       }, 4200);
     };
 
-    let fleetChartInstance = null;
-
-    const renderFleetChart = async () => {
-      const canvas = document.getElementById('fleet-chart');
-      if (!canvas || !window.Chart) return;
-      if (!supabaseClient) return;
-
-      try {
-        const { data, error } = await supabaseClient
-          .from('vehicles')
-          .select('"deal status"');
-        if (error) throw error;
-
-        const counts = (data || []).reduce((acc, row) => {
-          const status = ((row['deal status'] ?? 'Unknown').toString() || 'Unknown').trim() || 'Unknown';
-          acc[status] = (acc[status] || 0) + 1;
-          return acc;
-        }, {});
-
-        const labels = Object.keys(counts);
-        const values = labels.map((label) => counts[label]);
-
-        const chartLabels = labels.length ? labels : ['No data'];
-        const chartValues = labels.length ? values : [1];
-
-        const palette = ['#22d3ee', '#60a5fa', '#a78bfa', '#f472b6', '#f97316', '#facc15', '#34d399'];
-        const backgroundColors = chartLabels.map((_, idx) => palette[idx % palette.length]);
-
-        if (fleetChartInstance) fleetChartInstance.destroy();
-
-        Chart.defaults.color = '#cbd5e1';
-        Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
-
-        fleetChartInstance = new Chart(canvas.getContext('2d'), {
-          type: 'doughnut',
-          data: {
-            labels: chartLabels,
-            datasets: [
-              {
-                data: chartValues,
-                backgroundColor: backgroundColors,
-                borderColor: '#0f172a',
-                borderWidth: 2,
-                hoverOffset: 10,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '58%',
-            layout: { padding: 8 },
-            plugins: {
-              legend: {
-                position: 'bottom',
-                labels: { color: '#e2e8f0', boxWidth: 14, boxHeight: 14 },
-              },
-              tooltip: {
-                backgroundColor: '#0f172a',
-                titleColor: '#e2e8f0',
-                bodyColor: '#e2e8f0',
-                borderColor: '#334155',
-                borderWidth: 1,
-              },
-            },
-          },
-        });
-      } catch (error) {
-        console.error('Failed to render fleet chart:', error);
-      }
-    };
-
     // --- UPLOAD VEHICLES ---
     const uploadCsvRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
@@ -662,38 +620,55 @@
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
       const submitBtn = document.getElementById('deals-upload-button');
+      const tableColumns = await fetchTableColumns(DEALS_TABLE);
+      const columnMap = buildColumnMap(tableColumns);
+      const conflictColumn = columnMap.get(cleanHeaderKey('Current Stock No.'));
 
-      const mapped = rows
-        .map(mapDealsRow) // Values cleaned, keys preserved
-        .filter((row) => {
-          // 1. Check Primary Keys
-          // Validar "Current Stock No." específicamente como pidió el usuario
-          const hasVin = row['VIN'] || row['vin']; 
-          const hasStock = row['Current Stock No.']; 
+      if (!conflictColumn) {
+        showToast('La tabla de Supabase no tiene la columna "Current Stock No." necesaria para el upsert.', 'error');
+        return;
+      }
 
-          // 2. CHECK SALES CHANNEL FOR "FINANCE"
-          // We look for 'Sales Channel' key (case insensitive check for key)
-          // Then we check if the value contains 'finance'
-          const salesChannelKey = Object.keys(row).find(k => k.toLowerCase() === 'sales channel');
-          const channelValue = salesChannelKey ? row[salesChannelKey] : '';
-          
-          const isFinance = String(channelValue).toLowerCase().includes('finance');
+      let skippedInvalid = 0;
+      const filteredRows = rows.reduce((acc, rawRow) => {
+        const normalizedRow = normalizeRow(rawRow);
+        const salesChannel = normalizedRow['sales channel'];
+        const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
+        const stockNumber = normalizedRow['current stock no.'];
 
-          return !!(hasVin && hasStock && isFinance);
+        if (!isFinance || !stockNumber) {
+          skippedInvalid += 1;
+          return acc;
+        }
+
+        const mapped = {};
+        Object.entries(normalizedRow).forEach(([key, value]) => {
+          const columnName = columnMap.get(key);
+          const cleanedValue = cleanValue(value);
+          if (!columnName || cleanedValue === null) return;
+          mapped[columnName] = cleanedValue;
         });
 
-      if (!mapped.length) {
+        if (!mapped[conflictColumn]) {
+          skippedInvalid += 1;
+          return acc;
+        }
+
+        acc.push(mapped);
+        return acc;
+      }, []);
+
+      if (!filteredRows.length) {
         showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
         return;
       }
 
       const BATCH_SIZE = 1000;
       let totalUpserted = 0;
-      let skippedInvalid = rows.length - mapped.length;
-      const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
+      const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
 
-      for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-        const batch = mapped.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
+        const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
         if (submitBtn) {
@@ -701,8 +676,8 @@
         }
 
         const { data, error } = await supabaseClient
-          .from('DealsJP1')
-          .upsert(batch, { onConflict: 'VIN,Current Stock No.', ignoreDuplicates: false }) 
+          .from(DEALS_TABLE)
+          .upsert(batch, { onConflict: conflictColumn, ignoreDuplicates: false })
           .select();
 
         if (error) {
@@ -718,7 +693,7 @@
 
       const summary =
         'Completed.' +
-        '\nProcessed (Finance Only): ' + mapped.length +
+        '\nProcessed (Finance Only): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nSkipped (Not Finance/Invalid): ' + skippedInvalid +
         '\nErrors: ' + parseErrors;
@@ -871,7 +846,6 @@
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
 
       renderActivityLog(activities);
-      await renderFleetChart();
       lucide.createIcons();
     };
 
