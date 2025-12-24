@@ -165,7 +165,7 @@
           <div id="datasets" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
         </section>
 
-        <div class="grid gap-6 lg:grid-cols-2">
+        <div class="grid gap-6 lg:grid-cols-4">
             
             <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
               <div class="flex items-center justify-between gap-3">
@@ -226,6 +226,65 @@
               </div>
             </section>
 
+            <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
+                  <h3 class="text-lg font-bold text-white">Import NS Invoices &amp; Payments CSV</h3>
+                  <p class="text-sm text-slate-400">Upsert into NS-Invoices&amp;pays (Document Number key).</p>
+                </div>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Document #</span>
+              </div>
+
+              <div class="mt-auto space-y-4">
+                <form id="ns-invoices-upload-form" class="grid gap-3">
+                  <div class="space-y-2">
+                    <label for="ns-invoices-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
+                    <input id="ns-invoices-file" name="ns-invoices-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-amber-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-amber-500 focus:outline-none" />
+                  </div>
+                  <button id="ns-invoices-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60">
+                    <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+                    <span>Upload &amp; upsert</span>
+                  </button>
+                </form>
+                <div id="ns-invoices-progress" class="hidden space-y-2">
+                  <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                    <span id="ns-invoices-progress-label">Initializing…</span>
+                    <span id="ns-invoices-progress-count">0%</span>
+                  </div>
+                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div id="ns-invoices-progress-bar" class="h-2 w-0 bg-amber-500 transition-all duration-200"></div>
+                  </div>
+                </div>
+                <p class="text-xs leading-relaxed text-slate-400">Requires: Document Number column. Amount fields are normalized to numbers when possible.</p>
+              </div>
+            </section>
+
+            <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
+                  <h3 class="text-lg font-bold text-white">Import PT Last Ping</h3>
+                  <p class="text-sm text-slate-400">Upsert into PT-LastPing when VIN exists in Deals.</p>
+                </div>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">VIN gated</span>
+              </div>
+
+              <div class="mt-auto space-y-3">
+                <form id="pt-ping-upload-form" class="grid gap-3">
+                  <div class="space-y-2">
+                    <label for="pt-ping-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
+                    <input id="pt-ping-file" name="pt-ping-file" type="file" accept=".csv,.xlsx" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-indigo-500 focus:outline-none" />
+                  </div>
+                  <button id="pt-ping-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
+                    <i data-lucide="upload-cloud" class="h-4 w-4"></i>
+                    <span>Upload &amp; upsert</span>
+                  </button>
+                </form>
+                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Requires VIN present in DealsJP1. Conflicts resolved by VIN + Serial #.</p>
+              </div>
+            </section>
+
         </div>
       </section>
     </div>
@@ -264,6 +323,40 @@
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
     const DEALS_TABLE = 'DealsJP1';
+    const NS_INVOICES_TABLE = 'NS-Invoices&pays';
+    const NS_INVOICES_COLUMNS = [
+      'Date',
+      'Due Date/Receive By',
+      'Type',
+      'Document Number',
+      'Amount',
+      'Amount Remaining',
+      'Stock No',
+      'Payment Through',
+      'Invoice Type',
+      'Status',
+      'Name',
+      'Subsidiary',
+      'TAM Legacy Stock #',
+      'Payment Method'
+    ];
+    const PT_PING_COLUMNS = [
+      'Name',
+      'Serial #',
+      'Account #',
+      'address',
+      'Lat',
+      'Long',
+      'Type',
+      'Date',
+      'VIN',
+      'InventoryStockNumber',
+      'TimeSinceLastRpt',
+      'Make',
+      'Model',
+      'Year',
+      'Color',
+    ];
     
     // --- LISTA MAESTRA (Validación Local) ---
     const KNOWN_DEALS_COLUMNS = [
@@ -305,6 +398,13 @@
         title: 'Active Deals',
         description: 'Imported deals data (VIN + Stock No).',
         displayName: 'Deals'
+      },
+      {
+        table: NS_INVOICES_TABLE,
+        scope: 'Finance',
+        title: 'NS Invoices & Payments',
+        description: 'NetSuite feed mapped by Document Number.',
+        displayName: 'NS Invoices'
       }
     ];
 
@@ -391,6 +491,23 @@
         'long': toNumber(getCsv(r, 'long', 'lng', 'longitude')),
       };
       return pickAllowed(raw);
+    };
+
+    const mapInvoiceRow = (normalizedRow = {}, columnMap) => {
+      const mapped = {};
+      columnMap.forEach((originalHeader, normalizedKey) => {
+        if (!originalHeader) return;
+        let value = normalizedRow[normalizedKey];
+        if (value === undefined) return;
+        if (normalizedKey === 'amount' || normalizedKey === 'amount remaining') {
+          const numeric = toNumber(value);
+          value = numeric !== null ? numeric : value;
+        }
+        const cleaned = cleanValue(value);
+        if (cleaned === null) return;
+        mapped[originalHeader] = cleaned;
+      });
+      return mapped;
     };
 
     const isRlsBlocked = (error) => {
@@ -687,6 +804,119 @@
       setProgress(100, 'Upload complete.');
     };
 
+    const uploadInvoicesRows = async (rows, parseErrors = 0) => {
+      if (!supabaseClient) throw new Error('Supabase client unavailable.');
+      if (!isAdminUser()) throw new Error('Only administrators can upload invoice data.');
+
+      const submitBtn = document.getElementById('ns-invoices-upload-button');
+      const progressWrap = document.getElementById('ns-invoices-progress');
+      const progressBar = document.getElementById('ns-invoices-progress-bar');
+      const progressLabel = document.getElementById('ns-invoices-progress-label');
+      const progressCount = document.getElementById('ns-invoices-progress-count');
+
+      const setProgress = (percent, label) => {
+        if (progressWrap) progressWrap.classList.remove('hidden');
+        if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+        if (progressLabel) progressLabel.textContent = label;
+        if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
+      };
+
+      const columnMap = buildColumnMap(NS_INVOICES_COLUMNS);
+      const conflictColumn = columnMap.get('document number');
+      const conflictColumns = 'Stock No,Document Number,Date';
+
+      if (!conflictColumn) {
+        showToast('Local configuration error: "Document Number" missing from invoice columns.', 'error');
+        return;
+      }
+
+      setProgress(0, 'Clearing previous invoice data...');
+
+      const { error: truncateError } = await supabaseClient.rpc('truncate_ns_invoices');
+      if (truncateError) {
+        console.error('Supabase truncate error:', truncateError);
+        showToast('Cannot clear previous NS invoices: ' + truncateError.message, 'error');
+        return;
+      }
+
+      setProgress(5, 'Preparing invoice rows...');
+
+      const uniqueInvoices = new Map();
+      let skippedInvalid = 0;
+      let duplicatesRemoved = 0;
+
+      rows.forEach((rawRow) => {
+        const normalizedRow = normalizeRow(rawRow);
+        const documentNumber = normalizedRow['document number'];
+
+        if (!documentNumber) {
+          skippedInvalid++;
+          return;
+        }
+
+        const mapped = mapInvoiceRow(normalizedRow, columnMap);
+        if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
+
+        const stockNumber = normalizedRow['stock no'] || normalizedRow['stock number'] || normalizedRow['tam legacy stock #'];
+        const uniqueKey = stockNumber ? `${documentNumber}_${stockNumber}` : `${documentNumber}`;
+        if (uniqueInvoices.has(uniqueKey)) {
+          duplicatesRemoved++;
+        }
+        uniqueInvoices.set(uniqueKey, mapped);
+      });
+
+      const filteredRows = Array.from(uniqueInvoices.values());
+
+      if (!filteredRows.length) {
+        setProgress(0, 'No valid invoice rows found.');
+        showToast('No valid rows detected. Each row must include a Document Number value.', 'error');
+        return;
+      }
+
+      const BATCH_SIZE = 1000;
+      let totalUpserted = 0;
+      const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
+      let processed = 0;
+
+      for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
+        const batch = filteredRows.slice(i, i + BATCH_SIZE);
+        const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+
+        if (submitBtn) {
+          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
+        }
+        setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
+
+        const { data, error } = await supabaseClient
+          .from(NS_INVOICES_TABLE)
+          .upsert(batch, { onConflict: conflictColumns, ignoreDuplicates: true })
+          .select();
+
+        if (error) {
+          console.error('Supabase upsert error:', error);
+          if (isRlsBlocked(error)) {
+            showToast('Upload blocked by security policy (RLS).', 'error');
+            return;
+          }
+          throw error;
+        }
+        totalUpserted += (data ? data.length : 0);
+        processed += batch.length;
+        setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
+      }
+
+      const summary =
+        'Completed.' +
+        '\nProcessed (Unique): ' + filteredRows.length +
+        '\nUpserted: ' + totalUpserted +
+        '\nSkipped (Missing Document Number): ' + skippedInvalid +
+        '\nDuplicates Removed: ' + duplicatesRemoved +
+        '\nErrors: ' + parseErrors;
+
+      showToast(summary, 'success');
+      setProgress(100, 'Upload complete.');
+    };
+
     const wireCsvUpload = () => {
       const form = document.getElementById('csv-upload-form');
       const fileInput = document.getElementById('csv-file');
@@ -807,6 +1037,140 @@
       });
     };
 
+    const wireInvoicesUpload = () => {
+      const form = document.getElementById('ns-invoices-upload-form');
+      const fileInput = document.getElementById('ns-invoices-file');
+      const submitBtn = document.getElementById('ns-invoices-upload-button');
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
+        return allowed;
+      };
+      if (!form || !fileInput || !submitBtn) return;
+      const syncAccess = () => requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
+
+      submitBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!requireAdmin()) {
+          showToast('Only administrators can upload invoice data.', 'error');
+          return;
+        }
+        const file = fileInput.files?.[0];
+        if (!file) {
+          showToast('Please select a CSV file to upload.', 'error');
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
+        window.Papa.parse(file, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h) => h.trim(),
+          worker: false,
+          complete: async (results) => {
+            try {
+              const parseErrors = results.errors?.length || 0;
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+              await uploadInvoicesRows(results.data || [], parseErrors);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
+          },
+          error: (err) => {
+            showToast('CSV parse error: ' + err.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          },
+        });
+      });
+    };
+
+    const wirePtPingUpload = () => {
+      const form = document.getElementById('pt-ping-upload-form');
+      const fileInput = document.getElementById('pt-ping-file');
+      const submitBtn = document.getElementById('pt-ping-upload-button');
+      const status = document.getElementById('pt-ping-status');
+
+      const setStatus = (text) => {
+        if (status) status.textContent = text;
+      };
+
+      const requireAdmin = () => {
+        const allowed = isAdminUser();
+        if (fileInput) fileInput.disabled = !allowed;
+        if (submitBtn) submitBtn.disabled = !allowed;
+        const titleText = allowed ? '' : 'Administrator access required';
+        if (fileInput) fileInput.title = titleText;
+        if (submitBtn) submitBtn.title = titleText;
+        return allowed;
+      };
+
+      if (!form || !fileInput || !submitBtn) return;
+      const syncAccess = () => requireAdmin();
+      syncAccess();
+      window.addEventListener('auth:role-updated', syncAccess);
+
+      submitBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!requireAdmin()) {
+          showToast('Only administrators can upload PT ping data.', 'error');
+          return;
+        }
+        const file = fileInput.files?.[0];
+        if (!file) {
+          showToast('Please select a CSV file to upload.', 'error');
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="animate-pulse">Fetching VINs…</span>';
+        setStatus('Parsing file...');
+        parsePtPingFile(file)
+          .then(async ({ rows, headers, errors }) => {
+            const { valid, missing } = validatePtPingHeaders(headers);
+            if (!valid) {
+              setStatus('Missing headers: ' + missing.join(', '));
+              showToast('Missing required headers: ' + missing.join(', '), 'error');
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+              return;
+            }
+            try {
+              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+              await uploadPtPingRows(rows || [], errors?.length || 0);
+            } catch (err) {
+              console.error('Upload failed:', err);
+              showToast('Upload failed: ' + err.message, 'error');
+              setStatus('Upload failed: ' + err.message);
+            } finally {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              lucide.createIcons();
+            }
+          })
+          .catch((err) => {
+            console.error('Parse error:', err);
+            showToast('File parse error: ' + err.message, 'error');
+            setStatus('File parse error: ' + err.message);
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            lucide.createIcons();
+          });
+      });
+    };
+
     const mount = async () => {
       const container = document.getElementById('datasets');
       let totalRows = 0;
@@ -823,10 +1187,158 @@
       lucide.createIcons();
     };
 
+    const fetchDealsVinSet = async () => {
+      const vinSet = new Set();
+      const PAGE_SIZE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabaseClient
+          .from(DEALS_TABLE)
+          .select('VIN')
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        (data || []).forEach((row) => {
+          const vin = row?.VIN;
+          if (vin) vinSet.add(String(vin).trim());
+        });
+        if (!data || data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return vinSet;
+    };
+
+    const ensureXlsxLibrary = () => {
+      if (window.XLSX) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load XLSX parser.'));
+        document.head.appendChild(script);
+      });
+    };
+
+    const parsePtPingFile = async (file) => {
+      const name = file?.name || '';
+      const lowerName = name.toLowerCase();
+      if (lowerName.endsWith('.csv')) {
+        return new Promise((resolve, reject) => {
+          window.Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            worker: false,
+            complete: (results) => {
+              const headers = results.meta?.fields || [];
+              resolve({ rows: results.data || [], headers, errors: results.errors || [] });
+            },
+            error: (err) => reject(err),
+          });
+        });
+      }
+      if (lowerName.endsWith('.xlsx')) {
+        await ensureXlsxLibrary();
+        const data = await file.arrayBuffer();
+        const workbook = window.XLSX.read(data, { type: 'array' });
+        const firstSheet = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[firstSheet];
+        const rowsMatrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
+        const headers = (rowsMatrix[0] || []).map((h) => (h === undefined || h === null ? '' : String(h)));
+        const rows = rowsMatrix.slice(1).map((row) => {
+          const obj = {};
+          headers.forEach((header, idx) => {
+            obj[header] = row[idx];
+          });
+          return obj;
+        });
+        return { rows, headers, errors: [] };
+      }
+      throw new Error('Unsupported file type. Please upload CSV or XLSX.');
+    };
+
+    const validatePtPingHeaders = (headers = []) => {
+      const missing = PT_PING_COLUMNS.filter((col) => !headers.includes(col));
+      return { valid: missing.length === 0, missing };
+    };
+
+    const uploadPtPingRows = async (rows, parseErrors = 0) => {
+      if (!supabaseClient) throw new Error('Supabase client unavailable.');
+      if (!isAdminUser()) throw new Error('Only administrators can upload PT ping data.');
+
+      const submitBtn = document.getElementById('pt-ping-upload-button');
+      const status = document.getElementById('pt-ping-status');
+
+      const setStatus = (text) => {
+        if (status) status.textContent = text;
+      };
+
+      setStatus('Fetching active VINs from Deals...');
+      const vinSet = await fetchDealsVinSet();
+
+      if (!vinSet.size) {
+        setStatus('No active VINs found in DealsJP1.');
+        showToast('No active VINs found in DealsJP1.', 'error');
+        return;
+      }
+
+      setStatus('Filtering rows by VIN...');
+      const validRows = [];
+      (rows || []).forEach((row) => {
+        const vin = row?.['VIN'];
+        if (!vin) return;
+        if (!vinSet.has(String(vin).trim())) return;
+
+        const normalizedRow = { ...row };
+        if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Serial #')) {
+          normalizedRow['Serial'] = normalizedRow['Serial #'];
+          delete normalizedRow['Serial #'];
+        }
+        if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Account #')) {
+          normalizedRow['Account'] = normalizedRow['Account #'];
+          delete normalizedRow['Account #'];
+        }
+
+        validRows.push(normalizedRow);
+      });
+
+      if (!validRows.length) {
+        setStatus('No rows matched VINs in DealsJP1.');
+        showToast('No rows matched VINs in DealsJP1.', 'error');
+        return;
+      }
+
+      setStatus(`Uploading ${validRows.length} rows...`);
+      const { error } = await supabaseClient
+        .from('PT-LastPing')
+        .upsert(validRows, { onConflict: 'VIN,Serial', ignoreDuplicates: false });
+
+      if (error) {
+        console.error('Supabase upsert error:', error);
+        if (isRlsBlocked(error)) {
+          showToast('Upload blocked by security policy (RLS).', 'error');
+          setStatus('Upload blocked by security policy (RLS).');
+          return;
+        }
+        throw error;
+      }
+
+      const summary =
+        'Completed.' +
+        '\nProcessed: ' + rows.length +
+        '\nUpserted: ' + validRows.length +
+        '\nSkipped (VIN not in Deals): ' + (rows.length - validRows.length) +
+        '\nErrors: ' + parseErrors;
+      setStatus('Upload complete.');
+      showToast(summary, 'success');
+      if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+      lucide.createIcons();
+    };
+
     createConstellationBackground();
     mount();
     wireCsvUpload();
     wireDealsUpload();
+    wireInvoicesUpload();
+    wirePtPingUpload();
   </script>
 </body>
 </html>
