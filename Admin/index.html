@@ -373,35 +373,26 @@
       return pickAllowed(raw);
     };
 
-    // --- CORRECCIÓN CLAVE: FILTRADO ESTRICTO DE COLUMNAS ---
+    // --- CORRECCIÓN CLAVE: NOMBRES EXACTOS DE SUPABASE ---
     const mapDealsRow = (row) => {
       const r = normalizeDealsRow(row);
-      
-      // SOLO incluimos columnas que existen en la base de datos Supabase
-      // Si el CSV trae "actual system return date" y la DB no lo tiene, esto lo ignorará
-      const ALLOWED_COLUMNS = [
-        'vin',
-        'current stock no.',
-        'deal status',
-        'customer',
-        // 'actual_system_return_date', // <--- Descomenta esto SOLO si creaste la columna en Supabase
-      ];
-
       const cleaned = {};
 
-      // 1. Mapear dinámicamente solo lo permitido
-      Object.keys(r).forEach(key => {
-        if (ALLOWED_COLUMNS.includes(key)) {
-          cleaned[key] = cleanValue(r[key]);
-        }
-      });
-
-      // 2. Mapeo Explícito para claves obligatorias (Overrides)
+      // Buscamos los valores en el CSV (usando nombres flexibles)
       const vin = cleanValue(getCsv(r, 'vin', 'vehicle vin', 'vehicle_vin'));
       const stockNo = cleanValue(getCsv(r, 'current stock no', 'current stock no.', 'stock no', 'stock number'));
+      const status = cleanValue(getCsv(r, 'deal status', 'status'));
+      const customer = cleanValue(getCsv(r, 'customer', 'customer id'));
 
-      if (vin) cleaned['vin'] = vin;
-      if (stockNo) cleaned['current stock no.'] = stockNo;
+      // ASIGNAMOS A LA BASE DE DATOS (NOMBRES EXACTOS)
+      // Si la DB tiene "Current Stock No." (con mayúsculas y punto), la clave JSON debe ser idéntica.
+      
+      if (vin) cleaned['vin'] = vin; // Asumimos 'vin' en minúsculas (lo estándar)
+      if (stockNo) cleaned['Current Stock No.'] = stockNo; // CORREGIDO: Exacto como en DB
+      
+      // Opcional: Si tienes más columnas, agrégalas aquí con su nombre EXACTO de DB:
+      if (status) cleaned['deal status'] = status; 
+      if (customer) cleaned['customer'] = customer;
 
       return cleaned;
     };
@@ -699,8 +690,8 @@
       const mapped = rows
         .map(mapDealsRow)
         .filter((row) => {
-          // Asegurar que hay datos válidos (las columnas extras ya fueron ignoradas en mapDealsRow)
-          const valid = !!(row.vin && row['current stock no.']);
+          // 'Current Stock No.' con mayúsculas por ser la clave corregida
+          const valid = !!(row.vin && row['Current Stock No.']);
           return valid;
         });
 
@@ -723,9 +714,10 @@
           submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
         }
 
+        // CORRECCIÓN: el onConflict debe usar el nombre exacto de la DB
         const { data, error } = await supabaseClient
           .from('DealsJP1')
-          .upsert(batch, { onConflict: 'vin,current stock no.', ignoreDuplicates: false })
+          .upsert(batch, { onConflict: 'vin,Current Stock No.', ignoreDuplicates: false })
           .select('vin');
 
         if (error) {
@@ -895,22 +887,4 @@
         const { card, stats } = await renderDatasetCard(dataset);
         container.appendChild(card);
         totalRows += stats.rows || 0;
-        if ((stats.rows || 0) > 0 && !stats.restricted) activities.push(stats);
-      }
-
-      document.getElementById('dataset-count').textContent = DATASETS.length;
-      document.getElementById('records-count').textContent = totalRows.toLocaleString();
-
-      renderActivityLog(activities);
-      await renderFleetChart();
-      lucide.createIcons();
-    };
-
-    createConstellationBackground();
-    mount();
-    wireCsvUpload();
-    wireDealsUpload();
-  </script>
-</div>
-</body>
-</html>
+        if ((stats.rows
