@@ -66,8 +66,9 @@
     /* Analytics layout */
     #analytics-content { display: block; }
     #analytics-layout {
+      position: relative;
       display: grid;
-      grid-template-columns: 1fr 1.6fr;
+      grid-template-columns: 45% 55%;
       gap: 1.25rem;
       align-items: start;
     }
@@ -151,6 +152,17 @@
       box-shadow: 0 10px 30px -18px rgba(59, 130, 246, 0.65);
       min-width: 220px;
       border-radius: 14px;
+    }
+
+    .layout-resizer {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: calc(55% - 0.375rem);
+      width: 10px;
+      cursor: col-resize;
+      z-index: 25;
+      background: transparent;
     }
 
     /* Text Wrapping Styles */
@@ -335,7 +347,7 @@
                     <p class="text-xs text-slate-100">Resumen visual y tabla dinámica para los títulos filtrados.</p>
                 </div>
                 <div id="analytics-content" class="space-y-4 mt-3">
-                    <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-3 justify-end">
                         <div class="relative">
                             <button id="analytics-location-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
                                 <i data-lucide="map-pin" class="h-3.5 w-3.5"></i>
@@ -391,6 +403,7 @@
                     </div>
                     <div id="analytics-layout">
                         <div id="analytics-charts"></div>
+                        <div id="analytics-layout-resizer" class="layout-resizer"></div>
                         <div id="analytics-table-container" class="custom-scrollbar"></div>
                     </div>
                 </div>
@@ -505,7 +518,8 @@
         unitType: null,
         dealStatus: null,
         dealType: null
-      }
+      },
+      analyticsLayoutSplit: 45
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -818,7 +832,8 @@
       analyticsLiens: state.analyticsLiens,
       analyticsColumnWidths: state.analyticsColumnWidths,
       analyticsChartWidths: state.analyticsChartWidths,
-      analyticsChartColumns: state.analyticsChartColumns
+      analyticsChartColumns: state.analyticsChartColumns,
+      analyticsLayoutSplit: state.analyticsLayoutSplit
       };
       
       // Fallback localstorage
@@ -879,6 +894,7 @@
         if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
         if (Array.isArray(config.analyticsChartWidths)) state.analyticsChartWidths = config.analyticsChartWidths;
         if (config.analyticsChartColumns) state.analyticsChartColumns = { ...state.analyticsChartColumns, ...config.analyticsChartColumns };
+        if (typeof config.analyticsLayoutSplit === 'number') state.analyticsLayoutSplit = config.analyticsLayoutSplit;
       }
     };
 
@@ -1623,7 +1639,11 @@
       const row = document.getElementById('charts-row');
       if (!row) return;
       const widths = state.analyticsChartWidths || [260,260,260];
-      row.style.gridTemplateColumns = widths.map(w => `minmax(220px, ${Math.max(220, w)}px)`).join(' ');
+      const safe = widths.map(w => Math.max(220, w));
+      const total = safe.reduce((a,b)=>a+b,0);
+      row.style.gridTemplateColumns = safe.map(w => `${w}px`).join(' ');
+      const parentWidth = row.parentElement?.clientWidth || total;
+      row.style.width = `${Math.max(total, parentWidth)}px`;
     };
 
     const bindChartResizers = () => {
@@ -1730,6 +1750,10 @@
       const selectableColumns = state.columns.map(c => c.id);
       const labelsFor = (id) => state.columns.find(c => c.id === id)?.label || labelize(id);
 
+      const layoutSplit = Math.min(70, Math.max(30, state.analyticsLayoutSplit || 45));
+      const layout = document.getElementById('analytics-layout');
+      if (layout) layout.style.gridTemplateColumns = `${layoutSplit}% ${100 - layoutSplit}%`;
+
       const setupSelect = (key, fallbackLabels) => {
         const select = document.getElementById(`chart-${key}-select`);
         if (!select) return null;
@@ -1790,6 +1814,7 @@
     const renderAnalytics = () => {
       if (!els.analyticsTableContainer) { renderAnalyticsCharts(); return; }
       renderAnalyticsCharts();
+      bindLayoutResizer();
       const locationCol = findColumnId(['location']);
       const lienCol = findColumnId(['lien status', 'lien_status', 'lienstatus', 'status']);
       const unitTypeCol = findColumnId(['unit type', 'unit_type', 'unittype', 'unit']);
@@ -2018,3 +2043,30 @@
   </script>
 </body>
 </html>
+    const bindLayoutResizer = () => {
+      const layout = document.getElementById('analytics-layout');
+      const resizer = document.getElementById('analytics-layout-resizer');
+      if (!layout || !resizer) return;
+      let active = null;
+      const onMove = (e) => {
+        if (!active) return;
+        const rect = layout.getBoundingClientRect();
+        const percent = ((e.clientX - rect.left) / rect.width) * 100;
+        const clamped = Math.min(70, Math.max(30, percent));
+        state.analyticsLayoutSplit = clamped;
+        layout.style.gridTemplateColumns = `${clamped}% ${100 - clamped}%`;
+      };
+      const stop = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
+        active = null;
+        savePrefs();
+      };
+      resizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        active = true;
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', stop);
+      });
+    };
