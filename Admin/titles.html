@@ -197,31 +197,6 @@
 
   <main class="flex-1 flex flex-col min-h-0 relative">
     
-    <div id="analytics-panel" class="bg-slate-900/60 border-b border-slate-800 px-4 py-3">
-        <div class="max-w-7xl mx-auto">
-            <div class="flex items-center justify-between mb-3 gap-3">
-                <div>
-                    <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
-                    <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
-                </div>
-                <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
-            </div>
-            <div class="flex flex-wrap items-center gap-3 mb-3">
-                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
-                    <div class="relative">
-                      <select id="analytics-sort" class="appearance-none bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-3 py-1.5 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
-                          <option value="total-asc">Row total ↑</option>
-                          <option value="total-desc">Row total ↓</option>
-                      </select>
-                      <i data-lucide="chevron-down" class="h-3 w-3 text-slate-400 absolute right-2 top-2.5 pointer-events-none"></i>
-                    </div>
-                </div>
-            </div>
-            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-96"></div>
-        </div>
-    </div>
-
     <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap items-end gap-2">
@@ -320,6 +295,28 @@
     <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
         <span id="pagination-summary">Ready</span>
         <span>TechLoc Admin v2.5</span>
+    </div>
+
+    <div id="analytics-panel" class="bg-slate-900/60 border-t border-slate-800 px-4 py-4 flex justify-end">
+        <div class="w-full max-w-7xl ml-auto">
+            <div class="flex items-center justify-between mb-3 gap-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
+                    <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
+                    <div class="relative">
+                      <select id="analytics-sort" class="appearance-none bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-3 py-1.5 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                          <option value="total-asc">Row total ↑</option>
+                          <option value="total-desc">Row total ↓</option>
+                      </select>
+                      <i data-lucide="chevron-down" class="h-3 w-3 text-slate-400 absolute right-2 top-2.5 pointer-events-none"></i>
+                    </div>
+                </div>
+            </div>
+            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-[80vh]"></div>
+        </div>
     </div>
 
   </main>
@@ -697,7 +694,8 @@
         columnFilters: state.columnFilters,
         pagination: state.pagination,
         sort: state.sort,
-        search: state.search 
+        search: state.search,
+        analytics: state.analytics
       };
       
       // Fallback localstorage
@@ -751,6 +749,10 @@
             if(els.searchSecondary) els.searchSecondary.value = state.search.secondary || '';
             if(els.searchTerms) els.searchTerms.value = state.search.terms || '';
             if(els.termsOperator) els.termsOperator.value = state.search.termsOperator || '<';
+        }
+        if (config.analytics) {
+            state.analytics = { ...state.analytics, ...config.analytics };
+            if (els.analyticsSort) els.analyticsSort.value = state.analytics.sort || 'total-desc';
         }
       }
     };
@@ -1293,6 +1295,7 @@
         const colWidth = `${state.analytics.colWidth}px`;
         const locationWidth = `${state.analytics.locationWidth}px`;
         const tableMaxWidth = `${state.analytics.tableWidth}vw`;
+        const totalWidth = '60px';
 
         let html = `<div class="relative w-full mb-4" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
         html += `<div class="flex items-center justify-between px-2 py-1 text-[11px] text-slate-400 uppercase tracking-wide">${groupName}</div>`;
@@ -1318,7 +1321,7 @@
         liens.forEach(lien => {
           html += `<th class="px-3 py-2 border-b border-slate-800 text-left relative" style="min-width:${colWidth}; width:${colWidth};">${lien}<span class="analytics-resizer" data-analytics-resize="col"></span></th>`;
         });
-        html += `<th class="px-3 py-2 border-b border-slate-800 text-left bg-slate-950 relative">Total<span class="analytics-resizer" data-analytics-resize="table"></span></th>`;
+        html += `<th class="px-2 py-2 border-b border-slate-800 text-left bg-slate-950 relative" style="min-width:${totalWidth}; width:${totalWidth};">Total<span class="analytics-resizer" data-analytics-resize="table"></span></th>`;
         html += '</tr></thead><tbody>';
 
         locations.forEach(loc => {
@@ -1328,7 +1331,7 @@
             const count = pivot.get(key) || 0;
             html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300" style="min-width:${colWidth}; width:${colWidth};">${count}</td>`;
           });
-          html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60">${rowTotals.get(loc) || 0}</td>`;
+          html += `<td class="px-2 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60" style="min-width:${totalWidth}; width:${totalWidth};">${rowTotals.get(loc) || 0}</td>`;
           html += '</tr>';
         });
 
@@ -1336,7 +1339,7 @@
         liens.forEach(lien => {
           html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
         });
-        html += `<td class="px-3 py-2 border-t border-slate-800 text-right">${grandTotal}</td></tr>`;
+        html += `<td class="px-2 py-2 border-t border-slate-800 text-right" style="min-width:${totalWidth}; width:${totalWidth};">${grandTotal}</td></tr>`;
         html += '</tbody></table>';
         html += '</div>';
 
@@ -1361,6 +1364,7 @@
           chk.addEventListener('change', () => {
             const selected = Array.from(menuChecks).filter(c => c.checked).map(c => c.value);
             state.analytics.selectedLocations = selected.length === allLocations.length ? [] : selected;
+            savePrefs();
             renderAnalytics();
           });
         });
@@ -1398,6 +1402,7 @@
             const onUp = () => {
               document.removeEventListener('mousemove', onMove);
               document.removeEventListener('mouseup', onUp);
+              savePrefs();
             };
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup', onUp);
@@ -1429,7 +1434,7 @@
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
       els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
       
-      els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; renderAnalytics(); });
+      els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; savePrefs(); renderAnalytics(); });
       
       els.addRowBtn?.addEventListener('click', addNewRow);
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
