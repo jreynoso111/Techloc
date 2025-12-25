@@ -263,7 +263,7 @@
                         <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
                     </div>
                 </div>
-                <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-80"></div>
+                <div id="analytics-content" class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar"></div>
             </div>
         </div>
     </div>
@@ -1299,6 +1299,8 @@
         return;
       }
 
+      const globalTotals = Object.fromEntries(liens.map(l => [l, 0]));
+      let globalGrand = 0;
       const units = Array.from(unitTypeSet).sort((a, b) => {
         const pa = unitTypePriority(a);
         const pb = unitTypePriority(b);
@@ -1310,31 +1312,56 @@
 
       let html = '<table class="min-w-full text-xs text-slate-200"><thead><tr><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Location</th>';
       html += liensHeaders;
+      html += '<th class="px-3 py-2 border-b border-slate-800 text-right">Total</th>';
       html += '</tr></thead><tbody>';
 
       let hasData = false;
       units.forEach(unit => {
         let unitTotal = 0;
+        const unitTotals = Object.fromEntries(liens.map(l => [l, 0]));
         filteredLocations.forEach(loc => {
           liens.forEach(lien => {
             const key = `${unit}|||${loc}|||${lien}`;
-            unitTotal += pivot.get(key) || 0;
+            const count = pivot.get(key) || 0;
+            unitTotals[lien] += count;
+            unitTotal += count;
+            globalTotals[lien] += count;
+            globalGrand += count;
           });
         });
         if (unitTotal === 0) return;
 
         hasData = true;
-        html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 1}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
+        html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
         filteredLocations.forEach(loc => {
+          let rowTotal = 0;
           html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
           liens.forEach(lien => {
             const key = `${unit}|||${loc}|||${lien}`;
             const count = pivot.get(key) || 0;
+            rowTotal += count;
             html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300">${count}</td>`;
           });
-          html += '</tr>';
+          html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100">${rowTotal}</td></tr>`;
         });
+        html += `<tr class="bg-slate-900/40 font-semibold text-slate-100"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
+        liens.forEach(lien => {
+          html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotals[lien]}</td>`;
+        });
+        html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotal}</td></tr>`;
       });
+
+      if (!hasData) {
+        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
+        updateAnalyticsLocationLabel(locations.length);
+        return;
+      }
+
+      html += `<tr class="bg-blue-900/20 font-semibold text-slate-100"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
+      liens.forEach(lien => {
+        html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalTotals[lien]}</td>`;
+      });
+      html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalGrand}</td></tr>`;
 
       if (!hasData) {
         els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
