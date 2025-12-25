@@ -9,6 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.5/dist/chart.umd.min.js"></script>
   
   <script type="module" src="../assets/scripts/supabaseClient.js"></script>
   <script type="module" src="../assets/scripts/authManager.js"></script>
@@ -28,7 +29,8 @@
   
   <style>
     /* Table Layout Locks */
-    table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    #main-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    .analytics-table { table-layout: auto; width: auto; border-collapse: collapse; min-width: max-content; }
     
     /* Resizer Handles */
     .resizer {
@@ -60,6 +62,97 @@
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Analytics layout */
+    #analytics-content { display: block; }
+    #analytics-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 1.25rem;
+      align-items: start;
+    }
+    @media (max-width: 1280px) { #analytics-layout { grid-template-columns: 1fr; } }
+    #analytics-charts {
+      display: grid;
+      grid-auto-rows: minmax(240px, auto);
+      gap: 0.75rem;
+      position: relative;
+    }
+    #charts-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+    .chart-resizer {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      right: -6px;
+      width: 12px;
+      cursor: col-resize;
+      z-index: 20;
+      background: transparent;
+    }
+    #analytics-table-container {
+      display: flex;
+      justify-content: flex-end;
+      overflow-x: auto;
+    }
+    #analytics-table-container table { margin-left: auto; }
+
+    /* Analytics resizing */
+    .analytics-header {
+      position: relative;
+      user-select: none;
+    }
+    .analytics-resizer {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      width: 8px;
+      bottom: 0;
+      cursor: col-resize;
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 0.15s;
+      touch-action: none;
+    }
+    .analytics-header:hover .analytics-resizer,
+    .analytics-resizing .analytics-resizer {
+      opacity: 1;
+    }
+
+    /* Analytics totals */
+    .analytics-total-col {
+      background: rgba(59, 130, 246, 0.08);
+    }
+    .analytics-total-row {
+      background: rgba(59, 130, 246, 0.12);
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .analytics-grand-row {
+      background: rgba(59, 130, 246, 0.18);
+      font-weight: 800;
+      color: #f8fafc;
+    }
+
+    /* Analytics band */
+    .analytics-band {
+      background: linear-gradient(90deg, rgba(59,130,246,0.15), rgba(14,165,233,0.12), rgba(236,72,153,0.12));
+      border: 1px solid rgba(59,130,246,0.4);
+      box-shadow: 0 10px 40px -20px rgba(59,130,246,0.6);
+      width: 100%;
+    }
+
+    .chart-card {
+      background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.18), rgba(15,23,42,0.9));
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      box-shadow: 0 10px 30px -18px rgba(59, 130, 246, 0.65);
+      min-width: 220px;
+      border-radius: 14px;
+    }
 
     /* Text Wrapping Styles */
     .wrap-2-lines {
@@ -236,12 +329,8 @@
 
     <div id="analytics-panel" class="bg-slate-900/60 border-t border-slate-800 px-6 py-5">
         <div class="w-full flex">
-            <div class="w-full max-w-5xl ml-auto space-y-3">
+            <div class="w-full space-y-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
-                        <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
-                    </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <div class="relative">
                             <button id="analytics-location-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
@@ -297,7 +386,16 @@
                         <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
                     </div>
                 </div>
-                <div id="analytics-content" class="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar"></div>
+                <div class="analytics-band rounded-xl px-4 py-2 border border-slate-800/70">
+                    <p class="text-[10px] uppercase tracking-[0.2em] text-blue-100 font-semibold">Título • Analytics</p>
+                    <p class="text-xs text-slate-100">Resumen visual y tabla dinámica para los títulos filtrados.</p>
+                </div>
+                <div id="analytics-content" class="space-y-4 mt-3">
+                    <div id="analytics-layout">
+                        <div id="analytics-charts"></div>
+                        <div id="analytics-table-container" class="custom-scrollbar"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -376,6 +474,8 @@
       analyticsLienLabel: document.getElementById('analytics-lien-label'),
       analyticsLienAll: document.getElementById('analytics-lien-all'),
       analyticsLienNone: document.getElementById('analytics-lien-none'),
+      analyticsCharts: document.getElementById('analytics-charts'),
+      analyticsTableContainer: document.getElementById('analytics-table-container'),
       downloadBtn: document.getElementById('download-btn'),
       downloadMenu: document.getElementById('download-menu'),
       downloadCsv: document.getElementById('download-csv'),
@@ -399,7 +499,15 @@
       filterCols1: [], filterCols2: [], filterCols3: [],
       analyticsLocations: null,
       analyticsUnits: null,
-      analyticsLiens: null
+      analyticsLiens: null,
+      analyticsColumnWidths: {},
+      analyticsCharts: {},
+      analyticsChartWidths: [1, 1, 1],
+      analyticsChartColumns: {
+        unitType: null,
+        dealStatus: null,
+        dealType: null
+      }
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -703,13 +811,16 @@
         columnVisibility: state.columnVisibility,
         columnWidths: state.columnWidths,
         columnLabels: state.columnLabels,
-        columnFilters: state.columnFilters,
-        pagination: state.pagination,
-        sort: state.sort,
-        search: state.search,
-        analyticsLocations: state.analyticsLocations,
-        analyticsUnits: state.analyticsUnits,
-        analyticsLiens: state.analyticsLiens
+      columnFilters: state.columnFilters,
+      pagination: state.pagination,
+      sort: state.sort,
+      search: state.search,
+      analyticsLocations: state.analyticsLocations,
+      analyticsUnits: state.analyticsUnits,
+      analyticsLiens: state.analyticsLiens,
+      analyticsColumnWidths: state.analyticsColumnWidths,
+      analyticsChartWidths: state.analyticsChartWidths,
+      analyticsChartColumns: state.analyticsChartColumns
       };
       
       // Fallback localstorage
@@ -767,6 +878,9 @@
         if (Array.isArray(config.analyticsLocations) || config.analyticsLocations === null) state.analyticsLocations = config.analyticsLocations;
         if (Array.isArray(config.analyticsUnits) || config.analyticsUnits === null) state.analyticsUnits = config.analyticsUnits;
         if (Array.isArray(config.analyticsLiens) || config.analyticsLiens === null) state.analyticsLiens = config.analyticsLiens;
+        if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
+        if (Array.isArray(config.analyticsChartWidths)) state.analyticsChartWidths = config.analyticsChartWidths;
+        if (config.analyticsChartColumns) state.analyticsChartColumns = { ...state.analyticsChartColumns, ...config.analyticsChartColumns };
       }
     };
 
@@ -1420,14 +1534,266 @@
       return 2;
     };
 
+    const sanitizeAnalyticsId = (label = '') => label.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'col';
+
+    const setupAnalyticsResizers = () => {
+      const table = els.analyticsTableContainer?.querySelector('table.analytics-table');
+      if (!table) return;
+      const colEls = Array.from(table.querySelectorAll('col[data-col-id]'));
+      if (!colEls.length) return;
+
+      const colMap = Object.fromEntries(colEls.map(col => [col.dataset.colId, col]));
+      let active = null;
+
+      const stopResize = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', stopResize);
+        document.body.classList.remove('analytics-resizing');
+        savePrefs();
+        active = null;
+      };
+
+      const onMouseMove = (e) => {
+        if (!active) return;
+        const delta = e.clientX - active.startX;
+        const newWidth = Math.max(80, active.startWidth + delta);
+        const colEl = colMap[active.colId];
+        if (colEl) {
+          colEl.style.width = `${newWidth}px`;
+          colEl.style.minWidth = `${newWidth}px`;
+        }
+        active.header.style.width = `${newWidth}px`;
+        state.analyticsColumnWidths[active.colId] = newWidth;
+      };
+
+      const startResize = (header, colId) => (e) => {
+        e.preventDefault();
+        active = {
+          colId,
+          startX: e.clientX,
+          startWidth: header.getBoundingClientRect().width,
+          header
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', stopResize);
+        document.body.classList.add('analytics-resizing');
+      };
+
+      table.querySelectorAll('th[data-col-id]').forEach(th => {
+        const colId = th.dataset.colId;
+        const handle = th.querySelector('.analytics-resizer');
+        if (handle) {
+          handle.addEventListener('mousedown', startResize(th, colId));
+        }
+      });
+    };
+
+    const ensureAnalyticsChartsShell = () => {
+      if (!els.analyticsCharts) return;
+      Object.values(state.analyticsCharts || {}).forEach(ch => { try { ch?.destroy(); } catch (e) {} });
+      state.analyticsCharts = {};
+      const widths = state.analyticsChartWidths;
+      const gridTemplate = widths.map(w => `minmax(220px, ${w}fr)`).join(' ');
+      els.analyticsCharts.innerHTML = `
+        <div id="charts-row" style="grid-template-columns:${gridTemplate}">
+          ${['unitType','dealStatus','dealType'].map((key, idx) => `
+            <div class="chart-card p-3 relative" data-chart-key="${key}">
+              ${idx < 2 ? `<div class="chart-resizer" data-resizer-index="${idx}"></div>` : ''}
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-${key}-title"></p>
+                  <p class="text-[11px] text-slate-200" id="chart-${key}-subtitle"></p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <select id="chart-${key}-select" class="bg-slate-900 border border-slate-700 text-[11px] text-slate-100 rounded px-2 py-1 focus:outline-none"></select>
+                  <span id="chart-${key}-count" class="text-[10px] text-slate-400 font-semibold"></span>
+                </div>
+              </div>
+              <div class="relative h-44">
+                <canvas id="chart-${key}"></canvas>
+                <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    };
+
+    const applyChartWidths = () => {
+      const row = document.getElementById('charts-row');
+      if (!row) return;
+      const widths = state.analyticsChartWidths || [1,1,1];
+      const total = widths.reduce((a,b)=>a+b,0) || 1;
+      const normalized = widths.map(w => Math.max(0.5, w));
+      const sum = normalized.reduce((a,b)=>a+b,0);
+      row.style.gridTemplateColumns = normalized.map(w => `minmax(220px, ${(w/sum)*3}fr)`).join(' ');
+    };
+
+    const bindChartResizers = () => {
+      const row = document.getElementById('charts-row');
+      if (!row) return;
+      const resizers = row.querySelectorAll('[data-resizer-index]');
+      let active = null;
+      const onMove = (e) => {
+        if (!active) return;
+        const rect = row.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const totalWidth = rect.width;
+        const ratios = state.analyticsChartWidths.slice();
+        const leftIndex = active.index;
+        const rightIndex = active.index + 1;
+        const leftWidth = ratios[leftIndex];
+        const rightWidth = ratios[rightIndex];
+        const sum = leftWidth + rightWidth || 1;
+        const percent = Math.min(Math.max(x / totalWidth, 0.15), 0.85);
+        ratios[leftIndex] = sum * percent;
+        ratios[rightIndex] = sum * (1 - percent);
+        state.analyticsChartWidths = ratios;
+        applyChartWidths();
+      };
+      const stop = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
+        active = null;
+        savePrefs();
+      };
+      resizers.forEach(resizer => {
+        resizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          active = { index: parseInt(resizer.dataset.resizerIndex, 10) || 0 };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', stop);
+        });
+      });
+    };
+
+    const updatePieChart = (key, canvasId, emptyId, countId, counts) => {
+      const canvas = document.getElementById(canvasId);
+      const empty = document.getElementById(emptyId);
+      const countLabel = document.getElementById(countId);
+      if (!canvas || !empty || !countLabel) return;
+      const labels = Array.from(counts.keys());
+      const data = Array.from(counts.values());
+      const total = data.reduce((acc, val) => acc + val, 0);
+      countLabel.textContent = total ? `${total} filas` : 'Sin datos';
+      if (!total) {
+        canvas.classList.add('hidden');
+        empty.classList.remove('hidden');
+        if (state.analyticsCharts[key]) {
+          state.analyticsCharts[key].destroy();
+          state.analyticsCharts[key] = null;
+        }
+        return;
+      }
+      canvas.classList.remove('hidden');
+      empty.classList.add('hidden');
+
+      const palette = [
+        '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fbbf24',
+        '#38bdf8', '#c084fc', '#22d3ee', '#fb7185', '#f59e0b'
+      ];
+      const backgroundColor = labels.map((_, idx) => palette[idx % palette.length]);
+      const ctx = canvas.getContext('2d');
+      const existing = state.analyticsCharts[key];
+      const chartData = {
+        labels,
+        datasets: [{ data, backgroundColor, borderColor: '#0f172a', borderWidth: 2 }]
+      };
+      const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'bottom', labels: { color: '#e2e8f0', boxWidth: 10 } },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}` } }
+        }
+      };
+      if (existing) {
+        existing.data = chartData;
+        existing.update();
+      } else {
+        state.analyticsCharts[key] = new Chart(ctx, { type: 'pie', data: chartData, options });
+      }
+    };
+
+    const renderAnalyticsCharts = () => {
+      ensureAnalyticsChartsShell();
+      applyChartWidths();
+      bindChartResizers();
+      if (!els.analyticsCharts) return;
+      const rows = getFilteredSortedRows();
+
+      const selectableColumns = state.columns.map(c => c.id);
+      const labelsFor = (id) => state.columns.find(c => c.id === id)?.label || labelize(id);
+
+      const setupSelect = (key, fallbackLabels) => {
+        const select = document.getElementById(`chart-${key}-select`);
+        if (!select) return null;
+        select.innerHTML = '';
+        const defaults = fallbackLabels.map(id => ({ id, label: labelsFor(id) }));
+        const options = selectableColumns.map(id => ({ id, label: labelsFor(id) }));
+        const seen = new Set();
+        [...defaults, ...options].forEach(opt => {
+          if (!opt.id || seen.has(opt.id)) return;
+          seen.add(opt.id);
+          const option = document.createElement('option');
+          option.value = opt.id;
+          option.textContent = opt.label;
+          select.appendChild(option);
+        });
+        const preferred = state.analyticsChartColumns[key] || defaults.find(d => selectableColumns.includes(d.id))?.id || select.options[0]?.value;
+        if (preferred) select.value = preferred;
+        state.analyticsChartColumns[key] = select.value;
+        select.onchange = () => {
+          state.analyticsChartColumns[key] = select.value;
+          savePrefs();
+          renderAnalyticsCharts();
+        };
+        return select.value;
+      };
+
+      const unitCol = setupSelect('unitType', ['unit type','unit_type','unittype','unit']);
+      const dealStatusCol = setupSelect('dealStatus', ['deal status','deal_status','dealstatus']);
+      const dealTypeCol = setupSelect('dealType', ['deal type','deal_type','dealtype']);
+
+      const buildCounts = (colId, fallback = 'Unspecified') => {
+        const map = new Map();
+        if (!colId) return map;
+        rows.forEach(row => {
+          const raw = sanitizeForColumn(colId, row[colId]);
+          const key = (raw === null || raw === undefined || String(raw).trim() === '') ? fallback : String(raw);
+          map.set(key, (map.get(key) || 0) + 1);
+        });
+        return map;
+      };
+
+      const unitCounts = buildCounts(unitCol, 'Unspecified');
+      const statusCounts = buildCounts(dealStatusCol, 'Unspecified');
+      const typeCounts = buildCounts(dealTypeCol, 'Unspecified');
+
+      document.getElementById('chart-unitType-title')?.replaceChildren(document.createTextNode(labelsFor(unitCol || 'Unit Type')));
+      document.getElementById('chart-unitType-subtitle')?.replaceChildren(document.createTextNode('Distribución por unidad'));
+      document.getElementById('chart-dealStatus-title')?.replaceChildren(document.createTextNode(labelsFor(dealStatusCol || 'Deal Status')));
+      document.getElementById('chart-dealStatus-subtitle')?.replaceChildren(document.createTextNode('Estado del trato'));
+      document.getElementById('chart-dealType-title')?.replaceChildren(document.createTextNode(labelsFor(dealTypeCol || 'Deal Type')));
+      document.getElementById('chart-dealType-subtitle')?.replaceChildren(document.createTextNode('Tipo de trato'));
+
+      updatePieChart('unitType', 'chart-unitType', 'chart-unitType-empty', 'chart-unitType-count', unitCounts);
+      updatePieChart('dealStatus', 'chart-dealStatus', 'chart-dealStatus-empty', 'chart-dealStatus-count', statusCounts);
+      updatePieChart('dealType', 'chart-dealType', 'chart-dealType-empty', 'chart-dealType-count', typeCounts);
+    };
+
     const renderAnalytics = () => {
-      if (!els.analyticsContent) return;
+      if (!els.analyticsTableContainer) { renderAnalyticsCharts(); return; }
+      renderAnalyticsCharts();
       const locationCol = findColumnId(['location']);
       const lienCol = findColumnId(['lien status', 'lien_status', 'lienstatus', 'status']);
       const unitTypeCol = findColumnId(['unit type', 'unit_type', 'unittype', 'unit']);
       if (!locationCol || !lienCol || !unitTypeCol) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">Location, Lien status, or Unit type columns not found.</p>';
+        els.analyticsTableContainer.innerHTML = '<p class="text-xs text-slate-400 p-3">Location, Lien status, or Unit type columns not found.</p>';
         updateAnalyticsLocationLabel(0);
+        renderAnalyticsCharts();
         return;
       }
 
@@ -1481,21 +1847,38 @@
         const message = liens.length === 0
           ? 'No lien status data available.'
           : (!filteredLocations.length ? 'No data available for the selected locations.' : 'No data available for the selected unit types.');
-        els.analyticsContent.innerHTML = `<p class="text-xs text-slate-400 p-3">${message}</p>`;
+        els.analyticsTableContainer.innerHTML = `<p class="text-xs text-slate-400 p-3">${message}</p>`;
         updateAnalyticsLocationLabel(locations.length);
         updateAnalyticsUnitLabel(units.length);
         updateAnalyticsLienLabel(liens.length);
+        renderAnalyticsCharts();
         return;
       }
 
       const globalTotals = Object.fromEntries(liens.map(l => [l, 0]));
       let globalGrand = 0;
 
-      const liensHeaders = liens.map(lien => `<th class="px-3 py-2 border-b border-slate-800 text-left">${lien}</th>`).join('');
+      const columns = [
+        { id: 'location', label: 'Location', sticky: true },
+        ...liens.map(lien => ({ id: `lien-${sanitizeAnalyticsId(lien)}`, label: lien })),
+        { id: 'total', label: 'Total', total: true }
+      ];
 
-      let html = '<table class="min-w-full text-xs text-slate-200"><thead><tr><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Location</th>';
+      const colgroup = columns.map(col => {
+        const width = state.analyticsColumnWidths[col.id];
+        const widthAttr = width ? ` style="width:${width}px; min-width:${width}px;"` : '';
+        return `<col data-col-id="${col.id}"${widthAttr}>`;
+      }).join('');
+
+      const liensHeaders = liens.map(lien => {
+        const colId = `lien-${sanitizeAnalyticsId(lien)}`;
+        return `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
+      }).join('');
+
+      let html = `<table class="analytics-table text-xs text-slate-200"><colgroup>${colgroup}</colgroup><thead><tr>`;
+      html += '<th data-col-id="location" class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10 analytics-header">Location<span class="analytics-resizer" data-resizer></span></th>';
       html += liensHeaders;
-      html += '<th class="px-3 py-2 border-b border-slate-800 text-right">Total</th>';
+      html += '<th data-col-id="total" class="px-3 py-2 border-b border-slate-800 text-right analytics-header analytics-total-col">Total<span class="analytics-resizer" data-resizer></span></th>';
       html += '</tr></thead><tbody>';
 
       let hasData = false;
@@ -1517,65 +1900,52 @@
         hasData = true;
         html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
         html += '<tr class="text-[11px] text-slate-400 bg-slate-900/40">';
-        html += '<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Location</th>';
+        html += '<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10 analytics-header">Location<span class="analytics-resizer" data-resizer></span></th>';
         liens.forEach(lien => {
-          html += `<th class="px-3 py-2 border-b border-slate-800 text-left">${lien}</th>`;
+          const colId = `lien-${sanitizeAnalyticsId(lien)}`;
+          html += `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
         });
-        html += '<th class="px-3 py-2 border-b border-slate-800 text-right">Total</th>';
+        html += '<th data-col-id="total" class="px-3 py-2 border-b border-slate-800 text-right analytics-header analytics-total-col">Total<span class="analytics-resizer" data-resizer></span></th>';
         html += '</tr>';
         filteredLocations.forEach(loc => {
           let rowTotal = 0;
-          html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
+          let rowHtml = `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
           liens.forEach(lien => {
             const key = `${unit}|||${loc}|||${lien}`;
             const count = pivot.get(key) || 0;
             rowTotal += count;
-            html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300">${count}</td>`;
+            rowHtml += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300">${count}</td>`;
           });
-          html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100">${rowTotal}</td></tr>`;
+          if (rowTotal === 0) return;
+          rowHtml += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 analytics-total-col">${rowTotal}</td></tr>`;
+          html += rowHtml;
         });
-        html += `<tr class="bg-slate-900/40 font-semibold text-slate-100"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
+        html += `<tr class="analytics-total-row"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
         liens.forEach(lien => {
           html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotals[lien]}</td>`;
         });
-        html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotal}</td></tr>`;
+        html += `<td class="px-3 py-2 border-b border-slate-800 text-right analytics-total-col">${unitTotal}</td></tr>`;
       });
 
       if (!hasData) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
+        els.analyticsTableContainer.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
         updateAnalyticsLocationLabel(locations.length);
+        renderAnalyticsCharts();
         return;
       }
 
-      html += `<tr class="bg-blue-900/20 font-semibold text-slate-100"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
+      html += `<tr class="analytics-grand-row"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
       liens.forEach(lien => {
         html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalTotals[lien]}</td>`;
       });
-      html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalGrand}</td></tr>`;
-
-      if (!hasData) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
-        updateAnalyticsLocationLabel(locations.length);
-        return;
-      }
-
-      html += `<tr class="bg-blue-900/20 font-semibold text-slate-100"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
-      liens.forEach(lien => {
-        html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalTotals[lien]}</td>`;
-      });
-      html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalGrand}</td></tr>`;
-
-      if (!hasData) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
-        updateAnalyticsLocationLabel(locations.length);
-        return;
-      }
-
+      html += `<td class="px-3 py-3 border-t border-slate-800 text-right analytics-total-col">${globalGrand}</td></tr>`;
       html += '</tbody></table>';
-      els.analyticsContent.innerHTML = html;
+      els.analyticsTableContainer.innerHTML = html;
+      setupAnalyticsResizers();
       updateAnalyticsLocationLabel(locations.length);
       updateAnalyticsUnitLabel(units.length);
       updateAnalyticsLienLabel(liens.length);
+      renderAnalyticsCharts();
     };
 
     const loadData = async () => {
