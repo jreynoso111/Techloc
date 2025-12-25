@@ -260,6 +260,40 @@
                                 <div id="analytics-location-list" class="max-h-64 overflow-auto space-y-1 custom-scrollbar pr-1"></div>
                             </div>
                         </div>
+                        <div class="relative">
+                            <button id="analytics-unit-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
+                                <i data-lucide="package" class="h-3.5 w-3.5"></i>
+                                <span id="analytics-unit-label">All unit types</span>
+                            </button>
+                            <div id="analytics-unit-menu" class="hidden absolute right-0 mt-2 w-56 rounded-lg border border-slate-800 bg-slate-950 shadow-2xl z-50 p-3 space-y-2">
+                                <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold uppercase">
+                                    <span>Unit type</span>
+                                    <div class="flex items-center gap-2">
+                                        <button id="analytics-unit-all" class="text-blue-400 hover:text-blue-300">All</button>
+                                        <span class="text-slate-700">|</span>
+                                        <button id="analytics-unit-none" class="text-blue-400 hover:text-blue-300">None</button>
+                                    </div>
+                                </div>
+                                <div id="analytics-unit-list" class="max-h-64 overflow-auto space-y-1 custom-scrollbar pr-1"></div>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <button id="analytics-lien-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
+                                <i data-lucide="shield-check" class="h-3.5 w-3.5"></i>
+                                <span id="analytics-lien-label">All lien status</span>
+                            </button>
+                            <div id="analytics-lien-menu" class="hidden absolute right-0 mt-2 w-56 rounded-lg border border-slate-800 bg-slate-950 shadow-2xl z-50 p-3 space-y-2">
+                                <div class="flex items-center justify-between text-[10px] text-slate-400 font-semibold uppercase">
+                                    <span>Lien status</span>
+                                    <div class="flex items-center gap-2">
+                                        <button id="analytics-lien-all" class="text-blue-400 hover:text-blue-300">All</button>
+                                        <span class="text-slate-700">|</span>
+                                        <button id="analytics-lien-none" class="text-blue-400 hover:text-blue-300">None</button>
+                                    </div>
+                                </div>
+                                <div id="analytics-lien-list" class="max-h-64 overflow-auto space-y-1 custom-scrollbar pr-1"></div>
+                            </div>
+                        </div>
                         <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
                     </div>
                 </div>
@@ -329,6 +363,18 @@
       analyticsLocationLabel: document.getElementById('analytics-location-label'),
       analyticsLocationsAll: document.getElementById('analytics-locations-all'),
       analyticsLocationsNone: document.getElementById('analytics-locations-none'),
+      analyticsUnitBtn: document.getElementById('analytics-unit-btn'),
+      analyticsUnitMenu: document.getElementById('analytics-unit-menu'),
+      analyticsUnitList: document.getElementById('analytics-unit-list'),
+      analyticsUnitLabel: document.getElementById('analytics-unit-label'),
+      analyticsUnitAll: document.getElementById('analytics-unit-all'),
+      analyticsUnitNone: document.getElementById('analytics-unit-none'),
+      analyticsLienBtn: document.getElementById('analytics-lien-btn'),
+      analyticsLienMenu: document.getElementById('analytics-lien-menu'),
+      analyticsLienList: document.getElementById('analytics-lien-list'),
+      analyticsLienLabel: document.getElementById('analytics-lien-label'),
+      analyticsLienAll: document.getElementById('analytics-lien-all'),
+      analyticsLienNone: document.getElementById('analytics-lien-none'),
       downloadBtn: document.getElementById('download-btn'),
       downloadMenu: document.getElementById('download-menu'),
       downloadCsv: document.getElementById('download-csv'),
@@ -350,7 +396,9 @@
       isDragging: false, dragSourceIndex: null,
       isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
       filterCols1: [], filterCols2: [], filterCols3: [],
-      analyticsLocations: null
+      analyticsLocations: null,
+      analyticsUnits: null,
+      analyticsLiens: null
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -642,7 +690,9 @@
         pagination: state.pagination,
         sort: state.sort,
         search: state.search,
-        analyticsLocations: state.analyticsLocations
+        analyticsLocations: state.analyticsLocations,
+        analyticsUnits: state.analyticsUnits,
+        analyticsLiens: state.analyticsLiens
       };
       
       // Fallback localstorage
@@ -698,6 +748,8 @@
             if(els.termsOperator) els.termsOperator.value = state.search.termsOperator || '<';
         }
         if (Array.isArray(config.analyticsLocations) || config.analyticsLocations === null) state.analyticsLocations = config.analyticsLocations;
+        if (Array.isArray(config.analyticsUnits) || config.analyticsUnits === null) state.analyticsUnits = config.analyticsUnits;
+        if (Array.isArray(config.analyticsLiens) || config.analyticsLiens === null) state.analyticsLiens = config.analyticsLiens;
       }
     };
 
@@ -1242,6 +1294,104 @@
       updateAnalyticsLocationLabel(locations.length);
     };
 
+    const updateAnalyticsUnitLabel = (totalUnits = 0) => {
+      if (!els.analyticsUnitLabel) return;
+      const selection = state.analyticsUnits;
+      if (selection === null || selection === undefined) {
+        els.analyticsUnitLabel.textContent = 'All unit types';
+        return;
+      }
+      if (!selection.length) {
+        els.analyticsUnitLabel.textContent = 'No unit types';
+        return;
+      }
+      const showingAll = selection.length === totalUnits;
+      els.analyticsUnitLabel.textContent = showingAll ? 'All unit types' : `${selection.length} unit types`;
+    };
+
+    const renderAnalyticsUnitMenu = (units = []) => {
+      if (!els.analyticsUnitList) return;
+      const selection = state.analyticsUnits;
+      const workingSet = selection === null || selection === undefined ? new Set(units) : new Set(selection);
+      const showAllByDefault = selection === null || selection === undefined;
+
+      els.analyticsUnitList.innerHTML = '';
+      units.forEach(unit => {
+        const id = `analytics-unit-${unit.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-900 text-xs text-slate-200';
+        label.setAttribute('for', id);
+        label.innerHTML = `<span class="truncate">${unit}</span>`;
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = id;
+        input.className = 'h-3.5 w-3.5 accent-blue-600 rounded bg-slate-800 border-slate-600';
+        input.checked = showAllByDefault ? true : workingSet.has(unit);
+        input.addEventListener('change', () => {
+          const next = showAllByDefault ? new Set(units) : new Set(state.analyticsUnits || []);
+          if (input.checked) next.add(unit); else next.delete(unit);
+          state.analyticsUnits = next.size === units.length ? null : Array.from(next);
+          savePrefs();
+          renderAnalytics();
+        });
+
+        label.appendChild(input);
+        els.analyticsUnitList.appendChild(label);
+      });
+
+      updateAnalyticsUnitLabel(units.length);
+    };
+
+    const updateAnalyticsLienLabel = (totalLiens = 0) => {
+      if (!els.analyticsLienLabel) return;
+      const selection = state.analyticsLiens;
+      if (selection === null || selection === undefined) {
+        els.analyticsLienLabel.textContent = 'All lien status';
+        return;
+      }
+      if (!selection.length) {
+        els.analyticsLienLabel.textContent = 'No lien status';
+        return;
+      }
+      const showingAll = selection.length === totalLiens;
+      els.analyticsLienLabel.textContent = showingAll ? 'All lien status' : `${selection.length} selected`;
+    };
+
+    const renderAnalyticsLienMenu = (liens = []) => {
+      if (!els.analyticsLienList) return;
+      const selection = state.analyticsLiens;
+      const workingSet = selection === null || selection === undefined ? new Set(liens) : new Set(selection);
+      const showAllByDefault = selection === null || selection === undefined;
+
+      els.analyticsLienList.innerHTML = '';
+      liens.forEach(lien => {
+        const id = `analytics-lien-${lien.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-900 text-xs text-slate-200';
+        label.setAttribute('for', id);
+        label.innerHTML = `<span class="truncate">${lien}</span>`;
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = id;
+        input.className = 'h-3.5 w-3.5 accent-blue-600 rounded bg-slate-800 border-slate-600';
+        input.checked = showAllByDefault ? true : workingSet.has(lien);
+        input.addEventListener('change', () => {
+          const next = showAllByDefault ? new Set(liens) : new Set(state.analyticsLiens || []);
+          if (input.checked) next.add(lien); else next.delete(lien);
+          state.analyticsLiens = next.size === liens.length ? null : Array.from(next);
+          savePrefs();
+          renderAnalytics();
+        });
+
+        label.appendChild(input);
+        els.analyticsLienList.appendChild(label);
+      });
+
+      updateAnalyticsLienLabel(liens.length);
+    };
+
     const unitTypePriority = (type = '') => {
       const t = String(type || '').toLowerCase();
       if (t.includes('truck')) return 0;
@@ -1289,24 +1439,36 @@
         ? []
         : locations.filter(loc => !selectedLocations || selectedLocations.has(loc));
 
-      const liens = Array.from(lienSet).sort((a, b) => a.localeCompare(b));
-      if (!filteredLocations.length || liens.length === 0 || unitTypeSet.size === 0) {
-        const message = liens.length === 0
-          ? 'No lien status data available.'
-          : 'No data available for the selected locations.';
-        els.analyticsContent.innerHTML = `<p class="text-xs text-slate-400 p-3">${message}</p>`;
-        updateAnalyticsLocationLabel(locations.length);
-        return;
-      }
+      let liens = Array.from(lienSet).sort((a, b) => a.localeCompare(b));
+      renderAnalyticsLienMenu(liens);
+      const selectedLiens = state.analyticsLiens === null || state.analyticsLiens === undefined ? null : new Set(state.analyticsLiens);
+      if (selectedLiens && selectedLiens.size === 0) liens = [];
+      else if (selectedLiens) liens = liens.filter(l => selectedLiens.has(l));
 
-      const globalTotals = Object.fromEntries(liens.map(l => [l, 0]));
-      let globalGrand = 0;
-      const units = Array.from(unitTypeSet).sort((a, b) => {
+      let units = Array.from(unitTypeSet).sort((a, b) => {
         const pa = unitTypePriority(a);
         const pb = unitTypePriority(b);
         if (pa !== pb) return pa - pb;
         return String(a).localeCompare(String(b));
       });
+      renderAnalyticsUnitMenu(units);
+      const selectedUnits = state.analyticsUnits === null || state.analyticsUnits === undefined ? null : new Set(state.analyticsUnits);
+      if (selectedUnits && selectedUnits.size === 0) units = [];
+      else if (selectedUnits) units = units.filter(u => selectedUnits.has(u));
+
+      if (!filteredLocations.length || liens.length === 0 || units.length === 0) {
+        const message = liens.length === 0
+          ? 'No lien status data available.'
+          : (!filteredLocations.length ? 'No data available for the selected locations.' : 'No data available for the selected unit types.');
+        els.analyticsContent.innerHTML = `<p class="text-xs text-slate-400 p-3">${message}</p>`;
+        updateAnalyticsLocationLabel(locations.length);
+        updateAnalyticsUnitLabel(units.length);
+        updateAnalyticsLienLabel(liens.length);
+        return;
+      }
+
+      const globalTotals = Object.fromEntries(liens.map(l => [l, 0]));
+      let globalGrand = 0;
 
       const liensHeaders = liens.map(lien => `<th class="px-3 py-2 border-b border-slate-800 text-left">${lien}</th>`).join('');
 
@@ -1333,6 +1495,13 @@
 
         hasData = true;
         html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
+        html += '<tr class="text-[11px] text-slate-400 bg-slate-900/40">';
+        html += '<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Location</th>';
+        liens.forEach(lien => {
+          html += `<th class="px-3 py-2 border-b border-slate-800 text-left">${lien}</th>`;
+        });
+        html += '<th class="px-3 py-2 border-b border-slate-800 text-right">Total</th>';
+        html += '</tr>';
         filteredLocations.forEach(loc => {
           let rowTotal = 0;
           html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
@@ -1369,9 +1538,23 @@
         return;
       }
 
+      html += `<tr class="bg-blue-900/20 font-semibold text-slate-100"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
+      liens.forEach(lien => {
+        html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalTotals[lien]}</td>`;
+      });
+      html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalGrand}</td></tr>`;
+
+      if (!hasData) {
+        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
+        updateAnalyticsLocationLabel(locations.length);
+        return;
+      }
+
       html += '</tbody></table>';
       els.analyticsContent.innerHTML = html;
       updateAnalyticsLocationLabel(locations.length);
+      updateAnalyticsUnitLabel(units.length);
+      updateAnalyticsLienLabel(liens.length);
     };
 
     const loadData = async () => {
@@ -1406,6 +1589,12 @@
       els.analyticsLocationBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.analyticsLocationMenu?.classList.toggle('hidden'); });
       els.analyticsLocationsAll?.addEventListener('click', () => { state.analyticsLocations = null; savePrefs(); renderAnalytics(); });
       els.analyticsLocationsNone?.addEventListener('click', () => { state.analyticsLocations = []; savePrefs(); renderAnalytics(); });
+      els.analyticsUnitBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.analyticsUnitMenu?.classList.toggle('hidden'); });
+      els.analyticsUnitAll?.addEventListener('click', () => { state.analyticsUnits = null; savePrefs(); renderAnalytics(); });
+      els.analyticsUnitNone?.addEventListener('click', () => { state.analyticsUnits = []; savePrefs(); renderAnalytics(); });
+      els.analyticsLienBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.analyticsLienMenu?.classList.toggle('hidden'); });
+      els.analyticsLienAll?.addEventListener('click', () => { state.analyticsLiens = null; savePrefs(); renderAnalytics(); });
+      els.analyticsLienNone?.addEventListener('click', () => { state.analyticsLiens = []; savePrefs(); renderAnalytics(); });
       
       els.columnsBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.columnsPopover.classList.toggle('hidden'); });
       els.colsAll?.addEventListener('click', () => { state.columns.forEach(c => state.columnVisibility[c.id] = true); savePrefs(); renderTable(); updateColumnsList(); });
@@ -1417,6 +1606,8 @@
         if (!clickedMenu && !isTrigger) closeColumnMenus();
         if (els.downloadMenu && !els.downloadMenu.contains(e.target) && e.target !== els.downloadBtn) els.downloadMenu.classList.add('hidden');
         if (els.analyticsLocationMenu && !els.analyticsLocationMenu.contains(e.target) && !els.analyticsLocationBtn?.contains(e.target)) els.analyticsLocationMenu.classList.add('hidden');
+        if (els.analyticsUnitMenu && !els.analyticsUnitMenu.contains(e.target) && !els.analyticsUnitBtn?.contains(e.target)) els.analyticsUnitMenu.classList.add('hidden');
+        if (els.analyticsLienMenu && !els.analyticsLienMenu.contains(e.target) && !els.analyticsLienBtn?.contains(e.target)) els.analyticsLienMenu.classList.add('hidden');
       });
       syncScrollbars(); 
     };
