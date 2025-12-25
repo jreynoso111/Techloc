@@ -27,8 +27,24 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
   
   <style>
-    /* MODIFICADO: Fondo sólido para evitar el efecto "canvas detrás" */
-    table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; background-color: #020617; }
+    /* Estructura Base para Scroll Correcto */
+    body {
+        height: 100vh; /* Usar dvh si es posible para móviles */
+        height: 100dvh;
+        overflow: hidden; /* Evita scroll en el body, todo scroll es interno */
+        display: flex;
+        flex-direction: column;
+        background-color: #020617;
+    }
+
+    /* Tabla Sólida para tapar el Canvas */
+    #table-container {
+        background-color: #020617;
+        position: relative;
+        z-index: 10;
+    }
+    
+    table { table-layout: fixed; width: 100%; border-collapse: separate; border-spacing: 0; }
     
     .resizer {
       position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
@@ -48,8 +64,6 @@
       font-size: 10px; z-index: 10;
     }
 
-    select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
-    
     /* Custom Scrollbar */
     .custom-scrollbar::-webkit-scrollbar { height: 10px; width: 10px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
@@ -81,17 +95,16 @@
     th:hover .analytics-resizer { opacity: 1; background: rgba(59, 130, 246, 0.3); }
     .analytics-resizer:hover { opacity: 1; background: #3b82f6; }
 
-    /* Responsive adjustments */
-    #table-container, #top-scroller { max-width: 100vw; }
-    #main-table { width: 100%; }
-    
-    @media (max-width: 1024px) {
-      #table-container { max-height: calc(100vh - 240px); }
+    /* Estilos para el overlay de carga */
+    .loading-overlay {
+        position: absolute; inset: 0; background: rgba(2, 6, 23, 0.7);
+        backdrop-filter: blur(2px); z-index: 50; display: flex;
+        align-items: center; justify-content: center;
     }
   </style>
 </head>
 
-<body class="h-screen w-full overflow-hidden flex flex-col bg-slate-950 text-slate-50">
+<body class="text-slate-50">
 
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
   
@@ -123,7 +136,7 @@
     </div>
   </div>
 
-  <div class="sticky top-0 z-50 space-y-px shrink-0">
+  <div class="shrink-0 z-50 bg-slate-950">
     <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
       <div class="flex items-center justify-between px-6 py-4 lg:px-10">
         <a href="../index.html" class="flex items-center gap-3">
@@ -135,6 +148,7 @@
             <h1 class="text-base font-black leading-tight text-white">Title Management</h1>
           </div>
         </a>
+
         <div class="flex flex-wrap items-center justify-end gap-3">
            <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
              <a href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
@@ -153,7 +167,7 @@
 
   <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10 opacity-70 mix-blend-screen"></canvas>
 
-  <main class="flex-1 flex flex-col min-h-0 relative">
+  <main class="flex-1 flex flex-col min-h-0 relative overflow-hidden">
     
     <div class="shrink-0 border-b border-slate-800 bg-slate-950 p-3 shadow-lg z-30">
         <div class="flex flex-col gap-3">
@@ -201,7 +215,7 @@
             </div>
 
             <div class="flex items-center gap-2 border-t border-slate-800 pt-2">
-                 <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500 shrink-0">Filter by Sheet:</span>
+                 <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500 shrink-0">Sheets:</span>
                  <div id="sheet-tabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar mask-fade flex-1">
                     </div>
                  
@@ -218,7 +232,7 @@
         <div id="top-scroller-content" class="h-px pt-1"></div>
     </div>
 
-    <div id="table-container" class="flex-grow overflow-auto custom-scrollbar relative bg-slate-950 w-full h-full">
+    <div id="table-container" class="flex-1 overflow-auto custom-scrollbar relative w-full">
         <table id="main-table" class="min-w-full divide-y divide-slate-800/80 bg-slate-950">
             <colgroup id="table-colgroup"></colgroup>
             <thead id="table-head" class="bg-slate-950 sticky top-0 z-20 shadow-md shadow-black/20"></thead>
@@ -235,12 +249,12 @@
 
     <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
         <span id="pagination-summary">Ready</span>
-        <span>TechLoc Admin v2.6 (Fixed)</span>
+        <span>TechLoc Admin v3.0</span>
     </div>
 
-    <div id="analytics-panel" class="bg-slate-900/90 border-t border-slate-800 px-4 py-4 flex justify-end shrink-0">
-        <div class="w-full max-w-7xl ml-auto">
-            <div class="flex items-center justify-between mb-3 gap-3">
+    <div id="analytics-panel" class="bg-slate-900/90 border-t border-slate-800 px-4 py-4 flex justify-end shrink-0 max-h-[35vh] overflow-hidden flex flex-col">
+        <div class="w-full max-w-7xl ml-auto flex flex-col h-full">
+            <div class="flex items-center justify-between mb-3 gap-3 shrink-0">
                 <div>
                     <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
                     <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
@@ -255,7 +269,7 @@
                     </div>
                 </div>
             </div>
-            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-[300px]"></div>
+            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar flex-1"></div>
         </div>
     </div>
 
@@ -328,8 +342,17 @@
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
     const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
+    const sanitizeForColumn = (colId, value) => {
+       if (typeof value !== 'string') return value;
+       if (/prep/i.test(colId) || /location/i.test(colId)) return value.replace(/^[\d\s-]+/, '');
+       return value;
+    };
     
-    // ... (Helpers omitidos para brevedad, igual que antes) ...
+    let columnMenus = [];
+    const closeColumnMenus = (except = null) => {
+        columnMenus.forEach(menu => { if (menu !== except) menu.classList.add('hidden'); });
+    };
+
     const showToast = (message, type = 'info') => {
         const toast = document.createElement('div');
         const colors = type === 'error' ? 'bg-red-900/90 border-red-500 text-red-100' : 'bg-slate-800/90 border-blue-500 text-blue-100';
@@ -340,7 +363,7 @@
         setTimeout(() => { toast.classList.add('translate-y-4', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
     };
 
-    // MODIFICADO: Generación de Botones de Sheet más atractivos
+    // --- TAB TABS ---
     const populateSheetFilter = (rows) => {
         const currentScroll = els.sheetTabs.scrollLeft;
         const sheets = new Set();
@@ -352,7 +375,6 @@
         const createTab = (label, value) => {
             const btn = document.createElement('button');
             const isActive = state.search.sheet === value;
-            // Estilo botón real
             const baseClass = "shrink-0 px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap";
             const activeClass = "bg-blue-600 border-blue-500 text-white shadow-md shadow-blue-500/20";
             const inactiveClass = "bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-500";
@@ -373,18 +395,15 @@
         requestAnimationFrame(() => els.sheetTabs.scrollLeft = currentScroll);
     };
 
-    // --- LÓGICA DE FILTRADO Y ORDENAMIENTO (CON TRUCKS/TRAILERS) ---
+    // --- FILTER & SORT ---
     const getFilteredSortedRows = () => {
       let rows = state.rows;
       const t1 = state.search.primary.trim().toLowerCase();
       const sheet = state.search.sheet;
 
-      // Filter Logic
       rows = rows.filter(row => {
-          // Búsqueda simple
           const matches1 = !t1 || Object.values(row).some(v => String(v).toLowerCase().includes(t1));
           let matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
-          // Filtros de columna menú
           const menuFilters = Object.entries(state.columnFilters || {});
           const matchesMenuFilters = menuFilters.every(([colId, value]) => {
               if (!value) return true;
@@ -393,24 +412,20 @@
           return matches1 && matchesSheet && matchesMenuFilters;
       });
 
-      // MODIFICADO: Lógica de ordenamiento personalizada para poner Trucks/Trailers arriba
       rows.sort((a, b) => {
-          // 1. Prioridad: Unit Type (Truck/Trailer)
+          // 1. Priority: Trucks/Trailers first
           const typeCol = state.columns.find(c => ['unit type', 'unit_type', 'type', 'unittype'].includes(c.id.toLowerCase()))?.id;
-          
           if (typeCol) {
-             const priorityWords = ['truck', 'trailer'];
-             const valA = String(a[typeCol] || '').toLowerCase();
-             const valB = String(b[typeCol] || '').toLowerCase();
-             
-             const isPriorityA = priorityWords.some(p => valA.includes(p));
-             const isPriorityB = priorityWords.some(p => valB.includes(p));
-
-             if (isPriorityA && !isPriorityB) return -1; // A arriba
-             if (!isPriorityA && isPriorityB) return 1;  // B arriba
+             const priorityRegex = /truck|trailer/i;
+             const valA = String(a[typeCol] || '');
+             const valB = String(b[typeCol] || '');
+             const pA = priorityRegex.test(valA);
+             const pB = priorityRegex.test(valB);
+             if (pA && !pB) return -1;
+             if (!pA && pB) return 1;
           }
 
-          // 2. Ordenamiento estándar por columna seleccionada
+          // 2. Standard Sort
           if (state.sort.column && state.sort.direction !== 'none') {
              const { column, direction } = state.sort;
              const vA = a[column]; const vB = b[column];
@@ -424,7 +439,32 @@
       return rows;
     };
 
-    // --- EDICIÓN Y GUARDADO (FIX) ---
+    // --- SAVE / LOAD / DELETE ---
+    const deleteRow = async (rowId, btn) => {
+        if (!confirm('Are you sure you want to delete this row?')) return;
+        const tr = btn.closest('tr');
+        tr.style.opacity = '0.5';
+        if (supabaseClient) {
+            const { error } = await supabaseClient.from(READ_TABLE).delete().eq(PRIMARY_KEY, rowId);
+            if (error) { showToast('Error deleting', 'error'); tr.style.opacity = '1'; return; }
+        }
+        state.rows = state.rows.filter(r => r[PRIMARY_KEY] !== rowId && r['id'] !== rowId);
+        renderTable();
+        showToast('Row deleted', 'info');
+    };
+
+    const addNewRow = async () => {
+       if (!supabaseClient) { showToast('Offline', 'error'); return; }
+       els.addRowBtn.disabled = true;
+       try {
+           const { data, error } = await supabaseClient.from(READ_TABLE).insert({}).select().single();
+           if (error) throw error;
+           state.rows.unshift(data);
+           renderTable();
+       } catch (e) { showToast('Error adding row', 'error'); }
+       finally { els.addRowBtn.disabled = false; }
+    };
+
     const editCell = (td, rowId, colId, originalValue) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return;
@@ -442,11 +482,8 @@
             if (isSaving) return;
             isSaving = true;
             let newValue = input.value.trim();
-            // Evitar conflictos con sanitize
-            // newValue = sanitizeForColumn(colId, newValue); 
             const payloadValue = newValue === '' ? null : newValue;
             
-            // Revertir UI para mostrar valor nuevo
             td.innerHTML = '';
             const wrapper = document.createElement('div');
             wrapper.className = 'wrap-2-lines px-1 text-[10px]';
@@ -455,19 +492,15 @@
 
             if (String(payloadValue) === String(originalValue === null ? '' : originalValue)) return;
 
-            // Update local
             const row = state.rows.find(r => r[PRIMARY_KEY] === rowId || r['id'] === rowId || r['ID'] === rowId);
             if (row) row[colId] = payloadValue;
 
             if (supabaseClient) {
-                // MODIFICADO: Detección robusta de Primary Key
-                // Intenta usar PRIMARY_KEY definida, si no, busca 'id' en la fila
+                // Try primary key fallback
                 let actualId = rowId;
                 let pkColumn = PRIMARY_KEY;
-                
                 if (row && row[PRIMARY_KEY] === undefined && row['id'] !== undefined) {
-                    pkColumn = 'id';
-                    actualId = row['id'];
+                    pkColumn = 'id'; actualId = row['id'];
                 }
 
                 const { error } = await supabaseClient.from(READ_TABLE)
@@ -477,15 +510,14 @@
                 if (error) {
                     console.error("Save Error:", error);
                     showToast('Error saving change', 'error');
-                    // Revert
                     if(row) row[colId] = originalValue;
                     wrapper.textContent = originalValue || '—';
                 } else {
                     showToast('Saved', 'info');
+                    renderAnalytics(); // Update analytics if data changed
                 }
             }
         };
-
         const cancel = () => { isSaving = true; td.innerHTML=''; const w=document.createElement('div'); w.className='wrap-2-lines px-1 text-[10px]'; w.textContent=originalValue||'—'; td.appendChild(w); };
         input.addEventListener('blur', save);
         input.addEventListener('keydown', (e) => {
@@ -494,39 +526,100 @@
         });
     };
 
-    // ... (El resto de funciones como renderTable, init, etc. se mantienen igual, asegurándose de usar el nuevo getFilteredSortedRows) ...
-    
-    // Necesitamos incluir el renderTable básico para que funcione el script completo
+    const savePrefs = async () => {
+        const config = { columnVisibility: state.columnVisibility, columnWidths: state.columnWidths, sort: state.sort, search: state.search };
+        localStorage.setItem(`local_${READ_TABLE}_prefs`, JSON.stringify(config));
+        if (supabaseClient && state.user_id) {
+            await supabaseClient.from(CONFIG_TABLE).upsert({ user_id: state.user_id, table_name: READ_TABLE, config }, { onConflict: 'user_id, table_name' });
+        }
+    };
+
+    const loadPrefs = async () => {
+        let config = null;
+        if (supabaseClient) {
+             const { data: { user } } = await supabaseClient.auth.getUser();
+             if (user) {
+                state.user_id = user.id;
+                const { data } = await supabaseClient.from(CONFIG_TABLE).select('config').eq('user_id', user.id).eq('table_name', READ_TABLE).maybeSingle();
+                if (data) config = data.config;
+             }
+        }
+        if (!config) try { config = JSON.parse(localStorage.getItem(`local_${READ_TABLE}_prefs`)); } catch (e) {}
+        if (config) {
+            if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
+            if (config.columnWidths) state.columnWidths = config.columnWidths;
+            if (config.sort) state.sort = config.sort;
+            if (config.search) state.search = config.search;
+        }
+    };
+
+    // --- RENDER FUNCTIONS ---
     const renderTable = (options = {}) => {
-        // (Copiar la lógica del renderTable anterior, asegurando usar getFilteredSortedRows)
-        // Por simplicidad, asumo que usas la misma función renderTable del código original
-        // pero llamando a la nueva getFilteredSortedRows().
-        // AQUI HAGO EL MINIMO CAMBIO VISUAL:
-        
+        columnMenus = [];
         els.colgroup.innerHTML = '';
         els.thead.innerHTML = '';
         els.tbody.innerHTML = '';
         
-        const rows = getFilteredSortedRows(); // Usa la nueva con Trucks arriba
-        
-        // ... Lógica de renderizado de columnas y filas (idéntica a tu original) ...
-        // Render headers
+        const rows = getFilteredSortedRows();
         const visible = state.columnOrder.map(id => state.columns.find(c => c.id === id)).filter(c => c && state.columnVisibility[c.id] !== false);
         
-        // --- RENDER COLGROUP ---
+        // COLGROUP
         const delCol = document.createElement('col'); delCol.style.width='40px'; els.colgroup.appendChild(delCol);
         visible.forEach(col => {
             const el = document.createElement('col'); el.style.width = `${state.columnWidths[col.id]||150}px`; els.colgroup.appendChild(el);
         });
 
-        // --- RENDER HEAD ---
+        // HEADER
         const headRow = document.createElement('tr');
-        const thDel = document.createElement('th'); thDel.className='w-[40px] border-b border-slate-700 bg-slate-900'; headRow.appendChild(thDel);
+        const thDel = document.createElement('th'); thDel.className='w-[40px] border-b border-slate-700 bg-slate-950'; headRow.appendChild(thDel);
+        
         visible.forEach(col => {
             const th = document.createElement('th');
             th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none py-1 px-2 border-b border-slate-700 bg-slate-950 hover:bg-slate-900 transition-colors relative group';
-            // ... (Eventos de drag/drop y menu iguales) ...
-            th.textContent = col.label; // Simplificado para este bloque, mantén tu lógica de menú completa
+            
+            // Content
+            const div = document.createElement('div'); div.className='flex items-center gap-2 w-full h-full';
+            const span = document.createElement('span'); span.className='wrap-2-lines flex-1'; span.textContent=col.label;
+            div.appendChild(span);
+            
+            // Menu Trigger
+            const btn = document.createElement('button'); btn.className='p-1 hover:bg-slate-700 rounded transition-colors shrink-0';
+            btn.innerHTML = `<i data-lucide="list-filter" class="h-3 w-3 ${state.columnFilters[col.id] || state.sort.column===col.id ? 'text-blue-400' : 'text-slate-600'}"></i>`;
+            
+            // Menu Logic (Simplificada para mantener todo en un bloque)
+            const menu = document.createElement('div');
+            menu.className = 'absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-slate-800 bg-slate-900 shadow-xl hidden z-50 p-2';
+            menu.innerHTML = `
+                <input type="text" placeholder="Filter..." class="w-full bg-slate-800 border border-slate-700 rounded p-1 text-xs mb-2 text-white">
+                <button data-act="sort-asc" class="w-full text-left text-xs text-slate-300 p-1 hover:bg-slate-800">Sort A-Z</button>
+                <button data-act="sort-desc" class="w-full text-left text-xs text-slate-300 p-1 hover:bg-slate-800">Sort Z-A</button>
+                <button data-act="clear" class="w-full text-left text-xs text-red-300 p-1 hover:bg-slate-800">Clear</button>
+                <button data-act="replace" class="w-full text-left text-xs text-amber-300 p-1 hover:bg-slate-800 mt-1 border-t border-slate-800 pt-1">Replace Values</button>
+            `;
+            const input = menu.querySelector('input');
+            input.value = state.columnFilters[col.id] || '';
+            input.onkeydown = (e) => { if(e.key==='Enter') { state.columnFilters[col.id]=input.value; savePrefs(); renderTable(); }};
+            
+            menu.onclick = (e) => {
+                const act = e.target.dataset.act;
+                if(!act) return;
+                if(act==='sort-asc') state.sort={column:col.id, direction:'asc'};
+                if(act==='sort-desc') state.sort={column:col.id, direction:'desc'};
+                if(act==='clear') { state.sort={column:null,direction:'none'}; delete state.columnFilters[col.id]; }
+                if(act==='replace') { 
+                    state.replaceContext = { colId: col.id, label: col.label };
+                    els.modalTitle.textContent = col.label;
+                    els.modalOverlay.classList.remove('hidden');
+                }
+                if(act!=='replace') { savePrefs(); renderTable(); }
+            };
+
+            btn.onclick = (e) => { e.stopPropagation(); closeColumnMenus(menu); menu.classList.toggle('hidden'); };
+            columnMenus.push(menu);
+            div.appendChild(btn); div.appendChild(menu);
+            th.appendChild(div);
+
+            // Resizer
             const resizer = document.createElement('div'); resizer.className='resizer'; 
             resizer.addEventListener('mousedown', (e) => { 
                 e.stopPropagation(); e.preventDefault(); 
@@ -542,7 +635,7 @@
         });
         els.thead.appendChild(headRow);
 
-        // --- RENDER BODY ---
+        // BODY
         const { page, pageSize } = state.pagination;
         const start = (page-1)*pageSize;
         const pageRows = rows.slice(start, start+pageSize);
@@ -552,11 +645,15 @@
             els.emptyState.classList.add('hidden');
             pageRows.forEach(row => {
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-blue-900/10 group transition-colors bg-slate-950'; // Fondo sólido
+                tr.className = 'hover:bg-blue-900/10 group transition-colors bg-slate-950'; 
                 
                 const tdDel = document.createElement('td');
                 tdDel.className='border-r border-slate-800/50 border-b border-slate-800/50 text-center align-middle';
-                tdDel.innerHTML = '<button class="text-slate-600 hover:text-red-500"><i data-lucide="trash-2" class="h-3 w-3"></i></button>';
+                const dBtn = document.createElement('button');
+                dBtn.className='text-slate-600 hover:text-red-500 p-1';
+                dBtn.innerHTML='<i data-lucide="trash-2" class="h-3 w-3"></i>';
+                dBtn.onclick = () => deleteRow(row[PRIMARY_KEY]||row['id'], dBtn);
+                tdDel.appendChild(dBtn);
                 tr.appendChild(tdDel);
 
                 visible.forEach(col => {
@@ -572,9 +669,103 @@
             });
         }
         
-        // Sync scroll
+        // Paginator & Sync
+        const maxPage = Math.ceil(rows.length/pageSize) || 1;
+        els.pageIndicator.textContent = `${state.pagination.page}/${maxPage}`;
+        els.paginationSummary.textContent = `Showing ${pageRows.length} of ${rows.length}`;
         if(els.topScrollerContent && els.mainTable) els.topScrollerContent.style.width = els.mainTable.scrollWidth + 'px';
         if (window.lucide) lucide.createIcons();
+        renderAnalytics();
+    };
+
+    // --- ANALYTICS ---
+    const renderAnalytics = () => {
+         if (!els.analyticsContent) return;
+         const locationCol = state.columns.find(c => c.id === 'location' || c.id === 'Location')?.id;
+         const lienCol = state.columns.find(c => /lien/i.test(c.id) || /status/i.test(c.id))?.id;
+         const unitCol = state.columns.find(c => /unit/i.test(c.id) && /type/i.test(c.id))?.id;
+
+         if (!locationCol || !lienCol) {
+             els.analyticsContent.innerHTML = '<p class="text-xs text-slate-500 p-2">Location or Status column missing.</p>';
+             return;
+         }
+
+         const rows = getFilteredSortedRows();
+         // Groups by Unit Type
+         const groups = {};
+         rows.forEach(r => {
+             const type = unitCol ? (r[unitCol]||'Other') : 'All';
+             if(!groups[type]) groups[type] = [];
+             groups[type].push(r);
+         });
+
+         let html = '';
+         Object.entries(groups).forEach(([type, items]) => {
+             // Pivot Data
+             const locs = new Set();
+             const liens = new Set();
+             const counts = {};
+
+             items.forEach(r => {
+                 const l = r[locationCol] || 'Unknown';
+                 const s = r[lienCol] || 'Unknown';
+                 locs.add(l); liens.add(s);
+                 const k = `${l}::${s}`;
+                 counts[k] = (counts[k]||0)+1;
+             });
+
+             const locArr = Array.from(locs).sort();
+             const lienArr = Array.from(liens).sort();
+
+             // Sort Locations by total if needed
+             if(state.analytics.sort.includes('total')) {
+                 const totals = {};
+                 locArr.forEach(l => {
+                     totals[l] = 0;
+                     lienArr.forEach(s => totals[l] += (counts[`${l}::${s}`]||0));
+                 });
+                 locArr.sort((a,b) => state.analytics.sort==='total-asc' ? totals[a]-totals[b] : totals[b]-totals[a]);
+             }
+
+             html += `<div class="mb-4">
+                <h4 class="text-[10px] uppercase font-bold text-slate-400 mb-1 sticky left-0">${type}</h4>
+                <table class="w-full text-xs text-slate-300">
+                    <thead>
+                        <tr>
+                            <th class="text-left py-1 px-2 border-b border-slate-700 bg-slate-900 sticky left-0 z-10 w-32">Location</th>
+                            ${lienArr.map(s => `<th class="text-right py-1 px-2 border-b border-slate-700 min-w-[60px]">${s}</th>`).join('')}
+                            <th class="text-right py-1 px-2 border-b border-slate-700 bg-slate-900 w-16">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+             
+             let grandTotal = 0;
+             const colTotals = {};
+             
+             locArr.forEach(l => {
+                 let rowTotal = 0;
+                 html += `<tr><td class="py-1 px-2 border-b border-slate-800 bg-slate-950 sticky left-0 font-medium text-slate-200">${l}</td>`;
+                 lienArr.forEach(s => {
+                     const c = counts[`${l}::${s}`]||0;
+                     rowTotal += c;
+                     colTotals[s] = (colTotals[s]||0)+c;
+                     html += `<td class="text-right py-1 px-2 border-b border-slate-800 text-slate-400">${c||'-'}</td>`;
+                 });
+                 grandTotal += rowTotal;
+                 html += `<td class="text-right py-1 px-2 border-b border-slate-800 bg-slate-900 font-bold text-white">${rowTotal}</td></tr>`;
+             });
+
+             // Totals Row
+             html += `<tr class="bg-slate-900/80 font-bold text-white">
+                 <td class="py-1 px-2 border-t border-slate-700 sticky left-0 bg-slate-900">Total</td>
+                 ${lienArr.map(s => `<td class="text-right py-1 px-2 border-t border-slate-700">${colTotals[s]||0}</td>`).join('')}
+                 <td class="text-right py-1 px-2 border-t border-slate-700">${grandTotal}</td>
+             </tr>`;
+
+             html += `</tbody></table></div>`;
+         });
+         
+         els.analyticsContent.innerHTML = html;
     };
 
     const inferColumns = (rows) => {
@@ -596,15 +787,59 @@
         populateSheetFilter(state.rows); 
         renderTable();
     };
-    
-    // Save prefs, etc... (Mantener funciones originales)
-    const savePrefs = () => {}; // Stub
-    const loadPrefs = async () => {}; // Stub
 
-    // Init
-    loadData();
-    els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; renderTable(); });
-    // ... Resto de eventos
+    // --- EVENTS & INIT ---
+    const attachEvents = () => {
+        els.searchPrimary.oninput = (e) => { state.search.primary = e.target.value; renderTable(); };
+        els.analyticsSort.onchange = (e) => { state.analytics.sort = e.target.value; renderAnalytics(); };
+        els.modalApply.onclick = async () => {
+            const { colId } = state.replaceContext;
+            const findVal = els.modalFind.value;
+            const repVal = els.modalReplace.value || null;
+            els.modalOverlay.classList.add('hidden');
+            
+            // Batch update locally
+            const toUpdate = [];
+            state.rows.forEach(r => {
+                if(String(r[colId]||'') === String(findVal||'')) {
+                    r[colId] = repVal;
+                    toUpdate.push(r[PRIMARY_KEY]||r['id']);
+                }
+            });
+            
+            if(supabaseClient && toUpdate.length > 0) {
+                 await supabaseClient.from(READ_TABLE).update({[colId]: repVal}).in(PRIMARY_KEY, toUpdate);
+                 showToast(`Updated ${toUpdate.length} rows`);
+            }
+            renderTable();
+        };
+        els.modalClose.onclick = els.modalCancel.onclick = () => els.modalOverlay.classList.add('hidden');
+        els.refresh.onclick = loadData;
+        els.columnsBtn.onclick = (e) => { e.stopPropagation(); els.columnsPopover.classList.toggle('hidden'); updateColumnsList(); };
+        
+        // Sync Scrolling
+        els.topScroller.onscroll = () => { els.tableContainer.scrollLeft = els.topScroller.scrollLeft; };
+        els.tableContainer.onscroll = () => { els.topScroller.scrollLeft = els.tableContainer.scrollLeft; };
+    };
+
+    const updateColumnsList = () => {
+        els.columnsList.innerHTML = '';
+        state.columns.forEach(col => {
+            const lbl = document.createElement('label'); lbl.className='flex items-center justify-between gap-2 px-2 py-1 hover:bg-slate-900 text-xs text-slate-300';
+            lbl.innerHTML = `<span>${col.label}</span> <input type="checkbox" ${state.columnVisibility[col.id]!==false?'checked':''} class="accent-blue-500">`;
+            lbl.querySelector('input').onchange = (e) => { state.columnVisibility[col.id]=e.target.checked; savePrefs(); renderTable(); };
+            els.columnsList.appendChild(lbl);
+        });
+    };
+
+    const init = async () => {
+        createConstellationBackground();
+        await loadPrefs();
+        attachEvents();
+        await loadData();
+    };
+
+    init();
   </script>
 </body>
 </html>
