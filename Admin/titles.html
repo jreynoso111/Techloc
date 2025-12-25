@@ -28,7 +28,8 @@
   
   <style>
     /* Table Layout Locks */
-    table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    #main-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    .analytics-table { table-layout: auto; width: auto; border-collapse: collapse; min-width: max-content; }
     
     /* Resizer Handles */
     .resizer {
@@ -60,6 +61,52 @@
 
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Analytics table alignment */
+    #analytics-content {
+      display: flex;
+      justify-content: flex-end;
+    }
+    #analytics-content table {
+      margin-left: auto;
+    }
+
+    /* Analytics resizing */
+    .analytics-header {
+      position: relative;
+      user-select: none;
+    }
+    .analytics-resizer {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      width: 8px;
+      bottom: 0;
+      cursor: col-resize;
+      z-index: 30;
+      opacity: 0;
+      transition: opacity 0.15s;
+      touch-action: none;
+    }
+    .analytics-header:hover .analytics-resizer,
+    .analytics-resizing .analytics-resizer {
+      opacity: 1;
+    }
+
+    /* Analytics totals */
+    .analytics-total-col {
+      background: rgba(59, 130, 246, 0.08);
+    }
+    .analytics-total-row {
+      background: rgba(59, 130, 246, 0.12);
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .analytics-grand-row {
+      background: rgba(59, 130, 246, 0.18);
+      font-weight: 800;
+      color: #f8fafc;
+    }
 
     /* Text Wrapping Styles */
     .wrap-2-lines {
@@ -399,7 +446,8 @@
       filterCols1: [], filterCols2: [], filterCols3: [],
       analyticsLocations: null,
       analyticsUnits: null,
-      analyticsLiens: null
+      analyticsLiens: null,
+      analyticsColumnWidths: {}
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -709,7 +757,8 @@
         search: state.search,
         analyticsLocations: state.analyticsLocations,
         analyticsUnits: state.analyticsUnits,
-        analyticsLiens: state.analyticsLiens
+        analyticsLiens: state.analyticsLiens,
+        analyticsColumnWidths: state.analyticsColumnWidths
       };
       
       // Fallback localstorage
@@ -767,6 +816,7 @@
         if (Array.isArray(config.analyticsLocations) || config.analyticsLocations === null) state.analyticsLocations = config.analyticsLocations;
         if (Array.isArray(config.analyticsUnits) || config.analyticsUnits === null) state.analyticsUnits = config.analyticsUnits;
         if (Array.isArray(config.analyticsLiens) || config.analyticsLiens === null) state.analyticsLiens = config.analyticsLiens;
+        if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
       }
     };
 
@@ -1420,6 +1470,61 @@
       return 2;
     };
 
+    const sanitizeAnalyticsId = (label = '') => label.toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'col';
+
+    const setupAnalyticsResizers = () => {
+      const table = els.analyticsContent?.querySelector('table.analytics-table');
+      if (!table) return;
+      const colEls = Array.from(table.querySelectorAll('col[data-col-id]'));
+      if (!colEls.length) return;
+
+      const colMap = Object.fromEntries(colEls.map(col => [col.dataset.colId, col]));
+      let active = null;
+
+      const stopResize = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', stopResize);
+        document.body.classList.remove('analytics-resizing');
+        savePrefs();
+        active = null;
+      };
+
+      const onMouseMove = (e) => {
+        if (!active) return;
+        const delta = e.clientX - active.startX;
+        const newWidth = Math.max(80, active.startWidth + delta);
+        const colEl = colMap[active.colId];
+        if (colEl) {
+          colEl.style.width = `${newWidth}px`;
+          colEl.style.minWidth = `${newWidth}px`;
+        }
+        active.header.style.width = `${newWidth}px`;
+        state.analyticsColumnWidths[active.colId] = newWidth;
+      };
+
+      const startResize = (header, colId) => (e) => {
+        e.preventDefault();
+        active = {
+          colId,
+          startX: e.clientX,
+          startWidth: header.getBoundingClientRect().width,
+          header
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', stopResize);
+        document.body.classList.add('analytics-resizing');
+      };
+
+      table.querySelectorAll('th[data-col-id]').forEach(th => {
+        const colId = th.dataset.colId;
+        const handle = th.querySelector('.analytics-resizer');
+        if (handle) {
+          handle.addEventListener('mousedown', startResize(th, colId));
+        }
+      });
+    };
+
     const renderAnalytics = () => {
       if (!els.analyticsContent) return;
       const locationCol = findColumnId(['location']);
@@ -1491,11 +1596,27 @@
       const globalTotals = Object.fromEntries(liens.map(l => [l, 0]));
       let globalGrand = 0;
 
-      const liensHeaders = liens.map(lien => `<th class="px-3 py-2 border-b border-slate-800 text-left">${lien}</th>`).join('');
+      const columns = [
+        { id: 'location', label: 'Location', sticky: true },
+        ...liens.map(lien => ({ id: `lien-${sanitizeAnalyticsId(lien)}`, label: lien })),
+        { id: 'total', label: 'Total', total: true }
+      ];
 
-      let html = '<table class="min-w-full text-xs text-slate-200"><thead><tr><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Location</th>';
+      const colgroup = columns.map(col => {
+        const width = state.analyticsColumnWidths[col.id];
+        const widthAttr = width ? ` style="width:${width}px; min-width:${width}px;"` : '';
+        return `<col data-col-id="${col.id}"${widthAttr}>`;
+      }).join('');
+
+      const liensHeaders = liens.map(lien => {
+        const colId = `lien-${sanitizeAnalyticsId(lien)}`;
+        return `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
+      }).join('');
+
+      let html = `<table class="analytics-table text-xs text-slate-200"><colgroup>${colgroup}</colgroup><thead><tr>`;
+      html += '<th data-col-id="location" class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10 analytics-header">Location<span class="analytics-resizer" data-resizer></span></th>';
       html += liensHeaders;
-      html += '<th class="px-3 py-2 border-b border-slate-800 text-right">Total</th>';
+      html += '<th data-col-id="total" class="px-3 py-2 border-b border-slate-800 text-right analytics-header analytics-total-col">Total<span class="analytics-resizer" data-resizer></span></th>';
       html += '</tr></thead><tbody>';
 
       let hasData = false;
@@ -1517,28 +1638,31 @@
         hasData = true;
         html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
         html += '<tr class="text-[11px] text-slate-400 bg-slate-900/40">';
-        html += '<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Location</th>';
+        html += '<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10 analytics-header">Location<span class="analytics-resizer" data-resizer></span></th>';
         liens.forEach(lien => {
-          html += `<th class="px-3 py-2 border-b border-slate-800 text-left">${lien}</th>`;
+          const colId = `lien-${sanitizeAnalyticsId(lien)}`;
+          html += `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
         });
-        html += '<th class="px-3 py-2 border-b border-slate-800 text-right">Total</th>';
+        html += '<th data-col-id="total" class="px-3 py-2 border-b border-slate-800 text-right analytics-header analytics-total-col">Total<span class="analytics-resizer" data-resizer></span></th>';
         html += '</tr>';
         filteredLocations.forEach(loc => {
           let rowTotal = 0;
-          html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
+          let rowHtml = `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
           liens.forEach(lien => {
             const key = `${unit}|||${loc}|||${lien}`;
             const count = pivot.get(key) || 0;
             rowTotal += count;
-            html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300">${count}</td>`;
+            rowHtml += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300">${count}</td>`;
           });
-          html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100">${rowTotal}</td></tr>`;
+          if (rowTotal === 0) return;
+          rowHtml += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 analytics-total-col">${rowTotal}</td></tr>`;
+          html += rowHtml;
         });
-        html += `<tr class="bg-slate-900/40 font-semibold text-slate-100"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
+        html += `<tr class="analytics-total-row"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
         liens.forEach(lien => {
           html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotals[lien]}</td>`;
         });
-        html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotal}</td></tr>`;
+        html += `<td class="px-3 py-2 border-b border-slate-800 text-right analytics-total-col">${unitTotal}</td></tr>`;
       });
 
       if (!hasData) {
@@ -1547,32 +1671,14 @@
         return;
       }
 
-      html += `<tr class="bg-blue-900/20 font-semibold text-slate-100"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
+      html += `<tr class="analytics-grand-row"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
       liens.forEach(lien => {
         html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalTotals[lien]}</td>`;
       });
-      html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalGrand}</td></tr>`;
-
-      if (!hasData) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
-        updateAnalyticsLocationLabel(locations.length);
-        return;
-      }
-
-      html += `<tr class="bg-blue-900/20 font-semibold text-slate-100"><th class="px-3 py-3 border-t border-slate-800 text-left sticky left-0 bg-slate-950">Global total</th>`;
-      liens.forEach(lien => {
-        html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalTotals[lien]}</td>`;
-      });
-      html += `<td class="px-3 py-3 border-t border-slate-800 text-right">${globalGrand}</td></tr>`;
-
-      if (!hasData) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
-        updateAnalyticsLocationLabel(locations.length);
-        return;
-      }
-
+      html += `<td class="px-3 py-3 border-t border-slate-800 text-right analytics-total-col">${globalGrand}</td></tr>`;
       html += '</tbody></table>';
       els.analyticsContent.innerHTML = html;
+      setupAnalyticsResizers();
       updateAnalyticsLocationLabel(locations.length);
       updateAnalyticsUnitLabel(units.length);
       updateAnalyticsLienLabel(liens.length);
