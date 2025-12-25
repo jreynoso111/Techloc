@@ -67,16 +67,32 @@
     #analytics-content { display: block; }
     #analytics-layout {
       display: grid;
-      grid-template-columns: 1fr 1.5fr;
-      gap: 1rem;
+      grid-template-columns: 1fr 1.6fr;
+      gap: 1.25rem;
       align-items: start;
     }
     @media (max-width: 1280px) { #analytics-layout { grid-template-columns: 1fr; } }
     #analytics-charts {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-auto-rows: minmax(240px, auto);
       gap: 0.75rem;
-      align-items: flex-start;
+      position: relative;
+    }
+    #charts-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+    .chart-resizer {
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      right: -6px;
+      width: 12px;
+      cursor: col-resize;
+      z-index: 20;
+      background: transparent;
     }
     #analytics-table-container {
       display: flex;
@@ -131,11 +147,11 @@
     }
 
     .chart-card {
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(51, 65, 85, 0.7);
-      box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.8);
-      flex: 1 1 220px;
+      background: radial-gradient(circle at 20% 20%, rgba(59,130,246,0.18), rgba(15,23,42,0.9));
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      box-shadow: 0 10px 30px -18px rgba(59, 130, 246, 0.65);
       min-width: 220px;
+      border-radius: 14px;
     }
 
     /* Text Wrapping Styles */
@@ -315,10 +331,6 @@
         <div class="w-full flex">
             <div class="w-full space-y-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
-                        <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
-                    </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <div class="relative">
                             <button id="analytics-location-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
@@ -489,7 +501,13 @@
       analyticsUnits: null,
       analyticsLiens: null,
       analyticsColumnWidths: {},
-      analyticsCharts: {}
+      analyticsCharts: {},
+      analyticsChartWidths: [1, 1, 1],
+      analyticsChartColumns: {
+        unitType: null,
+        dealStatus: null,
+        dealType: null
+      }
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -793,14 +811,16 @@
         columnVisibility: state.columnVisibility,
         columnWidths: state.columnWidths,
         columnLabels: state.columnLabels,
-        columnFilters: state.columnFilters,
-        pagination: state.pagination,
-        sort: state.sort,
-        search: state.search,
-        analyticsLocations: state.analyticsLocations,
-        analyticsUnits: state.analyticsUnits,
-        analyticsLiens: state.analyticsLiens,
-        analyticsColumnWidths: state.analyticsColumnWidths
+      columnFilters: state.columnFilters,
+      pagination: state.pagination,
+      sort: state.sort,
+      search: state.search,
+      analyticsLocations: state.analyticsLocations,
+      analyticsUnits: state.analyticsUnits,
+      analyticsLiens: state.analyticsLiens,
+      analyticsColumnWidths: state.analyticsColumnWidths,
+      analyticsChartWidths: state.analyticsChartWidths,
+      analyticsChartColumns: state.analyticsChartColumns
       };
       
       // Fallback localstorage
@@ -859,6 +879,8 @@
         if (Array.isArray(config.analyticsUnits) || config.analyticsUnits === null) state.analyticsUnits = config.analyticsUnits;
         if (Array.isArray(config.analyticsLiens) || config.analyticsLiens === null) state.analyticsLiens = config.analyticsLiens;
         if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
+        if (Array.isArray(config.analyticsChartWidths)) state.analyticsChartWidths = config.analyticsChartWidths;
+        if (config.analyticsChartColumns) state.analyticsChartColumns = { ...state.analyticsChartColumns, ...config.analyticsChartColumns };
       }
     };
 
@@ -1568,49 +1590,83 @@
     };
 
     const ensureAnalyticsChartsShell = () => {
-      if (!els.analyticsCharts || els.analyticsCharts.dataset.ready) return;
-      els.analyticsCharts.dataset.ready = 'true';
+      if (!els.analyticsCharts) return;
+      Object.values(state.analyticsCharts || {}).forEach(ch => { try { ch?.destroy(); } catch (e) {} });
+      state.analyticsCharts = {};
+      const widths = state.analyticsChartWidths;
+      const gridTemplate = widths.map(w => `minmax(220px, ${w}fr)`).join(' ');
       els.analyticsCharts.innerHTML = `
-        <div class="chart-card rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Unit Type</p>
-              <p class="text-xs text-slate-200">Distribución por unidad</p>
+        <div id="charts-row" style="grid-template-columns:${gridTemplate}">
+          ${['unitType','dealStatus','dealType'].map((key, idx) => `
+            <div class="chart-card p-3 relative" data-chart-key="${key}">
+              ${idx < 2 ? `<div class="chart-resizer" data-resizer-index="${idx}"></div>` : ''}
+              <div class="flex items-center justify-between mb-2">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-${key}-title"></p>
+                  <p class="text-[11px] text-slate-200" id="chart-${key}-subtitle"></p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <select id="chart-${key}-select" class="bg-slate-900 border border-slate-700 text-[11px] text-slate-100 rounded px-2 py-1 focus:outline-none"></select>
+                  <span id="chart-${key}-count" class="text-[10px] text-slate-400 font-semibold"></span>
+                </div>
+              </div>
+              <div class="relative h-44">
+                <canvas id="chart-${key}"></canvas>
+                <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
+              </div>
             </div>
-            <span id="chart-unit-type-count" class="text-[10px] text-slate-400 font-semibold"></span>
-          </div>
-          <div class="relative h-44">
-            <canvas id="chart-unit-type"></canvas>
-            <p id="chart-unit-type-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
-          </div>
-        </div>
-        <div class="chart-card rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Deal Status</p>
-              <p class="text-xs text-slate-200">Estado del trato</p>
-            </div>
-            <span id="chart-deal-status-count" class="text-[10px] text-slate-400 font-semibold"></span>
-          </div>
-          <div class="relative h-44">
-            <canvas id="chart-deal-status"></canvas>
-            <p id="chart-deal-status-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
-          </div>
-        </div>
-        <div class="chart-card rounded-xl p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Deal Type</p>
-              <p class="text-xs text-slate-200">Tipo de trato</p>
-            </div>
-            <span id="chart-deal-type-count" class="text-[10px] text-slate-400 font-semibold"></span>
-          </div>
-          <div class="relative h-44">
-            <canvas id="chart-deal-type"></canvas>
-            <p id="chart-deal-type-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
-          </div>
+          `).join('')}
         </div>
       `;
+    };
+
+    const applyChartWidths = () => {
+      const row = document.getElementById('charts-row');
+      if (!row) return;
+      const widths = state.analyticsChartWidths || [1,1,1];
+      const total = widths.reduce((a,b)=>a+b,0) || 1;
+      const normalized = widths.map(w => Math.max(0.5, w));
+      const sum = normalized.reduce((a,b)=>a+b,0);
+      row.style.gridTemplateColumns = normalized.map(w => `minmax(220px, ${(w/sum)*3}fr)`).join(' ');
+    };
+
+    const bindChartResizers = () => {
+      const row = document.getElementById('charts-row');
+      if (!row) return;
+      const resizers = row.querySelectorAll('[data-resizer-index]');
+      let active = null;
+      const onMove = (e) => {
+        if (!active) return;
+        const rect = row.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const totalWidth = rect.width;
+        const ratios = state.analyticsChartWidths.slice();
+        const leftIndex = active.index;
+        const rightIndex = active.index + 1;
+        const leftWidth = ratios[leftIndex];
+        const rightWidth = ratios[rightIndex];
+        const sum = leftWidth + rightWidth || 1;
+        const percent = Math.min(Math.max(x / totalWidth, 0.15), 0.85);
+        ratios[leftIndex] = sum * percent;
+        ratios[rightIndex] = sum * (1 - percent);
+        state.analyticsChartWidths = ratios;
+        applyChartWidths();
+      };
+      const stop = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
+        active = null;
+        savePrefs();
+      };
+      resizers.forEach(resizer => {
+        resizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          active = { index: parseInt(resizer.dataset.resizerIndex, 10) || 0 };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', stop);
+        });
+      });
     };
 
     const updatePieChart = (key, canvasId, emptyId, countId, counts) => {
@@ -1663,11 +1719,43 @@
 
     const renderAnalyticsCharts = () => {
       ensureAnalyticsChartsShell();
+      applyChartWidths();
+      bindChartResizers();
       if (!els.analyticsCharts) return;
       const rows = getFilteredSortedRows();
-      const unitCol = findColumnId(['unit type', 'unit_type', 'unittype', 'unit']);
-      const dealStatusCol = findColumnId(['deal status', 'deal_status', 'dealstatus']);
-      const dealTypeCol = findColumnId(['deal type', 'deal_type', 'dealtype']);
+
+      const selectableColumns = state.columns.map(c => c.id);
+      const labelsFor = (id) => state.columns.find(c => c.id === id)?.label || labelize(id);
+
+      const setupSelect = (key, fallbackLabels) => {
+        const select = document.getElementById(`chart-${key}-select`);
+        if (!select) return null;
+        select.innerHTML = '';
+        const defaults = fallbackLabels.map(id => ({ id, label: labelsFor(id) }));
+        const options = selectableColumns.map(id => ({ id, label: labelsFor(id) }));
+        const seen = new Set();
+        [...defaults, ...options].forEach(opt => {
+          if (!opt.id || seen.has(opt.id)) return;
+          seen.add(opt.id);
+          const option = document.createElement('option');
+          option.value = opt.id;
+          option.textContent = opt.label;
+          select.appendChild(option);
+        });
+        const preferred = state.analyticsChartColumns[key] || defaults.find(d => selectableColumns.includes(d.id))?.id || select.options[0]?.value;
+        if (preferred) select.value = preferred;
+        state.analyticsChartColumns[key] = select.value;
+        select.onchange = () => {
+          state.analyticsChartColumns[key] = select.value;
+          savePrefs();
+          renderAnalyticsCharts();
+        };
+        return select.value;
+      };
+
+      const unitCol = setupSelect('unitType', ['unit type','unit_type','unittype','unit']);
+      const dealStatusCol = setupSelect('dealStatus', ['deal status','deal_status','dealstatus']);
+      const dealTypeCol = setupSelect('dealType', ['deal type','deal_type','dealtype']);
 
       const buildCounts = (colId, fallback = 'Unspecified') => {
         const map = new Map();
@@ -1680,13 +1768,20 @@
         return map;
       };
 
-      const unitCounts = unitCol ? buildCounts(unitCol, 'Unspecified') : new Map();
-      const statusCounts = dealStatusCol ? buildCounts(dealStatusCol, 'Unspecified') : new Map();
-      const typeCounts = dealTypeCol ? buildCounts(dealTypeCol, 'Unspecified') : new Map();
+      const unitCounts = buildCounts(unitCol, 'Unspecified');
+      const statusCounts = buildCounts(dealStatusCol, 'Unspecified');
+      const typeCounts = buildCounts(dealTypeCol, 'Unspecified');
 
-      updatePieChart('unitType', 'chart-unit-type', 'chart-unit-type-empty', 'chart-unit-type-count', unitCounts);
-      updatePieChart('dealStatus', 'chart-deal-status', 'chart-deal-status-empty', 'chart-deal-status-count', statusCounts);
-      updatePieChart('dealType', 'chart-deal-type', 'chart-deal-type-empty', 'chart-deal-type-count', typeCounts);
+      document.getElementById('chart-unitType-title')?.replaceChildren(document.createTextNode(labelsFor(unitCol || 'Unit Type')));
+      document.getElementById('chart-unitType-subtitle')?.replaceChildren(document.createTextNode('Distribución por unidad'));
+      document.getElementById('chart-dealStatus-title')?.replaceChildren(document.createTextNode(labelsFor(dealStatusCol || 'Deal Status')));
+      document.getElementById('chart-dealStatus-subtitle')?.replaceChildren(document.createTextNode('Estado del trato'));
+      document.getElementById('chart-dealType-title')?.replaceChildren(document.createTextNode(labelsFor(dealTypeCol || 'Deal Type')));
+      document.getElementById('chart-dealType-subtitle')?.replaceChildren(document.createTextNode('Tipo de trato'));
+
+      updatePieChart('unitType', 'chart-unitType', 'chart-unitType-empty', 'chart-unitType-count', unitCounts);
+      updatePieChart('dealStatus', 'chart-dealStatus', 'chart-dealStatus-empty', 'chart-dealStatus-count', statusCounts);
+      updatePieChart('dealType', 'chart-dealType', 'chart-dealType-empty', 'chart-dealType-count', typeCounts);
     };
 
     const renderAnalytics = () => {
