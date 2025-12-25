@@ -103,9 +103,36 @@
   </style>
 </head>
 
-<body class="min-h-screen w-screen flex flex-col bg-slate-950 text-slate-50">
+<body class="min-h-screen w-full overflow-x-hidden flex flex-col bg-slate-950 text-slate-50">
 
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/40">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-blue-300 font-semibold">Replace values</p>
+          <h3 id="modal-title" class="text-sm font-bold text-white">Column</h3>
+        </div>
+        <button id="modal-close" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div class="px-5 py-4 space-y-4">
+        <label class="space-y-1 block">
+          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Find value (leave empty to match all)</span>
+          <input id="modal-find" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Current value">
+        </label>
+        <label class="space-y-1 block">
+          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Replace with (empty becomes null)</span>
+          <input id="modal-replace" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="New value">
+        </label>
+        <div class="flex justify-end gap-2">
+          <button id="modal-cancel" class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800">Cancel</button>
+          <button id="modal-apply" class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg bg-emerald-600 text-white hover:bg-emerald-500">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="sticky top-0 z-50 space-y-px">
     <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
@@ -159,20 +186,6 @@
     
     <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3 space-y-3">
         <div class="flex flex-wrap items-end gap-3">
-            <div class="flex-1 min-w-[180px]">
-                <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Vehicle / VIN</label>
-                <div class="relative mt-1">
-                    <i data-lucide="car" class="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500"></i>
-                    <input id="search-primary" type="search" placeholder="Search VIN, Customer..." class="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                </div>
-            </div>
-            <div class="flex-1 min-w-[180px]">
-                <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Title / Lien</label>
-                <div class="relative mt-1">
-                    <i data-lucide="file-text" class="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500"></i>
-                    <input id="search-secondary" type="search" placeholder="Filter Status, Holder..." class="w-full bg-slate-900 border border-slate-700 rounded-lg py-1.5 pl-8 pr-3 text-xs text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
-                </div>
-            </div>
             <div class="w-32">
                 <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Terms</label>
                 <div class="flex mt-1 border border-slate-700 rounded-lg bg-slate-900 overflow-hidden">
@@ -185,6 +198,15 @@
             </div>
             
             <div class="flex items-center gap-2 ml-auto">
+                 <div class="relative">
+                    <button id="download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-slate-900/20">
+                        <i data-lucide="download" class="h-3.5 w-3.5"></i> Download
+                    </button>
+                    <div id="download-menu" class="hidden absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-50">
+                        <button id="download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-t-lg">Download CSV</button>
+                        <button id="download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-b-lg">Download XLSX</button>
+                    </div>
+                 </div>
                  <button id="add-row-btn" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-emerald-900/20">
                     <i data-lucide="plus" class="h-3.5 w-3.5"></i> Add Row
                  </button>
@@ -220,6 +242,46 @@
                 <span id="page-indicator" class="text-[10px] font-mono text-slate-300 px-1 min-w-[40px] text-center">1/1</span>
                 <button id="next-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>
              </div>
+        </div>
+    </div>
+
+    <div id="analytics-panel" class="bg-slate-900/60 border-b border-slate-800 px-4 py-3">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between mb-3 gap-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
+                    <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
+                </div>
+                <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <i data-lucide="search" class="h-3.5 w-3.5 text-slate-500"></i>
+                    <input id="analytics-location-filter" type="search" placeholder="Filter locations" class="bg-transparent text-xs text-white outline-none placeholder:text-slate-500">
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <i data-lucide="filter" class="h-3.5 w-3.5 text-slate-500"></i>
+                    <input id="analytics-lien-filter" type="search" placeholder="Filter lien status" class="bg-transparent text-xs text-white outline-none placeholder:text-slate-500">
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
+                    <select id="analytics-sort" class="bg-transparent text-xs text-white outline-none">
+                        <option value="location-asc">Location ↑</option>
+                        <option value="location-desc">Location ↓</option>
+                        <option value="total-asc">Row total ↑</option>
+                        <option value="total-desc">Row total ↓</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Col width</label>
+                    <input id="analytics-colwidth" type="range" min="80" max="220" value="140" class="accent-blue-500">
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Table max width</label>
+                    <input id="analytics-tablewidth" type="range" min="60" max="100" value="100" class="accent-blue-500">
+                </div>
+            </div>
+            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-96"></div>
         </div>
     </div>
 
@@ -264,6 +326,11 @@
           })
         : null);
 
+    const DEFAULT_LABELS = {
+      'account status': 'Vehicle Status',
+      'account_status': 'Vehicle Status'
+    };
+
     const els = {
       status: document.getElementById('dataset-status'),
       searchPrimary: document.getElementById('search-primary'),
@@ -290,7 +357,24 @@
       colsAll: document.getElementById('cols-all'),
       colsNone: document.getElementById('cols-none'),
       toastContainer: document.getElementById('toast-container'),
-      emptyState: document.getElementById('empty-state')
+      emptyState: document.getElementById('empty-state'),
+      analyticsContent: document.getElementById('analytics-content'),
+      downloadBtn: document.getElementById('download-btn'),
+      downloadMenu: document.getElementById('download-menu'),
+      downloadCsv: document.getElementById('download-csv'),
+      downloadXlsx: document.getElementById('download-xlsx'),
+      analyticsLocationFilter: document.getElementById('analytics-location-filter'),
+      analyticsLienFilter: document.getElementById('analytics-lien-filter'),
+      analyticsSort: document.getElementById('analytics-sort'),
+      analyticsColWidth: document.getElementById('analytics-colwidth'),
+      analyticsTableWidth: document.getElementById('analytics-tablewidth'),
+      modalOverlay: document.getElementById('modal-overlay'),
+      modalTitle: document.getElementById('modal-title'),
+      modalFind: document.getElementById('modal-find'),
+      modalReplace: document.getElementById('modal-replace'),
+      modalApply: document.getElementById('modal-apply'),
+      modalCancel: document.getElementById('modal-cancel'),
+      modalClose: document.getElementById('modal-close')
     };
 
     const state = {
@@ -307,7 +391,9 @@
       search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' }, 
       isDragging: false, dragSourceIndex: null,
       isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
-      filterCols1: [], filterCols2: [], filterCols3: []
+      filterCols1: [], filterCols2: [], filterCols3: [],
+      analytics: { location: '', lien: '', sort: 'location-asc', colWidth: 140, tableWidth: 100 },
+      replaceContext: { colId: null, label: '' }
     };
 
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
@@ -453,6 +539,83 @@
         showToast('Row deleted', 'info');
     };
 
+    const cleanLeadingPrefix = (value, removeEnDash = false) => {
+        if (typeof value !== 'string') return value;
+        let cleaned = value;
+        if (removeEnDash) cleaned = cleaned.replace(/^[-–—]\s*/, '');
+        cleaned = cleaned.replace(/^[\d\s-]+/, '');
+        return cleaned;
+    };
+
+    const sanitizeForColumn = (colId, value) => {
+        if (typeof value !== 'string') return value;
+        if (colId === 'Prep Status' || colId === 'prep_status') return cleanLeadingPrefix(value, true);
+        if (colId === 'Location' || colId === 'location') return cleanLeadingPrefix(value);
+        return value;
+    };
+
+    const findColumnId = (candidates = []) => {
+        const normalized = candidates.map(c => c.toLowerCase());
+        const normalizeId = (id = '') => id.replace(/_/g, ' ').toLowerCase();
+        const match = state.columns.find(c => normalized.includes(normalizeId(c.id)));
+        return match ? match.id : null;
+    };
+
+    const getFilteredSortedRows = () => {
+      let rows = state.rows;
+      const t1 = state.search.primary.trim().toLowerCase();
+      const t2 = state.search.secondary.trim().toLowerCase();
+      const t3_raw = state.search.terms;
+      const t3_op = state.search.termsOperator;
+      const sheet = state.search.sheet;
+
+      rows = rows.filter(row => {
+          const matches1 = !t1 || (state.filterCols1.length ? state.filterCols1.some(k => String(row[k]||'').toLowerCase().includes(t1)) : Object.values(row).some(v => String(v).toLowerCase().includes(t1)));
+          const matches2 = !t2 || (state.filterCols2.length ? state.filterCols2.some(k => String(row[k]||'').toLowerCase().includes(t2)) : true);
+          let matches3 = true;
+          if (t3_raw) {
+              const termCol = state.filterCols3[0];
+              if (termCol) {
+                  const cellVal = parseFloat(row[termCol]); const searchVal = parseFloat(t3_raw);
+                  if (isNaN(cellVal)) matches3 = false;
+                  else if (!isNaN(searchVal)) matches3 = t3_op === '<' ? cellVal < searchVal : cellVal > searchVal;
+              }
+          }
+          let matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
+
+          const menuFilters = Object.entries(state.columnFilters || {});
+          const matchesMenuFilters = menuFilters.every(([colId, value]) => {
+              if (value === undefined || value === null || value === '') return true;
+              const cellVal = row[colId];
+              return String(cellVal ?? '').toLowerCase().includes(String(value).toLowerCase());
+          });
+
+          return matches1 && matches2 && matches3 && matchesSheet && matchesMenuFilters;
+      });
+
+      if (state.sort.column && state.sort.direction !== 'none') {
+        const { column, direction } = state.sort;
+        const normalizeText = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string') return value.trim().toLowerCase();
+            const asString = String(value);
+            return asString.trim().toLowerCase();
+        };
+        rows = [...rows].sort((a, b) => {
+          const valA = a[column]; const valB = b[column];
+          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
+          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
+
+          const textA = normalizeText(valA);
+          const textB = normalizeText(valB);
+          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
+          return direction === 'asc' ? result : -result;
+        });
+      }
+
+      return rows;
+    };
+
     const renderCellContent = (td, val) => {
         td.innerHTML = ''; 
         const wrapper = document.createElement('div');
@@ -480,7 +643,7 @@
             if (isSaving) return;
             isSaving = true;
             let newValue = input.value.trim();
-            if ((colId === 'Prep Status' || colId === 'prep_status') && newValue) newValue = newValue.replace(/^[\d\-\s]+/, '');
+            newValue = sanitizeForColumn(colId, newValue);
             
             const payloadValue = newValue === '' ? null : newValue;
             renderCellContent(td, payloadValue);
@@ -587,7 +750,13 @@
       state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
       state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
       if (uniqueKeys.length > 0) {
-        state.columns = uniqueKeys.sort().map(key => ({ id: key, label: state.columnLabels[key] || labelize(key) }));
+        state.columns = uniqueKeys.sort().map(key => {
+          const normalizedKey = key.toLowerCase();
+          const defaultLabel = DEFAULT_LABELS[normalizedKey];
+          const label = state.columnLabels[key] || defaultLabel || labelize(key);
+          if (defaultLabel && !state.columnLabels[key]) state.columnLabels[key] = defaultLabel;
+          return { id: key, label };
+        });
       } else {
         const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
         state.columns = defaults.map(id => ({ id, label: state.columnLabels[id] || labelize(id) }));
@@ -703,11 +872,21 @@
 
       if (state.sort.column && state.sort.direction !== 'none') {
         const { column, direction } = state.sort;
+        const normalizeText = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string') return value.trim().toLowerCase();
+            const asString = String(value);
+            return asString.trim().toLowerCase();
+        };
         rows = [...rows].sort((a, b) => {
-          let valA = a[column] ?? ''; let valB = b[column] ?? '';
-          if (typeof valA === 'number' && typeof valB === 'number') return direction === 'asc' ? valA - valB : valB - valA;
-          valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase();
-          return direction === 'asc' ? (valA < valB ? -1 : 1) : (valA > valB ? 1 : -1);
+          const valA = a[column]; const valB = b[column];
+          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
+          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
+
+          const textA = normalizeText(valA);
+          const textB = normalizeText(valB);
+          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
+          return direction === 'asc' ? result : -result;
         });
       }
 
@@ -810,19 +989,28 @@
         const sortSection = document.createElement('div');
         sortSection.className = 'py-1';
         sortSection.innerHTML = `
-          <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2\" data-action=\"sort-asc\">
-            <i data-lucide=\"chevron-up\" class=\"h-3.5 w-3.5\"></i> Sort A → Z
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-asc">
+            <i data-lucide="chevron-up" class="h-3.5 w-3.5"></i> Sort A → Z
           </button>
-          <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2\" data-action=\"sort-desc\">
-            <i data-lucide=\"chevron-down\" class=\"h-3.5 w-3.5\"></i> Sort Z → A
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-desc">
+            <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i> Sort Z → A
           </button>
-          <button class=\"w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2\" data-action=\"clear-sort\">
-            <i data-lucide=\"x\" class=\"h-3.5 w-3.5\"></i> Clear sort
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="clear-sort">
+            <i data-lucide="x" class="h-3.5 w-3.5"></i> Clear sort
+          </button>
+        `;
+
+        const replaceSection = document.createElement('div');
+        replaceSection.className = 'py-1 border-t border-slate-800/70';
+        replaceSection.innerHTML = `
+          <button class="w-full text-left text-xs text-amber-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="replace-values">
+            <i data-lucide="replace" class="h-3.5 w-3.5"></i> Replace values
           </button>
         `;
 
         menu.appendChild(filterSection);
         menu.appendChild(sortSection);
+        menu.appendChild(replaceSection);
 
         const applyFilter = (keepOpen = false) => {
             const trimmed = filterInput.value.trim();
@@ -842,6 +1030,14 @@
             savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
         };
 
+        const replaceColumnValues = () => {
+            state.replaceContext = { colId: col.id, label: col.label };
+            if (els.modalTitle) els.modalTitle.textContent = `Replace values in "${col.label}"`;
+            if (els.modalFind) els.modalFind.value = '';
+            if (els.modalReplace) els.modalReplace.value = '';
+            els.modalOverlay?.classList.remove('hidden');
+        };
+
         let filterDebounce;
         const handleMenuAction = (action) => {
             if (action === 'sort-asc') {
@@ -855,6 +1051,7 @@
             else if (action === 'clear-sort') { state.sort = { column: null, direction: 'none' }; savePrefs(); renderTable(); }
             else if (action === 'apply-filter') { applyFilter(true); }
             else if (action === 'clear-filter') { clearFilter(true); }
+            else if (action === 'replace-values') { replaceColumnValues(); }
         };
 
         filterInput.addEventListener('input', () => {
@@ -926,7 +1123,7 @@
                 const td = document.createElement('td');
                 td.className = 'text-xs text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-10 align-middle relative'; // h-10 fija altura mínima
                 let val = row[col.id];
-                if ((col.id === 'Prep Status' || col.id === 'prep_status') && typeof val === 'string') val = val.replace(/^[\d\-\s]+/, '');
+                val = sanitizeForColumn(col.id, val);
                 
                 renderCellContent(td, val);
                 td.addEventListener('dblclick', () => {
@@ -948,6 +1145,7 @@
 
       updateScrollWidths();
       if (window.lucide) lucide.createIcons();
+      renderAnalytics();
     };
 
     const updateColumnsList = () => {
@@ -969,6 +1167,132 @@
       });
     };
 
+    const prepareExport = () => {
+      const visible = getVisibleColumns();
+      const headers = visible.map(col => col.label);
+      const rows = getFilteredSortedRows().map(row =>
+        visible.map(col => {
+          const val = sanitizeForColumn(col.id, row[col.id]);
+          if (val === null || val === undefined) return '';
+          return String(val);
+        })
+      );
+      return { headers, rows };
+    };
+
+    const downloadData = (format = 'csv') => {
+      const { headers, rows } = prepareExport();
+      const allRows = [headers, ...rows];
+      const csvContent = allRows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const mime = format === 'xlsx' ? 'application/vnd.ms-excel' : 'text/csv';
+      const extension = format === 'xlsx' ? 'xlsx' : 'csv';
+      const blob = new Blob([csvContent], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `titles-export.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      els.downloadMenu?.classList.add('hidden');
+    };
+
+    const renderAnalytics = () => {
+      if (!els.analyticsContent) return;
+      const locationCol = findColumnId(['location']);
+      const lienCol = findColumnId(['lien status', 'lien_status', 'lienstatus', 'status']);
+      if (!locationCol || !lienCol) {
+        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">Location or Lien status columns not found.</p>';
+        return;
+      }
+
+      const rows = getFilteredSortedRows();
+      const locationSet = new Set();
+      const lienSet = new Set();
+      const pivot = new Map();
+
+      const locationFilter = state.analytics.location.trim().toLowerCase();
+      const lienFilter = state.analytics.lien.trim().toLowerCase();
+
+      rows.forEach(row => {
+        const rawLocation = row[locationCol];
+        const rawLien = row[lienCol];
+        const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
+        const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
+
+        if (locationFilter && !locationVal.toLowerCase().includes(locationFilter)) return;
+        if (lienFilter && !lienVal.toLowerCase().includes(lienFilter)) return;
+
+        locationSet.add(locationVal);
+        lienSet.add(lienVal);
+        const key = `${locationVal}|||${lienVal}`;
+        pivot.set(key, (pivot.get(key) || 0) + 1);
+      });
+
+      const locations = Array.from(locationSet);
+      const liens = Array.from(lienSet).sort((a, b) => a.localeCompare(b));
+
+      if (locations.length === 0 || liens.length === 0) {
+        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
+        return;
+      }
+
+      const rowTotals = new Map();
+      const colTotals = new Map();
+      let grandTotal = 0;
+
+      locations.forEach(loc => {
+        liens.forEach(lien => {
+          const key = `${loc}|||${lien}`;
+          const count = pivot.get(key) || 0;
+          rowTotals.set(loc, (rowTotals.get(loc) || 0) + count);
+          colTotals.set(lien, (colTotals.get(lien) || 0) + count);
+          grandTotal += count;
+        });
+      });
+
+      const sortMode = state.analytics.sort;
+      locations.sort((a, b) => {
+        if (sortMode === 'location-asc') return a.localeCompare(b);
+        if (sortMode === 'location-desc') return b.localeCompare(a);
+        if (sortMode === 'total-asc') return (rowTotals.get(a) || 0) - (rowTotals.get(b) || 0);
+        if (sortMode === 'total-desc') return (rowTotals.get(b) || 0) - (rowTotals.get(a) || 0);
+        return 0;
+      });
+
+      const colWidth = `${state.analytics.colWidth}px`;
+      const tableMaxWidth = `${state.analytics.tableWidth}vw`;
+
+      let html = `<div class="w-full" style="max-width:${tableMaxWidth}">`;
+      html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
+      html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20">Location</th>`;
+      liens.forEach(lien => {
+        html += `<th class="px-3 py-2 border-b border-slate-800 text-left" style="min-width:${colWidth}; width:${colWidth};">${lien}</th>`;
+      });
+      html += `<th class="px-3 py-2 border-b border-slate-800 text-left bg-slate-950">Row total</th>`;
+      html += '</tr></thead><tbody>';
+
+      locations.forEach(loc => {
+        html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
+        liens.forEach(lien => {
+          const key = `${loc}|||${lien}`;
+          const count = pivot.get(key) || 0;
+          html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300" style="min-width:${colWidth}; width:${colWidth};">${count}</td>`;
+        });
+        html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60">${rowTotals.get(loc) || 0}</td>`;
+        html += '</tr>';
+      });
+
+      html += `<tr class="bg-slate-900/60 font-semibold text-slate-100"><th class="px-3 py-2 border-t border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Column total</th>`;
+      liens.forEach(lien => {
+        html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
+      });
+      html += `<td class="px-3 py-2 border-t border-slate-800 text-right">${grandTotal}</td></tr>`;
+      html += '</tbody></table></div>';
+      els.analyticsContent.innerHTML = html;
+    };
+
     const loadData = async () => {
       if (!supabaseClient) { els.status.textContent = 'Offline'; return; }
       els.status.textContent = 'Syncing...';
@@ -988,10 +1312,68 @@
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
       els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
       
+      els.analyticsLocationFilter?.addEventListener('input', (e) => { state.analytics.location = e.target.value; renderAnalytics(); });
+      els.analyticsLienFilter?.addEventListener('input', (e) => { state.analytics.lien = e.target.value; renderAnalytics(); });
+      els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; renderAnalytics(); });
+      els.analyticsColWidth?.addEventListener('input', (e) => { state.analytics.colWidth = Number(e.target.value) || 140; renderAnalytics(); });
+      els.analyticsTableWidth?.addEventListener('input', (e) => { state.analytics.tableWidth = Number(e.target.value) || 100; renderAnalytics(); });
+      
       els.addRowBtn?.addEventListener('click', addNewRow);
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); });
       els.refresh?.addEventListener('click', loadData);
+      els.downloadBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        els.downloadMenu?.classList.toggle('hidden');
+      });
+      els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
+      els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
+      const closeModal = () => { els.modalOverlay?.classList.add('hidden'); state.replaceContext = { colId: null, label: '' }; };
+      els.modalCancel?.addEventListener('click', closeModal);
+      els.modalClose?.addEventListener('click', closeModal);
+      els.modalOverlay?.addEventListener('click', (e) => { if (e.target === els.modalOverlay) closeModal(); });
+      els.modalApply?.addEventListener('click', async () => {
+        const { colId, label } = state.replaceContext || {};
+        if (!colId) return closeModal();
+        const targetTrimmed = String(els.modalFind?.value ?? '').trim();
+        const replacementTrimmed = String(els.modalReplace?.value ?? '').trim();
+        const newValue = sanitizeForColumn(colId, replacementTrimmed);
+        const payloadValue = newValue === '' ? null : newValue;
+
+        const matchingIds = [];
+        state.rows = state.rows.map(row => {
+            const cellVal = row[colId];
+            const cellStr = String(cellVal ?? '').trim();
+            const isMatch = targetTrimmed === '' ? true : cellStr === targetTrimmed;
+            if (isMatch) {
+                matchingIds.push(row[PRIMARY_KEY]);
+                return { ...row, [colId]: payloadValue };
+            }
+            return row;
+        });
+
+        if (!matchingIds.length) { showToast('No rows matched for replacement', 'info'); renderTable(); closeModal(); return; }
+
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient
+                    .from(READ_TABLE)
+                    .update({ [colId]: payloadValue })
+                    .in(PRIMARY_KEY, matchingIds);
+                if (error) throw error;
+            } catch (err) {
+                console.error(err);
+                showToast('Error applying replacements', 'error');
+                await loadData();
+                closeModal();
+                return;
+            }
+        }
+
+        showToast(`Replaced ${matchingIds.length} rows in "${label}"`, 'info');
+        renderTable({ keepFilterOpen: colId });
+        closeModal();
+      });
       
       els.columnsBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.columnsPopover.classList.toggle('hidden'); });
       els.colsAll?.addEventListener('click', () => { state.columns.forEach(c => state.columnVisibility[c.id] = true); savePrefs(); renderTable(); updateColumnsList(); });
@@ -1001,6 +1383,7 @@
         const clickedMenu = columnMenus.find(m => m.contains(e.target));
         const isTrigger = e.target.closest('[data-column-menu-trigger]');
         if (!clickedMenu && !isTrigger) closeColumnMenus();
+        if (els.downloadMenu && !els.downloadMenu.contains(e.target) && e.target !== els.downloadBtn) els.downloadMenu.classList.add('hidden');
       });
       syncScrollbars(); 
     };
