@@ -1,418 +1,368 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc System | M&T Service Portal</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          animation: {
-            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-          }
-        },
-      },
-    };
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="assets/scripts/supabaseClient.js"></script>
-  <script type="module" src="assets/scripts/authManager.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="assets/scripts/datasets.js"></script>
-  <link rel="stylesheet" href="assets/visuals/theme.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc System | M&T Service Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          animation: {
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          }
+        },
+      },
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/scripts/supabaseClient.js"></script>
+  <script src="assets/scripts/authManager.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="assets/scripts/datasets.js"></script>
+  <link rel="stylesheet" href="assets/visuals/theme.css" />
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50 selection:bg-blue-500/30">
-    
-  <div class="pointer-events-none fixed inset-0 z-10 opacity-60 mix-blend-screen">
-    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
-  </div>
+    
+  <div class="pointer-events-none fixed inset-0 z-10 opacity-60 mix-blend-screen">
+    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
+  </div>
 
-  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-    <div class="mx-auto relative max-w-6xl px-6 py-4 flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+    <div class="mx-auto relative max-w-6xl px-6 py-4 flex flex-col gap-4 md:flex-row md:items-center md:gap-6">
 
-      <div class="flex items-center justify-between gap-4 md:flex-none">
-        <a href="index.html" class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
-          </div>
-          <div>
-            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Network</p>
-            <h1 class="text-base font-black leading-tight text-white">Home</h1>
-          </div>
-        </a>
+      <div class="flex items-center justify-between gap-4 md:flex-none">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+          </div>
+          <div>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Network</p>
+            <h1 class="text-base font-black leading-tight text-white">Home</h1>
+          </div>
+        </a>
 
-        <button id="mobile-menu-toggle" class="inline-flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 p-2 text-slate-200 transition hover:border-blue-500 hover:text-white md:hidden" aria-label="Toggle navigation" aria-expanded="false">
-          <i data-lucide="menu" class="h-5 w-5"></i>
-        </button>
-      </div>
+        <button id="mobile-menu-toggle" class="inline-flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 p-2 text-slate-200 transition hover:border-blue-500 hover:text-white md:hidden" aria-label="Toggle navigation" aria-expanded="false">
+          <i data-lucide="menu" class="h-5 w-5"></i>
+        </button>
+      </div>
 
-      <div id="primary-nav" class="hidden flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 text-sm font-semibold text-slate-200 shadow-lg shadow-blue-900/20 md:mt-0 md:flex md:flex-1 md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-        <nav class="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:flex-1 md:gap-2">
-          <a id="nav-home" href="index.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Home</a>
-          <a id="nav-control-view" href="vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control View</a>
-          <a id="nav-services" href="services-request.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Service Requests</a>
-          <a
-            id="nav-dashboard"
-            href="Admin/index.html"
-            data-dashboard-link
-            aria-hidden="true"
-            tabindex="-1"
-            class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex"
-          >
-            Dashboard
-          </a>
-          <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About Us</a>
-          <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
-        </nav>
+      <div id="primary-nav" class="hidden flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 text-sm font-semibold text-slate-200 shadow-lg shadow-blue-900/20 md:mt-0 md:flex md:flex-1 md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+        <nav class="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:flex-1 md:gap-2">
+          <a id="nav-home" href="index.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Home</a>
+          <a id="nav-control-view" href="vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control View</a>
+          <a id="nav-services" href="services-request.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Service Requests</a>
+          <a
+            id="nav-dashboard"
+            href="Admin/index.html"
+            data-dashboard-link
+            aria-hidden="true"
+            tabindex="-1"
+            class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex"
+          >
+            Dashboard
+          </a>
+          <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About Us</a>
+          <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
+        </nav>
 
-        <div class="flex flex-col gap-3 border-t border-slate-800 pt-3 md:flex-row md:items-center md:gap-3 md:border-0 md:pt-0 md:flex-none md:justify-end" data-admin-actions>
-          <a id="nav-login" href="login.html" class="rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
-          <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
-        </div>
-      </div>
+        <div class="flex flex-col gap-3 border-t border-slate-800 pt-3 md:flex-row md:items-center md:gap-3 md:border-0 md:pt-0 md:flex-none md:justify-end" data-admin-actions>
+          <a id="nav-login" href="login.html" class="rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+          <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+        </div>
+      </div>
 
-    </div>
-  </header>
+    </div>
+  </header>
 
-  <main class="relative z-20 flex min-h-[calc(100vh-80px)] items-center justify-center px-6 py-12">
-    
-    <div class="w-full max-w-3xl">
-      
-      <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/40 p-8 text-center shadow-2xl shadow-blue-900/10 backdrop-blur-xl sm:p-14">
-        
-        <div class="absolute left-1/2 top-0 -z-10 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/20 blur-[100px]"></div>
+  <main class="relative z-20 flex min-h-[calc(100vh-80px)] items-center justify-center px-6 py-12">
+    
+    <div class="w-full max-w-3xl">
+      
+      <div class="relative overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/40 p-8 text-center shadow-2xl shadow-blue-900/10 backdrop-blur-xl sm:p-14">
+        
+        <div class="absolute left-1/2 top-0 -z-10 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/20 blur-[100px]"></div>
 
-        <div class="mb-8 flex justify-center">
-            <div class="group relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-b from-slate-800 to-slate-950 border border-slate-700 shadow-2xl transition-transform duration-500 hover:scale-105">
-                <div class="absolute inset-0 rounded-3xl bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <span class="text-4xl font-black uppercase tracking-[0.2em] text-white drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">TL</span>
-            </div>
-        </div>
+        <div class="mb-8 flex justify-center">
+            <div class="group relative flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-b from-slate-800 to-slate-950 border border-slate-700 shadow-2xl transition-transform duration-500 hover:scale-105">
+                <div class="absolute inset-0 rounded-3xl bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                <span class="text-4xl font-black uppercase tracking-[0.2em] text-white drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">TL</span>
+            </div>
+        </div>
 
-        <h2 class="mb-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-400">
-            Service Provided for <span class="text-white">M&T Equipment Funding</span>
-        </h2>
-        <h1 class="mb-6 text-4xl font-black tracking-tight text-white drop-shadow-lg sm:text-6xl">
-            TechLoc <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">System</span>
-        </h1>
-        
-        <p class="mx-auto mb-10 max-w-lg text-lg text-slate-400">
-            Secure gateway for fleet analytics, dispatch management, and nationwide technician coordination.
-        </p>
+        <h2 class="mb-3 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-blue-400">
+            Service Provided for <span class="text-white">M&T Equipment Funding</span>
+        </h2>
+        <h1 class="mb-6 text-4xl font-black tracking-tight text-white drop-shadow-lg sm:text-6xl">
+            TechLoc <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-600">System</span>
+        </h1>
+        
+        <p class="mx-auto mb-10 max-w-lg text-lg text-slate-400">
+            Secure gateway for fleet analytics, dispatch management, and nationwide technician coordination.
+        </p>
 
-        <div class="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a
-              href="Admin/index.html"
-              data-dashboard-link
-              aria-hidden="true"
-              tabindex="-1"
-              class="group relative hidden inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-500 hover:shadow-blue-500/40 hover:-translate-y-0.5"
-            >
-                <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
-                <span>Access Dashboard</span>
-            </a>
-            <a href="vehicles.html" class="group inline-flex items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-800/50 px-8 py-3 text-sm font-bold text-slate-300 transition-all hover:bg-slate-800 hover:text-white hover:border-slate-600 hover:-translate-y-0.5">
-                <i data-lucide="map" class="h-4 w-4 text-emerald-400"></i>
-                <span>Live Map View</span>
-            </a>
-        </div>
+        <div class="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <a
+              href="Admin/index.html"
+              data-dashboard-link
+              aria-hidden="true"
+              tabindex="-1"
+              class="group relative hidden inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-500 hover:shadow-blue-500/40 hover:-translate-y-0.5"
+            >
+                <i data-lucide="layout-dashboard" class="h-4 w-4"></i>
+                <span>Access Dashboard</span>
+            </a>
+            <a href="vehicles.html" class="group inline-flex items-center justify-center gap-2 rounded-full border border-slate-700 bg-slate-800/50 px-8 py-3 text-sm font-bold text-slate-300 transition-all hover:bg-slate-800 hover:text-white hover:border-slate-600 hover:-translate-y-0.5">
+                <i data-lucide="map" class="h-4 w-4 text-emerald-400"></i>
+                <span>Live Map View</span>
+            </a>
+        </div>
 
-        <div class="border-t border-slate-800/60 pt-8">
-            <p class="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Network Real-time Data</p>
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
-                    <p id="tech-count" class="text-xl font-bold text-white">-</p>
-                    <p class="text-[10px] uppercase font-medium text-slate-500">Active Partners</p>
-                </div>
-                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
-                    <p id="available-count" class="text-xl font-bold text-emerald-400">-</p>
-                    <p class="text-[10px] uppercase font-medium text-slate-500">Available Now</p>
-                </div>
-                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
-                    <p id="states-count" class="text-xl font-bold text-blue-400">-</p>
-                    <p class="text-[10px] uppercase font-medium text-slate-500">States Active</p>
-                </div>
-                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
-                    <div class="flex items-center justify-center gap-1.5">
-                        <span id="avg-rating" class="text-xl font-bold text-amber-300">-</span>
-                    </div>
-                    <p class="text-[10px] uppercase font-medium text-slate-500">SLA Rating</p>
-                </div>
-            </div>
-        </div>
+        <div class="border-t border-slate-800/60 pt-8">
+            <p class="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">Network Real-time Data</p>
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <p id="tech-count" class="text-xl font-bold text-white">-</p>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">Active Partners</p>
+                </div>
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <p id="available-count" class="text-xl font-bold text-emerald-400">-</p>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">Available Now</p>
+                </div>
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <p id="states-count" class="text-xl font-bold text-blue-400">-</p>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">States Active</p>
+                </div>
+                <div class="rounded-xl bg-slate-950/50 p-3 ring-1 ring-slate-800/50 transition-all duration-300 hover:-translate-y-1 hover:bg-slate-900 hover:ring-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20">
+                    <div class="flex items-center justify-center gap-1.5">
+                        <span id="avg-rating" class="text-xl font-bold text-amber-300">-</span>
+                    </div>
+                    <p class="text-[10px] uppercase font-medium text-slate-500">SLA Rating</p>
+                </div>
+            </div>
+        </div>
 
-      </div>
-      
-      <div class="mt-10 grid gap-4 lg:grid-cols-2">
-        <div class="rounded-3xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl shadow-blue-900/10 backdrop-blur">
-          <div class="flex items-start gap-3">
-            <div class="rounded-2xl bg-blue-500/15 p-2 text-blue-300">
-              <i data-lucide="activity" class="h-5 w-5"></i>
-            </div>
-            <div class="space-y-2 text-left">
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Operations Snapshot</p>
-              <h3 class="text-xl font-bold text-white">Stay ahead of every dispatch</h3>
-              <ul class="space-y-2 text-sm text-slate-400">
-                <li class="flex items-start gap-2"><i data-lucide="shield-check" class="mt-0.5 h-4 w-4 text-emerald-400"></i><span>Encrypted access and MFA-ready login flows keep your data protected.</span></li>
-                <li class="flex items-start gap-2"><i data-lucide="radar" class="mt-0.5 h-4 w-4 text-blue-300"></i><span>Live map visibility helps dispatchers coordinate technicians in seconds.</span></li>
-                <li class="flex items-start gap-2"><i data-lucide="sparkles" class="mt-0.5 h-4 w-4 text-amber-300"></i><span>Automated status insights highlight availability and SLA health at a glance.</span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
+      </div>
+      
+      <div class="mt-8 text-center space-y-2">
+        <p class="text-xs text-slate-600">
+          <span class="font-semibold text-slate-500">TechLoc System Platform</span> owned and operated by <a href="mailto:JReynoso111@gmail.com" class="hover:text-slate-400 transition-colors">JReynoso111@gmail.com</a>.
+        </p>
+        <p class="text-[10px] uppercase tracking-wide text-slate-700">
+          Exclusively licensed for use by M&T Equipment Funding
+        </p>
+      </div>
 
-        <div class="rounded-3xl border border-slate-800 bg-slate-900/50 p-6 shadow-xl shadow-blue-900/10 backdrop-blur">
-          <div class="flex items-start gap-3">
-            <div class="rounded-2xl bg-emerald-500/15 p-2 text-emerald-300">
-              <i data-lucide="compass" class="h-5 w-5"></i>
-            </div>
-            <div class="space-y-3 text-left w-full">
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Quick Access</p>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <a href="Admin/index.html" data-dashboard-link aria-hidden="true" tabindex="-1" class="group flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-blue-500 hover:bg-slate-900">
-                  <span>Admin Dashboard</span>
-                  <i data-lucide="arrow-up-right" class="h-4 w-4 text-blue-300 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
-                </a>
-                <a href="services-request.html" class="group flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-blue-500 hover:bg-slate-900">
-                  <span>Submit Service Request</span>
-                  <i data-lucide="wrench" class="h-4 w-4 text-emerald-300"></i>
-                </a>
-                <a href="vehicles.html" class="group flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-blue-500 hover:bg-slate-900">
-                  <span>Control View</span>
-                  <i data-lucide="route" class="h-4 w-4 text-blue-300"></i>
-                </a>
-                <a href="contact.html" class="group flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-sm font-semibold text-slate-200 transition hover:border-blue-500 hover:bg-slate-900">
-                  <span>Contact Support</span>
-                  <i data-lucide="lifebuoy" class="h-4 w-4 text-amber-300"></i>
-                </a>
-              </div>
-              <p class="text-xs text-slate-500">Need elevated permissions? Use your admin credentials to unlock dashboard access.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <div class="mt-8 text-center space-y-2">
-        <p class="text-xs text-slate-600">
-          <span class="font-semibold text-slate-500">TechLoc System Platform</span> owned and operated by <a href="mailto:JReynoso111@gmail.com" class="hover:text-slate-400 transition-colors">JReynoso111@gmail.com</a>.
-        </p>
-        <p class="text-[10px] uppercase tracking-wide text-slate-700">
-          Exclusively licensed for use by M&T Equipment Funding
-        </p>
-      </div>
+    </div>
+  </main>
 
-    </div>
-  </main>
+  <script type="module">
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
 
-  <script type="module">
-    import { createConstellationBackground } from './assets/scripts/constellation.js';
+    // --- 1. LÓGICA DE ESTADÍSTICAS (SUPABASE) ---
+    const animateValue = (id, start, end, duration) => {
+      const el = document.getElementById(id);
+      if (!el) return;
 
-    // --- 1. LÓGICA DE ESTADÍSTICAS (SUPABASE) ---
-    const animateValue = (id, start, end, duration) => {
-      const el = document.getElementById(id);
-      if (!el) return;
+      const decimalPlaces = Number.isInteger(end)
+        ? 0
+        : ((end.toString().split('.')[1] || '').length);
 
-      const decimalPlaces = Number.isInteger(end)
-        ? 0
-        : ((end.toString().split('.')[1] || '').length);
+      const startTime = performance.now();
+      el.classList.add('animate-pulse');
 
-      const startTime = performance.now();
-      el.classList.add('animate-pulse');
+      const step = (currentTime) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const currentValue = start + (end - start) * progress;
 
-      const step = (currentTime) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const currentValue = start + (end - start) * progress;
+        const formattedValue = decimalPlaces > 0
+          ? currentValue.toFixed(decimalPlaces)
+          : Math.round(currentValue);
 
-        const formattedValue = decimalPlaces > 0
-          ? currentValue.toFixed(decimalPlaces)
-          : Math.round(currentValue);
+        el.textContent = formattedValue;
 
-        el.textContent = formattedValue;
+        if (progress < 1) {
+          requestAnimationFrame(step);
+        } else {
+          el.textContent = Number.isInteger(end) ? end : end.toFixed(decimalPlaces);
+          setTimeout(() => el.classList.remove('animate-pulse'), 300);
+        }
+      };
 
-        if (progress < 1) {
-          requestAnimationFrame(step);
-        } else {
-          el.textContent = Number.isInteger(end) ? end : end.toFixed(decimalPlaces);
-          setTimeout(() => el.classList.remove('animate-pulse'), 300);
-        }
-      };
+      requestAnimationFrame(step);
+    };
 
-      requestAnimationFrame(step);
-    };
+    const fetchServiceStats = async () => {
+      const CACHE_KEY = 'techloc_home_stats';
+      const CACHE_DURATION = 300000; // 5 minutos
 
-    const fetchServiceStats = async () => {
-      const CACHE_KEY = 'techloc_home_stats';
-      const CACHE_DURATION = 300000; // 5 minutos
+      // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
+      const client = window.supabaseClient || window.supabase;
 
-      // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
-      const client = window.supabaseClient || window.supabase;
+      if (!client) {
+        console.error("Supabase client not initialized.");
+        return;
+      }
 
-      if (!client) {
-        console.error("Supabase client not initialized.");
-        return;
-      }
+      const cachedStats = sessionStorage.getItem(CACHE_KEY);
+      if (cachedStats) {
+        try {
+          const { totalCount, availableCount, uniqueStates, avgRating, timestamp } = JSON.parse(cachedStats);
 
-      const cachedStats = sessionStorage.getItem(CACHE_KEY);
-      if (cachedStats) {
-        try {
-          const { totalCount, availableCount, uniqueStates, avgRating, timestamp } = JSON.parse(cachedStats);
+          const isFresh = typeof timestamp === 'number'
+            && (Date.now() - timestamp) < CACHE_DURATION;
 
-          const isFresh = typeof timestamp === 'number'
-            && (Date.now() - timestamp) < CACHE_DURATION;
+          if (isFresh) {
+            animateValue('tech-count', 0, totalCount ?? 0, 2000);
+            animateValue('available-count', 0, availableCount ?? 0, 2000);
+            animateValue('states-count', 0, uniqueStates ?? 0, 2000);
+            animateValue('avg-rating', 0, avgRating ?? 0, 2000);
+            return;
+          }
+        } catch (parseError) {
+          console.warn('Invalid cached stats, fetching fresh data.');
+        }
+      }
 
-          if (isFresh) {
-            animateValue('tech-count', 0, totalCount ?? 0, 2000);
-            animateValue('available-count', 0, availableCount ?? 0, 2000);
-            animateValue('states-count', 0, uniqueStates ?? 0, 2000);
-            animateValue('avg-rating', 0, avgRating ?? 0, 2000);
-            return;
-          }
-        } catch (parseError) {
-          console.warn('Invalid cached stats, fetching fresh data.');
-        }
-      }
+      try {
+        // Consultamos la tabla 'Services' en Supabase para obtener las métricas en vivo.
+        const { data = [], error, count } = await client
+          .from('Services')
+          .select('state, status, availability', { count: 'exact' });
 
-      try {
-        // Consultamos la tabla 'Services' en Supabase para obtener las métricas en vivo.
-        const { data = [], error, count } = await client
-          .from('Services')
-          .select('state, status, availability', { count: 'exact' });
+        if (error) {
+            console.error('Error fetching stats:', error);
+            throw error;
+        }
 
-        if (error) {
-            console.error('Error fetching stats:', error);
-            throw error;
-        }
+        // A. Total Partners: Total de filas retornadas
+        const totalCount = count ?? data.length ?? 0;
 
-        // A. Total Partners: Total de filas retornadas
-        const totalCount = count ?? data.length ?? 0;
+        // B. Available Now: Filtramos filas que tengan "24/7", "Available" o "Active"
+        const availableCount = data.filter(row => {
+            const availText = String(row.availability || '').toLowerCase();
+            const statusText = String(row.status || '').toLowerCase();
+            return availText.includes('24/7') || statusText === 'available' || statusText === 'active';
+        }).length;
 
-        // B. Available Now: Filtramos filas que tengan "24/7", "Available" o "Active"
-        const availableCount = data.filter(row => {
-            const availText = String(row.availability || '').toLowerCase();
-            const statusText = String(row.status || '').toLowerCase();
-            return availText.includes('24/7') || statusText === 'available' || statusText === 'active';
-        }).length;
+        // C. States Active: Contamos estados únicos (ignorando mayúsculas/minúsculas)
+        const uniqueStates = new Set(
+            data
+            .map(row => row.state ? row.state.trim().toUpperCase() : null)
+            .filter(Boolean) // Elimina valores nulos
+        ).size;
 
-        // C. States Active: Contamos estados únicos (ignorando mayúsculas/minúsculas)
-        const uniqueStates = new Set(
-            data
-            .map(row => row.state ? row.state.trim().toUpperCase() : null)
-            .filter(Boolean) // Elimina valores nulos
-        ).size;
+        // D. SLA Rating: Valor estático alto (hasta que tengas columna de rating real)
+        const avgRating = 4.8;
 
-        // D. SLA Rating: Valor estático alto (hasta que tengas columna de rating real)
-        const avgRating = 4.8;
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+          totalCount,
+          availableCount,
+          uniqueStates,
+          avgRating,
+          timestamp: Date.now(),
+        }));
 
-        sessionStorage.setItem(CACHE_KEY, JSON.stringify({
-          totalCount,
-          availableCount,
-          uniqueStates,
-          avgRating,
-          timestamp: Date.now(),
-        }));
+        // Actualizamos el DOM con animación
+        animateValue('tech-count', 0, totalCount, 2000);
+        animateValue('available-count', 0, availableCount, 2000);
+        animateValue('states-count', 0, uniqueStates, 2000);
+        animateValue('avg-rating', 0, avgRating, 2000);
 
-        // Actualizamos el DOM con animación
-        animateValue('tech-count', 0, totalCount, 2000);
-        animateValue('available-count', 0, availableCount, 2000);
-        animateValue('states-count', 0, uniqueStates, 2000);
-        animateValue('avg-rating', 0, avgRating, 2000);
+      } catch (err) {
+        // En caso de error, dejamos los guiones o ponemos 0
+        console.warn('Could not load live stats');
+      }
+    };
 
-      } catch (err) {
-        // En caso de error, dejamos los guiones o ponemos 0
-        console.warn('Could not load live stats');
-      }
-    };
+    // --- 2. LÓGICA DE LOG IN / LOG OUT ---
+    const handleAuthUI = async () => {
+        const loginBtn = document.getElementById('nav-login');
+        const logoutBtn = document.getElementById('nav-logout');
+        const client = window.supabase || window.supabaseClient;
 
-    // --- 2. LÓGICA DE LOG IN / LOG OUT ---
-    const handleAuthUI = async () => {
-        const loginBtn = document.getElementById('nav-login');
-        const logoutBtn = document.getElementById('nav-logout');
-        const client = window.supabase || window.supabaseClient;
+        if (!client) return;
 
-        if (!client) return;
+        const updateButtonState = (session) => {
+            if (session) {
+                // Si hay sesión: Ocultar Login, Mostrar Logout
+                if (loginBtn) loginBtn.classList.add('hidden');
+                if (logoutBtn) {
+                    logoutBtn.classList.remove('hidden');
+                    logoutBtn.onclick = async () => {
+                        logoutBtn.textContent = '...';
+                        await client.auth.signOut();
+                        window.location.reload();
+                    };
+                }
+            } else {
+                // Si NO hay sesión: Mostrar Login, Ocultar Logout
+                if (loginBtn) loginBtn.classList.remove('hidden');
+                if (logoutBtn) logoutBtn.classList.add('hidden');
+            }
+        };
 
-        const updateButtonState = (session) => {
-            if (session) {
-                // Si hay sesión: Ocultar Login, Mostrar Logout
-                if (loginBtn) loginBtn.classList.add('hidden');
-                if (logoutBtn) {
-                    logoutBtn.classList.remove('hidden');
-                    logoutBtn.onclick = async () => {
-                        logoutBtn.textContent = '...';
-                        await client.auth.signOut();
-                        window.location.reload();
-                    };
-                }
-            } else {
-                // Si NO hay sesión: Mostrar Login, Ocultar Logout
-                if (loginBtn) loginBtn.classList.remove('hidden');
-                if (logoutBtn) logoutBtn.classList.add('hidden');
-            }
-        };
+        // Verificar estado inicial y escuchar cambios
+        const { data: { session } } = await client.auth.getSession();
+        updateButtonState(session);
 
-        // Verificar estado inicial y escuchar cambios
-        const { data: { session } } = await client.auth.getSession();
-        updateButtonState(session);
+        client.auth.onAuthStateChange((_event, session) => {
+            updateButtonState(session);
+        });
+    };
 
-        client.auth.onAuthStateChange((_event, session) => {
-            updateButtonState(session);
-        });
-    };
+    // --- 3. INICIALIZACIÓN ---
+    document.addEventListener('DOMContentLoaded', () => {
+      // Iniciar iconos Lucide
+      if (window.lucide) window.lucide.createIcons();
 
-    // --- 3. INICIALIZACIÓN ---
-    document.addEventListener('DOMContentLoaded', () => {
-      // Iniciar iconos Lucide
-      if (window.lucide) window.lucide.createIcons();
+      const mobileToggle = document.getElementById('mobile-menu-toggle');
+      const primaryNav = document.getElementById('primary-nav');
 
-      const mobileToggle = document.getElementById('mobile-menu-toggle');
-      const primaryNav = document.getElementById('primary-nav');
+      const setMenuState = (expanded) => {
+        if (!primaryNav || !mobileToggle) return;
+        mobileToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (expanded) {
+          primaryNav.classList.remove('hidden');
+        } else {
+          primaryNav.classList.add('hidden');
+        }
+      };
 
-      const setMenuState = (expanded) => {
-        if (!primaryNav || !mobileToggle) return;
-        mobileToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        if (expanded) {
-          primaryNav.classList.remove('hidden');
-        } else {
-          primaryNav.classList.add('hidden');
-        }
-      };
+      if (mobileToggle && primaryNav) {
+        setMenuState(window.innerWidth >= 768);
 
-      if (mobileToggle && primaryNav) {
-        setMenuState(window.innerWidth >= 768);
+        mobileToggle.addEventListener('click', () => {
+          const expanded = mobileToggle.getAttribute('aria-expanded') === 'true';
+          setMenuState(!expanded);
+        });
 
-        mobileToggle.addEventListener('click', () => {
-          const expanded = mobileToggle.getAttribute('aria-expanded') === 'true';
-          setMenuState(!expanded);
-        });
+        primaryNav.querySelectorAll('a').forEach((link) => {
+          link.addEventListener('click', () => {
+            if (window.innerWidth < 768) setMenuState(false);
+          });
+        });
 
-        primaryNav.querySelectorAll('a').forEach((link) => {
-          link.addEventListener('click', () => {
-            if (window.innerWidth < 768) setMenuState(false);
-          });
-        });
+        window.addEventListener('resize', () => {
+          setMenuState(window.innerWidth >= 768);
+        });
+      }
 
-        window.addEventListener('resize', () => {
-          setMenuState(window.innerWidth >= 768);
-        });
-      }
+      // Iniciar fondo de constelación
+      createConstellationBackground();
 
-      // Iniciar fondo de constelación
-      createConstellationBackground();
+      // Ejecutar lógica de autenticación
+      handleAuthUI();
 
-      // Ejecutar lógica de autenticación
-      handleAuthUI();
-
-      // Cargar estadísticas de la base de datos
-      fetchServiceStats();
-    });
-  </script>
+      // Cargar estadísticas de la base de datos
+      fetchServiceStats();
+    });
+  </script>
 </body>
 </html>
