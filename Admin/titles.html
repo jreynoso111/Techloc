@@ -2067,3 +2067,30 @@
 </script>
 </body>
 </html>
+    const bindLayoutResizer = () => {
+      const layout = document.getElementById('analytics-layout');
+      const resizer = document.getElementById('analytics-layout-resizer');
+      if (!layout || !resizer) return;
+      let active = null;
+      const onMove = (e) => {
+        if (!active) return;
+        const rect = layout.getBoundingClientRect();
+        const percent = ((e.clientX - rect.left) / rect.width) * 100;
+        const clamped = Math.min(70, Math.max(30, percent));
+        state.analyticsLayoutSplit = clamped;
+        layout.style.gridTemplateColumns = `${clamped}% ${100 - clamped}%`;
+      };
+      const stop = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
+        active = null;
+        savePrefs();
+      };
+      resizer.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        active = true;
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', stop);
+      });
+    };
