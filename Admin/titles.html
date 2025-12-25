@@ -197,8 +197,33 @@
 
   <main class="flex-1 flex flex-col min-h-0 relative">
     
+    <div id="analytics-panel" class="bg-slate-900/60 border-b border-slate-800 px-4 py-3">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center justify-between mb-3 gap-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
+                    <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
+                </div>
+                <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
+                    <div class="relative">
+                      <select id="analytics-sort" class="appearance-none bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-3 py-1.5 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                          <option value="total-asc">Row total ↑</option>
+                          <option value="total-desc">Row total ↓</option>
+                      </select>
+                      <i data-lucide="chevron-down" class="h-3 w-3 text-slate-400 absolute right-2 top-2.5 pointer-events-none"></i>
+                    </div>
+                </div>
+            </div>
+            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-96"></div>
+        </div>
+    </div>
+
     <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3 space-y-3">
-        <div class="flex flex-wrap items-end gap-3">
+        <div class="flex flex-wrap md:flex-nowrap items-end gap-3">
             <div class="w-32">
                 <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Terms</label>
                 <div class="flex mt-1 border border-slate-700 rounded-lg bg-slate-900 overflow-hidden">
@@ -396,7 +421,7 @@
       isDragging: false, dragSourceIndex: null,
       isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
       filterCols1: [], filterCols2: [], filterCols3: [],
-      analytics: { location: '', lien: '', sort: 'location-asc', colWidth: 140, tableWidth: 100, selectedLocations: [] },
+      analytics: { sort: 'total-desc', colWidth: 110, tableWidth: 70, selectedLocations: [], locationWidth: 160 },
       replaceContext: { colId: null, label: '' }
     };
 
@@ -1206,18 +1231,16 @@
       if (!els.analyticsContent) return;
       const locationCol = findColumnId(['location']);
       const lienCol = findColumnId(['lien status', 'lien_status', 'lienstatus', 'status']);
+      const unitTypeCol = findColumnId(['unit type', 'unit_type', 'unittype']);
       if (!locationCol || !lienCol) {
         els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">Location or Lien status columns not found.</p>';
         return;
       }
 
       const rows = getFilteredSortedRows();
-      const locationSet = new Set();
+      const allLocationSet = new Set();
       const lienSet = new Set();
-      const pivot = new Map();
 
-      const locationFilter = state.analytics.location.trim().toLowerCase();
-      const lienFilter = state.analytics.lien.trim().toLowerCase();
       const selectedLocations = new Set(state.analytics.selectedLocations || []);
       const hasSelectedLocations = selectedLocations.size > 0;
 
@@ -1226,96 +1249,121 @@
         const rawLien = row[lienCol];
         const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
         const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
-
-        if (locationFilter && !locationVal.toLowerCase().includes(locationFilter)) return;
-        if (hasSelectedLocations && !selectedLocations.has(locationVal)) return;
-        if (lienFilter && !lienVal.toLowerCase().includes(lienFilter)) return;
-
-        locationSet.add(locationVal);
+        allLocationSet.add(locationVal);
         lienSet.add(lienVal);
-        const key = `${locationVal}|||${lienVal}`;
-        pivot.set(key, (pivot.get(key) || 0) + 1);
       });
 
-      const locations = Array.from(locationSet);
+      const allLocations = Array.from(allLocationSet).sort((a, b) => a.localeCompare(b));
       const liens = Array.from(lienSet).sort((a, b) => a.localeCompare(b));
 
-      if (locations.length === 0 || liens.length === 0) {
+      if (allLocations.length === 0 || liens.length === 0) {
         els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
         return;
       }
 
-      const rowTotals = new Map();
-      const colTotals = new Map();
-      let grandTotal = 0;
+      const groups = new Map();
+      rows.forEach(row => {
+        const unitVal = unitTypeCol ? (row[unitTypeCol] || 'Unspecified') : 'All Units';
+        const rawLocation = row[locationCol];
+        const rawLien = row[lienCol];
+        const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
+        const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
+        if (hasSelectedLocations && !selectedLocations.has(locationVal)) return;
+        if (!groups.has(unitVal)) groups.set(unitVal, []);
+        groups.get(unitVal).push({ locationVal, lienVal });
+      });
 
-      locations.forEach(loc => {
-        liens.forEach(lien => {
-          const key = `${loc}|||${lien}`;
-          const count = pivot.get(key) || 0;
-          rowTotals.set(loc, (rowTotals.get(loc) || 0) + count);
-          colTotals.set(lien, (colTotals.get(lien) || 0) + count);
-          grandTotal += count;
+      const renderGroupTable = (groupName, entries) => {
+        const locationSet = new Set();
+        const pivot = new Map();
+        entries.forEach(({ locationVal, lienVal }) => {
+          locationSet.add(locationVal);
+          const key = `${locationVal}|||${lienVal}`;
+          pivot.set(key, (pivot.get(key) || 0) + 1);
         });
-      });
 
-      const sortMode = state.analytics.sort;
-      locations.sort((a, b) => {
-        if (sortMode === 'location-asc') return a.localeCompare(b);
-        if (sortMode === 'location-desc') return b.localeCompare(a);
-        if (sortMode === 'total-asc') return (rowTotals.get(a) || 0) - (rowTotals.get(b) || 0);
-        if (sortMode === 'total-desc') return (rowTotals.get(b) || 0) - (rowTotals.get(a) || 0);
-        return 0;
-      });
+        const locations = Array.from(locationSet);
+        if (locations.length === 0) return '';
 
-      const colWidth = `${state.analytics.colWidth}px`;
-      const tableMaxWidth = `${state.analytics.tableWidth}vw`;
+        const rowTotals = new Map();
+        const colTotals = new Map();
+        let grandTotal = 0;
 
-      let html = `<div class="relative w-full" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
-      html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
-      html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20">
-                <div class="flex items-center gap-2">
-                  <span>Location</span>
-                  <div class="relative">
-                    <button id="analytics-location-menu-btn" class="text-[10px] font-bold uppercase tracking-wide bg-slate-800 border border-slate-700 px-2 py-1 rounded-md text-slate-200 hover:bg-slate-700">Filter</button>
-                    <div id="analytics-location-menu" class="hidden absolute left-0 mt-1 min-w-[220px] max-h-64 overflow-auto rounded-lg border border-slate-800 bg-slate-950 shadow-xl z-30 p-2 space-y-1">
-                      ${locations.map(loc => {
-                        const checked = !hasSelectedLocations || selectedLocations.has(loc);
-                        return `<label class="flex items-center justify-between gap-2 text-[11px] text-slate-200 px-2 py-1 hover:bg-slate-900 rounded">
-                                  <span class="truncate">${loc}</span>
-                                  <input type="checkbox" data-location-check value="${loc.replace(/"/g,'&quot;')}" class="h-3.5 w-3.5 accent-blue-500" ${checked ? 'checked' : ''}>
-                                </label>`;
-                      }).join('')}
+        locations.forEach(loc => {
+          liens.forEach(lien => {
+            const key = `${loc}|||${lien}`;
+            const count = pivot.get(key) || 0;
+            rowTotals.set(loc, (rowTotals.get(loc) || 0) + count);
+            colTotals.set(lien, (colTotals.get(lien) || 0) + count);
+            grandTotal += count;
+          });
+        });
+
+        const sortMode = state.analytics.sort;
+        locations.sort((a, b) => {
+          if (sortMode === 'total-asc') return (rowTotals.get(a) || 0) - (rowTotals.get(b) || 0);
+          if (sortMode === 'total-desc') return (rowTotals.get(b) || 0) - (rowTotals.get(a) || 0);
+          return 0;
+        });
+
+        const colWidth = `${state.analytics.colWidth}px`;
+        const locationWidth = `${state.analytics.locationWidth}px`;
+        const tableMaxWidth = `${state.analytics.tableWidth}vw`;
+
+        let html = `<div class="relative w-full mb-4" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
+        html += `<div class="flex items-center justify-between px-2 py-1 text-[11px] text-slate-400 uppercase tracking-wide">${groupName}</div>`;
+        html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
+        html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20" style="min-width:${locationWidth}; width:${locationWidth};">
+                  <div class="flex items-center gap-2">
+                    <span>Location</span>
+                    <div class="relative">
+                      <button id="analytics-location-menu-btn" class="text-[10px] font-bold uppercase tracking-wide bg-slate-800 border border-slate-700 px-2 py-1 rounded-md text-slate-200 hover:bg-slate-700">Filter</button>
+                      <div id="analytics-location-menu" class="hidden absolute left-0 mt-1 min-w-[220px] max-h-64 overflow-auto rounded-lg border border-slate-800 bg-slate-950 shadow-xl z-30 p-2 space-y-1">
+                        ${allLocations.map(loc => {
+                          const checked = !hasSelectedLocations || selectedLocations.has(loc);
+                          return `<label class="flex items-center justify-between gap-2 text-[11px] text-slate-200 px-2 py-1 hover:bg-slate-900 rounded">
+                                    <span class="truncate">${loc}</span>
+                                    <input type="checkbox" data-location-check value="${loc.replace(/"/g,'&quot;')}" class="h-3.5 w-3.5 accent-blue-500" ${checked ? 'checked' : ''}>
+                                  </label>`;
+                        }).join('')}
+                      </div>
                     </div>
+                    <span class="analytics-resizer" data-analytics-resize="location"></span>
                   </div>
-                </div>
-              </th>`;
-      liens.forEach(lien => {
-        html += `<th class="px-3 py-2 border-b border-slate-800 text-left relative" style="min-width:${colWidth}; width:${colWidth};">${lien}<span class="analytics-resizer" data-analytics-resize="col"></span></th>`;
-      });
-      html += `<th class="px-3 py-2 border-b border-slate-800 text-left bg-slate-950">Row total</th>`;
-      html += '</tr></thead><tbody>';
-
-      locations.forEach(loc => {
-        html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
+                </th>`;
         liens.forEach(lien => {
-          const key = `${loc}|||${lien}`;
-          const count = pivot.get(key) || 0;
-          html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300" style="min-width:${colWidth}; width:${colWidth};">${count}</td>`;
+          html += `<th class="px-3 py-2 border-b border-slate-800 text-left relative" style="min-width:${colWidth}; width:${colWidth};">${lien}<span class="analytics-resizer" data-analytics-resize="col"></span></th>`;
         });
-        html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60">${rowTotals.get(loc) || 0}</td>`;
-        html += '</tr>';
-      });
+        html += `<th class="px-3 py-2 border-b border-slate-800 text-left bg-slate-950 relative">Total<span class="analytics-resizer" data-analytics-resize="table"></span></th>`;
+        html += '</tr></thead><tbody>';
 
-      html += `<tr class="bg-slate-900/60 font-semibold text-slate-100"><th class="px-3 py-2 border-t border-slate-800 text-left sticky left-0 bg-slate-950 z-10">Column total</th>`;
-      liens.forEach(lien => {
-        html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
-      });
-      html += `<td class="px-3 py-2 border-t border-slate-800 text-right">${grandTotal}</td></tr>`;
-      html += '</tbody></table>';
-      html += `<div id="analytics-table-resizer" class="analytics-table-resizer"></div>`;
-      html += '</div>';
-      els.analyticsContent.innerHTML = html;
+        locations.forEach(loc => {
+          html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950" style="min-width:${locationWidth}; width:${locationWidth};">${loc}</th>`;
+          liens.forEach(lien => {
+            const key = `${loc}|||${lien}`;
+            const count = pivot.get(key) || 0;
+            html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300" style="min-width:${colWidth}; width:${colWidth};">${count}</td>`;
+          });
+          html += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60">${rowTotals.get(loc) || 0}</td>`;
+          html += '</tr>';
+        });
+
+        html += `<tr class="bg-slate-900/60 font-semibold text-slate-100"><th class="px-3 py-2 border-t border-slate-800 text-left sticky left-0 bg-slate-950 z-10" style="min-width:${locationWidth}; width:${locationWidth};">Total</th>`;
+        liens.forEach(lien => {
+          html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
+        });
+        html += `<td class="px-3 py-2 border-t border-slate-800 text-right">${grandTotal}</td></tr>`;
+        html += '</tbody></table>';
+        html += '</div>';
+
+        return html;
+      };
+
+      let html = '';
+      for (const [groupName, entries] of groups.entries()) {
+        html += renderGroupTable(groupName, entries);
+      }
+      els.analyticsContent.innerHTML = html || '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
 
       const menuBtn = els.analyticsContent.querySelector('#analytics-location-menu-btn');
       const menu = els.analyticsContent.querySelector('#analytics-location-menu');
@@ -1328,7 +1376,7 @@
         menuChecks.forEach(chk => {
           chk.addEventListener('change', () => {
             const selected = Array.from(menuChecks).filter(c => c.checked).map(c => c.value);
-            state.analytics.selectedLocations = selected.length === locations.length ? [] : selected;
+            state.analytics.selectedLocations = selected.length === allLocations.length ? [] : selected;
             renderAnalytics();
           });
         });
@@ -1337,49 +1385,45 @@
         });
       }
 
-      const resizers = els.analyticsContent.querySelectorAll('.analytics-resizer');
-      resizers.forEach(handle => {
-        handle.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          const startX = e.pageX;
-          const startWidth = state.analytics.colWidth;
-          const onMove = (ev) => {
-            const diff = ev.pageX - startX;
-            state.analytics.colWidth = Math.min(220, Math.max(80, startWidth + diff));
-            renderAnalytics();
-          };
-          const onUp = () => {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-          };
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
+      const attachResize = (selector, type) => {
+        const handles = els.analyticsContent.querySelectorAll(selector);
+        handles.forEach(handle => {
+          handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startX = e.pageX;
+            const startColWidth = state.analytics.colWidth;
+            const startLocWidth = state.analytics.locationWidth;
+            const startTableWidth = state.analytics.tableWidth;
+            const startWrapper = handle.closest('[data-analytics-table="true"]');
+            const startWrapperWidth = startWrapper ? startWrapper.getBoundingClientRect().width : 0;
+            const viewportWidth = Math.max(600, document.documentElement.clientWidth || window.innerWidth);
+            const onMove = (ev) => {
+              const diff = ev.pageX - startX;
+              if (type === 'col') {
+                state.analytics.colWidth = Math.min(220, Math.max(60, startColWidth + diff));
+              } else if (type === 'location') {
+                state.analytics.locationWidth = Math.min(260, Math.max(80, startLocWidth + diff));
+              } else if (type === 'table' && startWrapperWidth) {
+                const newWidthPx = Math.max(300, startWrapperWidth + diff);
+                const percent = Math.min(100, Math.max(40, (newWidthPx / viewportWidth) * 100));
+                state.analytics.tableWidth = percent;
+              }
+              renderAnalytics();
+            };
+            const onUp = () => {
+              document.removeEventListener('mousemove', onMove);
+              document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          });
         });
-      });
+      };
 
-      const tableResizer = els.analyticsContent.querySelector('#analytics-table-resizer');
-      const tableWrapper = els.analyticsContent.querySelector('[data-analytics-table="true"]');
-      if (tableResizer && tableWrapper) {
-        tableResizer.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          const startX = e.pageX;
-          const startWidthPx = tableWrapper.getBoundingClientRect().width;
-          const viewportWidth = Math.max(600, document.documentElement.clientWidth || window.innerWidth);
-          const onMove = (ev) => {
-            const diff = ev.pageX - startX;
-            const newWidthPx = Math.max(400, startWidthPx + diff);
-            const percent = Math.min(100, Math.max(60, (newWidthPx / viewportWidth) * 100));
-            state.analytics.tableWidth = percent;
-            renderAnalytics();
-          };
-          const onUp = () => {
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-          };
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
-        });
-      }
+      attachResize('.analytics-resizer[data-analytics-resize="col"]', 'col');
+      attachResize('.analytics-resizer[data-analytics-resize="location"]', 'location');
+      attachResize('.analytics-resizer[data-analytics-resize="table"]', 'table');
     };
 
     const loadData = async () => {
@@ -1401,7 +1445,6 @@
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
       els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
       
-      els.analyticsLienFilter?.addEventListener('input', (e) => { state.analytics.lien = e.target.value; renderAnalytics(); });
       els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; renderAnalytics(); });
       
       els.addRowBtn?.addEventListener('click', addNewRow);
