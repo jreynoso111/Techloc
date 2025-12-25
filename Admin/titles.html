@@ -99,15 +99,6 @@
       gap: 0.75rem;
       margin-inline: auto;
     }
-    #chart-primary-row {
-      display: grid;
-      grid-template-columns: minmax(320px, 1fr);
-    }
-    #chart-secondary-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(220px, 1fr));
-      gap: 0.75rem;
-    }
     .chart-resizer {
       position: absolute;
       top: 8px;
@@ -386,8 +377,8 @@
             <div class="w-full space-y-3">
                 <div class="flex flex-wrap items-center justify-between gap-3"></div>
                 <div class="analytics-band rounded-xl px-4 py-2 border border-slate-800/70">
-                    <p class="text-[10px] uppercase tracking-[0.2em] text-blue-100 font-semibold">Título • Analytics</p>
-                    <p class="text-xs text-slate-100">Resumen visual y tabla dinámica para los títulos filtrados.</p>
+                    <p class="text-[10px] uppercase tracking-[0.2em] text-blue-100 font-semibold">Titles • Analytics</p>
+                    <p class="text-xs text-slate-100">Visual summary and pivot table for the filtered titles.</p>
                 </div>
                 <div id="analytics-content" class="space-y-4 mt-3">
                     <div class="flex flex-wrap items-center gap-3 justify-end">
@@ -440,6 +431,16 @@
                                     </div>
                                 </div>
                                 <div id="analytics-lien-list" class="max-h-64 overflow-auto space-y-1 custom-scrollbar pr-1"></div>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <button id="analytics-download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
+                                <i data-lucide="download" class="h-3.5 w-3.5"></i>
+                                <span>Download analytics</span>
+                            </button>
+                            <div id="analytics-download-menu" class="hidden absolute left-0 mt-2 w-40 rounded-lg border border-slate-800 bg-slate-950 shadow-2xl z-50 overflow-hidden">
+                                <button id="analytics-download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">Download CSV</button>
+                                <button id="analytics-download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 border-t border-slate-800">Download XLSX</button>
                             </div>
                         </div>
                         <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
@@ -531,6 +532,10 @@
       analyticsLienNone: document.getElementById('analytics-lien-none'),
       analyticsCharts: document.getElementById('analytics-charts'),
       analyticsTableContainer: document.getElementById('analytics-table-container'),
+      analyticsDownloadBtn: document.getElementById('analytics-download-btn'),
+      analyticsDownloadMenu: document.getElementById('analytics-download-menu'),
+      analyticsDownloadCsv: document.getElementById('analytics-download-csv'),
+      analyticsDownloadXlsx: document.getElementById('analytics-download-xlsx'),
       downloadBtn: document.getElementById('download-btn'),
       downloadMenu: document.getElementById('download-menu'),
       downloadCsv: document.getElementById('download-csv'),
@@ -559,6 +564,7 @@
       analyticsCharts: {},
       analyticsChartWidths: [380, 260, 260],
       analyticsChartHeights: [360, 260, 260],
+      analyticsExportData: null,
       analyticsChartColumns: {
         unitType: null,
         dealStatus: null,
@@ -878,6 +884,7 @@
       analyticsColumnWidths: state.analyticsColumnWidths,
       analyticsChartWidths: state.analyticsChartWidths,
       analyticsChartHeights: state.analyticsChartHeights,
+      analyticsExportData: state.analyticsExportData,
       analyticsChartColumns: state.analyticsChartColumns,
       analyticsLayoutSplit: state.analyticsLayoutSplit
       };
@@ -940,6 +947,7 @@
         if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
         if (Array.isArray(config.analyticsChartWidths)) state.analyticsChartWidths = config.analyticsChartWidths;
         if (Array.isArray(config.analyticsChartHeights)) state.analyticsChartHeights = config.analyticsChartHeights;
+        if (config.analyticsExportData) state.analyticsExportData = config.analyticsExportData;
         if (config.analyticsChartColumns) state.analyticsChartColumns = { ...state.analyticsChartColumns, ...config.analyticsChartColumns };
         if (typeof config.analyticsLayoutSplit === 'number') state.analyticsLayoutSplit = config.analyticsLayoutSplit;
       }
@@ -1280,7 +1288,7 @@
                 }
             }
 
-            showToast(`Reemplazadas ${matchingIds.length} filas`, 'info');
+            showToast(`Replaced ${matchingIds.length} rows`, 'info');
             renderTable({ keepFilterOpen: col.id });
         };
 
@@ -1442,6 +1450,32 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       els.downloadMenu?.classList.add('hidden');
+    };
+
+    const prepareAnalyticsExport = () => {
+      const data = state.analyticsExportData;
+      if (!data || !data.rows?.length) return null;
+      return data;
+    };
+
+    const downloadAnalyticsData = (format = 'csv') => {
+      const payload = prepareAnalyticsExport();
+      if (!payload) { showToast('No analytics data to download', 'error'); return; }
+      const { headers, rows } = payload;
+      const allRows = [headers, ...rows];
+      const csvContent = allRows.map(r => r.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const mime = format === 'xlsx' ? 'application/vnd.ms-excel' : 'text/csv';
+      const extension = format === 'xlsx' ? 'xlsx' : 'csv';
+      const blob = new Blob([csvContent], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `titles-analytics.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      els.analyticsDownloadMenu?.classList.add('hidden');
     };
 
     const updateAnalyticsLocationLabel = (totalLocations = 0) => {
@@ -1698,12 +1732,12 @@
                   <span id="chart-unitType-count" class="text-[10px] text-slate-400 font-semibold"></span>
                 </div>
               </div>
-              <div class="relative" id="chart-unitType-container">
-                <canvas id="chart-unitType"></canvas>
-                <p id="chart-unitType-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
+                <div class="relative" id="chart-unitType-container">
+                  <canvas id="chart-unitType"></canvas>
+                  <p id="chart-unitType-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">No data</p>
+                </div>
               </div>
             </div>
-          </div>
           <div id="chart-secondary-row">
             ${['dealStatus','dealType'].map((key, idx) => `
               <div class="chart-card p-3 relative" data-chart-key="${key}">
@@ -1721,7 +1755,7 @@
                 </div>
                 <div class="relative" id="chart-${key}-container">
                   <canvas id="chart-${key}"></canvas>
-                  <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
+                  <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">No data</p>
                 </div>
               </div>
             `).join('')}
@@ -1864,7 +1898,7 @@
       const labels = Array.from(counts.keys());
       const data = Array.from(counts.values());
       const total = data.reduce((acc, val) => acc + val, 0);
-      countLabel.textContent = total ? `${total} filas` : 'Sin datos';
+      countLabel.textContent = total ? `${total} rows` : 'No data';
       if (!total) {
         canvas.classList.add('hidden');
         empty.classList.remove('hidden');
@@ -1878,8 +1912,8 @@
       empty.classList.add('hidden');
 
       const palette = [
-        '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fbbf24',
-        '#38bdf8', '#c084fc', '#22d3ee', '#fb7185', '#f59e0b'
+        '#3b82f6', '#7c3aed', '#06b6d4', '#10b981', '#38bdf8',
+        '#6366f1', '#a855f7', '#14b8a6', '#22d3ee', '#60a5fa'
       ];
       const backgroundColor = labels.map((_, idx) => palette[idx % palette.length]);
       const ctx = canvas.getContext('2d');
@@ -1966,11 +2000,11 @@
       const typeCounts = buildCounts(dealTypeCol, 'Unspecified');
 
       document.getElementById('chart-unitType-title')?.replaceChildren(document.createTextNode(labelsFor(unitCol || 'Unit Type')));
-      document.getElementById('chart-unitType-subtitle')?.replaceChildren(document.createTextNode('Distribución por unidad'));
+      document.getElementById('chart-unitType-subtitle')?.replaceChildren(document.createTextNode('Distribution by unit'));
       document.getElementById('chart-dealStatus-title')?.replaceChildren(document.createTextNode(labelsFor(dealStatusCol || 'Deal Status')));
-      document.getElementById('chart-dealStatus-subtitle')?.replaceChildren(document.createTextNode('Estado del trato'));
+      document.getElementById('chart-dealStatus-subtitle')?.replaceChildren(document.createTextNode('Deal status mix'));
       document.getElementById('chart-dealType-title')?.replaceChildren(document.createTextNode(labelsFor(dealTypeCol || 'Deal Type')));
-      document.getElementById('chart-dealType-subtitle')?.replaceChildren(document.createTextNode('Tipo de trato'));
+      document.getElementById('chart-dealType-subtitle')?.replaceChildren(document.createTextNode('Deal type mix'));
 
       updatePieChart('unitType', 'chart-unitType', 'chart-unitType-empty', 'chart-unitType-count', unitCounts);
       updatePieChart('dealStatus', 'chart-dealStatus', 'chart-dealStatus-empty', 'chart-dealStatus-count', statusCounts);
@@ -2104,6 +2138,8 @@
       html += '</tr></thead><tbody>';
 
       let hasData = false;
+      const exportHeaders = ['Unit Type', 'Location', ...liens, 'Total'];
+      const exportRows = [];
       units.forEach(unit => {
         let unitTotal = 0;
         const unitTotals = Object.fromEntries(liens.map(l => [l, 0]));
@@ -2133,16 +2169,19 @@
           if (rowTotal === 0) return;
           rowHtml += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 analytics-total-col">${rowTotal}</td></tr>`;
           html += rowHtml;
+          exportRows.push([unit, loc, ...liens.map(lien => pivot.get(`${unit}|||${loc}|||${lien}`) || 0), rowTotal]);
         });
         html += `<tr class="analytics-total-row"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
         liens.forEach(lien => {
           html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotals[lien]}</td>`;
         });
         html += `<td class="px-3 py-2 border-b border-slate-800 text-right analytics-total-col">${unitTotal}</td></tr>`;
+        exportRows.push([unit, 'Subtotal', ...liens.map(lien => unitTotals[lien]), unitTotal]);
       });
 
       if (!hasData) {
         els.analyticsTableContainer.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
+        state.analyticsExportData = null;
         updateAnalyticsLocationLabel(locations.length);
         renderAnalyticsCharts();
         return;
@@ -2154,6 +2193,8 @@
       });
       html += `<td class="px-3 py-3 border-t border-slate-800 text-right analytics-total-col">${globalGrand}</td></tr>`;
       html += '</tbody></table>';
+      exportRows.push(['Global total', '', ...liens.map(lien => globalTotals[lien]), globalGrand]);
+      state.analyticsExportData = { headers: exportHeaders, rows: exportRows };
       els.analyticsTableContainer.innerHTML = html;
       setupAnalyticsResizers();
       updateAnalyticsLocationLabel(locations.length);
@@ -2185,12 +2226,18 @@
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); });
       els.refresh?.addEventListener('click', loadData);
-      els.downloadBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        els.downloadMenu?.classList.toggle('hidden');
-      });
-      els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
-      els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
+        els.downloadBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          els.downloadMenu?.classList.toggle('hidden');
+        });
+        els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
+        els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
+        els.analyticsDownloadBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          els.analyticsDownloadMenu?.classList.toggle('hidden');
+        });
+        els.analyticsDownloadCsv?.addEventListener('click', () => downloadAnalyticsData('csv'));
+        els.analyticsDownloadXlsx?.addEventListener('click', () => downloadAnalyticsData('xlsx'));
       els.analyticsLocationBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.analyticsLocationMenu?.classList.toggle('hidden'); });
       els.analyticsLocationsAll?.addEventListener('click', () => { state.analyticsLocations = null; savePrefs(); renderAnalytics(); });
       els.analyticsLocationsNone?.addEventListener('click', () => { state.analyticsLocations = []; savePrefs(); renderAnalytics(); });
