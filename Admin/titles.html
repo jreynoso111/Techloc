@@ -1903,7 +1903,11 @@
         return `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
       }).join('');
 
-      let html = `<table class="analytics-table text-xs text-slate-200"><colgroup>${colgroup}</colgroup><tbody>`;
+      let html = `<table class="analytics-table text-xs text-slate-200"><colgroup>${colgroup}</colgroup><thead><tr>`;
+      html += '<th data-col-id="location" class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10 analytics-header">Location<span class="analytics-resizer" data-resizer></span></th>';
+      html += liensHeaders;
+      html += '<th data-col-id="total" class="px-3 py-2 border-b border-slate-800 text-right analytics-header analytics-total-col">Total<span class="analytics-resizer" data-resizer></span></th>';
+      html += '</tr></thead><tbody>';
 
       let hasData = false;
       units.forEach(unit => {
@@ -1923,14 +1927,6 @@
 
         hasData = true;
         html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
-        html += '<tr class="text-[11px] text-slate-400 bg-slate-900/40">';
-        html += '<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-10 analytics-header">Location<span class="analytics-resizer" data-resizer></span></th>';
-        liens.forEach(lien => {
-          const colId = `lien-${sanitizeAnalyticsId(lien)}`;
-          html += `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
-        });
-        html += '<th data-col-id="total" class="px-3 py-2 border-b border-slate-800 text-right analytics-header analytics-total-col">Total<span class="analytics-resizer" data-resizer></span></th>';
-        html += '</tr>';
         filteredLocations.forEach(loc => {
           let rowTotal = 0;
           let rowHtml = `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
