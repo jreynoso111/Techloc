@@ -77,13 +77,27 @@
       position: relative;
       overflow-x: auto;
       padding-bottom: 4px;
+      display: flex;
+      justify-content: center;
     }
     #charts-row {
       display: grid;
-      grid-auto-rows: minmax(240px, auto);
+      grid-template-columns: 1fr;
       gap: 0.75rem;
       align-items: stretch;
       min-width: max-content;
+      margin-inline: auto;
+    }
+    #chart-primary-row {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr);
+      margin-inline: auto;
+    }
+    #chart-secondary-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 0.75rem;
+      margin-inline: auto;
     }
     .chart-resizer {
       position: absolute;
@@ -91,6 +105,16 @@
       bottom: 8px;
       width: 12px;
       cursor: col-resize;
+      z-index: 20;
+      background: transparent;
+    }
+    .chart-vresizer {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: -6px;
+      height: 10px;
+      cursor: row-resize;
       z-index: 20;
       background: transparent;
     }
@@ -299,6 +323,16 @@
                 <button id="next-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>
             </div>
 
+            <div class="flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 shadow-lg shadow-slate-900/20">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-300">
+                    <i data-lucide="table-2" class="h-4 w-4"></i>
+                </div>
+                <div class="leading-tight">
+                    <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Registros</p>
+                    <p id="filtered-total" class="text-lg font-black text-white">0</p>
+                </div>
+            </div>
+
             <div class="flex items-center gap-2 ml-auto">
                  <div class="relative">
                     <button id="download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-slate-900/20">
@@ -343,8 +377,8 @@
             <div class="w-full space-y-3">
                 <div class="flex flex-wrap items-center justify-between gap-3"></div>
                 <div class="analytics-band rounded-xl px-4 py-2 border border-slate-800/70">
-                    <p class="text-[10px] uppercase tracking-[0.2em] text-blue-100 font-semibold">Título • Analytics</p>
-                    <p class="text-xs text-slate-100">Resumen visual y tabla dinámica para los títulos filtrados.</p>
+                    <p class="text-[10px] uppercase tracking-[0.2em] text-blue-100 font-semibold">Titles • Analytics</p>
+                    <p class="text-xs text-slate-100">Visual summary and pivot table for the filtered titles.</p>
                 </div>
                 <div id="analytics-content" class="space-y-4 mt-3">
                     <div class="flex flex-wrap items-center gap-3 justify-end">
@@ -397,6 +431,16 @@
                                     </div>
                                 </div>
                                 <div id="analytics-lien-list" class="max-h-64 overflow-auto space-y-1 custom-scrollbar pr-1"></div>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <button id="analytics-download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-semibold tracking-wide transition-colors">
+                                <i data-lucide="download" class="h-3.5 w-3.5"></i>
+                                <span>Download analytics</span>
+                            </button>
+                            <div id="analytics-download-menu" class="hidden absolute left-0 mt-2 w-40 rounded-lg border border-slate-800 bg-slate-950 shadow-2xl z-50 overflow-hidden">
+                                <button id="analytics-download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">Download CSV</button>
+                                <button id="analytics-download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 border-t border-slate-800">Download XLSX</button>
                             </div>
                         </div>
                         <span class="text-[10px] text-slate-500">Location (rows) × Lien status (columns)</span>
@@ -466,6 +510,7 @@
       colsNone: document.getElementById('cols-none'),
       toastContainer: document.getElementById('toast-container'),
       emptyState: document.getElementById('empty-state'),
+      filteredTotal: document.getElementById('filtered-total'),
       analyticsContent: document.getElementById('analytics-content'),
       analyticsLocationBtn: document.getElementById('analytics-location-btn'),
       analyticsLocationMenu: document.getElementById('analytics-location-menu'),
@@ -487,6 +532,10 @@
       analyticsLienNone: document.getElementById('analytics-lien-none'),
       analyticsCharts: document.getElementById('analytics-charts'),
       analyticsTableContainer: document.getElementById('analytics-table-container'),
+      analyticsDownloadBtn: document.getElementById('analytics-download-btn'),
+      analyticsDownloadMenu: document.getElementById('analytics-download-menu'),
+      analyticsDownloadCsv: document.getElementById('analytics-download-csv'),
+      analyticsDownloadXlsx: document.getElementById('analytics-download-xlsx'),
       downloadBtn: document.getElementById('download-btn'),
       downloadMenu: document.getElementById('download-menu'),
       downloadCsv: document.getElementById('download-csv'),
@@ -513,7 +562,9 @@
       analyticsLiens: null,
       analyticsColumnWidths: {},
       analyticsCharts: {},
-      analyticsChartWidths: [260, 260, 260],
+      analyticsChartWidths: [380, 260, 260],
+      analyticsChartHeights: [360, 260, 260],
+      analyticsExportData: null,
       analyticsChartColumns: {
         unitType: null,
         dealStatus: null,
@@ -832,6 +883,8 @@
       analyticsLiens: state.analyticsLiens,
       analyticsColumnWidths: state.analyticsColumnWidths,
       analyticsChartWidths: state.analyticsChartWidths,
+      analyticsChartHeights: state.analyticsChartHeights,
+      analyticsExportData: state.analyticsExportData,
       analyticsChartColumns: state.analyticsChartColumns,
       analyticsLayoutSplit: state.analyticsLayoutSplit
       };
@@ -893,6 +946,8 @@
         if (Array.isArray(config.analyticsLiens) || config.analyticsLiens === null) state.analyticsLiens = config.analyticsLiens;
         if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
         if (Array.isArray(config.analyticsChartWidths)) state.analyticsChartWidths = config.analyticsChartWidths;
+        if (Array.isArray(config.analyticsChartHeights)) state.analyticsChartHeights = config.analyticsChartHeights;
+        if (config.analyticsExportData) state.analyticsExportData = config.analyticsExportData;
         if (config.analyticsChartColumns) state.analyticsChartColumns = { ...state.analyticsChartColumns, ...config.analyticsChartColumns };
         if (typeof config.analyticsLayoutSplit === 'number') state.analyticsLayoutSplit = config.analyticsLayoutSplit;
       }
@@ -1047,6 +1102,9 @@
       }
 
       const total = rows.length;
+      if (els.filteredTotal) {
+        els.filteredTotal.textContent = total.toLocaleString('en-US');
+      }
       const { page, pageSize } = state.pagination;
       const maxPage = Math.max(1, Math.ceil(total / pageSize));
       state.pagination.page = Math.min(page, maxPage);
@@ -1230,7 +1288,7 @@
                 }
             }
 
-            showToast(`Reemplazadas ${matchingIds.length} filas`, 'info');
+            showToast(`Replaced ${matchingIds.length} rows`, 'info');
             renderTable({ keepFilterOpen: col.id });
         };
 
@@ -1392,6 +1450,32 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       els.downloadMenu?.classList.add('hidden');
+    };
+
+    const prepareAnalyticsExport = () => {
+      const data = state.analyticsExportData;
+      if (!data || !data.rows?.length) return null;
+      return data;
+    };
+
+    const downloadAnalyticsData = (format = 'csv') => {
+      const payload = prepareAnalyticsExport();
+      if (!payload) { showToast('No analytics data to download', 'error'); return; }
+      const { headers, rows } = payload;
+      const allRows = [headers, ...rows];
+      const csvContent = allRows.map(r => r.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      const mime = format === 'xlsx' ? 'application/vnd.ms-excel' : 'text/csv';
+      const extension = format === 'xlsx' ? 'xlsx' : 'csv';
+      const blob = new Blob([csvContent], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `titles-analytics.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      els.analyticsDownloadMenu?.classList.add('hidden');
     };
 
     const updateAnalyticsLocationLabel = (totalLocations = 0) => {
@@ -1603,67 +1687,141 @@
       });
     };
 
+    const getNormalizedChartWidths = () => {
+      const fallback = [380, 260, 260];
+      const current = Array.isArray(state.analyticsChartWidths) ? state.analyticsChartWidths.slice(0, 3) : [];
+      while (current.length < 3) current.push(fallback[current.length]);
+      const safe = current.map((w, idx) => {
+        const parsed = Number(w);
+        return Number.isFinite(parsed) ? parsed : fallback[idx];
+      });
+      state.analyticsChartWidths = safe;
+      return safe;
+    };
+
+    const getNormalizedChartHeights = () => {
+      const fallback = [360, 260, 260];
+      const current = Array.isArray(state.analyticsChartHeights) ? state.analyticsChartHeights.slice(0, 3) : [];
+      while (current.length < 3) current.push(fallback[current.length]);
+      const safe = current.map((h, idx) => {
+        const parsed = Number(h);
+        return Number.isFinite(parsed) ? parsed : fallback[idx];
+      });
+      state.analyticsChartHeights = safe;
+      return safe;
+    };
+
     const ensureAnalyticsChartsShell = () => {
       if (!els.analyticsCharts) return;
       Object.values(state.analyticsCharts || {}).forEach(ch => { try { ch?.destroy(); } catch (e) {} });
       state.analyticsCharts = {};
-      const widths = state.analyticsChartWidths;
-      const gridTemplate = widths.map(w => `minmax(220px, ${Math.max(220, w)}px)`).join(' ');
+      const widths = getNormalizedChartWidths();
       els.analyticsCharts.innerHTML = `
-        <div id="charts-row" style="grid-template-columns:${gridTemplate}">
-          ${['unitType','dealStatus','dealType'].map((key, idx) => `
-            <div class="chart-card p-3 relative" data-chart-key="${key}">
-              ${idx > 0 ? `<div class="chart-resizer" data-boundary="${idx-1}" data-type="split" style="left:-6px;"></div>` : ''}
-              ${idx < 2 ? `<div class="chart-resizer" data-boundary="${idx}" data-type="split" style="right:-6px;"></div>` : `<div class="chart-resizer" data-boundary="end" data-type="end" style="right:-6px;"></div>`}
+        <div id="charts-row">
+          <div id="chart-primary-row">
+            <div class="chart-card p-3 relative" data-chart-key="unitType">
+              <div class="chart-resizer" data-chart-resizer data-row="primary" data-type="end" style="right:-6px;"></div>
+              <div class="chart-vresizer" data-chart-vresizer data-chart-key="unitType"></div>
               <div class="flex items-center justify-between mb-2">
                 <div>
-                  <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-${key}-title"></p>
-                  <p class="text-[11px] text-slate-200" id="chart-${key}-subtitle"></p>
+                  <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-unitType-title"></p>
+                  <p class="text-[11px] text-slate-200" id="chart-unitType-subtitle"></p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <select id="chart-${key}-select" class="bg-slate-900 border border-slate-700 text-[11px] text-slate-100 rounded px-2 py-1 focus:outline-none"></select>
-                  <span id="chart-${key}-count" class="text-[10px] text-slate-400 font-semibold"></span>
+                  <select id="chart-unitType-select" class="bg-slate-900 border border-slate-700 text-[11px] text-slate-100 rounded px-2 py-1 focus:outline-none"></select>
+                  <span id="chart-unitType-count" class="text-[10px] text-slate-400 font-semibold"></span>
                 </div>
               </div>
-              <div class="relative h-44">
-                <canvas id="chart-${key}"></canvas>
-                <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
+                <div class="relative" id="chart-unitType-container">
+                  <canvas id="chart-unitType"></canvas>
+                  <p id="chart-unitType-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">No data</p>
+                </div>
               </div>
             </div>
-          `).join('')}
+          <div id="chart-secondary-row">
+            ${['dealStatus','dealType'].map((key, idx) => `
+              <div class="chart-card p-3 relative" data-chart-key="${key}">
+                ${idx === 1 ? `<div class="chart-resizer" data-chart-resizer data-row="secondary" data-type="end" style="right:-6px;"></div>` : `<div class="chart-resizer" data-chart-resizer data-row="secondary" data-type="split" style="right:-6px;"></div>`}
+                <div class="chart-vresizer" data-chart-vresizer data-chart-key="${key}"></div>
+                <div class="flex items-center justify-between mb-2">
+                  <div>
+                    <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-${key}-title"></p>
+                    <p class="text-[11px] text-slate-200" id="chart-${key}-subtitle"></p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <select id="chart-${key}-select" class="bg-slate-900 border border-slate-700 text-[11px] text-slate-100 rounded px-2 py-1 focus:outline-none"></select>
+                    <span id="chart-${key}-count" class="text-[10px] text-slate-400 font-semibold"></span>
+                  </div>
+                </div>
+                <div class="relative" id="chart-${key}-container">
+                  <canvas id="chart-${key}"></canvas>
+                  <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">No data</p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
       `;
     };
 
     const applyChartWidths = () => {
-      const row = document.getElementById('charts-row');
-      if (!row) return;
-      const widths = state.analyticsChartWidths || [260,260,260];
+      const containerWidth = els.analyticsCharts?.clientWidth || 0;
+      const widths = getNormalizedChartWidths();
       const safe = widths.map(w => Math.max(220, w));
-      const total = safe.reduce((a,b)=>a+b,0);
-      row.style.gridTemplateColumns = safe.map(w => `${w}px`).join(' ');
-      const parentWidth = row.parentElement?.clientWidth || total;
-      row.style.width = `${Math.max(total, parentWidth)}px`;
+      const clampWidth = (desired, min = 220) => {
+        const minWidth = Math.max(min, desired);
+        if (!containerWidth) return minWidth;
+        const maxAllowed = Math.max(min, containerWidth - 24);
+        return Math.min(minWidth, maxAllowed);
+      };
+      const primaryRow = document.getElementById('chart-primary-row');
+      if (primaryRow) {
+        const primaryWidth = clampWidth(safe[0], 280);
+        primaryRow.style.gridTemplateColumns = `${primaryWidth}px`;
+        primaryRow.style.width = containerWidth ? `${containerWidth - 8}px` : `${primaryWidth}px`;
+      }
+      const secondaryRow = document.getElementById('chart-secondary-row');
+      if (secondaryRow) {
+        const left = clampWidth(safe[1]);
+        const right = clampWidth(safe[2]);
+        const total = left + right;
+        secondaryRow.style.gridTemplateColumns = `${left}px ${right}px`;
+        secondaryRow.style.width = containerWidth ? `${Math.max(total, containerWidth - 8)}px` : `${total}px`;
+      }
+    };
+
+    const applyChartHeights = () => {
+      const heights = getNormalizedChartHeights();
+      const safe = heights.map(h => Math.max(200, h));
+      const setHeight = (key, value) => {
+        const container = document.getElementById(`chart-${key}-container`);
+        if (container) container.style.height = `${value}px`;
+      };
+      setHeight('unitType', safe[0]);
+      setHeight('dealStatus', safe[1]);
+      setHeight('dealType', safe[2]);
     };
 
     const bindChartResizers = () => {
-      const row = document.getElementById('charts-row');
-      if (!row) return;
-      const resizers = row.querySelectorAll('[data-boundary]');
+      const resizers = els.analyticsCharts?.querySelectorAll('[data-chart-resizer]');
+      if (!resizers) return;
+      getNormalizedChartWidths();
       let active = null;
       const onMove = (e) => {
         if (!active) return;
         const widths = state.analyticsChartWidths.slice();
         const dx = e.clientX - active.startX;
-        if (active.type === 'split') {
-          const idx = active.boundary;
-          const left = Math.max(220, active.startWidths[idx] + dx);
-          const right = Math.max(220, active.startWidths[idx + 1] - dx);
-          widths[idx] = left;
-          widths[idx + 1] = right;
-        } else if (active.type === 'end') {
-          const last = widths.length - 1;
-          widths[last] = Math.max(220, active.startWidths[last] + dx);
+        if (active.row === 'primary') {
+          widths[0] = Math.max(220, active.startWidths[0] + dx);
+        } else if (active.row === 'secondary') {
+          if (active.type === 'split') {
+            const left = Math.max(220, active.startWidths[1] + dx);
+            const right = Math.max(220, active.startWidths[2] - dx);
+            widths[1] = left;
+            widths[2] = right;
+          } else if (active.type === 'end') {
+            widths[2] = Math.max(220, active.startWidths[2] + dx);
+          }
         }
         state.analyticsChartWidths = widths;
         applyChartWidths();
@@ -1679,12 +1837,52 @@
         resizer.addEventListener('mousedown', (e) => {
           e.preventDefault();
           const type = resizer.dataset.type;
-          const boundary = resizer.dataset.boundary === 'end' ? 'end' : parseInt(resizer.dataset.boundary, 10);
+          const row = resizer.dataset.row;
           active = {
+            row,
             type,
-            boundary,
             startX: e.clientX,
             startWidths: state.analyticsChartWidths.slice()
+          };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', stop);
+        });
+      });
+    };
+
+    const bindChartHeightResizers = () => {
+      const resizers = els.analyticsCharts?.querySelectorAll('[data-chart-vresizer]');
+      if (!resizers) return;
+      getNormalizedChartHeights();
+      let active = null;
+      const onMove = (e) => {
+        if (!active) return;
+        const heights = state.analyticsChartHeights.slice();
+        const dy = e.clientY - active.startY;
+        const idx = active.index;
+        const next = Math.max(200, active.startHeights[idx] + dy);
+        heights[idx] = next;
+        state.analyticsChartHeights = heights;
+        applyChartHeights();
+      };
+      const stop = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
+        active = null;
+        savePrefs();
+      };
+      const keyOrder = ['unitType', 'dealStatus', 'dealType'];
+      resizers.forEach(resizer => {
+        resizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const key = resizer.dataset.chartKey;
+          const idx = keyOrder.indexOf(key);
+          if (idx === -1) return;
+          active = {
+            index: idx,
+            startY: e.clientY,
+            startHeights: getNormalizedChartHeights().slice()
           };
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', stop);
@@ -1700,7 +1898,7 @@
       const labels = Array.from(counts.keys());
       const data = Array.from(counts.values());
       const total = data.reduce((acc, val) => acc + val, 0);
-      countLabel.textContent = total ? `${total} filas` : 'Sin datos';
+      countLabel.textContent = total ? `${total} rows` : 'No data';
       if (!total) {
         canvas.classList.add('hidden');
         empty.classList.remove('hidden');
@@ -1714,8 +1912,8 @@
       empty.classList.add('hidden');
 
       const palette = [
-        '#60a5fa', '#a78bfa', '#34d399', '#f472b6', '#fbbf24',
-        '#38bdf8', '#c084fc', '#22d3ee', '#fb7185', '#f59e0b'
+        '#3b82f6', '#7c3aed', '#06b6d4', '#10b981', '#38bdf8',
+        '#6366f1', '#a855f7', '#14b8a6', '#22d3ee', '#60a5fa'
       ];
       const backgroundColor = labels.map((_, idx) => palette[idx % palette.length]);
       const ctx = canvas.getContext('2d');
@@ -1743,7 +1941,9 @@
     const renderAnalyticsCharts = () => {
       ensureAnalyticsChartsShell();
       applyChartWidths();
+      applyChartHeights();
       bindChartResizers();
+      bindChartHeightResizers();
       if (!els.analyticsCharts) return;
       const rows = getFilteredSortedRows();
 
@@ -1800,11 +2000,11 @@
       const typeCounts = buildCounts(dealTypeCol, 'Unspecified');
 
       document.getElementById('chart-unitType-title')?.replaceChildren(document.createTextNode(labelsFor(unitCol || 'Unit Type')));
-      document.getElementById('chart-unitType-subtitle')?.replaceChildren(document.createTextNode('Distribución por unidad'));
+      document.getElementById('chart-unitType-subtitle')?.replaceChildren(document.createTextNode('Distribution by unit'));
       document.getElementById('chart-dealStatus-title')?.replaceChildren(document.createTextNode(labelsFor(dealStatusCol || 'Deal Status')));
-      document.getElementById('chart-dealStatus-subtitle')?.replaceChildren(document.createTextNode('Estado del trato'));
+      document.getElementById('chart-dealStatus-subtitle')?.replaceChildren(document.createTextNode('Deal status mix'));
       document.getElementById('chart-dealType-title')?.replaceChildren(document.createTextNode(labelsFor(dealTypeCol || 'Deal Type')));
-      document.getElementById('chart-dealType-subtitle')?.replaceChildren(document.createTextNode('Tipo de trato'));
+      document.getElementById('chart-dealType-subtitle')?.replaceChildren(document.createTextNode('Deal type mix'));
 
       updatePieChart('unitType', 'chart-unitType', 'chart-unitType-empty', 'chart-unitType-count', unitCounts);
       updatePieChart('dealStatus', 'chart-dealStatus', 'chart-dealStatus-empty', 'chart-dealStatus-count', statusCounts);
@@ -1938,6 +2138,8 @@
       html += '</tr></thead><tbody>';
 
       let hasData = false;
+      const exportHeaders = ['Unit Type', 'Location', ...liens, 'Total'];
+      const exportRows = [];
       units.forEach(unit => {
         let unitTotal = 0;
         const unitTotals = Object.fromEntries(liens.map(l => [l, 0]));
@@ -1967,16 +2169,19 @@
           if (rowTotal === 0) return;
           rowHtml += `<td class="px-3 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 analytics-total-col">${rowTotal}</td></tr>`;
           html += rowHtml;
+          exportRows.push([unit, loc, ...liens.map(lien => pivot.get(`${unit}|||${loc}|||${lien}`) || 0), rowTotal]);
         });
         html += `<tr class="analytics-total-row"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
         liens.forEach(lien => {
           html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotals[lien]}</td>`;
         });
         html += `<td class="px-3 py-2 border-b border-slate-800 text-right analytics-total-col">${unitTotal}</td></tr>`;
+        exportRows.push([unit, 'Subtotal', ...liens.map(lien => unitTotals[lien]), unitTotal]);
       });
 
       if (!hasData) {
         els.analyticsTableContainer.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available for the selected locations and unit types.</p>';
+        state.analyticsExportData = null;
         updateAnalyticsLocationLabel(locations.length);
         renderAnalyticsCharts();
         return;
@@ -1988,6 +2193,8 @@
       });
       html += `<td class="px-3 py-3 border-t border-slate-800 text-right analytics-total-col">${globalGrand}</td></tr>`;
       html += '</tbody></table>';
+      exportRows.push(['Global total', '', ...liens.map(lien => globalTotals[lien]), globalGrand]);
+      state.analyticsExportData = { headers: exportHeaders, rows: exportRows };
       els.analyticsTableContainer.innerHTML = html;
       setupAnalyticsResizers();
       updateAnalyticsLocationLabel(locations.length);
@@ -2019,12 +2226,18 @@
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
       els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); });
       els.refresh?.addEventListener('click', loadData);
-      els.downloadBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        els.downloadMenu?.classList.toggle('hidden');
-      });
-      els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
-      els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
+        els.downloadBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          els.downloadMenu?.classList.toggle('hidden');
+        });
+        els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
+        els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
+        els.analyticsDownloadBtn?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          els.analyticsDownloadMenu?.classList.toggle('hidden');
+        });
+        els.analyticsDownloadCsv?.addEventListener('click', () => downloadAnalyticsData('csv'));
+        els.analyticsDownloadXlsx?.addEventListener('click', () => downloadAnalyticsData('xlsx'));
       els.analyticsLocationBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.analyticsLocationMenu?.classList.toggle('hidden'); });
       els.analyticsLocationsAll?.addEventListener('click', () => { state.analyticsLocations = null; savePrefs(); renderAnalytics(); });
       els.analyticsLocationsNone?.addEventListener('click', () => { state.analyticsLocations = []; savePrefs(); renderAnalytics(); });
