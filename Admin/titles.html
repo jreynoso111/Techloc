@@ -77,6 +77,8 @@
       position: relative;
       overflow-x: auto;
       padding-bottom: 4px;
+      display: flex;
+      justify-content: center;
     }
     #charts-row {
       display: grid;
@@ -84,6 +86,18 @@
       gap: 0.75rem;
       align-items: stretch;
       min-width: max-content;
+      margin-inline: auto;
+    }
+    #chart-primary-row {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr);
+      margin-inline: auto;
+    }
+    #chart-secondary-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 0.75rem;
+      margin-inline: auto;
     }
     #chart-primary-row {
       display: grid;
@@ -100,6 +114,16 @@
       bottom: 8px;
       width: 12px;
       cursor: col-resize;
+      z-index: 20;
+      background: transparent;
+    }
+    .chart-vresizer {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: -6px;
+      height: 10px;
+      cursor: row-resize;
       z-index: 20;
       background: transparent;
     }
@@ -534,6 +558,7 @@
       analyticsColumnWidths: {},
       analyticsCharts: {},
       analyticsChartWidths: [380, 260, 260],
+      analyticsChartHeights: [360, 260, 260],
       analyticsChartColumns: {
         unitType: null,
         dealStatus: null,
@@ -852,6 +877,7 @@
       analyticsLiens: state.analyticsLiens,
       analyticsColumnWidths: state.analyticsColumnWidths,
       analyticsChartWidths: state.analyticsChartWidths,
+      analyticsChartHeights: state.analyticsChartHeights,
       analyticsChartColumns: state.analyticsChartColumns,
       analyticsLayoutSplit: state.analyticsLayoutSplit
       };
@@ -913,6 +939,7 @@
         if (Array.isArray(config.analyticsLiens) || config.analyticsLiens === null) state.analyticsLiens = config.analyticsLiens;
         if (config.analyticsColumnWidths) state.analyticsColumnWidths = config.analyticsColumnWidths;
         if (Array.isArray(config.analyticsChartWidths)) state.analyticsChartWidths = config.analyticsChartWidths;
+        if (Array.isArray(config.analyticsChartHeights)) state.analyticsChartHeights = config.analyticsChartHeights;
         if (config.analyticsChartColumns) state.analyticsChartColumns = { ...state.analyticsChartColumns, ...config.analyticsChartColumns };
         if (typeof config.analyticsLayoutSplit === 'number') state.analyticsLayoutSplit = config.analyticsLayoutSplit;
       }
@@ -1638,6 +1665,18 @@
       return safe;
     };
 
+    const getNormalizedChartHeights = () => {
+      const fallback = [360, 260, 260];
+      const current = Array.isArray(state.analyticsChartHeights) ? state.analyticsChartHeights.slice(0, 3) : [];
+      while (current.length < 3) current.push(fallback[current.length]);
+      const safe = current.map((h, idx) => {
+        const parsed = Number(h);
+        return Number.isFinite(parsed) ? parsed : fallback[idx];
+      });
+      state.analyticsChartHeights = safe;
+      return safe;
+    };
+
     const ensureAnalyticsChartsShell = () => {
       if (!els.analyticsCharts) return;
       Object.values(state.analyticsCharts || {}).forEach(ch => { try { ch?.destroy(); } catch (e) {} });
@@ -1648,6 +1687,7 @@
           <div id="chart-primary-row">
             <div class="chart-card p-3 relative" data-chart-key="unitType">
               <div class="chart-resizer" data-chart-resizer data-row="primary" data-type="end" style="right:-6px;"></div>
+              <div class="chart-vresizer" data-chart-vresizer data-chart-key="unitType"></div>
               <div class="flex items-center justify-between mb-2">
                 <div>
                   <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-unitType-title"></p>
@@ -1658,7 +1698,7 @@
                   <span id="chart-unitType-count" class="text-[10px] text-slate-400 font-semibold"></span>
                 </div>
               </div>
-              <div class="relative h-52">
+              <div class="relative" id="chart-unitType-container">
                 <canvas id="chart-unitType"></canvas>
                 <p id="chart-unitType-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
               </div>
@@ -1668,6 +1708,7 @@
             ${['dealStatus','dealType'].map((key, idx) => `
               <div class="chart-card p-3 relative" data-chart-key="${key}">
                 ${idx === 1 ? `<div class="chart-resizer" data-chart-resizer data-row="secondary" data-type="end" style="right:-6px;"></div>` : `<div class="chart-resizer" data-chart-resizer data-row="secondary" data-type="split" style="right:-6px;"></div>`}
+                <div class="chart-vresizer" data-chart-vresizer data-chart-key="${key}"></div>
                 <div class="flex items-center justify-between mb-2">
                   <div>
                     <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold" id="chart-${key}-title"></p>
@@ -1678,7 +1719,7 @@
                     <span id="chart-${key}-count" class="text-[10px] text-slate-400 font-semibold"></span>
                   </div>
                 </div>
-                <div class="relative h-44">
+                <div class="relative" id="chart-${key}-container">
                   <canvas id="chart-${key}"></canvas>
                   <p id="chart-${key}-empty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-400">Sin datos</p>
                 </div>
@@ -1690,22 +1731,41 @@
     };
 
     const applyChartWidths = () => {
+      const containerWidth = els.analyticsCharts?.clientWidth || 0;
       const widths = getNormalizedChartWidths();
       const safe = widths.map(w => Math.max(220, w));
+      const clampWidth = (desired, min = 220) => {
+        const minWidth = Math.max(min, desired);
+        if (!containerWidth) return minWidth;
+        const maxAllowed = Math.max(min, containerWidth - 24);
+        return Math.min(minWidth, maxAllowed);
+      };
       const primaryRow = document.getElementById('chart-primary-row');
       if (primaryRow) {
-        const primaryWidth = safe[0];
-        const parentWidth = primaryRow.parentElement?.clientWidth || primaryWidth;
+        const primaryWidth = clampWidth(safe[0], 280);
         primaryRow.style.gridTemplateColumns = `${primaryWidth}px`;
-        primaryRow.style.width = `${Math.max(primaryWidth, parentWidth)}px`;
+        primaryRow.style.width = containerWidth ? `${containerWidth - 8}px` : `${primaryWidth}px`;
       }
       const secondaryRow = document.getElementById('chart-secondary-row');
       if (secondaryRow) {
-        const total = safe[1] + safe[2];
-        const parentWidth = secondaryRow.parentElement?.clientWidth || total;
-        secondaryRow.style.gridTemplateColumns = `${safe[1]}px ${safe[2]}px`;
-        secondaryRow.style.width = `${Math.max(total, parentWidth)}px`;
+        const left = clampWidth(safe[1]);
+        const right = clampWidth(safe[2]);
+        const total = left + right;
+        secondaryRow.style.gridTemplateColumns = `${left}px ${right}px`;
+        secondaryRow.style.width = containerWidth ? `${Math.max(total, containerWidth - 8)}px` : `${total}px`;
       }
+    };
+
+    const applyChartHeights = () => {
+      const heights = getNormalizedChartHeights();
+      const safe = heights.map(h => Math.max(200, h));
+      const setHeight = (key, value) => {
+        const container = document.getElementById(`chart-${key}-container`);
+        if (container) container.style.height = `${value}px`;
+      };
+      setHeight('unitType', safe[0]);
+      setHeight('dealStatus', safe[1]);
+      setHeight('dealType', safe[2]);
     };
 
     const bindChartResizers = () => {
@@ -1749,6 +1809,46 @@
             type,
             startX: e.clientX,
             startWidths: state.analyticsChartWidths.slice()
+          };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', stop);
+        });
+      });
+    };
+
+    const bindChartHeightResizers = () => {
+      const resizers = els.analyticsCharts?.querySelectorAll('[data-chart-vresizer]');
+      if (!resizers) return;
+      getNormalizedChartHeights();
+      let active = null;
+      const onMove = (e) => {
+        if (!active) return;
+        const heights = state.analyticsChartHeights.slice();
+        const dy = e.clientY - active.startY;
+        const idx = active.index;
+        const next = Math.max(200, active.startHeights[idx] + dy);
+        heights[idx] = next;
+        state.analyticsChartHeights = heights;
+        applyChartHeights();
+      };
+      const stop = () => {
+        if (!active) return;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', stop);
+        active = null;
+        savePrefs();
+      };
+      const keyOrder = ['unitType', 'dealStatus', 'dealType'];
+      resizers.forEach(resizer => {
+        resizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const key = resizer.dataset.chartKey;
+          const idx = keyOrder.indexOf(key);
+          if (idx === -1) return;
+          active = {
+            index: idx,
+            startY: e.clientY,
+            startHeights: getNormalizedChartHeights().slice()
           };
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', stop);
@@ -1807,7 +1907,9 @@
     const renderAnalyticsCharts = () => {
       ensureAnalyticsChartsShell();
       applyChartWidths();
+      applyChartHeights();
       bindChartResizers();
+      bindChartHeightResizers();
       if (!els.analyticsCharts) return;
       const rows = getFilteredSortedRows();
 
