@@ -1,1576 +1,1524 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Titles Admin</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc • Titles Admin</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
+  <script type="module" src="../assets/scripts/authManager.js"></script>
+  <script type="module" src="../assets/scripts/admin-auth.js"></script>
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { slate: { 950: '#020617' } },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="../assets/visuals/theme.css" />
+  
+  <style>
+    /* Table Layout Locks */
+    table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    
+    /* Resizer Handles */
+    .resizer {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
+      cursor: col-resize; user-select: none; z-index: 20; touch-action: none;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    th:hover .resizer { opacity: 1; background: rgba(59, 130, 246, 0.3); }
+    .resizer:hover, .resizing .resizer { opacity: 1; background: #3b82f6; }
+    body.resizing { cursor: col-resize !important; user-select: none; }
 
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    /* Editable Input Styling */
+    .cell-input {
+      width: 100%; height: 100%;
+      background: #1e293b; color: #fff;
+      border: 2px solid #3b82f6; border-radius: 0;
+      padding: 3px 6px; outline: none;
+      position: absolute; top: 0; left: 0;
+      font-size: 10px; z-index: 10;
+    }
 
-  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
-  <script type="module" src="../assets/scripts/authManager.js"></script>
-  <script type="module" src="../assets/scripts/admin-auth.js"></script>
+    select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
+    
+    /* Custom Scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { height: 10px; width: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 5px; border: 2px solid #020617; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          colors: { slate: { 950: '#020617' } },
-        },
-      },
-    };
-  </script>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-  <link rel="stylesheet" href="../assets/visuals/theme.css" />
+    /* Text Wrapping Styles */
+    .wrap-2-lines {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: normal;
+        line-height: 1.2;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
 
-  <style>
-    /* Table Layout Locks */
-    table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    /* Analytics resizers */
+    .analytics-resizer {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
+      cursor: col-resize; user-select: none; touch-action: none;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    th:hover .analytics-resizer { opacity: 1; background: rgba(59, 130, 246, 0.3); }
+    .analytics-resizer:hover { opacity: 1; background: #3b82f6; }
+    .analytics-table-resizer {
+      position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+      cursor: ew-resize; background: transparent;
+    }
 
-    /* Resizer Handles */
-    .resizer {
-      position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
-      cursor: col-resize; user-select: none; z-index: 20; touch-action: none;
-      opacity: 0; transition: opacity 0.2s;
-    }
-    th:hover .resizer { opacity: 1; background: rgba(59, 130, 246, 0.3); }
-    .resizer:hover, .resizing .resizer { opacity: 1; background: #3b82f6; }
-    body.resizing { cursor: col-resize !important; user-select: none; }
-
-    /* Editable Input Styling */
-    .cell-input {
-      width: 100%; height: 100%;
-      background: #1e293b; color: #fff;
-      border: 2px solid #3b82f6; border-radius: 0;
-      padding: 3px 6px; outline: none;
-      position: absolute; top: 0; left: 0;
-      font-size: 10px; z-index: 10;
-    }
-
-    select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
-
-    /* Custom Scrollbar */
-    .custom-scrollbar::-webkit-scrollbar { height: 10px; width: 10px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: #020617; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 5px; border: 2px solid #020617; }
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-    /* Text Wrapping Styles */
-    .wrap-2-lines {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: normal;
-      line-height: 1.2;
-      min-width: 0;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-
-    /* Analytics resizers */
-    .analytics-resizer {
-      position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
-      cursor: col-resize; user-select: none; touch-action: none;
-      opacity: 0; transition: opacity 0.2s;
-    }
-    th:hover .analytics-resizer { opacity: 1; background: rgba(59, 130, 246, 0.3); }
-    .analytics-resizer:hover { opacity: 1; background: #3b82f6; }
-    .analytics-table-resizer {
-      position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
-      cursor: ew-resize; background: transparent;
-    }
-
-    /* Responsive table sizing */
-    #main-table { width: 100%; }
-    #table-container { flex: 1 1 auto; min-height: 0; }
-
-    @media (max-width: 1024px) {
-      #table-container { max-height: calc(100vh - 240px); }
-    }
-    @media (max-width: 768px) {
-      #main-table { font-size: 11px; }
-      #table-container { max-height: calc(100vh - 260px); }
-      th, td { padding-left: 6px !important; padding-right: 6px !important; }
-    }
-
-    /* IMPORTANT: avoid “big block” look by keeping outer area transparent.
-       The table area is now inside #table-wrapper max-w-7xl. */
-  </style>
+    /* Responsive table sizing */
+    #table-container,
+    #top-scroller {
+      max-width: 100vw;
+    }
+    #main-table {
+      width: 100%;
+    }
+    @media (max-width: 1024px) {
+      #table-container {
+        max-height: calc(100vh - 240px);
+      }
+    }
+    @media (max-width: 768px) {
+      #main-table {
+        font-size: 11px;
+      }
+      #table-container {
+        max-height: calc(100vh - 260px);
+      }
+      th, td {
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+      }
+    }
+  </style>
 </head>
 
 <body class="min-h-screen w-full overflow-x-hidden flex flex-col bg-slate-950 text-slate-50">
 
-  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
-
-  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">
-    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/40">
-      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-        <div>
-          <p class="text-[10px] uppercase tracking-[0.2em] text-blue-300 font-semibold">Replace values</p>
-          <h3 id="modal-title" class="text-sm font-bold text-white">Column</h3>
-        </div>
-        <button id="modal-close" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg">
-          <i data-lucide="x" class="h-4 w-4"></i>
-        </button>
-      </div>
-      <div class="px-5 py-4 space-y-4">
-        <label class="space-y-1 block">
-          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Find value (leave empty to match all)</span>
-          <input id="modal-find" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Current value">
-        </label>
-        <label class="space-y-1 block">
-          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Replace with (empty becomes null)</span>
-          <input id="modal-replace" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="New value">
-        </label>
-        <div class="flex justify-end gap-2">
-          <button id="modal-cancel" class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800">Cancel</button>
-          <button id="modal-apply" class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg bg-emerald-600 text-white hover:bg-emerald-500">Apply</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="sticky top-0 z-50 space-y-px">
-    <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-      <div class="flex items-center justify-between px-6 py-4 lg:px-10">
-        <a href="../index.html" class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
-          </div>
-          <div>
-            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
-            <h1 class="text-base font-black leading-tight text-white">Title Management</h1>
-          </div>
-        </a>
-
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-            <a href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-            <a href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
-            <a href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
-          </nav>
-
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              <i data-lucide="cloud" class="h-3 w-3"></i>
-              <span id="dataset-status">Connecting…</span>
-            </div>
-            <button id="nav-logout" data-admin-logout="true" type="button" class="rounded-full border border-red-900/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-red-200 transition hover:bg-red-900/20 hover:text-white">Logout</button>
-          </div>
-        </div>
-      </div>
-    </header>
-
-    <nav class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-      <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3 lg:px-10">
-        <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Admin navigation</span>
-        <div class="flex flex-wrap items-center gap-1">
-          <a href="./index.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
-          <a href="./profiles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white" data-admin-only>Profiles</a>
-          <a href="./services.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Services</a>
-          <a href="./titles.html" class="rounded-lg border border-blue-500 bg-blue-600/90 px-4 py-2 text-xs font-semibold text-white shadow shadow-blue-500/30 transition">Titles</a>
-          <a href="./vehicles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
-          <a href="./analytics.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Analytics</a>
-        </div>
-      </div>
-    </nav>
-  </div>
-
-  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10 opacity-70 mix-blend-screen"></canvas>
-
-  <main class="flex-1 flex flex-col min-h-0 relative">
-
-    <!-- Top controls -->
-    <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex flex-wrap items-end gap-2">
-          <div class="w-48 min-w-[200px]">
-            <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 1</label>
-            <input id="search-primary" type="search" placeholder="Primary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-          </div>
-
-          <div class="w-48 min-w-[200px]">
-            <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 2</label>
-            <input id="search-secondary" type="search" placeholder="Secondary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-          </div>
-
-          <div class="w-32">
-            <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Terms</label>
-            <div class="flex mt-1 border border-slate-700 rounded-lg bg-slate-900 overflow-hidden">
-              <select id="terms-operator" class="bg-slate-800 text-blue-400 text-xs font-bold px-2 py-1.5 outline-none border-r border-slate-700">
-                <option value="<">&lt;</option>
-                <option value=">">&gt;</option>
-              </select>
-              <input id="search-terms" type="number" placeholder="#" class="w-full bg-transparent text-xs text-white px-2 outline-none">
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="relative">
-              <button id="download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-slate-900/20">
-                <i data-lucide="download" class="h-3.5 w-3.5"></i> Download
-              </button>
-              <div id="download-menu" class="hidden absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-50">
-                <button id="download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-t-lg">Download CSV</button>
-                <button id="download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-b-lg">Download XLSX</button>
-              </div>
-            </div>
-
-            <button id="add-row-btn" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-emerald-900/20">
-              <i data-lucide="plus" class="h-3.5 w-3.5"></i> Add Row
-            </button>
-
-            <button id="refresh-button" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-              <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
-            </button>
-
-            <div class="relative">
-              <button id="columns-btn" class="flex items-center gap-2 text-xs font-bold text-slate-300 bg-slate-900 border border-slate-700 hover:border-slate-500 px-3 py-1 rounded-lg transition-colors">
-                <i data-lucide="columns-3" class="h-3.5 w-3.5"></i> Columns
-              </button>
-              <div id="columns-popover" class="hidden absolute top-full left-0 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="text-[10px] font-bold uppercase text-slate-500">Toggle Visibility</span>
-                  <div class="flex gap-1">
-                    <button id="cols-all" class="text-[10px] text-blue-400 hover:text-blue-300">All</button>
-                    <span class="text-slate-700">|</span>
-                    <button id="cols-none" class="text-[10px] text-blue-400 hover:text-blue-300">None</button>
-                  </div>
-                </div>
-                <div id="columns-list" class="max-h-48 overflow-y-auto space-y-1 custom-scrollbar"></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-              <button id="prev-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-left" class="h-3.5 w-3.5"></i></button>
-              <span id="page-indicator" class="text-[10px] font-mono text-slate-300 px-1 min-w-[40px] text-center">1/1</span>
-              <button id="next-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ✅ NEW: Centered table wrapper (fixes “giant canvas block” feel) -->
-    <div class="flex-1 min-h-0 px-4 pb-2">
-      <div id="table-wrapper" class="mx-auto w-full max-w-7xl min-h-0 flex flex-col rounded-xl border border-slate-800 bg-slate-950/60 overflow-hidden">
-
-        <!-- ✅ Sheet filter buttons ABOVE the table -->
-        <div class="shrink-0 border-b border-slate-800 bg-slate-950/70 px-3 py-2">
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Sheet</span>
-            <div id="sheet-tabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar mask-fade w-full"></div>
-          </div>
-        </div>
-
-        <!-- Top scroller -->
-        <div id="top-scroller" class="overflow-x-auto custom-scrollbar bg-slate-900/30 border-b border-slate-800 shrink-0 h-3">
-          <div id="top-scroller-content" class="h-px pt-1"></div>
-        </div>
-
-        <!-- Table container -->
-        <div id="table-container" class="flex-1 min-h-0 overflow-auto custom-scrollbar relative bg-slate-950">
-          <table id="main-table" class="min-w-full divide-y divide-slate-800/80">
-            <colgroup id="table-colgroup"></colgroup>
-            <thead id="table-head" class="bg-slate-950 sticky top-0 z-20 shadow-md shadow-black/20"></thead>
-            <tbody id="table-body" class="divide-y divide-slate-800/50 bg-slate-950/20"></tbody>
-          </table>
-
-          <div id="empty-state" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="text-center">
-              <i data-lucide="inbox" class="h-10 w-10 text-slate-700 mx-auto mb-2"></i>
-              <p class="text-slate-500 text-sm">No records found</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
-          <span id="pagination-summary">Ready</span>
-          <span>TechLoc Admin v2.5</span>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Analytics -->
-    <div id="analytics-panel" class="bg-slate-900/60 border-t border-slate-800 px-4 py-4 flex justify-end">
-      <div class="w-full max-w-7xl ml-auto">
-        <div class="flex items-center justify-between mb-3 gap-3">
-          <div>
-            <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
-            <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
-          </div>
-          <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-            <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
-            <div class="relative">
-              <select id="analytics-sort" class="appearance-none bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-3 py-1.5 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
-                <option value="total-asc">Row total ↑</option>
-                <option value="total-desc">Row total ↓</option>
-              </select>
-              <i data-lucide="chevron-down" class="h-3 w-3 text-slate-400 absolute right-2 top-2.5 pointer-events-none"></i>
-            </div>
-          </div>
-        </div>
-        <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-[80vh]"></div>
-      </div>
-    </div>
-
-  </main>
-
-  <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
-    import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
-    import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
-
-    const READ_TABLE = 'Titles';
-    const PRIMARY_KEY = 'UID';
-    const CONFIG_TABLE = 'user_table_configs';
-
-    const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
-      ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-          auth: { persistSession: true, autoRefreshToken: true },
-        })
-      : null);
-
-    const DEFAULT_LABELS = {
-      'account status': 'Vehicle Status',
-      'account_status': 'Vehicle Status'
-    };
-
-    const els = {
-      status: document.getElementById('dataset-status'),
-      searchPrimary: document.getElementById('search-primary'),
-      searchSecondary: document.getElementById('search-secondary'),
-      searchTerms: document.getElementById('search-terms'),
-      termsOperator: document.getElementById('terms-operator'),
-      sheetTabs: document.getElementById('sheet-tabs'),
-
-      paginationSummary: document.getElementById('pagination-summary'),
-      prevPage: document.getElementById('prev-page'),
-      nextPage: document.getElementById('next-page'),
-      pageIndicator: document.getElementById('page-indicator'),
-      refresh: document.getElementById('refresh-button'),
-      addRowBtn: document.getElementById('add-row-btn'),
-
-      colgroup: document.getElementById('table-colgroup'),
-      thead: document.getElementById('table-head'),
-      tbody: document.getElementById('table-body'),
-      tableContainer: document.getElementById('table-container'),
-      topScroller: document.getElementById('top-scroller'),
-      topScrollerContent: document.getElementById('top-scroller-content'),
-      mainTable: document.getElementById('main-table'),
-
-      columnsBtn: document.getElementById('columns-btn'),
-      columnsPopover: document.getElementById('columns-popover'),
-      columnsList: document.getElementById('columns-list'),
-      colsAll: document.getElementById('cols-all'),
-      colsNone: document.getElementById('cols-none'),
-
-      toastContainer: document.getElementById('toast-container'),
-      emptyState: document.getElementById('empty-state'),
-
-      analyticsContent: document.getElementById('analytics-content'),
-      analyticsSort: document.getElementById('analytics-sort'),
-
-      downloadBtn: document.getElementById('download-btn'),
-      downloadMenu: document.getElementById('download-menu'),
-      downloadCsv: document.getElementById('download-csv'),
-      downloadXlsx: document.getElementById('download-xlsx'),
-
-      modalOverlay: document.getElementById('modal-overlay'),
-      modalTitle: document.getElementById('modal-title'),
-      modalFind: document.getElementById('modal-find'),
-      modalReplace: document.getElementById('modal-replace'),
-      modalApply: document.getElementById('modal-apply'),
-      modalCancel: document.getElementById('modal-cancel'),
-      modalClose: document.getElementById('modal-close')
-    };
-
-    const state = {
-      user_id: null,
-      rows: [],
-      columns: [],
-      columnLabels: {},
-      columnOrder: [],
-      columnVisibility: {},
-      columnWidths: {},
-      columnFilters: {},
-      pagination: { page: 1, pageSize: 50 },
-      sort: { column: null, direction: 'none' },
-      search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' },
-      isDragging: false, dragSourceIndex: null,
-      isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
-      filterCols1: [], filterCols2: [], filterCols3: [],
-      analytics: { sort: 'total-desc', colWidth: 110, tableWidth: 70, selectedLocations: [], locationWidth: 160 },
-      replaceContext: { colId: null, label: '' }
-    };
-
-    const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
-    const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
-    let columnMenus = [];
-
-    const closeColumnMenus = (except = null) => {
-      columnMenus.forEach(menu => { if (menu !== except) menu.classList.add('hidden'); });
-    };
-
-    const showToast = (message, type = 'info') => {
-      const toast = document.createElement('div');
-      const colors = type === 'error'
-        ? 'bg-red-900/90 border-red-500 text-red-100'
-        : 'bg-slate-800/90 border-blue-500 text-blue-100';
-      toast.className = `px-4 py-2 rounded-lg border shadow-xl text-xs font-bold backdrop-blur transform transition-all duration-300 translate-y-4 opacity-0 ${colors}`;
-      toast.textContent = message;
-      els.toastContainer.appendChild(toast);
-      requestAnimationFrame(() => toast.classList.remove('translate-y-4', 'opacity-0'));
-      setTimeout(() => {
-        toast.classList.add('translate-y-4', 'opacity-0');
-        setTimeout(() => toast.remove(), 300);
-      }, 2500);
-    };
-
-    const syncScrollbars = () => {
-      let isSyncingTop = false;
-      let isSyncingTable = false;
-      els.topScroller.addEventListener('scroll', () => {
-        if (!isSyncingTable) { isSyncingTop = true; els.tableContainer.scrollLeft = els.topScroller.scrollLeft; }
-        isSyncingTable = false;
-      });
-      els.tableContainer.addEventListener('scroll', () => {
-        if (!isSyncingTop) { isSyncingTable = true; els.topScroller.scrollLeft = els.tableContainer.scrollLeft; }
-        isSyncingTop = false;
-      });
-    };
-
-    const updateScrollWidths = () => {
-      if (els.mainTable && els.topScrollerContent) {
-        els.topScrollerContent.style.width = els.mainTable.scrollWidth + 'px';
-      }
-    };
-
-    // ✅ Sheet ordering: Trucks/Trailers first
-    const sheetPriority = (name = '') => {
-      const s = String(name || '').toLowerCase();
-      if (/(truck|tractor|semi|heavy|commercial)/.test(s)) return 0;
-      if (/(trailer|trailers)/.test(s)) return 1;
-      if (/(sedan|suv|van|pickup|car|cars)/.test(s)) return 2;
-      return 3;
-    };
-
-    const populateSheetFilter = (rows) => {
-      const currentScroll = els.sheetTabs.scrollLeft;
-      const sheets = new Set();
-      rows.forEach(r => {
-        if (r['Sheet']) sheets.add(r['Sheet']);
-        if (r['sheet']) sheets.add(r['sheet']);
-      });
-
-      const sortedSheets = Array.from(sheets).sort((a, b) => {
-        const pa = sheetPriority(a);
-        const pb = sheetPriority(b);
-        if (pa !== pb) return pa - pb;
-        return String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
-      });
-
-      els.sheetTabs.innerHTML = '';
-
-      const createTab = (label, value) => {
-        const btn = document.createElement('button');
-        const isActive = state.search.sheet === value;
-        const baseClass = "shrink-0 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap";
-        const activeClass = "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/40 transform scale-105";
-        const inactiveClass = "bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-500";
-        btn.className = `${baseClass} ${isActive ? activeClass : inactiveClass}`;
-        btn.textContent = label || 'Unknown';
-        btn.onclick = () => {
-          state.search.sheet = value;
-          state.pagination.page = 1;
-          savePrefs();
-          renderTable();
-          populateSheetFilter(state.rows);
-        };
-        return btn;
-      };
-
-      els.sheetTabs.appendChild(createTab('All Sheets', ''));
-      sortedSheets.forEach(sheet => els.sheetTabs.appendChild(createTab(sheet, sheet)));
-
-      requestAnimationFrame(() => { els.sheetTabs.scrollLeft = currentScroll; });
-    };
-
-    const cleanLeadingPrefix = (value, removeEnDash = false) => {
-      if (typeof value !== 'string') return value;
-      let cleaned = value;
-      if (removeEnDash) cleaned = cleaned.replace(/^[-–—]\s*/, '');
-      cleaned = cleaned.replace(/^[\d\s-]+/, '');
-      return cleaned;
-    };
-
-    const sanitizeForColumn = (colId, value) => {
-      if (typeof value !== 'string') return value;
-      if (colId === 'Prep Status' || colId === 'prep_status') return cleanLeadingPrefix(value, true);
-      if (colId === 'Location' || colId === 'location') return cleanLeadingPrefix(value);
-      return value;
-    };
-
-    const findColumnId = (candidates = []) => {
-      const normalized = candidates.map(c => c.toLowerCase());
-      const normalizeId = (id = '') => id.replace(/_/g, ' ').toLowerCase();
-      const match = state.columns.find(c => normalized.includes(normalizeId(c.id)));
-      return match ? match.id : null;
-    };
-
-    const getFilteredSortedRows = () => {
-      let rows = state.rows;
-      const t1 = state.search.primary.trim().toLowerCase();
-      const t2 = state.search.secondary.trim().toLowerCase();
-      const t3_raw = state.search.terms;
-      const t3_op = state.search.termsOperator;
-      const sheet = state.search.sheet;
-
-      rows = rows.filter(row => {
-        const matches1 = !t1 || (state.filterCols1.length ? state.filterCols1.some(k => String(row[k]||'').toLowerCase().includes(t1)) : Object.values(row).some(v => String(v).toLowerCase().includes(t1)));
-        const matches2 = !t2 || (state.filterCols2.length ? state.filterCols2.some(k => String(row[k]||'').toLowerCase().includes(t2)) : true);
-
-        let matches3 = true;
-        if (t3_raw) {
-          const termCol = state.filterCols3[0];
-          if (termCol) {
-            const cellVal = parseFloat(row[termCol]);
-            const searchVal = parseFloat(t3_raw);
-            if (isNaN(cellVal)) matches3 = false;
-            else if (!isNaN(searchVal)) matches3 = t3_op === '<' ? cellVal < searchVal : cellVal > searchVal;
-          }
-        }
-
-        const matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
-
-        const menuFilters = Object.entries(state.columnFilters || {});
-        const matchesMenuFilters = menuFilters.every(([colId, value]) => {
-          if (value === undefined || value === null || value === '') return true;
-          const cellVal = row[colId];
-          return String(cellVal ?? '').toLowerCase().includes(String(value).toLowerCase());
-        });
-
-        return matches1 && matches2 && matches3 && matchesSheet && matchesMenuFilters;
-      });
-
-      if (state.sort.column && state.sort.direction !== 'none') {
-        const { column, direction } = state.sort;
-        const normalizeText = (value) => {
-          if (value === null || value === undefined) return '';
-          if (typeof value === 'string') return value.trim().toLowerCase();
-          return String(value).trim().toLowerCase();
-        };
-        rows = [...rows].sort((a, b) => {
-          const valA = a[column];
-          const valB = b[column];
-          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
-          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
-          const textA = normalizeText(valA);
-          const textB = normalizeText(valB);
-          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
-          return direction === 'asc' ? result : -result;
-        });
-      }
-
-      return rows;
-    };
-
-    const renderCellContent = (td, val) => {
-      td.innerHTML = '';
-      const wrapper = document.createElement('div');
-      wrapper.className = 'wrap-2-lines px-1 text-[10px]';
-      wrapper.title = (val === null || val === undefined) ? '' : String(val);
-      wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
-      td.appendChild(wrapper);
-    };
-
-    // ✅ FIX: cell edits not saving reliably (isSaving stuck + early returns after render)
-    const editCell = (td, rowId, colId, originalValue) => {
-      if (state.isResizing || state.isDragging) return;
-      if (td.querySelector('input')) return;
-      if (typeof originalValue === 'object' && originalValue !== null) return;
-
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = originalValue === null ? '' : originalValue;
-      input.className = 'cell-input';
-
-      td.textContent = '';
-      td.appendChild(input);
-      input.focus();
-
-      let isSaving = false;
-
-      const cancel = () => {
-        renderCellContent(td, originalValue);
-        isSaving = false;
-      };
-
-      const save = async () => {
-        if (isSaving) return;
-        isSaving = true;
-
-        try {
-          let newValue = input.value;
-          if (typeof newValue === 'string') newValue = newValue.trim();
-          newValue = sanitizeForColumn(colId, newValue);
-
-          const payloadValue = (newValue === '' ? null : newValue);
-          const origNorm = (originalValue === null || originalValue === undefined) ? null : String(originalValue).trim();
-          const nextNorm = (payloadValue === null || payloadValue === undefined) ? null : String(payloadValue).trim();
-
-          // If no change, just restore display (and do NOT leave isSaving stuck)
-          if (origNorm === nextNorm) {
-            renderCellContent(td, originalValue);
-            return;
-          }
-
-          // Optimistic UI update
-          renderCellContent(td, payloadValue);
-
-          // Update local state
-          const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
-          if (row) row[colId] = payloadValue;
-
-          // Remote save
-          if (supabaseClient) {
-            const { error } = await supabaseClient
-              .from(READ_TABLE)
-              .update({ [colId]: payloadValue })
-              .eq(PRIMARY_KEY, rowId);
-
-            if (error) {
-              showToast('Save failed', 'error');
-              // rollback
-              renderCellContent(td, originalValue);
-              if (row) row[colId] = originalValue;
-              return;
-            }
-          }
-
-          showToast('Saved', 'info');
-          // Update the baseline for next edit session
-          originalValue = payloadValue;
-        } catch (err) {
-          console.error(err);
-          showToast('Save failed', 'error');
-          renderCellContent(td, originalValue);
-        } finally {
-          isSaving = false;
-        }
-      };
-
-      input.addEventListener('blur', save);
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-        else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-      });
-    };
-
-    const savePrefs = async () => {
-      const config = {
-        columnOrder: state.columnOrder,
-        columnVisibility: state.columnVisibility,
-        columnWidths: state.columnWidths,
-        columnLabels: state.columnLabels,
-        columnFilters: state.columnFilters,
-        pagination: state.pagination,
-        sort: state.sort,
-        search: state.search,
-        analytics: state.analytics
-      };
-
-      localStorage.setItem(`local_${READ_TABLE}_prefs`, JSON.stringify(config));
-
-      if (supabaseClient && state.user_id) {
-        await supabaseClient.from(CONFIG_TABLE).upsert(
-          { user_id: state.user_id, table_name: READ_TABLE, config: config },
-          { onConflict: 'user_id, table_name' }
-        );
-      }
-    };
-
-    const loadPrefs = async () => {
-      let config = null;
-
-      if (supabaseClient) {
-        const { data: { user } } = await supabaseClient.auth.getUser();
-        if (user) {
-          state.user_id = user.id;
-          const { data } = await supabaseClient
-            .from(CONFIG_TABLE)
-            .select('config')
-            .eq('user_id', user.id)
-            .eq('table_name', READ_TABLE)
-            .maybeSingle();
-          if (data && data.config) config = data.config;
-        }
-      }
-
-      if (!config) {
-        try { config = JSON.parse(localStorage.getItem(`local_${READ_TABLE}_prefs`)); } catch (e) {}
-      }
-
-      if (config) {
-        if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
-        if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
-        if (config.columnWidths) state.columnWidths = config.columnWidths;
-        if (config.columnLabels) state.columnLabels = config.columnLabels;
-        if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
-        if (config.sort) state.sort = config.sort;
-        if (config.columnFilters) state.columnFilters = config.columnFilters;
-        if (config.search) {
-          state.search = { ...state.search, ...config.search };
-          if (els.searchPrimary) els.searchPrimary.value = state.search.primary || '';
-          if (els.searchSecondary) els.searchSecondary.value = state.search.secondary || '';
-          if (els.searchTerms) els.searchTerms.value = state.search.terms || '';
-          if (els.termsOperator) els.termsOperator.value = state.search.termsOperator || '<';
-        }
-        if (config.analytics) {
-          state.analytics = { ...state.analytics, ...config.analytics };
-          if (els.analyticsSort) els.analyticsSort.value = state.analytics.sort || 'total-desc';
-        }
-      }
-    };
-
-    const inferColumns = (rows = []) => {
-      const keys = new Set();
-      rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
-      const uniqueKeys = Array.from(keys);
-
-      state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
-      state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
-      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k));
-
-      if (uniqueKeys.length > 0) {
-        state.columns = uniqueKeys.sort().map(key => {
-          const normalizedKey = key.toLowerCase();
-          const defaultLabel = DEFAULT_LABELS[normalizedKey];
-          const label = state.columnLabels[key] || defaultLabel || labelize(key);
-          if (defaultLabel && !state.columnLabels[key]) state.columnLabels[key] = defaultLabel;
-          return { id: key, label };
-        });
-      } else {
-        const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
-        state.columns = defaults.map(id => ({ id, label: state.columnLabels[id] || labelize(id) }));
-      }
-
-      const known = new Set(state.columns.map(c => c.id));
-      if (!state.columnOrder.length || state.columnOrder.length < 2) {
-        state.columnOrder = state.columns.map(c => c.id);
-      } else {
-        state.columnOrder = state.columnOrder.filter(c => known.has(c));
-        state.columns.forEach(c => {
-          if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
-          if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
-        });
-      }
-    };
-
-    const getVisibleColumns = () => state.columnOrder
-      .map(id => state.columns.find(c => c.id === id))
-      .filter(Boolean)
-      .filter(c => state.columnVisibility[c.id] !== false);
-
-    const initResize = (e, colId) => {
-      e.stopPropagation(); e.preventDefault();
-      state.isResizing = true; state.resizeColId = colId; state.resizeStartX = e.pageX;
-      const colEl = document.getElementById(cleanId(colId));
-      state.resizeStartWidth = colEl ? colEl.offsetWidth : 150;
-      document.body.classList.add('resizing');
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeUp);
-    };
-
-    const handleResizeMove = (e) => {
-      if (!state.isResizing) return;
-      const diff = e.pageX - state.resizeStartX;
-      const newWidth = Math.max(50, state.resizeStartWidth + diff);
-      state.columnWidths[state.resizeColId] = newWidth;
-      const colEl = document.getElementById(cleanId(state.resizeColId));
-      if (colEl) colEl.style.width = `${newWidth}px`;
-      updateScrollWidths();
-    };
-
-    const handleResizeUp = () => {
-      state.isResizing = false;
-      document.body.classList.remove('resizing');
-      document.removeEventListener('mousemove', handleResizeMove);
-      document.removeEventListener('mouseup', handleResizeUp);
-      savePrefs();
-    };
-
-    const handleDragStart = (e, colId) => {
-      if (state.isResizing) { e.preventDefault(); return; }
-      state.isDragging = true;
-      state.dragSourceIndex = state.columnOrder.indexOf(colId);
-      e.dataTransfer.effectAllowed = 'move';
-      e.target.closest('th')?.classList.add('opacity-50');
-    };
-
-    const handleDragOver = (e) => {
-      if (state.isDragging) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
-    };
-
-    const handleDrop = (e, targetColId) => {
-      e.stopPropagation();
-      e.target.closest('th')?.classList.remove('opacity-50');
-      state.isDragging = false;
-      const sourceIdx = state.dragSourceIndex;
-      const targetIdx = state.columnOrder.indexOf(targetColId);
-      if (sourceIdx !== targetIdx && sourceIdx > -1 && targetIdx > -1) {
-        const [moved] = state.columnOrder.splice(sourceIdx, 1);
-        state.columnOrder.splice(targetIdx, 0, moved);
-        savePrefs();
-        renderTable();
-      }
-    };
-
-    const renderTable = (options = {}) => {
-      const { keepFilterOpen = null } = options;
-      columnMenus = [];
-      const visible = getVisibleColumns();
-      els.colgroup.innerHTML = '';
-
-      // delete column
-      const deleteCol = document.createElement('col');
-      deleteCol.style.width = '40px';
-      els.colgroup.appendChild(deleteCol);
-
-      visible.forEach(col => {
-        const colEl = document.createElement('col');
-        colEl.id = cleanId(col.id);
-        colEl.style.width = `${state.columnWidths[col.id] || 150}px`;
-        els.colgroup.appendChild(colEl);
-      });
-
-      const rows = getFilteredSortedRows();
-      const total = rows.length;
-      const { page, pageSize } = state.pagination;
-      const maxPage = Math.max(1, Math.ceil(total / pageSize));
-      state.pagination.page = Math.min(page, maxPage);
-      const startIdx = (state.pagination.page - 1) * pageSize;
-      const pageRows = rows.slice(startIdx, startIdx + pageSize);
-
-      // HEAD
-      els.thead.innerHTML = '';
-      const headRow = document.createElement('tr');
-
-      const thDel = document.createElement('th');
-      thDel.className = 'w-[40px] border-b border-slate-700 bg-slate-900';
-      headRow.appendChild(thDel);
-
-      visible.forEach(col => {
-        const th = document.createElement('th');
-        th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none py-1 px-2 border-b border-slate-700 hover:bg-slate-900 transition-colors relative group';
-        th.draggable = true;
-        th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
-        th.addEventListener('dragover', handleDragOver);
-        th.addEventListener('drop', (e) => handleDrop(e, col.id));
-
-        const content = document.createElement('div');
-        content.className = 'flex items-center gap-2 w-full h-full';
-
-        const span = document.createElement('span');
-        span.className = 'wrap-2-lines flex-1 cursor-text';
-        span.textContent = col.label;
-        content.appendChild(span);
-
-        // menu wrapper (kept same behavior, minimal)
-        const menuWrapper = document.createElement('div');
-        menuWrapper.className = 'relative shrink-0';
-
-        const menuTrigger = document.createElement('button');
-        const isSorted = state.sort.column === col.id && state.sort.direction !== 'none';
-        const hasFilter = !!state.columnFilters[col.id];
-        menuTrigger.className = 'p-1 hover:bg-slate-700 rounded transition-colors shrink-0';
-        const triggerIcon = document.createElement('i');
-        triggerIcon.setAttribute('data-lucide', 'list-filter');
-        triggerIcon.className = `h-3 w-3 ${isSorted || hasFilter ? 'text-blue-400' : 'text-slate-600'}`;
-        menuTrigger.appendChild(triggerIcon);
-        menuTrigger.dataset.columnMenuTrigger = 'true';
-
-        const menu = document.createElement('div');
-        menu.className = 'absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-slate-800 bg-slate-900 shadow-xl hidden z-50';
-
-        const filterSection = document.createElement('div');
-        filterSection.className = 'px-3 py-2 border-b border-slate-800/80 space-y-2';
-
-        const filterTitle = document.createElement('p');
-        filterTitle.className = 'text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500';
-        filterTitle.textContent = 'Filter this column';
-        filterSection.appendChild(filterTitle);
-
-        const filterField = document.createElement('div');
-        filterField.className = 'relative';
-
-        const filterIcon = document.createElement('i');
-        filterIcon.setAttribute('data-lucide', 'search');
-        filterIcon.className = 'absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500';
-
-        const filterInput = document.createElement('input');
-        filterInput.type = 'search';
-        filterInput.placeholder = `Search ${col.label}`;
-        filterInput.value = state.columnFilters[col.id] || '';
-        filterInput.className = 'w-full bg-slate-800 border border-slate-700 rounded-md py-1.5 pl-8 pr-2 text-[11px] text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none';
-
-        filterField.appendChild(filterIcon);
-        filterField.appendChild(filterInput);
-        filterSection.appendChild(filterField);
-
-        const filterActions = document.createElement('div');
-        filterActions.className = 'flex items-center justify-end gap-2';
-
-        const clearFilterBtn = document.createElement('button');
-        clearFilterBtn.dataset.action = 'clear-filter';
-        clearFilterBtn.className = `text-[10px] font-semibold px-2 py-1 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white ${hasFilter ? '' : 'opacity-50 cursor-not-allowed'}`;
-        clearFilterBtn.textContent = 'Clear';
-
-        const applyFilterBtn = document.createElement('button');
-        applyFilterBtn.dataset.action = 'apply-filter';
-        applyFilterBtn.className = 'text-[10px] font-semibold px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-500';
-        applyFilterBtn.textContent = 'Apply';
-
-        filterActions.appendChild(clearFilterBtn);
-        filterActions.appendChild(applyFilterBtn);
-        filterSection.appendChild(filterActions);
-
-        const sortSection = document.createElement('div');
-        sortSection.className = 'py-1';
-        sortSection.innerHTML = `
-          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-asc">
-            <i data-lucide="chevron-up" class="h-3.5 w-3.5"></i> Sort A → Z
-          </button>
-          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-desc">
-            <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i> Sort Z → A
-          </button>
-          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="clear-sort">
-            <i data-lucide="x" class="h-3.5 w-3.5"></i> Clear sort
-          </button>
-        `;
-
-        const replaceSection = document.createElement('div');
-        replaceSection.className = 'py-1 border-t border-slate-800/70';
-        replaceSection.innerHTML = `
-          <button class="w-full text-left text-xs text-amber-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="replace-values">
-            <i data-lucide="replace" class="h-3.5 w-3.5"></i> Replace values
-          </button>
-        `;
-
-        menu.appendChild(filterSection);
-        menu.appendChild(sortSection);
-        menu.appendChild(replaceSection);
-
-        const applyFilter = (keepOpen = false) => {
-          const trimmed = filterInput.value.trim();
-          if (!trimmed) delete state.columnFilters[col.id];
-          else state.columnFilters[col.id] = trimmed;
-          state.pagination.page = 1;
-          savePrefs();
-          renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
-        };
-
-        const clearFilter = (keepOpen = false) => {
-          delete state.columnFilters[col.id];
-          filterInput.value = '';
-          state.pagination.page = 1;
-          savePrefs();
-          renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
-        };
-
-        const replaceColumnValues = () => {
-          state.replaceContext = { colId: col.id, label: col.label };
-          if (els.modalTitle) els.modalTitle.textContent = `Replace values in "${col.label}"`;
-          if (els.modalFind) els.modalFind.value = '';
-          if (els.modalReplace) els.modalReplace.value = '';
-          els.modalOverlay?.classList.remove('hidden');
-        };
-
-        let filterDebounce;
-        const handleMenuAction = (action) => {
-          if (action === 'sort-asc') { state.sort = { column: col.id, direction: 'asc' }; savePrefs(); renderTable(); }
-          else if (action === 'sort-desc') { state.sort = { column: col.id, direction: 'desc' }; savePrefs(); renderTable(); }
-          else if (action === 'clear-sort') { state.sort = { column: null, direction: 'none' }; savePrefs(); renderTable(); }
-          else if (action === 'apply-filter') { applyFilter(true); }
-          else if (action === 'clear-filter') { clearFilter(true); }
-          else if (action === 'replace-values') { replaceColumnValues(); }
-        };
-
-        filterInput.addEventListener('input', () => {
-          clearTimeout(filterDebounce);
-          filterDebounce = setTimeout(() => applyFilter(true), 200);
-        });
-
-        filterInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') { applyFilter(true); closeColumnMenus(); }
-          if (e.key === 'Escape') { closeColumnMenus(); }
-        });
-
-        menu.addEventListener('click', (e) => {
-          const btn = e.target.closest('button[data-action]');
-          if (!btn) return;
-          e.stopPropagation();
-          handleMenuAction(btn.dataset.action);
-          closeColumnMenus();
-        });
-
-        menuWrapper.appendChild(menuTrigger);
-        menuWrapper.appendChild(menu);
-        content.appendChild(menuWrapper);
-        columnMenus.push(menu);
-
-        menuTrigger.addEventListener('click', (e) => {
-          e.stopPropagation();
-          closeColumnMenus(menu);
-          menu.classList.toggle('hidden');
-        });
-
-        if (keepFilterOpen === col.id) {
-          menu.classList.remove('hidden');
-          requestAnimationFrame(() => {
-            filterInput?.focus({ preventScroll: true });
-            const len = filterInput?.value.length || 0;
-            if (len > -1 && filterInput.setSelectionRange) filterInput.setSelectionRange(len, len);
-          });
-        }
-
-        th.appendChild(content);
-
-        const resizer = document.createElement('div');
-        resizer.className = 'resizer';
-        resizer.addEventListener('mousedown', (e) => initResize(e, col.id));
-        th.appendChild(resizer);
-
-        headRow.appendChild(th);
-      });
-
-      els.thead.appendChild(headRow);
-
-      // BODY
-      els.tbody.innerHTML = '';
-      if (pageRows.length === 0) {
-        els.emptyState.classList.remove('hidden');
-      } else {
-        els.emptyState.classList.add('hidden');
-        pageRows.forEach(row => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-blue-900/10 group transition-colors';
-
-          const tdDel = document.createElement('td');
-          tdDel.className = 'border-r border-slate-800/50 border-b border-slate-800/50 text-center align-middle';
-          const delBtn = document.createElement('button');
-          delBtn.className = 'text-slate-600 hover:text-red-500 transition-colors p-1';
-          delBtn.innerHTML = '<i data-lucide="trash-2" class="h-3.5 w-3.5"></i>';
-          delBtn.onclick = () => deleteRow(row[PRIMARY_KEY], delBtn);
-          tdDel.appendChild(delBtn);
-          tr.appendChild(tdDel);
-
-          visible.forEach(col => {
-            const td = document.createElement('td');
-            td.className = 'text-[10px] text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-7 align-middle relative';
-            let val = row[col.id];
-            val = sanitizeForColumn(col.id, val);
-
-            renderCellContent(td, val);
-
-            td.addEventListener('dblclick', () => {
-              if (col.id === 'created_at' || col.id === 'updated_at' || col.id === PRIMARY_KEY) { showToast('Read-only', 'info'); return; }
-              editCell(td, row[PRIMARY_KEY], col.id, val);
-            });
-
-            tr.appendChild(td);
-          });
-
-          els.tbody.appendChild(tr);
-        });
-      }
-
-      const start = total === 0 ? 0 : startIdx + 1;
-      const end = Math.min(startIdx + pageRows.length, total);
-
-      els.paginationSummary.textContent = `${start}-${end} of ${total} records`;
-      els.pageIndicator.textContent = `${state.pagination.page}/${maxPage}`;
-      els.prevPage.disabled = state.pagination.page <= 1;
-      els.nextPage.disabled = state.pagination.page >= maxPage;
-
-      updateScrollWidths();
-      if (window.lucide) lucide.createIcons();
-      renderAnalytics();
-    };
-
-    const updateColumnsList = () => {
-      els.columnsList.innerHTML = '';
-      state.columns.forEach(col => {
-        const label = document.createElement('label');
-        label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-slate-900 rounded cursor-pointer';
-        label.innerHTML = `<span class="text-xs text-slate-300 truncate">${col.label}</span>`;
-
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.className = 'h-3.5 w-3.5 accent-blue-600 rounded bg-slate-800 border-slate-600';
-        input.checked = state.columnVisibility[col.id] !== false;
-
-        input.addEventListener('change', () => {
-          state.columnVisibility[col.id] = input.checked;
-          savePrefs();
-          renderTable();
-        });
-
-        label.appendChild(input);
-        els.columnsList.appendChild(label);
-      });
-    };
-
-    const prepareExport = () => {
-      const visible = getVisibleColumns();
-      const headers = visible.map(col => col.label);
-      const rows = getFilteredSortedRows().map(row =>
-        visible.map(col => {
-          const val = sanitizeForColumn(col.id, row[col.id]);
-          if (val === null || val === undefined) return '';
-          return String(val);
-        })
-      );
-      return { headers, rows };
-    };
-
-    const downloadData = (format = 'csv') => {
-      const { headers, rows } = prepareExport();
-      const allRows = [headers, ...rows];
-      const csvContent = allRows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-      const mime = format === 'xlsx' ? 'application/vnd.ms-excel' : 'text/csv';
-      const extension = format === 'xlsx' ? 'xlsx' : 'csv';
-      const blob = new Blob([csvContent], { type: mime });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `titles-export.${extension}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      els.downloadMenu?.classList.add('hidden');
-    };
-
-    // --- Delete row (kept) ---
-    const deleteRow = async (rowId, btn) => {
-      if (!confirm('Are you sure you want to delete this row? This cannot be undone.')) return;
-
-      const tr = btn.closest('tr');
-      tr.style.opacity = '0.5';
-
-      if (supabaseClient) {
-        const { error } = await supabaseClient.from(READ_TABLE).delete().eq(PRIMARY_KEY, rowId);
-        if (error) {
-          showToast('Error deleting row', 'error');
-          tr.style.opacity = '1';
-          return;
-        }
-      }
-
-      state.rows = state.rows.filter(r => r[PRIMARY_KEY] !== rowId);
-      renderTable();
-      showToast('Row deleted', 'info');
-    };
-
-    // --- Add row (kept) ---
-    const addNewRow = async () => {
-      if (!supabaseClient) { showToast('Offline: Cannot add rows', 'error'); return; }
-      const originalText = els.addRowBtn.innerHTML;
-      els.addRowBtn.disabled = true;
-      els.addRowBtn.innerHTML = `<i data-lucide="loader-2" class="h-3 w-3 animate-spin"></i>`;
-      if (window.lucide) lucide.createIcons();
-
-      try {
-        const { data, error } = await supabaseClient.from(READ_TABLE).insert({}).select().single();
-        if (error) throw error;
-        state.rows.unshift(data);
-        state.pagination.page = 1;
-        renderTable();
-        populateSheetFilter(state.rows);
-        showToast('Row added', 'info');
-        els.tableContainer.scrollTop = 0;
-      } catch (err) {
-        console.error(err);
-        showToast('Error creating row', 'error');
-      } finally {
-        els.addRowBtn.disabled = false;
-        els.addRowBtn.innerHTML = originalText;
-        if (window.lucide) lucide.createIcons();
-      }
-    };
-
-    // ✅ Analytics: ensure Trucks/Trailers group tables appear first
-    const groupPriority = (name = '') => sheetPriority(name);
-
-    const renderAnalytics = () => {
-      if (!els.analyticsContent) return;
-
-      const locationCol = findColumnId(['location']);
-      const lienCol = findColumnId(['lien status', 'lien_status', 'lienstatus', 'status']);
-      const unitTypeCol = findColumnId(['unit type', 'unit_type', 'unittype']);
-
-      if (!locationCol || !lienCol) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">Location or Lien status columns not found.</p>';
-        return;
-      }
-
-      const rows = getFilteredSortedRows();
-      const allLocationSet = new Set();
-      const lienSet = new Set();
-
-      const selectedLocations = new Set(state.analytics.selectedLocations || []);
-      const hasSelectedLocations = selectedLocations.size > 0;
-
-      rows.forEach(row => {
-        const rawLocation = row[locationCol];
-        const rawLien = row[lienCol];
-        const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
-        const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
-        allLocationSet.add(locationVal);
-        lienSet.add(lienVal);
-      });
-
-      const allLocations = Array.from(allLocationSet).sort((a, b) => a.localeCompare(b));
-      const liens = Array.from(lienSet).sort((a, b) => a.localeCompare(b));
-
-      if (allLocations.length === 0 || liens.length === 0) {
-        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
-        return;
-      }
-
-      const groups = new Map();
-      rows.forEach(row => {
-        const unitVal = unitTypeCol ? (row[unitTypeCol] || 'Unspecified') : 'All Units';
-        const rawLocation = row[locationCol];
-        const rawLien = row[lienCol];
-        const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
-        const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
-
-        if (hasSelectedLocations && !selectedLocations.has(locationVal)) return;
-
-        if (!groups.has(unitVal)) groups.set(unitVal, []);
-        groups.get(unitVal).push({ locationVal, lienVal });
-      });
-
-      const renderGroupTable = (groupName, entries) => {
-        const locationSet = new Set();
-        const pivot = new Map();
-
-        entries.forEach(({ locationVal, lienVal }) => {
-          locationSet.add(locationVal);
-          const key = `${locationVal}|||${lienVal}`;
-          pivot.set(key, (pivot.get(key) || 0) + 1);
-        });
-
-        const locations = Array.from(locationSet);
-        if (locations.length === 0) return '';
-
-        const rowTotals = new Map();
-        const colTotals = new Map();
-        let grandTotal = 0;
-
-        locations.forEach(loc => {
-          liens.forEach(lien => {
-            const key = `${loc}|||${lien}`;
-            const count = pivot.get(key) || 0;
-            rowTotals.set(loc, (rowTotals.get(loc) || 0) + count);
-            colTotals.set(lien, (colTotals.get(lien) || 0) + count);
-            grandTotal += count;
-          });
-        });
-
-        const sortMode = state.analytics.sort;
-        locations.sort((a, b) => {
-          if (sortMode === 'total-asc') return (rowTotals.get(a) || 0) - (rowTotals.get(b) || 0);
-          if (sortMode === 'total-desc') return (rowTotals.get(b) || 0) - (rowTotals.get(a) || 0);
-          return 0;
-        });
-
-        const colWidth = `${state.analytics.colWidth}px`;
-        const locationWidth = `${state.analytics.locationWidth}px`;
-        const tableMaxWidth = `${state.analytics.tableWidth}vw`;
-        const totalWidth = '60px';
-
-        let html = `<div class="relative w-full mb-4" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
-        html += `<div class="flex items-center justify-between px-2 py-1 text-[11px] text-slate-400 uppercase tracking-wide">${groupName}</div>`;
-        html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
-        html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20" style="min-width:${locationWidth}; width:${locationWidth};">
-                  <div class="flex items-center gap-2">
-                    <span>Location</span>
-                    <div class="relative">
-                      <button id="analytics-location-menu-btn" class="text-[10px] font-bold uppercase tracking-wide bg-slate-800 border border-slate-700 px-2 py-1 rounded-md text-slate-200 hover:bg-slate-700">Filter</button>
-                      <div id="analytics-location-menu" class="hidden absolute left-0 mt-1 min-w-[220px] max-h-64 overflow-auto rounded-lg border border-slate-800 bg-slate-950 shadow-xl z-30 p-2 space-y-1">
-                        ${allLocations.map(loc => {
-                          const checked = !hasSelectedLocations || selectedLocations.has(loc);
-                          return `<label class="flex items-center justify-between gap-2 text-[11px] text-slate-200 px-2 py-1 hover:bg-slate-900 rounded">
-                                    <span class="truncate">${loc}</span>
-                                    <input type="checkbox" data-location-check value="${loc.replace(/"/g,'&quot;')}" class="h-3.5 w-3.5 accent-blue-500" ${checked ? 'checked' : ''}>
-                                  </label>`;
-                        }).join('')}
-                      </div>
-                    </div>
-                    <span class="analytics-resizer" data-analytics-resize="location"></span>
-                  </div>
-                </th>`;
-
-        liens.forEach(lien => {
-          html += `<th class="px-3 py-2 border-b border-slate-800 text-left relative" style="min-width:${colWidth}; width:${colWidth};">${lien}<span class="analytics-resizer" data-analytics-resize="col"></span></th>`;
-        });
-
-        html += `<th class="px-2 py-2 border-b border-slate-800 text-left bg-slate-950 relative" style="min-width:${totalWidth}; width:${totalWidth};">Total<span class="analytics-resizer" data-analytics-resize="table"></span></th>`;
-        html += `</tr></thead><tbody>`;
-
-        locations.forEach(loc => {
-          html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950" style="min-width:${locationWidth}; width:${locationWidth};">${loc}</th>`;
-          liens.forEach(lien => {
-            const key = `${loc}|||${lien}`;
-            const count = pivot.get(key) || 0;
-            html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300" style="min-width:${colWidth}; width:${colWidth};">${count}</td>`;
-          });
-          html += `<td class="px-2 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60" style="min-width:${totalWidth}; width:${totalWidth};">${rowTotals.get(loc) || 0}</td>`;
-          html += `</tr>`;
-        });
-
-        html += `<tr class="bg-slate-900/60 font-semibold text-slate-100"><th class="px-3 py-2 border-t border-slate-800 text-left sticky left-0 bg-slate-950 z-10" style="min-width:${locationWidth}; width:${locationWidth};">Total</th>`;
-        liens.forEach(lien => {
-          html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
-        });
-        html += `<td class="px-2 py-2 border-t border-slate-800 text-right" style="min-width:${totalWidth}; width:${totalWidth};">${grandTotal}</td></tr>`;
-        html += `</tbody></table></div>`;
-        return html;
-      };
-
-      // ✅ order groups with Trucks/Trailers first
-      const orderedGroupNames = Array.from(groups.keys()).sort((a, b) => {
-        const pa = groupPriority(a);
-        const pb = groupPriority(b);
-        if (pa !== pb) return pa - pb;
-        return String(a).localeCompare(String(b), undefined, { sensitivity: 'base', numeric: true });
-      });
-
-      let html = '';
-      for (const name of orderedGroupNames) {
-        html += renderGroupTable(name, groups.get(name));
-      }
-      els.analyticsContent.innerHTML = html || '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
-
-      // location filter menu + resizers (same logic as your original)
-      const menuBtn = els.analyticsContent.querySelector('#analytics-location-menu-btn');
-      const menu = els.analyticsContent.querySelector('#analytics-location-menu');
-      const menuChecks = els.analyticsContent.querySelectorAll('input[data-location-check]');
-
-      if (menuBtn && menu) {
-        menuBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          menu.classList.toggle('hidden');
-        });
-        menuChecks.forEach(chk => {
-          chk.addEventListener('change', () => {
-            const selected = Array.from(menuChecks).filter(c => c.checked).map(c => c.value);
-            state.analytics.selectedLocations = selected.length === allLocations.length ? [] : selected;
-            savePrefs();
-            renderAnalytics();
-          });
-        });
-        document.addEventListener('click', (e) => {
-          if (!menu.contains(e.target) && e.target !== menuBtn) menu.classList.add('hidden');
-        });
-      }
-
-      const attachResize = (selector, type) => {
-        const handles = els.analyticsContent.querySelectorAll(selector);
-        handles.forEach(handle => {
-          handle.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const startX = e.pageX;
-            const startColWidth = state.analytics.colWidth;
-            const startLocWidth = state.analytics.locationWidth;
-            const startTableWidth = state.analytics.tableWidth;
-            const startWrapper = handle.closest('[data-analytics-table="true"]');
-            const startWrapperWidth = startWrapper ? startWrapper.getBoundingClientRect().width : 0;
-            const viewportWidth = Math.max(600, document.documentElement.clientWidth || window.innerWidth);
-
-            const onMove = (ev) => {
-              const diff = ev.pageX - startX;
-              if (type === 'col') state.analytics.colWidth = Math.min(220, Math.max(60, startColWidth + diff));
-              else if (type === 'location') state.analytics.locationWidth = Math.min(260, Math.max(80, startLocWidth + diff));
-              else if (type === 'table' && startWrapperWidth) {
-                const newWidthPx = Math.max(300, startWrapperWidth + diff);
-                const percent = Math.min(100, Math.max(40, (newWidthPx / viewportWidth) * 100));
-                state.analytics.tableWidth = percent;
-              }
-              renderAnalytics();
-            };
-
-            const onUp = () => {
-              document.removeEventListener('mousemove', onMove);
-              document.removeEventListener('mouseup', onUp);
-              savePrefs();
-            };
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-          });
-        });
-      };
-
-      attachResize('.analytics-resizer[data-analytics-resize="col"]', 'col');
-      attachResize('.analytics-resizer[data-analytics-resize="location"]', 'location');
-      attachResize('.analytics-resizer[data-analytics-resize="table"]', 'table');
-    };
-
-    const loadData = async () => {
-      if (!supabaseClient) { els.status.textContent = 'Offline'; return; }
-      els.status.textContent = 'Syncing...';
-      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
-      if (error) { console.error(error); els.status.textContent = 'Error'; return; }
-
-      state.rows = data || [];
-      els.status.textContent = 'Connected';
-
-      populateSheetFilter(state.rows);
-      inferColumns(state.rows);
-      updateColumnsList();
-      renderTable();
-    };
-
-    const attachEvents = () => {
-      els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
-      els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
-      els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
-      els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; savePrefs(); renderTable(); });
-
-      els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; savePrefs(); renderAnalytics(); });
-
-      els.addRowBtn?.addEventListener('click', addNewRow);
-      els.prevPage?.addEventListener('click', () => { state.pagination.page--; savePrefs(); renderTable(); });
-      els.nextPage?.addEventListener('click', () => { state.pagination.page++; savePrefs(); renderTable(); });
-      els.refresh?.addEventListener('click', loadData);
-
-      els.downloadBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        els.downloadMenu?.classList.toggle('hidden');
-      });
-      els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
-      els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
-
-      const closeModal = () => { els.modalOverlay?.classList.add('hidden'); state.replaceContext = { colId: null, label: '' }; };
-      els.modalCancel?.addEventListener('click', closeModal);
-      els.modalClose?.addEventListener('click', closeModal);
-      els.modalOverlay?.addEventListener('click', (e) => { if (e.target === els.modalOverlay) closeModal(); });
-
-      els.modalApply?.addEventListener('click', async () => {
-        const { colId, label } = state.replaceContext || {};
-        if (!colId) return closeModal();
-
-        const targetTrimmed = String(els.modalFind?.value ?? '').trim();
-        const replacementTrimmed = String(els.modalReplace?.value ?? '').trim();
-        const newValue = sanitizeForColumn(colId, replacementTrimmed);
-        const payloadValue = newValue === '' ? null : newValue;
-
-        const matchingIds = [];
-        state.rows = state.rows.map(row => {
-          const cellVal = row[colId];
-          const cellStr = String(cellVal ?? '').trim();
-          const isMatch = targetTrimmed === '' ? true : cellStr === targetTrimmed;
-          if (isMatch) {
-            matchingIds.push(row[PRIMARY_KEY]);
-            return { ...row, [colId]: payloadValue };
-          }
-          return row;
-        });
-
-        if (!matchingIds.length) {
-          showToast('No rows matched for replacement', 'info');
-          renderTable();
-          closeModal();
-          return;
-        }
-
-        if (supabaseClient) {
-          try {
-            const { error } = await supabaseClient
-              .from(READ_TABLE)
-              .update({ [colId]: payloadValue })
-              .in(PRIMARY_KEY, matchingIds);
-            if (error) throw error;
-          } catch (err) {
-            console.error(err);
-            showToast('Error applying replacements', 'error');
-            await loadData();
-            closeModal();
-            return;
-          }
-        }
-
-        showToast(`Replaced ${matchingIds.length} rows in "${label}"`, 'info');
-        renderTable({ keepFilterOpen: colId });
-        closeModal();
-      });
-
-      els.columnsBtn?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        els.columnsPopover.classList.toggle('hidden');
-      });
-
-      els.colsAll?.addEventListener('click', () => {
-        state.columns.forEach(c => state.columnVisibility[c.id] = true);
-        savePrefs();
-        renderTable();
-        updateColumnsList();
-      });
-
-      els.colsNone?.addEventListener('click', () => {
-        state.columns.forEach(c => state.columnVisibility[c.id] = false);
-        savePrefs();
-        renderTable();
-        updateColumnsList();
-      });
-
-      document.addEventListener('click', (e) => {
-        if (els.columnsPopover && !els.columnsPopover.contains(e.target) && e.target !== els.columnsBtn) {
-          els.columnsPopover.classList.add('hidden');
-        }
-        const clickedMenu = columnMenus.find(m => m.contains(e.target));
-        const isTrigger = e.target.closest('[data-column-menu-trigger]');
-        if (!clickedMenu && !isTrigger) closeColumnMenus();
-        if (els.downloadMenu && !els.downloadMenu.contains(e.target) && e.target !== els.downloadBtn) {
-          els.downloadMenu.classList.add('hidden');
-        }
-      });
-
-      syncScrollbars();
-    };
-
-    const init = async () => {
-      try {
-        createConstellationBackground();
-        await loadPrefs();
-        attachEvents();
-        await loadData();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-    init();
-  </script>
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <div id="modal-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+    <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/40">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.2em] text-blue-300 font-semibold">Replace values</p>
+          <h3 id="modal-title" class="text-sm font-bold text-white">Column</h3>
+        </div>
+        <button id="modal-close" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div class="px-5 py-4 space-y-4">
+        <label class="space-y-1 block">
+          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Find value (leave empty to match all)</span>
+          <input id="modal-find" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="Current value">
+        </label>
+        <label class="space-y-1 block">
+          <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Replace with (empty becomes null)</span>
+          <input id="modal-replace" type="text" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="New value">
+        </label>
+        <div class="flex justify-end gap-2">
+          <button id="modal-cancel" class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800">Cancel</button>
+          <button id="modal-apply" class="px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg bg-emerald-600 text-white hover:bg-emerald-500">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sticky top-0 z-50 space-y-px">
+    <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+      <div class="flex items-center justify-between px-6 py-4 lg:px-10">
+        <a href="../index.html" class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+          </div>
+          <div>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
+            <h1 class="text-base font-black leading-tight text-white">Title Management</h1>
+          </div>
+        </a>
+
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
+            <a href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+            <a href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
+            <a href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
+          </nav>
+
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              <i data-lucide="cloud" class="h-3 w-3"></i>
+              <span id="dataset-status">Connecting…</span>
+            </div>
+            <button id="nav-logout" data-admin-logout="true" type="button" class="rounded-full border border-red-900/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-red-200 transition hover:bg-red-900/20 hover:text-white">Logout</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3 lg:px-10">
+        <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Admin navigation</span>
+        <div class="flex flex-wrap items-center gap-1">
+          <a href="./index.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
+          <a href="./profiles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white" data-admin-only>Profiles</a>
+          <a href="./services.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Services</a>
+          <a href="./titles.html" class="rounded-lg border border-blue-500 bg-blue-600/90 px-4 py-2 text-xs font-semibold text-white shadow shadow-blue-500/30 transition">Titles</a>
+          <a href="./vehicles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Vehicles</a>
+          <a href="./analytics.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Analytics</a>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <canvas id="constellation-canvas" class="pointer-events-none fixed inset-0 -z-10 opacity-70 mix-blend-screen"></canvas>
+
+  <main class="flex-1 flex flex-col min-h-0 relative">
+    
+    <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-end gap-2">
+                <div class="w-48 min-w-[200px]">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 1</label>
+                    <input id="search-primary" type="search" placeholder="Primary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+
+                <div class="w-48 min-w-[200px]">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 2</label>
+                    <input id="search-secondary" type="search" placeholder="Secondary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+
+                <div class="w-32">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Terms</label>
+                    <div class="flex mt-1 border border-slate-700 rounded-lg bg-slate-900 overflow-hidden">
+                        <select id="terms-operator" class="bg-slate-800 text-blue-400 text-xs font-bold px-2 py-1.5 outline-none border-r border-slate-700">
+                            <option value="<">&lt;</option>
+                            <option value=">">&gt;</option>
+                        </select>
+                        <input id="search-terms" type="number" placeholder="#" class="w-full bg-transparent text-xs text-white px-2 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <div class="flex flex-wrap items-center gap-2">
+                    <div class="relative">
+                        <button id="download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-slate-900/20">
+                            <i data-lucide="download" class="h-3.5 w-3.5"></i> Download
+                        </button>
+                        <div id="download-menu" class="hidden absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-50">
+                            <button id="download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-t-lg">Download CSV</button>
+                            <button id="download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-b-lg">Download XLSX</button>
+                        </div>
+                    </div>
+
+                    <button id="add-row-btn" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-emerald-900/20">
+                        <i data-lucide="plus" class="h-3.5 w-3.5"></i> Add Row
+                    </button>
+
+                    <button id="refresh-button" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                        <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
+                    </button>
+
+                    <div class="relative">
+                        <button id="columns-btn" class="flex items-center gap-2 text-xs font-bold text-slate-300 bg-slate-900 border border-slate-700 hover:border-slate-500 px-3 py-1 rounded-lg transition-colors">
+                            <i data-lucide="columns-3" class="h-3.5 w-3.5"></i> Columns
+                        </button>
+                        <div id="columns-popover" class="hidden absolute top-full left-0 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[10px] font-bold uppercase text-slate-500">Toggle Visibility</span>
+                                <div class="flex gap-1">
+                                    <button id="cols-all" class="text-[10px] text-blue-400 hover:text-blue-300">All</button>
+                                    <span class="text-slate-700">|</span>
+                                    <button id="cols-none" class="text-[10px] text-blue-400 hover:text-blue-300">None</button>
+                                </div>
+                            </div>
+                            <div id="columns-list" class="max-h-48 overflow-y-auto space-y-1 custom-scrollbar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <div id="sheet-tabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar mask-fade max-w-[220px]"></div>
+                    
+                    <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                        <button id="prev-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-left" class="h-3.5 w-3.5"></i></button>
+                        <span id="page-indicator" class="text-[10px] font-mono text-slate-300 px-1 min-w-[40px] text-center">1/1</span>
+                        <button id="next-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="top-scroller" class="overflow-x-auto custom-scrollbar bg-slate-900/30 border-b border-slate-800 shrink-0 h-3">
+        <div id="top-scroller-content" class="h-px pt-1"></div>
+    </div>
+
+    <div id="table-container" class="flex-grow overflow-auto custom-scrollbar relative bg-slate-950">
+        <table id="main-table" class="min-w-full divide-y divide-slate-800/80">
+            <colgroup id="table-colgroup"></colgroup>
+            <thead id="table-head" class="bg-slate-950 sticky top-0 z-20 shadow-md shadow-black/20"></thead>
+            <tbody id="table-body" class="divide-y divide-slate-800/50 bg-slate-950/20"></tbody>
+        </table>
+        
+        <div id="empty-state" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="text-center">
+                <i data-lucide="inbox" class="h-10 w-10 text-slate-700 mx-auto mb-2"></i>
+                <p class="text-slate-500 text-sm">No records found</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
+        <span id="pagination-summary">Ready</span>
+        <span>TechLoc Admin v2.5</span>
+    </div>
+
+    <div id="analytics-panel" class="bg-slate-900/60 border-t border-slate-800 px-4 py-4 flex justify-end">
+        <div class="w-full max-w-7xl ml-auto">
+            <div class="flex items-center justify-between mb-3 gap-3">
+                <div>
+                    <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
+                    <h2 class="text-sm font-bold text-slate-100">Vehicles in stock</h2>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
+                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
+                    <div class="relative">
+                      <select id="analytics-sort" class="appearance-none bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-3 py-1.5 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                          <option value="total-asc">Row total ↑</option>
+                          <option value="total-desc">Row total ↓</option>
+                      </select>
+                      <i data-lucide="chevron-down" class="h-3 w-3 text-slate-400 absolute right-2 top-2.5 pointer-events-none"></i>
+                    </div>
+                </div>
+            </div>
+            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-[80vh]"></div>
+        </div>
+    </div>
+
+  </main>
+
+  <script type="module">
+    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
+    import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
+
+    const READ_TABLE = 'Titles';
+    const PRIMARY_KEY = 'UID'; 
+    const CONFIG_TABLE = 'user_table_configs';
+
+    const supabaseClient = supabaseClientModule || (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
+        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+            auth: { persistSession: true, autoRefreshToken: true },
+          })
+        : null);
+
+    const DEFAULT_LABELS = {
+      'account status': 'Vehicle Status',
+      'account_status': 'Vehicle Status'
+    };
+
+    const els = {
+      status: document.getElementById('dataset-status'),
+      searchPrimary: document.getElementById('search-primary'),
+      searchSecondary: document.getElementById('search-secondary'),
+      searchTerms: document.getElementById('search-terms'),
+      termsOperator: document.getElementById('terms-operator'),
+      sheetTabs: document.getElementById('sheet-tabs'), 
+      paginationSummary: document.getElementById('pagination-summary'),
+      prevPage: document.getElementById('prev-page'),
+      nextPage: document.getElementById('next-page'),
+      pageIndicator: document.getElementById('page-indicator'),
+      refresh: document.getElementById('refresh-button'),
+      addRowBtn: document.getElementById('add-row-btn'), 
+      colgroup: document.getElementById('table-colgroup'),
+      thead: document.getElementById('table-head'),
+      tbody: document.getElementById('table-body'),
+      tableContainer: document.getElementById('table-container'),
+      topScroller: document.getElementById('top-scroller'),
+      topScrollerContent: document.getElementById('top-scroller-content'),
+      mainTable: document.getElementById('main-table'),
+      columnsBtn: document.getElementById('columns-btn'),
+      columnsPopover: document.getElementById('columns-popover'),
+      columnsList: document.getElementById('columns-list'),
+      colsAll: document.getElementById('cols-all'),
+      colsNone: document.getElementById('cols-none'),
+      toastContainer: document.getElementById('toast-container'),
+      emptyState: document.getElementById('empty-state'),
+      analyticsContent: document.getElementById('analytics-content'),
+      downloadBtn: document.getElementById('download-btn'),
+      downloadMenu: document.getElementById('download-menu'),
+      downloadCsv: document.getElementById('download-csv'),
+      downloadXlsx: document.getElementById('download-xlsx'),
+      analyticsLocationFilter: document.getElementById('analytics-location-filter'),
+      analyticsLienFilter: document.getElementById('analytics-lien-filter'),
+      analyticsSort: document.getElementById('analytics-sort'),
+      analyticsColWidth: document.getElementById('analytics-colwidth'),
+      analyticsTableWidth: document.getElementById('analytics-tablewidth'),
+      modalOverlay: document.getElementById('modal-overlay'),
+      modalTitle: document.getElementById('modal-title'),
+      modalFind: document.getElementById('modal-find'),
+      modalReplace: document.getElementById('modal-replace'),
+      modalApply: document.getElementById('modal-apply'),
+      modalCancel: document.getElementById('modal-cancel'),
+      modalClose: document.getElementById('modal-close')
+    };
+
+    const state = {
+      user_id: null,
+      rows: [],
+      columns: [],
+      columnLabels: {},
+      columnOrder: [],
+      columnVisibility: {},
+      columnWidths: {}, 
+      columnFilters: {},
+      pagination: { page: 1, pageSize: 50 }, 
+      sort: { column: null, direction: 'none' },
+      search: { primary: '', secondary: '', terms: '', termsOperator: '<', sheet: '' }, 
+      isDragging: false, dragSourceIndex: null,
+      isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
+      filterCols1: [], filterCols2: [], filterCols3: [],
+      analytics: { sort: 'total-desc', colWidth: 110, tableWidth: 70, selectedLocations: [], locationWidth: 160 },
+      replaceContext: { colId: null, label: '' }
+    };
+
+    const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
+    const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
+    let columnMenus = [];
+
+    const closeColumnMenus = (except = null) => {
+        columnMenus.forEach(menu => {
+            if (menu !== except) menu.classList.add('hidden');
+        });
+    };
+    const renameColumn = (colId) => {
+        if (!colId) return;
+        const currentLabel = state.columns.find(c => c.id === colId)?.label || labelize(colId);
+        const next = prompt('Nuevo nombre de columna', currentLabel);
+        if (next === null) return;
+        const trimmed = next.trim();
+        if (!trimmed) return;
+        state.columnLabels[colId] = trimmed;
+        const col = state.columns.find(c => c.id === colId);
+        if (col) col.label = trimmed;
+        savePrefs();
+        renderTable();
+        updateColumnsList();
+    };
+
+    const showToast = (message, type = 'info') => {
+        const toast = document.createElement('div');
+        const colors = type === 'error' ? 'bg-red-900/90 border-red-500 text-red-100' : 'bg-slate-800/90 border-blue-500 text-blue-100';
+        toast.className = `px-4 py-2 rounded-lg border shadow-xl text-xs font-bold backdrop-blur transform transition-all duration-300 translate-y-4 opacity-0 ${colors}`;
+        toast.textContent = message;
+        els.toastContainer.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.remove('translate-y-4', 'opacity-0'));
+        setTimeout(() => {
+            toast.classList.add('translate-y-4', 'opacity-0');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    };
+
+    const syncScrollbars = () => {
+        let isSyncingTop = false;
+        let isSyncingTable = false;
+        els.topScroller.addEventListener('scroll', () => {
+            if (!isSyncingTable) { isSyncingTop = true; els.tableContainer.scrollLeft = els.topScroller.scrollLeft; }
+            isSyncingTable = false;
+        });
+        els.tableContainer.addEventListener('scroll', () => {
+            if (!isSyncingTop) { isSyncingTable = true; els.topScroller.scrollLeft = els.tableContainer.scrollLeft; }
+            isSyncingTop = false;
+        });
+    };
+    const updateScrollWidths = () => {
+        if(els.mainTable && els.topScrollerContent) {
+            els.topScrollerContent.style.width = els.mainTable.scrollWidth + 'px';
+        }
+    };
+
+    const populateSheetFilter = (rows) => {
+        const currentScroll = els.sheetTabs.scrollLeft;
+        const sheets = new Set();
+        rows.forEach(r => {
+            if(r['Sheet']) sheets.add(r['Sheet']);
+            if(r['sheet']) sheets.add(r['sheet']); 
+        });
+        
+        const sortedSheets = Array.from(sheets).sort();
+        els.sheetTabs.innerHTML = ''; 
+
+        const createTab = (label, value) => {
+            const btn = document.createElement('button');
+            const isActive = state.search.sheet === value;
+            const baseClass = "shrink-0 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap mb-1";
+            const activeClass = "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/40 transform scale-105";
+            const inactiveClass = "bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-500";
+            btn.className = `${baseClass} ${isActive ? activeClass : inactiveClass}`;
+            btn.textContent = label || 'Unknown';
+            btn.onclick = () => {
+                state.search.sheet = value;
+                state.pagination.page = 1; 
+                savePrefs();
+                renderTable();
+                populateSheetFilter(state.rows);
+            };
+            return btn;
+        };
+
+        els.sheetTabs.appendChild(createTab('All Sheets', ''));
+        sortedSheets.forEach(sheet => {
+            els.sheetTabs.appendChild(createTab(sheet, sheet));
+        });
+
+        requestAnimationFrame(() => {
+            els.sheetTabs.scrollLeft = currentScroll;
+        });
+    };
+
+    const addNewRow = async () => {
+        if (!supabaseClient) { showToast('Offline: Cannot add rows', 'error'); return; }
+        const originalText = els.addRowBtn.innerHTML;
+        els.addRowBtn.disabled = true;
+        els.addRowBtn.innerHTML = `<i data-lucide="loader-2" class="h-3 w-3 animate-spin"></i>`;
+        if (window.lucide) lucide.createIcons();
+
+        try {
+            const { data, error } = await supabaseClient.from(READ_TABLE).insert({}).select().single();
+            if (error) throw error;
+            state.rows.unshift(data);
+            state.pagination.page = 1;
+            renderTable();
+            populateSheetFilter(state.rows);
+            showToast('Row added', 'info');
+            els.tableContainer.scrollTop = 0;
+        } catch (err) {
+            console.error(err);
+            showToast('Error creating row', 'error');
+        } finally {
+            els.addRowBtn.disabled = false;
+            els.addRowBtn.innerHTML = originalText;
+            if (window.lucide) lucide.createIcons();
+        }
+    };
+
+    // --- BORRAR FILA ---
+    const deleteRow = async (rowId, btn) => {
+        if (!confirm('Are you sure you want to delete this row? This cannot be undone.')) return;
+        
+        // UI optimista
+        const tr = btn.closest('tr');
+        tr.style.opacity = '0.5';
+
+        if (supabaseClient) {
+            const { error } = await supabaseClient.from(READ_TABLE).delete().eq(PRIMARY_KEY, rowId);
+            if (error) {
+                showToast('Error deleting row', 'error');
+                tr.style.opacity = '1';
+                return;
+            }
+        }
+        
+        // Actualizar estado local
+        state.rows = state.rows.filter(r => r[PRIMARY_KEY] !== rowId);
+        renderTable();
+        showToast('Row deleted', 'info');
+    };
+
+    const cleanLeadingPrefix = (value, removeEnDash = false) => {
+        if (typeof value !== 'string') return value;
+        let cleaned = value;
+        if (removeEnDash) cleaned = cleaned.replace(/^[-–—]\s*/, '');
+        cleaned = cleaned.replace(/^[\d\s-]+/, '');
+        return cleaned;
+    };
+
+    const sanitizeForColumn = (colId, value) => {
+        if (typeof value !== 'string') return value;
+        if (colId === 'Prep Status' || colId === 'prep_status') return cleanLeadingPrefix(value, true);
+        if (colId === 'Location' || colId === 'location') return cleanLeadingPrefix(value);
+        return value;
+    };
+
+    const findColumnId = (candidates = []) => {
+        const normalized = candidates.map(c => c.toLowerCase());
+        const normalizeId = (id = '') => id.replace(/_/g, ' ').toLowerCase();
+        const match = state.columns.find(c => normalized.includes(normalizeId(c.id)));
+        return match ? match.id : null;
+    };
+
+    const getFilteredSortedRows = () => {
+      let rows = state.rows;
+      const t1 = state.search.primary.trim().toLowerCase();
+      const t2 = state.search.secondary.trim().toLowerCase();
+      const t3_raw = state.search.terms;
+      const t3_op = state.search.termsOperator;
+      const sheet = state.search.sheet;
+
+      rows = rows.filter(row => {
+          const matches1 = !t1 || (state.filterCols1.length ? state.filterCols1.some(k => String(row[k]||'').toLowerCase().includes(t1)) : Object.values(row).some(v => String(v).toLowerCase().includes(t1)));
+          const matches2 = !t2 || (state.filterCols2.length ? state.filterCols2.some(k => String(row[k]||'').toLowerCase().includes(t2)) : true);
+          let matches3 = true;
+          if (t3_raw) {
+              const termCol = state.filterCols3[0];
+              if (termCol) {
+                  const cellVal = parseFloat(row[termCol]); const searchVal = parseFloat(t3_raw);
+                  if (isNaN(cellVal)) matches3 = false;
+                  else if (!isNaN(searchVal)) matches3 = t3_op === '<' ? cellVal < searchVal : cellVal > searchVal;
+              }
+          }
+          let matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
+
+          const menuFilters = Object.entries(state.columnFilters || {});
+          const matchesMenuFilters = menuFilters.every(([colId, value]) => {
+              if (value === undefined || value === null || value === '') return true;
+              const cellVal = row[colId];
+              return String(cellVal ?? '').toLowerCase().includes(String(value).toLowerCase());
+          });
+
+          return matches1 && matches2 && matches3 && matchesSheet && matchesMenuFilters;
+      });
+
+      if (state.sort.column && state.sort.direction !== 'none') {
+        const { column, direction } = state.sort;
+        const normalizeText = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string') return value.trim().toLowerCase();
+            const asString = String(value);
+            return asString.trim().toLowerCase();
+        };
+        rows = [...rows].sort((a, b) => {
+          const valA = a[column]; const valB = b[column];
+          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
+          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
+
+          const textA = normalizeText(valA);
+          const textB = normalizeText(valB);
+          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
+          return direction === 'asc' ? result : -result;
+        });
+      }
+
+      return rows;
+    };
+
+    const renderCellContent = (td, val) => {
+        td.innerHTML = ''; 
+        const wrapper = document.createElement('div');
+        wrapper.className = 'wrap-2-lines px-1 text-[10px]'; // APLICADO: Estilo 2 líneas
+        wrapper.title = (val === null || val === undefined) ? '' : String(val);
+        wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
+        td.appendChild(wrapper);
+    };
+
+    const editCell = (td, rowId, colId, originalValue) => {
+        if (state.isResizing || state.isDragging) return;
+        if (td.querySelector('input')) return;
+        if (typeof originalValue === 'object' && originalValue !== null) return;
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = originalValue === null ? '' : originalValue;
+        input.className = 'cell-input'; 
+        td.textContent = ''; 
+        td.appendChild(input);
+        input.focus();
+        let isSaving = false;
+
+        const save = async () => {
+            if (isSaving) return;
+            isSaving = true;
+            let newValue = input.value.trim();
+            newValue = sanitizeForColumn(colId, newValue);
+            
+            const payloadValue = newValue === '' ? null : newValue;
+            renderCellContent(td, payloadValue);
+
+            if (String(payloadValue) === String(originalValue === null ? '' : originalValue) && payloadValue !== '') return;
+            if (payloadValue === null && originalValue === null) return;
+
+            const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
+            if (row) row[colId] = payloadValue;
+
+            if (supabaseClient) {
+                const { error } = await supabaseClient.from(READ_TABLE).update({ [colId]: payloadValue }).eq(PRIMARY_KEY, rowId);
+                if (error) {
+                    showToast('Save failed', 'error');
+                    renderCellContent(td, originalValue); 
+                    if (row) row[colId] = originalValue;
+                } else {
+                    showToast('Saved', 'info');
+                }
+            }
+        };
+
+        const cancel = () => { isSaving = true; renderCellContent(td, originalValue); };
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); } 
+            else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        });
+    };
+
+    // --- PREFS REALES (USER TABLE CONFIGS) ---
+    const savePrefs = async () => {
+      const config = {
+        columnOrder: state.columnOrder,
+        columnVisibility: state.columnVisibility,
+        columnWidths: state.columnWidths,
+        columnLabels: state.columnLabels,
+        columnFilters: state.columnFilters,
+        pagination: state.pagination,
+        sort: state.sort,
+        search: state.search,
+        analytics: state.analytics
+      };
+      
+      // Fallback localstorage
+      localStorage.setItem(`local_${READ_TABLE}_prefs`, JSON.stringify(config));
+
+      // Guardado Remoto en Supabase
+      if (supabaseClient && state.user_id) {
+        // Upsert simple basado en user_id + table_name
+        await supabaseClient.from(CONFIG_TABLE).upsert(
+            { user_id: state.user_id, table_name: READ_TABLE, config: config },
+            { onConflict: 'user_id, table_name' }
+        );
+      }
+    };
+
+    const loadPrefs = async () => {
+      let config = null;
+      
+      // 1. Intentar cargar de Supabase primero
+      if (supabaseClient) {
+         const { data: { user } } = await supabaseClient.auth.getUser();
+         if (user) {
+            state.user_id = user.id;
+            const { data, error } = await supabaseClient.from(CONFIG_TABLE)
+                .select('config')
+                .eq('user_id', user.id)
+                .eq('table_name', READ_TABLE)
+                .maybeSingle(); // maybeSingle evita errores 406 si no existe
+            
+            if (data && data.config) config = data.config;
+         }
+      }
+
+      // 2. Si falla Supabase, intentar LocalStorage
+      if (!config) {
+         try { config = JSON.parse(localStorage.getItem(`local_${READ_TABLE}_prefs`)); } catch (e) {}
+      }
+
+      // 3. Aplicar configuración
+      if (config) {
+        if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
+        if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
+        if (config.columnWidths) state.columnWidths = config.columnWidths;
+        if (config.columnLabels) state.columnLabels = config.columnLabels;
+        if (config.pagination) state.pagination = { ...state.pagination, ...config.pagination };
+        if (config.sort) state.sort = config.sort;
+        if (config.columnFilters) state.columnFilters = config.columnFilters;
+        if (config.search) {
+            state.search = { ...state.search, ...config.search };
+            if(els.searchPrimary) els.searchPrimary.value = state.search.primary || '';
+            if(els.searchSecondary) els.searchSecondary.value = state.search.secondary || '';
+            if(els.searchTerms) els.searchTerms.value = state.search.terms || '';
+            if(els.termsOperator) els.termsOperator.value = state.search.termsOperator || '<';
+        }
+        if (config.analytics) {
+            state.analytics = { ...state.analytics, ...config.analytics };
+            if (els.analyticsSort) els.analyticsSort.value = state.analytics.sort || 'total-desc';
+        }
+      }
+    };
+
+    const inferColumns = (rows = []) => {
+      const keys = new Set();
+      rows.forEach(row => Object.keys(row || {}).forEach(key => keys.add(key)));
+      const uniqueKeys = Array.from(keys);
+      state.filterCols1 = uniqueKeys.filter(k => /vin|customer|stock|prep/i.test(k));
+      state.filterCols2 = uniqueKeys.filter(k => /lien|book|title/i.test(k));
+      state.filterCols3 = uniqueKeys.filter(k => /term/i.test(k)); 
+      if (uniqueKeys.length > 0) {
+        state.columns = uniqueKeys.sort().map(key => {
+          const normalizedKey = key.toLowerCase();
+          const defaultLabel = DEFAULT_LABELS[normalizedKey];
+          const label = state.columnLabels[key] || defaultLabel || labelize(key);
+          if (defaultLabel && !state.columnLabels[key]) state.columnLabels[key] = defaultLabel;
+          return { id: key, label };
+        });
+      } else {
+        const defaults = [PRIMARY_KEY, 'VIN', 'Updated', 'vin_combined', 'created_at'];
+        state.columns = defaults.map(id => ({ id, label: state.columnLabels[id] || labelize(id) }));
+      }
+      const known = new Set(state.columns.map(c => c.id));
+      if (!state.columnOrder.length || state.columnOrder.length < 2) {
+          state.columnOrder = state.columns.map(c => c.id);
+      } else {
+          state.columnOrder = state.columnOrder.filter(c => known.has(c));
+          state.columns.forEach(c => {
+             if (!state.columnOrder.includes(c.id)) state.columnOrder.push(c.id);
+             if (!(c.id in state.columnVisibility)) state.columnVisibility[c.id] = true;
+          });
+      }
+    };
+
+    const getVisibleColumns = () => state.columnOrder
+      .map(id => state.columns.find(c => c.id === id))
+      .filter(Boolean)
+      .filter(c => state.columnVisibility[c.id] !== false);
+
+    const initResize = (e, colId) => {
+      e.stopPropagation(); e.preventDefault();
+      state.isResizing = true; state.resizeColId = colId; state.resizeStartX = e.pageX;
+      const colEl = document.getElementById(cleanId(colId));
+      state.resizeStartWidth = colEl ? colEl.offsetWidth : 150; 
+      document.body.classList.add('resizing');
+      document.addEventListener('mousemove', handleResizeMove);
+      document.addEventListener('mouseup', handleResizeUp);
+    };
+    const handleResizeMove = (e) => {
+      if (!state.isResizing) return;
+      const diff = e.pageX - state.resizeStartX;
+      const newWidth = Math.max(50, state.resizeStartWidth + diff); 
+      state.columnWidths[state.resizeColId] = newWidth;
+      const colEl = document.getElementById(cleanId(state.resizeColId));
+      if (colEl) colEl.style.width = `${newWidth}px`;
+      updateScrollWidths();
+    };
+    const handleResizeUp = () => {
+      state.isResizing = false; document.body.classList.remove('resizing');
+      document.removeEventListener('mousemove', handleResizeMove);
+      document.removeEventListener('mouseup', handleResizeUp);
+      savePrefs(); 
+    };
+    const handleDragStart = (e, colId) => {
+      if (state.isResizing) { e.preventDefault(); return; }
+      state.isDragging = true; state.dragSourceIndex = state.columnOrder.indexOf(colId);
+      e.dataTransfer.effectAllowed = 'move';
+      e.target.closest('th').classList.add('opacity-50');
+    };
+    const handleDragOver = (e) => { if (state.isDragging) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } };
+    const handleDrop = (e, targetColId) => {
+      e.stopPropagation();
+      const th = e.target.closest('th'); if (th) th.classList.remove('opacity-50');
+      state.isDragging = false;
+      const sourceIdx = state.dragSourceIndex; const targetIdx = state.columnOrder.indexOf(targetColId);
+      if (sourceIdx !== targetIdx && sourceIdx > -1 && targetIdx > -1) {
+        const [moved] = state.columnOrder.splice(sourceIdx, 1);
+        state.columnOrder.splice(targetIdx, 0, moved);
+        savePrefs(); renderTable();
+      }
+    };
+    const renderTable = (options = {}) => {
+      const { keepFilterOpen = null } = options;
+      columnMenus = [];
+      const visible = getVisibleColumns();
+      els.colgroup.innerHTML = '';
+      
+      // 1. COLUMNA DE BORRADO (Ancho Fijo)
+      const deleteCol = document.createElement('col');
+      deleteCol.style.width = '40px';
+      els.colgroup.appendChild(deleteCol);
+
+      // 2. COLUMNAS DE DATOS
+      visible.forEach(col => {
+        const colEl = document.createElement('col');
+        colEl.id = cleanId(col.id); 
+        colEl.style.width = `${state.columnWidths[col.id] || 150}px`;
+        els.colgroup.appendChild(colEl);
+      });
+
+      let rows = state.rows;
+      const t1 = state.search.primary.trim().toLowerCase();
+      const t2 = state.search.secondary.trim().toLowerCase();
+      const t3_raw = state.search.terms;
+      const t3_op = state.search.termsOperator;
+      const sheet = state.search.sheet;
+
+      rows = rows.filter(row => {
+          const matches1 = !t1 || (state.filterCols1.length ? state.filterCols1.some(k => String(row[k]||'').toLowerCase().includes(t1)) : Object.values(row).some(v => String(v).toLowerCase().includes(t1)));
+          const matches2 = !t2 || (state.filterCols2.length ? state.filterCols2.some(k => String(row[k]||'').toLowerCase().includes(t2)) : true);
+          let matches3 = true;
+          if (t3_raw) {
+              const termCol = state.filterCols3[0];
+              if (termCol) {
+                  const cellVal = parseFloat(row[termCol]); const searchVal = parseFloat(t3_raw);
+                  if (isNaN(cellVal)) matches3 = false;
+                  else if (!isNaN(searchVal)) matches3 = t3_op === '<' ? cellVal < searchVal : cellVal > searchVal;
+              }
+          }
+          let matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
+
+          const menuFilters = Object.entries(state.columnFilters || {});
+          const matchesMenuFilters = menuFilters.every(([colId, value]) => {
+              if (value === undefined || value === null || value === '') return true;
+              const cellVal = row[colId];
+              return String(cellVal ?? '').toLowerCase().includes(String(value).toLowerCase());
+          });
+
+          return matches1 && matches2 && matches3 && matchesSheet && matchesMenuFilters;
+      });
+
+      if (state.sort.column && state.sort.direction !== 'none') {
+        const { column, direction } = state.sort;
+        const normalizeText = (value) => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'string') return value.trim().toLowerCase();
+            const asString = String(value);
+            return asString.trim().toLowerCase();
+        };
+        rows = [...rows].sort((a, b) => {
+          const valA = a[column]; const valB = b[column];
+          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
+          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
+
+          const textA = normalizeText(valA);
+          const textB = normalizeText(valB);
+          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
+          return direction === 'asc' ? result : -result;
+        });
+      }
+
+      const total = rows.length;
+      const { page, pageSize } = state.pagination;
+      const maxPage = Math.max(1, Math.ceil(total / pageSize));
+      state.pagination.page = Math.min(page, maxPage);
+      const startIdx = (state.pagination.page - 1) * pageSize;
+      const pageRows = rows.slice(startIdx, startIdx + pageSize);
+
+      els.thead.innerHTML = '';
+      const headRow = document.createElement('tr');
+      
+      // HEADER DE BORRADO
+      const thDel = document.createElement('th');
+      thDel.className = 'w-[40px] border-b border-slate-700 bg-slate-900';
+      headRow.appendChild(thDel);
+
+      visible.forEach(col => {
+        const th = document.createElement('th');
+        // APLICADO: Clase wrap-2-lines para headers
+        th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none py-1 px-2 border-b border-slate-700 hover:bg-slate-900 transition-colors relative group';
+        th.draggable = true;
+        th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
+        th.addEventListener('dragover', handleDragOver);
+        th.addEventListener('drop', (e) => handleDrop(e, col.id));
+
+        const content = document.createElement('div');
+        content.className = 'flex items-center gap-2 w-full h-full'; // h-full para alinear
+        
+        // Texto con Wrap de 2 lineas
+        const span = document.createElement('span');
+        span.className = 'wrap-2-lines flex-1 cursor-text';
+        span.textContent = col.label;
+        span.title = 'Doble click para renombrar';
+        span.addEventListener('dblclick', (ev) => {
+          ev.stopPropagation();
+          renameColumn(col.id);
+        });
+        content.appendChild(span);
+        
+        if (state.columnFilters[col.id]) {
+            const badge = document.createElement('span');
+            badge.className = 'text-[9px] font-semibold uppercase tracking-wide text-emerald-200 bg-emerald-900/40 border border-emerald-800 px-2 py-0.5 rounded-full';
+            badge.textContent = `Filter: ${state.columnFilters[col.id]}`;
+            content.appendChild(badge);
+        }
+
+        const menuWrapper = document.createElement('div');
+        menuWrapper.className = 'relative shrink-0';
+        const menuTrigger = document.createElement('button');
+        const isSorted = state.sort.column === col.id && state.sort.direction !== 'none';
+        const hasFilter = !!state.columnFilters[col.id];
+        menuTrigger.className = 'p-1 hover:bg-slate-700 rounded transition-colors shrink-0';
+        const triggerIcon = document.createElement('i');
+        triggerIcon.setAttribute('data-lucide', 'list-filter');
+        triggerIcon.className = `h-3 w-3 ${isSorted || hasFilter ? 'text-blue-400' : 'text-slate-600'}`;
+        menuTrigger.appendChild(triggerIcon);
+        menuTrigger.dataset.columnMenuTrigger = 'true';
+
+        const menu = document.createElement('div');
+        menu.className = 'absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-slate-800 bg-slate-900 shadow-xl hidden z-50';
+        
+        const filterSection = document.createElement('div');
+        filterSection.className = 'px-3 py-2 border-b border-slate-800/80 space-y-2';
+        
+        const filterTitle = document.createElement('p');
+        filterTitle.className = 'text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500';
+        filterTitle.textContent = 'Filter this column';
+        filterSection.appendChild(filterTitle);
+
+        const filterField = document.createElement('div');
+        filterField.className = 'relative';
+        const filterIcon = document.createElement('i');
+        filterIcon.setAttribute('data-lucide', 'search');
+        filterIcon.className = 'absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500';
+        const filterInput = document.createElement('input');
+        filterInput.type = 'search';
+        filterInput.placeholder = `Search ${col.label}`;
+        filterInput.value = state.columnFilters[col.id] || '';
+        filterInput.className = 'w-full bg-slate-800 border border-slate-700 rounded-md py-1.5 pl-8 pr-2 text-[11px] text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none';
+        filterField.appendChild(filterIcon);
+        filterField.appendChild(filterInput);
+        filterSection.appendChild(filterField);
+
+        const filterActions = document.createElement('div');
+        filterActions.className = 'flex items-center justify-end gap-2';
+        const clearFilterBtn = document.createElement('button');
+        clearFilterBtn.dataset.action = 'clear-filter';
+        clearFilterBtn.className = `text-[10px] font-semibold px-2 py-1 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white ${hasFilter ? '' : 'opacity-50 cursor-not-allowed'}`;
+        clearFilterBtn.textContent = 'Clear';
+        const applyFilterBtn = document.createElement('button');
+        applyFilterBtn.dataset.action = 'apply-filter';
+        applyFilterBtn.className = 'text-[10px] font-semibold px-3 py-1 rounded-md bg-blue-600 text-white hover:bg-blue-500';
+        applyFilterBtn.textContent = 'Apply';
+        filterActions.appendChild(clearFilterBtn);
+        filterActions.appendChild(applyFilterBtn);
+        filterSection.appendChild(filterActions);
+
+        const sortSection = document.createElement('div');
+        sortSection.className = 'py-1';
+        sortSection.innerHTML = `
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-asc">
+            <i data-lucide="chevron-up" class="h-3.5 w-3.5"></i> Sort A → Z
+          </button>
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-desc">
+            <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i> Sort Z → A
+          </button>
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="clear-sort">
+            <i data-lucide="x" class="h-3.5 w-3.5"></i> Clear sort
+          </button>
+        `;
+
+        const replaceSection = document.createElement('div');
+        replaceSection.className = 'py-1 border-t border-slate-800/70';
+        replaceSection.innerHTML = `
+          <button class="w-full text-left text-xs text-amber-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="replace-values">
+            <i data-lucide="replace" class="h-3.5 w-3.5"></i> Replace values
+          </button>
+        `;
+
+        menu.appendChild(filterSection);
+        menu.appendChild(sortSection);
+        menu.appendChild(replaceSection);
+
+        const applyFilter = (keepOpen = false) => {
+            const trimmed = filterInput.value.trim();
+            if (!trimmed) {
+                delete state.columnFilters[col.id];
+            } else {
+                state.columnFilters[col.id] = trimmed;
+            }
+            state.pagination.page = 1;
+            savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
+        };
+
+        const clearFilter = (keepOpen = false) => {
+            delete state.columnFilters[col.id];
+            filterInput.value = '';
+            state.pagination.page = 1;
+            savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
+        };
+
+        const replaceColumnValues = () => {
+            state.replaceContext = { colId: col.id, label: col.label };
+            if (els.modalTitle) els.modalTitle.textContent = `Replace values in "${col.label}"`;
+            if (els.modalFind) els.modalFind.value = '';
+            if (els.modalReplace) els.modalReplace.value = '';
+            els.modalOverlay?.classList.remove('hidden');
+        };
+
+        let filterDebounce;
+        const handleMenuAction = (action) => {
+            if (action === 'sort-asc') {
+                state.sort = { column: col.id, direction: 'asc' };
+                savePrefs(); renderTable();
+            }
+            else if (action === 'sort-desc') {
+                state.sort = { column: col.id, direction: 'desc' };
+                savePrefs(); renderTable();
+            }
+            else if (action === 'clear-sort') { state.sort = { column: null, direction: 'none' }; savePrefs(); renderTable(); }
+            else if (action === 'apply-filter') { applyFilter(true); }
+            else if (action === 'clear-filter') { clearFilter(true); }
+            else if (action === 'replace-values') { replaceColumnValues(); }
+        };
+
+        filterInput.addEventListener('input', () => {
+            clearTimeout(filterDebounce);
+            filterDebounce = setTimeout(() => applyFilter(true), 200);
+        });
+        filterInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { applyFilter(true); closeColumnMenus(); }
+            if (e.key === 'Escape') { closeColumnMenus(); }
+        });
+
+        menu.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-action]');
+            if (!btn) return;
+            e.stopPropagation();
+            handleMenuAction(btn.dataset.action);
+            closeColumnMenus();
+        });
+
+        menuWrapper.appendChild(menuTrigger);
+        menuWrapper.appendChild(menu);
+        content.appendChild(menuWrapper);
+        columnMenus.push(menu);
+
+        menuTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeColumnMenus(menu);
+            menu.classList.toggle('hidden');
+        });
+
+        if (keepFilterOpen === col.id) {
+            menu.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                filterInput?.focus({ preventScroll: true });
+                const len = filterInput?.value.length || 0;
+                if (len > -1 && filterInput.setSelectionRange) filterInput.setSelectionRange(len, len);
+            });
+        }
+        th.appendChild(content);
+
+        const resizer = document.createElement('div');
+        resizer.className = 'resizer';
+        resizer.addEventListener('mousedown', (e) => initResize(e, col.id));
+        th.appendChild(resizer);
+        headRow.appendChild(th);
+      });
+      els.thead.appendChild(headRow);
+
+      els.tbody.innerHTML = '';
+      if (pageRows.length === 0) {
+          els.emptyState.classList.remove('hidden');
+      } else {
+          els.emptyState.classList.add('hidden');
+          pageRows.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-blue-900/10 group transition-colors';
+            
+            // CELDA DE BORRADO
+            const tdDel = document.createElement('td');
+            tdDel.className = 'border-r border-slate-800/50 border-b border-slate-800/50 text-center align-middle';
+            const delBtn = document.createElement('button');
+            delBtn.className = 'text-slate-600 hover:text-red-500 transition-colors p-1';
+            delBtn.innerHTML = '<i data-lucide="trash-2" class="h-3.5 w-3.5"></i>';
+            delBtn.onclick = () => deleteRow(row[PRIMARY_KEY], delBtn);
+            tdDel.appendChild(delBtn);
+            tr.appendChild(tdDel);
+
+            visible.forEach(col => {
+                const td = document.createElement('td');
+                td.className = 'text-[10px] text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-7 align-middle relative'; // h-7 fija altura mínima
+                let val = row[col.id];
+                val = sanitizeForColumn(col.id, val);
+                
+                renderCellContent(td, val);
+                td.addEventListener('dblclick', () => {
+                    if (col.id === 'created_at' || col.id === 'updated_at' || col.id === PRIMARY_KEY) { showToast('Read-only', 'info'); return; }
+                    editCell(td, row[PRIMARY_KEY], col.id, val);
+                });
+                tr.appendChild(td);
+            });
+            els.tbody.appendChild(tr);
+          });
+      }
+
+      const start = total === 0 ? 0 : startIdx + 1;
+      const end = Math.min(startIdx + pageRows.length, total);
+      els.paginationSummary.textContent = `${start}-${end} of ${total} records`;
+      els.pageIndicator.textContent = `${state.pagination.page}/${maxPage}`;
+      els.prevPage.disabled = state.pagination.page <= 1;
+      els.nextPage.disabled = state.pagination.page >= maxPage;
+
+      updateScrollWidths();
+      if (window.lucide) lucide.createIcons();
+      renderAnalytics();
+    };
+
+    const updateColumnsList = () => {
+      els.columnsList.innerHTML = '';
+      state.columns.forEach(col => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-slate-900 rounded cursor-pointer';
+        label.innerHTML = `<span class="text-xs text-slate-300 truncate">${col.label}</span>`;
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.className = 'h-3.5 w-3.5 accent-blue-600 rounded bg-slate-800 border-slate-600';
+        input.checked = state.columnVisibility[col.id] !== false;
+        input.addEventListener('change', () => {
+          state.columnVisibility[col.id] = input.checked;
+          savePrefs(); renderTable();
+        });
+        label.appendChild(input);
+        els.columnsList.appendChild(label);
+      });
+    };
+
+    const prepareExport = () => {
+      const visible = getVisibleColumns();
+      const headers = visible.map(col => col.label);
+      const rows = getFilteredSortedRows().map(row =>
+        visible.map(col => {
+          const val = sanitizeForColumn(col.id, row[col.id]);
+          if (val === null || val === undefined) return '';
+          return String(val);
+        })
+      );
+      return { headers, rows };
+    };
+
+    const downloadData = (format = 'csv') => {
+      const { headers, rows } = prepareExport();
+      const allRows = [headers, ...rows];
+      const csvContent = allRows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const mime = format === 'xlsx' ? 'application/vnd.ms-excel' : 'text/csv';
+      const extension = format === 'xlsx' ? 'xlsx' : 'csv';
+      const blob = new Blob([csvContent], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `titles-export.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      els.downloadMenu?.classList.add('hidden');
+    };
+
+    const renderAnalytics = () => {
+      if (!els.analyticsContent) return;
+      const locationCol = findColumnId(['location']);
+      const lienCol = findColumnId(['lien status', 'lien_status', 'lienstatus', 'status']);
+      const unitTypeCol = findColumnId(['unit type', 'unit_type', 'unittype']);
+      if (!locationCol || !lienCol) {
+        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">Location or Lien status columns not found.</p>';
+        return;
+      }
+
+      const rows = getFilteredSortedRows();
+      const allLocationSet = new Set();
+      const lienSet = new Set();
+
+      const selectedLocations = new Set(state.analytics.selectedLocations || []);
+      const hasSelectedLocations = selectedLocations.size > 0;
+
+      rows.forEach(row => {
+        const rawLocation = row[locationCol];
+        const rawLien = row[lienCol];
+        const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
+        const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
+        allLocationSet.add(locationVal);
+        lienSet.add(lienVal);
+      });
+
+      const allLocations = Array.from(allLocationSet).sort((a, b) => a.localeCompare(b));
+      const liens = Array.from(lienSet).sort((a, b) => a.localeCompare(b));
+
+      if (allLocations.length === 0 || liens.length === 0) {
+        els.analyticsContent.innerHTML = '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
+        return;
+      }
+
+      const groups = new Map();
+      rows.forEach(row => {
+        const unitVal = unitTypeCol ? (row[unitTypeCol] || 'Unspecified') : 'All Units';
+        const rawLocation = row[locationCol];
+        const rawLien = row[lienCol];
+        const locationVal = sanitizeForColumn(locationCol, rawLocation) || 'Unknown';
+        const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
+        if (hasSelectedLocations && !selectedLocations.has(locationVal)) return;
+        if (!groups.has(unitVal)) groups.set(unitVal, []);
+        groups.get(unitVal).push({ locationVal, lienVal });
+      });
+
+      const renderGroupTable = (groupName, entries) => {
+        const locationSet = new Set();
+        const pivot = new Map();
+        entries.forEach(({ locationVal, lienVal }) => {
+          locationSet.add(locationVal);
+          const key = `${locationVal}|||${lienVal}`;
+          pivot.set(key, (pivot.get(key) || 0) + 1);
+        });
+
+        const locations = Array.from(locationSet);
+        if (locations.length === 0) return '';
+
+        const rowTotals = new Map();
+        const colTotals = new Map();
+        let grandTotal = 0;
+
+        locations.forEach(loc => {
+          liens.forEach(lien => {
+            const key = `${loc}|||${lien}`;
+            const count = pivot.get(key) || 0;
+            rowTotals.set(loc, (rowTotals.get(loc) || 0) + count);
+            colTotals.set(lien, (colTotals.get(lien) || 0) + count);
+            grandTotal += count;
+          });
+        });
+
+        const sortMode = state.analytics.sort;
+        locations.sort((a, b) => {
+          if (sortMode === 'total-asc') return (rowTotals.get(a) || 0) - (rowTotals.get(b) || 0);
+          if (sortMode === 'total-desc') return (rowTotals.get(b) || 0) - (rowTotals.get(a) || 0);
+          return 0;
+        });
+
+        const colWidth = `${state.analytics.colWidth}px`;
+        const locationWidth = `${state.analytics.locationWidth}px`;
+        const tableMaxWidth = `${state.analytics.tableWidth}vw`;
+        const totalWidth = '60px';
+
+        let html = `<div class="relative w-full mb-4" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
+        html += `<div class="flex items-center justify-between px-2 py-1 text-[11px] text-slate-400 uppercase tracking-wide">${groupName}</div>`;
+        html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
+        html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20" style="min-width:${locationWidth}; width:${locationWidth};">
+                  <div class="flex items-center gap-2">
+                    <span>Location</span>
+                    <div class="relative">
+                      <button id="analytics-location-menu-btn" class="text-[10px] font-bold uppercase tracking-wide bg-slate-800 border border-slate-700 px-2 py-1 rounded-md text-slate-200 hover:bg-slate-700">Filter</button>
+                      <div id="analytics-location-menu" class="hidden absolute left-0 mt-1 min-w-[220px] max-h-64 overflow-auto rounded-lg border border-slate-800 bg-slate-950 shadow-xl z-30 p-2 space-y-1">
+                        ${allLocations.map(loc => {
+                          const checked = !hasSelectedLocations || selectedLocations.has(loc);
+                          return `<label class="flex items-center justify-between gap-2 text-[11px] text-slate-200 px-2 py-1 hover:bg-slate-900 rounded">
+                                    <span class="truncate">${loc}</span>
+                                    <input type="checkbox" data-location-check value="${loc.replace(/"/g,'&quot;')}" class="h-3.5 w-3.5 accent-blue-500" ${checked ? 'checked' : ''}>
+                                  </label>`;
+                        }).join('')}
+                      </div>
+                    </div>
+                    <span class="analytics-resizer" data-analytics-resize="location"></span>
+                  </div>
+                </th>`;
+        liens.forEach(lien => {
+          html += `<th class="px-3 py-2 border-b border-slate-800 text-left relative" style="min-width:${colWidth}; width:${colWidth};">${lien}<span class="analytics-resizer" data-analytics-resize="col"></span></th>`;
+        });
+        html += `<th class="px-2 py-2 border-b border-slate-800 text-left bg-slate-950 relative" style="min-width:${totalWidth}; width:${totalWidth};">Total<span class="analytics-resizer" data-analytics-resize="table"></span></th>`;
+        html += '</tr></thead><tbody>';
+
+        locations.forEach(loc => {
+          html += `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950" style="min-width:${locationWidth}; width:${locationWidth};">${loc}</th>`;
+          liens.forEach(lien => {
+            const key = `${loc}|||${lien}`;
+            const count = pivot.get(key) || 0;
+            html += `<td class="px-3 py-2 border-b border-slate-900 text-right text-slate-300" style="min-width:${colWidth}; width:${colWidth};">${count}</td>`;
+          });
+          html += `<td class="px-2 py-2 border-b border-slate-900 text-right font-semibold text-slate-100 bg-slate-900/60" style="min-width:${totalWidth}; width:${totalWidth};">${rowTotals.get(loc) || 0}</td>`;
+          html += '</tr>';
+        });
+
+        html += `<tr class="bg-slate-900/60 font-semibold text-slate-100"><th class="px-3 py-2 border-t border-slate-800 text-left sticky left-0 bg-slate-950 z-10" style="min-width:${locationWidth}; width:${locationWidth};">Total</th>`;
+        liens.forEach(lien => {
+          html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
+        });
+        html += `<td class="px-2 py-2 border-t border-slate-800 text-right" style="min-width:${totalWidth}; width:${totalWidth};">${grandTotal}</td></tr>`;
+        html += '</tbody></table>';
+        html += '</div>';
+
+        return html;
+      };
+
+      let html = '';
+      for (const [groupName, entries] of groups.entries()) {
+        html += renderGroupTable(groupName, entries);
+      }
+      els.analyticsContent.innerHTML = html || '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
+
+      const menuBtn = els.analyticsContent.querySelector('#analytics-location-menu-btn');
+      const menu = els.analyticsContent.querySelector('#analytics-location-menu');
+      const menuChecks = els.analyticsContent.querySelectorAll('input[data-location-check]');
+      if (menuBtn && menu) {
+        menuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menu.classList.toggle('hidden');
+        });
+        menuChecks.forEach(chk => {
+          chk.addEventListener('change', () => {
+            const selected = Array.from(menuChecks).filter(c => c.checked).map(c => c.value);
+            state.analytics.selectedLocations = selected.length === allLocations.length ? [] : selected;
+            savePrefs();
+            renderAnalytics();
+          });
+        });
+        document.addEventListener('click', (e) => {
+          if (!menu.contains(e.target) && e.target !== menuBtn) menu.classList.add('hidden');
+        });
+      }
+
+      const attachResize = (selector, type) => {
+        const handles = els.analyticsContent.querySelectorAll(selector);
+        handles.forEach(handle => {
+          handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startX = e.pageX;
+            const startColWidth = state.analytics.colWidth;
+            const startLocWidth = state.analytics.locationWidth;
+            const startTableWidth = state.analytics.tableWidth;
+            const startWrapper = handle.closest('[data-analytics-table="true"]');
+            const startWrapperWidth = startWrapper ? startWrapper.getBoundingClientRect().width : 0;
+            const viewportWidth = Math.max(600, document.documentElement.clientWidth || window.innerWidth);
+            const onMove = (ev) => {
+              const diff = ev.pageX - startX;
+              if (type === 'col') {
+                state.analytics.colWidth = Math.min(220, Math.max(60, startColWidth + diff));
+              } else if (type === 'location') {
+                state.analytics.locationWidth = Math.min(260, Math.max(80, startLocWidth + diff));
+              } else if (type === 'table' && startWrapperWidth) {
+                const newWidthPx = Math.max(300, startWrapperWidth + diff);
+                const percent = Math.min(100, Math.max(40, (newWidthPx / viewportWidth) * 100));
+                state.analytics.tableWidth = percent;
+              }
+              renderAnalytics();
+            };
+            const onUp = () => {
+              document.removeEventListener('mousemove', onMove);
+              document.removeEventListener('mouseup', onUp);
+              savePrefs();
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+          });
+        });
+      };
+
+      attachResize('.analytics-resizer[data-analytics-resize="col"]', 'col');
+      attachResize('.analytics-resizer[data-analytics-resize="location"]', 'location');
+      attachResize('.analytics-resizer[data-analytics-resize="table"]', 'table');
+    };
+
+    const loadData = async () => {
+      if (!supabaseClient) { els.status.textContent = 'Offline'; return; }
+      els.status.textContent = 'Syncing...';
+      const { data, error } = await supabaseClient.from(READ_TABLE).select('*');
+      if (error) { console.error(error); els.status.textContent = 'Error'; return; }
+      state.rows = data || [];
+      els.status.textContent = 'Connected';
+      populateSheetFilter(state.rows); 
+      inferColumns(state.rows);
+      updateColumnsList();
+      renderTable();
+    };
+
+    const attachEvents = () => {
+      els.searchPrimary?.addEventListener('input', (e) => { state.search.primary = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.searchSecondary?.addEventListener('input', (e) => { state.search.secondary = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
+      els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
+      
+      els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; savePrefs(); renderAnalytics(); });
+      
+      els.addRowBtn?.addEventListener('click', addNewRow);
+      els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
+      els.nextPage?.addEventListener('click', () => { state.pagination.page++; renderTable(); });
+      els.refresh?.addEventListener('click', loadData);
+      els.downloadBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        els.downloadMenu?.classList.toggle('hidden');
+      });
+      els.downloadCsv?.addEventListener('click', () => downloadData('csv'));
+      els.downloadXlsx?.addEventListener('click', () => downloadData('xlsx'));
+      const closeModal = () => { els.modalOverlay?.classList.add('hidden'); state.replaceContext = { colId: null, label: '' }; };
+      els.modalCancel?.addEventListener('click', closeModal);
+      els.modalClose?.addEventListener('click', closeModal);
+      els.modalOverlay?.addEventListener('click', (e) => { if (e.target === els.modalOverlay) closeModal(); });
+      els.modalApply?.addEventListener('click', async () => {
+        const { colId, label } = state.replaceContext || {};
+        if (!colId) return closeModal();
+        const targetTrimmed = String(els.modalFind?.value ?? '').trim();
+        const replacementTrimmed = String(els.modalReplace?.value ?? '').trim();
+        const newValue = sanitizeForColumn(colId, replacementTrimmed);
+        const payloadValue = newValue === '' ? null : newValue;
+
+        const matchingIds = [];
+        state.rows = state.rows.map(row => {
+            const cellVal = row[colId];
+            const cellStr = String(cellVal ?? '').trim();
+            const isMatch = targetTrimmed === '' ? true : cellStr === targetTrimmed;
+            if (isMatch) {
+                matchingIds.push(row[PRIMARY_KEY]);
+                return { ...row, [colId]: payloadValue };
+            }
+            return row;
+        });
+
+        if (!matchingIds.length) { showToast('No rows matched for replacement', 'info'); renderTable(); closeModal(); return; }
+
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient
+                    .from(READ_TABLE)
+                    .update({ [colId]: payloadValue })
+                    .in(PRIMARY_KEY, matchingIds);
+                if (error) throw error;
+            } catch (err) {
+                console.error(err);
+                showToast('Error applying replacements', 'error');
+                await loadData();
+                closeModal();
+                return;
+            }
+        }
+
+        showToast(`Replaced ${matchingIds.length} rows in "${label}"`, 'info');
+        renderTable({ keepFilterOpen: colId });
+        closeModal();
+      });
+      
+      els.columnsBtn?.addEventListener('click', (e) => { e.stopPropagation(); els.columnsPopover.classList.toggle('hidden'); });
+      els.colsAll?.addEventListener('click', () => { state.columns.forEach(c => state.columnVisibility[c.id] = true); savePrefs(); renderTable(); updateColumnsList(); });
+      els.colsNone?.addEventListener('click', () => { state.columns.forEach(c => state.columnVisibility[c.id] = false); savePrefs(); renderTable(); updateColumnsList(); });
+      document.addEventListener('click', (e) => {
+        if (els.columnsPopover && !els.columnsPopover.contains(e.target) && e.target !== els.columnsBtn) els.columnsPopover.classList.add('hidden');
+        const clickedMenu = columnMenus.find(m => m.contains(e.target));
+        const isTrigger = e.target.closest('[data-column-menu-trigger]');
+        if (!clickedMenu && !isTrigger) closeColumnMenus();
+        if (els.downloadMenu && !els.downloadMenu.contains(e.target) && e.target !== els.downloadBtn) els.downloadMenu.classList.add('hidden');
+      });
+      syncScrollbars(); 
+    };
+
+    const init = async () => {
+      try {
+        createConstellationBackground();
+        
+        // Carga de preferencias con autenticación
+        await loadPrefs();
+        
+        attachEvents();
+        await loadData();
+      } catch (err) { console.error(err); }
+    };
+
+    init();
+  </script>
 </body>
 </html>
