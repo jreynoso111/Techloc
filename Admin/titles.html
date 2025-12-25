@@ -641,10 +641,11 @@
         td.appendChild(wrapper);
     };
 
-    const editCell = (td, rowData, colId, originalValue) => {
+    const editCell = (td, rowData, colId) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return;
-        if (typeof originalValue === 'object' && originalValue !== null) return;
+        const currentValue = rowData[colId];
+        if (typeof currentValue === 'object' && currentValue !== null) return;
         const { key: primaryKeyField, value: rowId } = resolvePrimaryKey(rowData);
         if (rowId === undefined || rowId === null) {
             showToast('Missing row identifier', 'error');
@@ -653,7 +654,7 @@
 
         const input = document.createElement('input');
         input.type = 'text';
-        input.value = originalValue === null ? '' : originalValue;
+        input.value = currentValue === null ? '' : currentValue;
         input.className = 'cell-input'; 
         td.textContent = ''; 
         td.appendChild(input);
@@ -669,8 +670,8 @@
             const payloadValue = newValue === '' ? null : newValue;
             renderCellContent(td, payloadValue);
 
-            if (String(payloadValue) === String(originalValue === null ? '' : originalValue) && payloadValue !== '') return;
-            if (payloadValue === null && originalValue === null) return;
+            if (String(payloadValue) === String(currentValue === null ? '' : currentValue) && payloadValue !== '') return;
+            if (payloadValue === null && currentValue === null) return;
 
             const row = state.rows.find(r => resolvePrimaryKey(r).value === rowId);
             if (row) row[colId] = payloadValue;
@@ -679,15 +680,15 @@
                 const { error } = await supabaseClient.from(READ_TABLE).update({ [colId]: payloadValue }).eq(primaryKeyField, rowId);
                 if (error) {
                     showToast('Save failed', 'error');
-                    renderCellContent(td, originalValue); 
-                    if (row) row[colId] = originalValue;
+                    renderCellContent(td, currentValue); 
+                    if (row) row[colId] = currentValue;
                 } else {
                     showToast('Saved', 'info');
                 }
             }
         };
 
-        const cancel = () => { isSaving = true; renderCellContent(td, originalValue); };
+        const cancel = () => { isSaving = true; renderCellContent(td, currentValue); };
         input.addEventListener('blur', save);
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); input.blur(); } 
@@ -1195,7 +1196,7 @@
                 renderCellContent(td, val);
                 td.addEventListener('dblclick', () => {
                     if (col.id === 'created_at' || col.id === 'updated_at' || col.id === PRIMARY_KEY) { showToast('Read-only', 'info'); return; }
-                    editCell(td, row, col.id, val);
+                    editCell(td, row, col.id);
                 });
                 tr.appendChild(td);
             });
