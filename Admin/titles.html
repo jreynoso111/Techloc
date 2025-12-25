@@ -27,8 +27,13 @@
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
   
   <style>
-    /* Table Layout Locks */
-    table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+    /* Table Layout Locks - CORREGIDO PARA NO CREAR CANVAS GIGANTE */
+    table { 
+        table-layout: fixed; 
+        width: auto; /* Cambio clave: auto en lugar de 100% fijo */
+        min-width: 100%; 
+        border-collapse: collapse; 
+    }
     
     /* Resizer Handles */
     .resizer {
@@ -40,14 +45,15 @@
     .resizer:hover, .resizing .resizer { opacity: 1; background: #3b82f6; }
     body.resizing { cursor: col-resize !important; user-select: none; }
 
-    /* Editable Input Styling */
+    /* Editable Input Styling - COMPACTO */
     .cell-input {
       width: 100%; height: 100%;
       background: #1e293b; color: #fff;
       border: 2px solid #3b82f6; border-radius: 0;
-      padding: 3px 6px; outline: none;
+      padding: 0 4px; outline: none;
       position: absolute; top: 0; left: 0;
       font-size: 10px; z-index: 10;
+      line-height: 1.5;
     }
 
     select { -webkit-appearance: none; -moz-appearance: none; appearance: none; }
@@ -69,7 +75,7 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: normal;
-        line-height: 1.2;
+        line-height: 1.1;
         min-width: 0;
         overflow-wrap: anywhere;
         word-break: break-word;
@@ -94,7 +100,7 @@
       max-width: 100vw;
     }
     #main-table {
-      width: 100%;
+      font-size: 10px; /* Fuente más pequeña global */
     }
     @media (max-width: 1024px) {
       #table-container {
@@ -102,15 +108,12 @@
       }
     }
     @media (max-width: 768px) {
-      #main-table {
-        font-size: 11px;
-      }
       #table-container {
         max-height: calc(100vh - 260px);
       }
       th, td {
-        padding-left: 6px !important;
-        padding-right: 6px !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
       }
     }
   </style>
@@ -197,108 +200,8 @@
 
   <main class="flex-1 flex flex-col min-h-0 relative">
     
-    <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-end gap-2">
-                <div class="w-48 min-w-[200px]">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 1</label>
-                    <input id="search-primary" type="search" placeholder="Primary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                </div>
-
-                <div class="w-48 min-w-[200px]">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 2</label>
-                    <input id="search-secondary" type="search" placeholder="Secondary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-                </div>
-
-                <div class="w-32">
-                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Terms</label>
-                    <div class="flex mt-1 border border-slate-700 rounded-lg bg-slate-900 overflow-hidden">
-                        <select id="terms-operator" class="bg-slate-800 text-blue-400 text-xs font-bold px-2 py-1.5 outline-none border-r border-slate-700">
-                            <option value="<">&lt;</option>
-                            <option value=">">&gt;</option>
-                        </select>
-                        <input id="search-terms" type="number" placeholder="#" class="w-full bg-transparent text-xs text-white px-2 outline-none">
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex flex-wrap items-center justify-end gap-3">
-                <div class="flex flex-wrap items-center gap-2">
-                    <div class="relative">
-                        <button id="download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-slate-900/20">
-                            <i data-lucide="download" class="h-3.5 w-3.5"></i> Download
-                        </button>
-                        <div id="download-menu" class="hidden absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-50">
-                            <button id="download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-t-lg">Download CSV</button>
-                            <button id="download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-b-lg">Download XLSX</button>
-                        </div>
-                    </div>
-
-                    <button id="add-row-btn" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-emerald-900/20">
-                        <i data-lucide="plus" class="h-3.5 w-3.5"></i> Add Row
-                    </button>
-
-                    <button id="refresh-button" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
-                        <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
-                    </button>
-
-                    <div class="relative">
-                        <button id="columns-btn" class="flex items-center gap-2 text-xs font-bold text-slate-300 bg-slate-900 border border-slate-700 hover:border-slate-500 px-3 py-1 rounded-lg transition-colors">
-                            <i data-lucide="columns-3" class="h-3.5 w-3.5"></i> Columns
-                        </button>
-                        <div id="columns-popover" class="hidden absolute top-full left-0 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-[10px] font-bold uppercase text-slate-500">Toggle Visibility</span>
-                                <div class="flex gap-1">
-                                    <button id="cols-all" class="text-[10px] text-blue-400 hover:text-blue-300">All</button>
-                                    <span class="text-slate-700">|</span>
-                                    <button id="cols-none" class="text-[10px] text-blue-400 hover:text-blue-300">None</button>
-                                </div>
-                            </div>
-                            <div id="columns-list" class="max-h-48 overflow-y-auto space-y-1 custom-scrollbar"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <div id="sheet-tabs" class="flex items-center gap-2 overflow-x-auto no-scrollbar mask-fade max-w-[220px]"></div>
-                    
-                    <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-                        <button id="prev-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-left" class="h-3.5 w-3.5"></i></button>
-                        <span id="page-indicator" class="text-[10px] font-mono text-slate-300 px-1 min-w-[40px] text-center">1/1</span>
-                        <button id="next-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="top-scroller" class="overflow-x-auto custom-scrollbar bg-slate-900/30 border-b border-slate-800 shrink-0 h-3">
-        <div id="top-scroller-content" class="h-px pt-1"></div>
-    </div>
-
-    <div id="table-container" class="flex-grow overflow-auto custom-scrollbar relative bg-slate-950">
-        <table id="main-table" class="min-w-full divide-y divide-slate-800/80">
-            <colgroup id="table-colgroup"></colgroup>
-            <thead id="table-head" class="bg-slate-950 sticky top-0 z-20 shadow-md shadow-black/20"></thead>
-            <tbody id="table-body" class="divide-y divide-slate-800/50 bg-slate-950/20"></tbody>
-        </table>
-        
-        <div id="empty-state" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div class="text-center">
-                <i data-lucide="inbox" class="h-10 w-10 text-slate-700 mx-auto mb-2"></i>
-                <p class="text-slate-500 text-sm">No records found</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
-        <span id="pagination-summary">Ready</span>
-        <span>TechLoc Admin v2.5</span>
-    </div>
-
-    <div id="analytics-panel" class="bg-slate-900/60 border-t border-slate-800 px-4 py-4 flex justify-end">
-        <div class="w-full max-w-7xl ml-auto">
+    <div id="analytics-panel" class="bg-slate-900/60 border-b border-slate-800 px-4 py-3 shrink-0">
+        <div class="max-w-7xl mx-auto">
             <div class="flex items-center justify-between mb-3 gap-3">
                 <div>
                     <p class="text-[10px] uppercase tracking-[0.18em] text-blue-200 font-semibold">Analytics</p>
@@ -315,8 +218,109 @@
                     </div>
                 </div>
             </div>
-            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-[80vh]"></div>
+            <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-48"></div>
         </div>
+    </div>
+
+    <div class="shrink-0 border-b border-slate-800 bg-slate-950/80 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex flex-wrap items-end gap-2 flex-1">
+                <div class="w-48 min-w-[180px]">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 1</label>
+                    <input id="search-primary" type="search" placeholder="Primary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+
+                <div class="w-48 min-w-[180px]">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Search 2</label>
+                    <input id="search-secondary" type="search" placeholder="Secondary search" class="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+
+                <div class="w-28">
+                    <label class="text-[10px] font-bold text-slate-500 uppercase ml-1">Terms</label>
+                    <div class="flex mt-1 border border-slate-700 rounded-lg bg-slate-900 overflow-hidden">
+                        <select id="terms-operator" class="bg-slate-800 text-blue-400 text-xs font-bold px-1 py-1.5 outline-none border-r border-slate-700">
+                            <option value="<">&lt;</option>
+                            <option value=">">&gt;</option>
+                        </select>
+                        <input id="search-terms" type="number" placeholder="#" class="w-full bg-transparent text-xs text-white px-2 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2">
+                <div class="relative">
+                    <button id="download-btn" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-100 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-slate-900/20">
+                        <i data-lucide="download" class="h-3.5 w-3.5"></i> Download
+                    </button>
+                    <div id="download-menu" class="hidden absolute right-0 mt-2 w-36 rounded-lg border border-slate-800 bg-slate-900 shadow-xl z-50">
+                        <button id="download-csv" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-t-lg">Download CSV</button>
+                        <button id="download-xlsx" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-b-lg">Download XLSX</button>
+                    </div>
+                </div>
+
+                <button id="add-row-btn" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-colors shadow-lg shadow-emerald-900/20">
+                    <i data-lucide="plus" class="h-3.5 w-3.5"></i> Add
+                </button>
+
+                <button id="refresh-button" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800">
+                    <i data-lucide="refresh-ccw" class="h-4 w-4"></i>
+                </button>
+
+                <div class="relative">
+                    <button id="columns-btn" class="flex items-center gap-2 text-xs font-bold text-slate-300 bg-slate-900 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg transition-colors">
+                        <i data-lucide="columns-3" class="h-3.5 w-3.5"></i> Cols
+                    </button>
+                    <div id="columns-popover" class="hidden absolute top-full right-0 mt-2 w-64 bg-slate-950 border border-slate-800 rounded-xl shadow-2xl z-50 p-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold uppercase text-slate-500">Toggle Visibility</span>
+                            <div class="flex gap-1">
+                                <button id="cols-all" class="text-[10px] text-blue-400 hover:text-blue-300">All</button>
+                                <span class="text-slate-700">|</span>
+                                <button id="cols-none" class="text-[10px] text-blue-400 hover:text-blue-300">None</button>
+                            </div>
+                        </div>
+                        <div id="columns-list" class="max-h-48 overflow-y-auto space-y-1 custom-scrollbar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="shrink-0 border-b border-slate-800 bg-slate-900/40 px-4 py-2 flex items-center justify-between gap-4">
+        <div class="flex items-center gap-2 overflow-hidden">
+            <span class="text-[10px] font-bold uppercase text-slate-500 shrink-0">Sheets:</span>
+            <div id="sheet-tabs" class="flex items-center gap-1 overflow-x-auto no-scrollbar mask-fade"></div>
+        </div>
+        
+        <div class="flex items-center gap-2 shrink-0 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+            <button id="prev-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-left" class="h-3.5 w-3.5"></i></button>
+            <span id="page-indicator" class="text-[10px] font-mono text-slate-300 px-1 min-w-[40px] text-center">1/1</span>
+            <button id="next-page" class="p-1 hover:bg-slate-800 rounded text-slate-400 disabled:opacity-30"><i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>
+        </div>
+    </div>
+
+    <div id="top-scroller" class="overflow-x-auto custom-scrollbar bg-slate-900/30 border-b border-slate-800 shrink-0 h-3">
+        <div id="top-scroller-content" class="h-px pt-1"></div>
+    </div>
+
+    <div id="table-container" class="flex-grow overflow-auto custom-scrollbar relative bg-slate-950">
+        <table id="main-table" class="divide-y divide-slate-800/80">
+            <colgroup id="table-colgroup"></colgroup>
+            <thead id="table-head" class="bg-slate-950 sticky top-0 z-20 shadow-md shadow-black/20"></thead>
+            <tbody id="table-body" class="divide-y divide-slate-800/50 bg-slate-950/20"></tbody>
+        </table>
+        
+        <div id="empty-state" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="text-center">
+                <i data-lucide="inbox" class="h-10 w-10 text-slate-700 mx-auto mb-2"></i>
+                <p class="text-slate-500 text-sm">No records found</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="shrink-0 bg-slate-950 border-t border-slate-800 px-4 py-1 flex justify-between items-center text-[10px] text-slate-500 select-none">
+        <span id="pagination-summary">Ready</span>
+        <span>TechLoc Admin v2.5.1 (Compact)</span>
     </div>
 
   </main>
@@ -373,11 +377,7 @@
       downloadMenu: document.getElementById('download-menu'),
       downloadCsv: document.getElementById('download-csv'),
       downloadXlsx: document.getElementById('download-xlsx'),
-      analyticsLocationFilter: document.getElementById('analytics-location-filter'),
-      analyticsLienFilter: document.getElementById('analytics-lien-filter'),
       analyticsSort: document.getElementById('analytics-sort'),
-      analyticsColWidth: document.getElementById('analytics-colwidth'),
-      analyticsTableWidth: document.getElementById('analytics-tablewidth'),
       modalOverlay: document.getElementById('modal-overlay'),
       modalTitle: document.getElementById('modal-title'),
       modalFind: document.getElementById('modal-find'),
@@ -402,7 +402,7 @@
       isDragging: false, dragSourceIndex: null,
       isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
       filterCols1: [], filterCols2: [], filterCols3: [],
-      analytics: { sort: 'total-desc', colWidth: 110, tableWidth: 70, selectedLocations: [], locationWidth: 160 },
+      analytics: { sort: 'total-desc', colWidth: 100, tableWidth: 70, selectedLocations: [], locationWidth: 140 },
       replaceContext: { colId: null, label: '' }
     };
 
@@ -475,8 +475,8 @@
         const createTab = (label, value) => {
             const btn = document.createElement('button');
             const isActive = state.search.sheet === value;
-            const baseClass = "shrink-0 px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap mb-1";
-            const activeClass = "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/40 transform scale-105";
+            const baseClass = "shrink-0 px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all duration-200 whitespace-nowrap";
+            const activeClass = "bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/40";
             const inactiveClass = "bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white hover:border-slate-500";
             btn.className = `${baseClass} ${isActive ? activeClass : inactiveClass}`;
             btn.textContent = label || 'Unknown';
@@ -526,11 +526,8 @@
         }
     };
 
-    // --- BORRAR FILA ---
     const deleteRow = async (rowId, btn) => {
         if (!confirm('Are you sure you want to delete this row? This cannot be undone.')) return;
-        
-        // UI optimista
         const tr = btn.closest('tr');
         tr.style.opacity = '0.5';
 
@@ -542,8 +539,6 @@
                 return;
             }
         }
-        
-        // Actualizar estado local
         state.rows = state.rows.filter(r => r[PRIMARY_KEY] !== rowId);
         renderTable();
         showToast('Row deleted', 'info');
@@ -608,8 +603,7 @@
         const normalizeText = (value) => {
             if (value === null || value === undefined) return '';
             if (typeof value === 'string') return value.trim().toLowerCase();
-            const asString = String(value);
-            return asString.trim().toLowerCase();
+            return String(value).trim().toLowerCase();
         };
         rows = [...rows].sort((a, b) => {
           const valA = a[column]; const valB = b[column];
@@ -629,12 +623,13 @@
     const renderCellContent = (td, val) => {
         td.innerHTML = ''; 
         const wrapper = document.createElement('div');
-        wrapper.className = 'wrap-2-lines px-1 text-[10px]'; // APLICADO: Estilo 2 líneas
+        wrapper.className = 'wrap-2-lines px-1 text-[10px]'; 
         wrapper.title = (val === null || val === undefined) ? '' : String(val);
         wrapper.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
         td.appendChild(wrapper);
     };
 
+    // --- CORRECCIÓN DE GUARDADO ---
     const editCell = (td, rowId, colId, originalValue) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return;
@@ -652,21 +647,32 @@
         const save = async () => {
             if (isSaving) return;
             isSaving = true;
-            let newValue = input.value.trim();
-            newValue = sanitizeForColumn(colId, newValue);
             
-            const payloadValue = newValue === '' ? null : newValue;
+            // 1. Obtener valor y limpiar si es necesario
+            let newValue = input.value; 
+            // Opcional: newValue = sanitizeForColumn(colId, newValue); 
+            // (Si usas sanitize aqui, asegurate que sea lo que el usuario espera ver cambiar)
+
+            // 2. Definir payload: Convertir string vacio a null para DB
+            const payloadValue = (newValue === '') ? null : newValue;
+
             renderCellContent(td, payloadValue);
 
-            if (String(payloadValue) === String(originalValue === null ? '' : originalValue) && payloadValue !== '') return;
-            if (payloadValue === null && originalValue === null) return;
+            // Verificar cambios (convertir a string para comparar valores mixtos)
+            if (String(payloadValue) === String(originalValue === null ? '' : originalValue)) return;
 
             const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
             if (row) row[colId] = payloadValue;
 
             if (supabaseClient) {
-                const { error } = await supabaseClient.from(READ_TABLE).update({ [colId]: payloadValue }).eq(PRIMARY_KEY, rowId);
+                // Usamos sintaxis computada [colId]
+                const { error } = await supabaseClient
+                    .from(READ_TABLE)
+                    .update({ [colId]: payloadValue })
+                    .eq(PRIMARY_KEY, rowId);
+                
                 if (error) {
+                    console.error("Save error:", error);
                     showToast('Save failed', 'error');
                     renderCellContent(td, originalValue); 
                     if (row) row[colId] = originalValue;
@@ -684,7 +690,6 @@
         });
     };
 
-    // --- PREFS REALES (USER TABLE CONFIGS) ---
     const savePrefs = async () => {
       const config = {
         columnOrder: state.columnOrder,
@@ -698,12 +703,9 @@
         analytics: state.analytics
       };
       
-      // Fallback localstorage
       localStorage.setItem(`local_${READ_TABLE}_prefs`, JSON.stringify(config));
 
-      // Guardado Remoto en Supabase
       if (supabaseClient && state.user_id) {
-        // Upsert simple basado en user_id + table_name
         await supabaseClient.from(CONFIG_TABLE).upsert(
             { user_id: state.user_id, table_name: READ_TABLE, config: config },
             { onConflict: 'user_id, table_name' }
@@ -714,7 +716,6 @@
     const loadPrefs = async () => {
       let config = null;
       
-      // 1. Intentar cargar de Supabase primero
       if (supabaseClient) {
          const { data: { user } } = await supabaseClient.auth.getUser();
          if (user) {
@@ -723,18 +724,16 @@
                 .select('config')
                 .eq('user_id', user.id)
                 .eq('table_name', READ_TABLE)
-                .maybeSingle(); // maybeSingle evita errores 406 si no existe
+                .maybeSingle();
             
             if (data && data.config) config = data.config;
          }
       }
 
-      // 2. Si falla Supabase, intentar LocalStorage
       if (!config) {
          try { config = JSON.parse(localStorage.getItem(`local_${READ_TABLE}_prefs`)); } catch (e) {}
       }
 
-      // 3. Aplicar configuración
       if (config) {
         if (Array.isArray(config.columnOrder)) state.columnOrder = config.columnOrder;
         if (config.columnVisibility) state.columnVisibility = config.columnVisibility;
@@ -797,7 +796,7 @@
       e.stopPropagation(); e.preventDefault();
       state.isResizing = true; state.resizeColId = colId; state.resizeStartX = e.pageX;
       const colEl = document.getElementById(cleanId(colId));
-      state.resizeStartWidth = colEl ? colEl.offsetWidth : 150; 
+      state.resizeStartWidth = colEl ? colEl.offsetWidth : 100; // Default width 100
       document.body.classList.add('resizing');
       document.addEventListener('mousemove', handleResizeMove);
       document.addEventListener('mouseup', handleResizeUp);
@@ -841,69 +840,20 @@
       const visible = getVisibleColumns();
       els.colgroup.innerHTML = '';
       
-      // 1. COLUMNA DE BORRADO (Ancho Fijo)
       const deleteCol = document.createElement('col');
-      deleteCol.style.width = '40px';
+      deleteCol.style.width = '32px'; // Reduced
       els.colgroup.appendChild(deleteCol);
 
-      // 2. COLUMNAS DE DATOS
       visible.forEach(col => {
         const colEl = document.createElement('col');
         colEl.id = cleanId(col.id); 
-        colEl.style.width = `${state.columnWidths[col.id] || 150}px`;
+        // CAMBIO: Default width más pequeño (100px)
+        colEl.style.width = `${state.columnWidths[col.id] || 100}px`;
         els.colgroup.appendChild(colEl);
       });
 
-      let rows = state.rows;
-      const t1 = state.search.primary.trim().toLowerCase();
-      const t2 = state.search.secondary.trim().toLowerCase();
-      const t3_raw = state.search.terms;
-      const t3_op = state.search.termsOperator;
-      const sheet = state.search.sheet;
-
-      rows = rows.filter(row => {
-          const matches1 = !t1 || (state.filterCols1.length ? state.filterCols1.some(k => String(row[k]||'').toLowerCase().includes(t1)) : Object.values(row).some(v => String(v).toLowerCase().includes(t1)));
-          const matches2 = !t2 || (state.filterCols2.length ? state.filterCols2.some(k => String(row[k]||'').toLowerCase().includes(t2)) : true);
-          let matches3 = true;
-          if (t3_raw) {
-              const termCol = state.filterCols3[0];
-              if (termCol) {
-                  const cellVal = parseFloat(row[termCol]); const searchVal = parseFloat(t3_raw);
-                  if (isNaN(cellVal)) matches3 = false;
-                  else if (!isNaN(searchVal)) matches3 = t3_op === '<' ? cellVal < searchVal : cellVal > searchVal;
-              }
-          }
-          let matchesSheet = !sheet || (row['Sheet'] === sheet || row['sheet'] === sheet);
-
-          const menuFilters = Object.entries(state.columnFilters || {});
-          const matchesMenuFilters = menuFilters.every(([colId, value]) => {
-              if (value === undefined || value === null || value === '') return true;
-              const cellVal = row[colId];
-              return String(cellVal ?? '').toLowerCase().includes(String(value).toLowerCase());
-          });
-
-          return matches1 && matches2 && matches3 && matchesSheet && matchesMenuFilters;
-      });
-
-      if (state.sort.column && state.sort.direction !== 'none') {
-        const { column, direction } = state.sort;
-        const normalizeText = (value) => {
-            if (value === null || value === undefined) return '';
-            if (typeof value === 'string') return value.trim().toLowerCase();
-            const asString = String(value);
-            return asString.trim().toLowerCase();
-        };
-        rows = [...rows].sort((a, b) => {
-          const valA = a[column]; const valB = b[column];
-          const bothNumbers = typeof valA === 'number' && typeof valB === 'number';
-          if (bothNumbers) return direction === 'asc' ? valA - valB : valB - valA;
-
-          const textA = normalizeText(valA);
-          const textB = normalizeText(valB);
-          const result = textA.localeCompare(textB, undefined, { sensitivity: 'base', numeric: true });
-          return direction === 'asc' ? result : -result;
-        });
-      }
+      let rows = getFilteredSortedRows();
+      // ... filtrado ya hecho en helper ...
 
       const total = rows.length;
       const { page, pageSize } = state.pagination;
@@ -915,14 +865,13 @@
       els.thead.innerHTML = '';
       const headRow = document.createElement('tr');
       
-      // HEADER DE BORRADO
       const thDel = document.createElement('th');
-      thDel.className = 'w-[40px] border-b border-slate-700 bg-slate-900';
+      thDel.className = 'w-[32px] border-b border-slate-700 bg-slate-900';
       headRow.appendChild(thDel);
 
       visible.forEach(col => {
         const th = document.createElement('th');
-        // APLICADO: Clase wrap-2-lines para headers
+        // Compact padding
         th.className = 'text-left text-[10px] font-bold uppercase tracking-wider text-slate-400 select-none py-1 px-2 border-b border-slate-700 hover:bg-slate-900 transition-colors relative group';
         th.draggable = true;
         th.addEventListener('dragstart', (e) => handleDragStart(e, col.id));
@@ -930,9 +879,8 @@
         th.addEventListener('drop', (e) => handleDrop(e, col.id));
 
         const content = document.createElement('div');
-        content.className = 'flex items-center gap-2 w-full h-full'; // h-full para alinear
+        content.className = 'flex items-center gap-1 w-full h-full'; 
         
-        // Texto con Wrap de 2 lineas
         const span = document.createElement('span');
         span.className = 'wrap-2-lines flex-1 cursor-text';
         span.textContent = col.label;
@@ -945,8 +893,8 @@
         
         if (state.columnFilters[col.id]) {
             const badge = document.createElement('span');
-            badge.className = 'text-[9px] font-semibold uppercase tracking-wide text-emerald-200 bg-emerald-900/40 border border-emerald-800 px-2 py-0.5 rounded-full';
-            badge.textContent = `Filter: ${state.columnFilters[col.id]}`;
+            badge.className = 'text-[8px] font-semibold uppercase text-emerald-200 bg-emerald-900/40 border border-emerald-800 px-1 py-0 rounded-full';
+            badge.textContent = `F`;
             content.appendChild(badge);
         }
 
@@ -955,7 +903,7 @@
         const menuTrigger = document.createElement('button');
         const isSorted = state.sort.column === col.id && state.sort.direction !== 'none';
         const hasFilter = !!state.columnFilters[col.id];
-        menuTrigger.className = 'p-1 hover:bg-slate-700 rounded transition-colors shrink-0';
+        menuTrigger.className = 'p-0.5 hover:bg-slate-700 rounded transition-colors shrink-0';
         const triggerIcon = document.createElement('i');
         triggerIcon.setAttribute('data-lucide', 'list-filter');
         triggerIcon.className = `h-3 w-3 ${isSorted || hasFilter ? 'text-blue-400' : 'text-slate-600'}`;
@@ -965,14 +913,13 @@
         const menu = document.createElement('div');
         menu.className = 'absolute right-0 top-full mt-1 min-w-[200px] rounded-lg border border-slate-800 bg-slate-900 shadow-xl hidden z-50';
         
+        // ... (Filtros menú igual) ...
         const filterSection = document.createElement('div');
         filterSection.className = 'px-3 py-2 border-b border-slate-800/80 space-y-2';
-        
         const filterTitle = document.createElement('p');
         filterTitle.className = 'text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500';
-        filterTitle.textContent = 'Filter this column';
+        filterTitle.textContent = 'Filter column';
         filterSection.appendChild(filterTitle);
-
         const filterField = document.createElement('div');
         filterField.className = 'relative';
         const filterIcon = document.createElement('i');
@@ -980,13 +927,12 @@
         filterIcon.className = 'absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-500';
         const filterInput = document.createElement('input');
         filterInput.type = 'search';
-        filterInput.placeholder = `Search ${col.label}`;
+        filterInput.placeholder = `Search...`;
         filterInput.value = state.columnFilters[col.id] || '';
         filterInput.className = 'w-full bg-slate-800 border border-slate-700 rounded-md py-1.5 pl-8 pr-2 text-[11px] text-slate-100 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none';
         filterField.appendChild(filterIcon);
         filterField.appendChild(filterInput);
         filterSection.appendChild(filterField);
-
         const filterActions = document.createElement('div');
         filterActions.className = 'flex items-center justify-end gap-2';
         const clearFilterBtn = document.createElement('button');
@@ -1000,51 +946,34 @@
         filterActions.appendChild(clearFilterBtn);
         filterActions.appendChild(applyFilterBtn);
         filterSection.appendChild(filterActions);
-
+        
         const sortSection = document.createElement('div');
         sortSection.className = 'py-1';
         sortSection.innerHTML = `
-          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-asc">
-            <i data-lucide="chevron-up" class="h-3.5 w-3.5"></i> Sort A → Z
-          </button>
-          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-desc">
-            <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i> Sort Z → A
-          </button>
-          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="clear-sort">
-            <i data-lucide="x" class="h-3.5 w-3.5"></i> Clear sort
-          </button>
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-asc"><i data-lucide="chevron-up" class="h-3.5 w-3.5"></i> Sort A → Z</button>
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="sort-desc"><i data-lucide="chevron-down" class="h-3.5 w-3.5"></i> Sort Z → A</button>
+          <button class="w-full text-left text-xs text-slate-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="clear-sort"><i data-lucide="x" class="h-3.5 w-3.5"></i> Clear sort</button>
         `;
-
         const replaceSection = document.createElement('div');
         replaceSection.className = 'py-1 border-t border-slate-800/70';
-        replaceSection.innerHTML = `
-          <button class="w-full text-left text-xs text-amber-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="replace-values">
-            <i data-lucide="replace" class="h-3.5 w-3.5"></i> Replace values
-          </button>
-        `;
-
+        replaceSection.innerHTML = `<button class="w-full text-left text-xs text-amber-200 px-3 py-2 hover:bg-slate-800 flex items-center gap-2" data-action="replace-values"><i data-lucide="replace" class="h-3.5 w-3.5"></i> Replace values</button>`;
+        
         menu.appendChild(filterSection);
         menu.appendChild(sortSection);
         menu.appendChild(replaceSection);
 
         const applyFilter = (keepOpen = false) => {
             const trimmed = filterInput.value.trim();
-            if (!trimmed) {
-                delete state.columnFilters[col.id];
-            } else {
-                state.columnFilters[col.id] = trimmed;
-            }
+            if (!trimmed) delete state.columnFilters[col.id]; else state.columnFilters[col.id] = trimmed;
             state.pagination.page = 1;
             savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
         };
-
         const clearFilter = (keepOpen = false) => {
             delete state.columnFilters[col.id];
             filterInput.value = '';
             state.pagination.page = 1;
             savePrefs(); renderTable(keepOpen ? { keepFilterOpen: col.id } : {});
         };
-
         const replaceColumnValues = () => {
             state.replaceContext = { colId: col.id, label: col.label };
             if (els.modalTitle) els.modalTitle.textContent = `Replace values in "${col.label}"`;
@@ -1055,29 +984,16 @@
 
         let filterDebounce;
         const handleMenuAction = (action) => {
-            if (action === 'sort-asc') {
-                state.sort = { column: col.id, direction: 'asc' };
-                savePrefs(); renderTable();
-            }
-            else if (action === 'sort-desc') {
-                state.sort = { column: col.id, direction: 'desc' };
-                savePrefs(); renderTable();
-            }
+            if (action === 'sort-asc') { state.sort = { column: col.id, direction: 'asc' }; savePrefs(); renderTable(); }
+            else if (action === 'sort-desc') { state.sort = { column: col.id, direction: 'desc' }; savePrefs(); renderTable(); }
             else if (action === 'clear-sort') { state.sort = { column: null, direction: 'none' }; savePrefs(); renderTable(); }
             else if (action === 'apply-filter') { applyFilter(true); }
             else if (action === 'clear-filter') { clearFilter(true); }
             else if (action === 'replace-values') { replaceColumnValues(); }
         };
 
-        filterInput.addEventListener('input', () => {
-            clearTimeout(filterDebounce);
-            filterDebounce = setTimeout(() => applyFilter(true), 200);
-        });
-        filterInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { applyFilter(true); closeColumnMenus(); }
-            if (e.key === 'Escape') { closeColumnMenus(); }
-        });
-
+        filterInput.addEventListener('input', () => { clearTimeout(filterDebounce); filterDebounce = setTimeout(() => applyFilter(true), 200); });
+        filterInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { applyFilter(true); closeColumnMenus(); } if (e.key === 'Escape') { closeColumnMenus(); } });
         menu.addEventListener('click', (e) => {
             const btn = e.target.closest('button[data-action]');
             if (!btn) return;
@@ -1124,7 +1040,6 @@
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-blue-900/10 group transition-colors';
             
-            // CELDA DE BORRADO
             const tdDel = document.createElement('td');
             tdDel.className = 'border-r border-slate-800/50 border-b border-slate-800/50 text-center align-middle';
             const delBtn = document.createElement('button');
@@ -1136,7 +1051,8 @@
 
             visible.forEach(col => {
                 const td = document.createElement('td');
-                td.className = 'text-[10px] text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-1 px-2 h-7 align-middle relative'; // h-7 fija altura mínima
+                // Compact cell style (h-7, text-[10px])
+                td.className = 'text-[10px] text-slate-300 border-r border-slate-800/50 border-b border-slate-800/50 py-0.5 px-2 h-7 align-middle relative';
                 let val = row[col.id];
                 val = sanitizeForColumn(col.id, val);
                 
@@ -1226,7 +1142,6 @@
       const rows = getFilteredSortedRows();
       const allLocationSet = new Set();
       const lienSet = new Set();
-
       const selectedLocations = new Set(state.analytics.selectedLocations || []);
       const hasSelectedLocations = selectedLocations.size > 0;
 
@@ -1257,6 +1172,17 @@
         if (hasSelectedLocations && !selectedLocations.has(locationVal)) return;
         if (!groups.has(unitVal)) groups.set(unitVal, []);
         groups.get(unitVal).push({ locationVal, lienVal });
+      });
+
+      // --- CAMBIO: Lógica de Ordenamiento para Priorizar Trucks/Trailers ---
+      const priorityGroups = ['TRUCK', 'TRAILER']; 
+      const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+          const idxA = priorityGroups.indexOf(a.toUpperCase());
+          const idxB = priorityGroups.indexOf(b.toUpperCase());
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
       });
 
       const renderGroupTable = (groupName, entries) => {
@@ -1294,12 +1220,11 @@
 
         const colWidth = `${state.analytics.colWidth}px`;
         const locationWidth = `${state.analytics.locationWidth}px`;
-        const tableMaxWidth = `${state.analytics.tableWidth}vw`;
         const totalWidth = '60px';
 
-        let html = `<div class="relative w-full mb-4" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
-        html += `<div class="flex items-center justify-between px-2 py-1 text-[11px] text-slate-400 uppercase tracking-wide">${groupName}</div>`;
-        html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
+        let html = `<div class="relative w-full mb-4" data-analytics-table="true">`;
+        html += `<div class="flex items-center justify-between px-2 py-1 text-[11px] text-slate-400 uppercase tracking-wide border-b border-slate-800 bg-slate-900/50 rounded-t-lg">${groupName}</div>`;
+        html += `<div class="overflow-x-auto custom-scrollbar"><table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
         html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20" style="min-width:${locationWidth}; width:${locationWidth};">
                   <div class="flex items-center gap-2">
                     <span>Location</span>
@@ -1340,14 +1265,15 @@
           html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
         });
         html += `<td class="px-2 py-2 border-t border-slate-800 text-right" style="min-width:${totalWidth}; width:${totalWidth};">${grandTotal}</td></tr>`;
-        html += '</tbody></table>';
+        html += '</tbody></table></div>'; // Close scroll wrapper
         html += '</div>';
 
         return html;
       };
 
       let html = '';
-      for (const [groupName, entries] of groups.entries()) {
+      for (const groupName of sortedKeys) {
+        const entries = groups.get(groupName);
         html += renderGroupTable(groupName, entries);
       }
       els.analyticsContent.innerHTML = html || '<p class="text-xs text-slate-400 p-3">No data available to summarize.</p>';
@@ -1382,20 +1308,12 @@
             const startX = e.pageX;
             const startColWidth = state.analytics.colWidth;
             const startLocWidth = state.analytics.locationWidth;
-            const startTableWidth = state.analytics.tableWidth;
-            const startWrapper = handle.closest('[data-analytics-table="true"]');
-            const startWrapperWidth = startWrapper ? startWrapper.getBoundingClientRect().width : 0;
-            const viewportWidth = Math.max(600, document.documentElement.clientWidth || window.innerWidth);
             const onMove = (ev) => {
               const diff = ev.pageX - startX;
               if (type === 'col') {
                 state.analytics.colWidth = Math.min(220, Math.max(60, startColWidth + diff));
               } else if (type === 'location') {
                 state.analytics.locationWidth = Math.min(260, Math.max(80, startLocWidth + diff));
-              } else if (type === 'table' && startWrapperWidth) {
-                const newWidthPx = Math.max(300, startWrapperWidth + diff);
-                const percent = Math.min(100, Math.max(40, (newWidthPx / viewportWidth) * 100));
-                state.analytics.tableWidth = percent;
               }
               renderAnalytics();
             };
@@ -1412,7 +1330,6 @@
 
       attachResize('.analytics-resizer[data-analytics-resize="col"]', 'col');
       attachResize('.analytics-resizer[data-analytics-resize="location"]', 'location');
-      attachResize('.analytics-resizer[data-analytics-resize="table"]', 'table');
     };
 
     const loadData = async () => {
@@ -1509,10 +1426,7 @@
     const init = async () => {
       try {
         createConstellationBackground();
-        
-        // Carga de preferencias con autenticación
         await loadPrefs();
-        
         attachEvents();
         await loadData();
       } catch (err) { console.error(err); }
