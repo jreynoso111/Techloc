@@ -75,6 +75,19 @@
         word-break: break-word;
     }
 
+    /* Analytics resizers */
+    .analytics-resizer {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 6px;
+      cursor: col-resize; user-select: none; touch-action: none;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    th:hover .analytics-resizer { opacity: 1; background: rgba(59, 130, 246, 0.3); }
+    .analytics-resizer:hover { opacity: 1; background: #3b82f6; }
+    .analytics-table-resizer {
+      position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+      cursor: ew-resize; background: transparent;
+    }
+
     /* Responsive table sizing */
     #table-container,
     #top-scroller {
@@ -256,29 +269,20 @@
             </div>
             <div class="flex flex-wrap items-center gap-3 mb-3">
                 <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                    <i data-lucide="search" class="h-3.5 w-3.5 text-slate-500"></i>
-                    <input id="analytics-location-filter" type="search" placeholder="Filter locations" class="bg-transparent text-xs text-white outline-none placeholder:text-slate-500">
-                </div>
-                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
                     <i data-lucide="filter" class="h-3.5 w-3.5 text-slate-500"></i>
                     <input id="analytics-lien-filter" type="search" placeholder="Filter lien status" class="bg-transparent text-xs text-white outline-none placeholder:text-slate-500">
                 </div>
                 <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
                     <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Sort</label>
-                    <select id="analytics-sort" class="bg-transparent text-xs text-white outline-none">
-                        <option value="location-asc">Location ↑</option>
-                        <option value="location-desc">Location ↓</option>
-                        <option value="total-asc">Row total ↑</option>
-                        <option value="total-desc">Row total ↓</option>
-                    </select>
-                </div>
-                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Col width</label>
-                    <input id="analytics-colwidth" type="range" min="80" max="220" value="140" class="accent-blue-500">
-                </div>
-                <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-lg px-3 py-2">
-                    <label class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Table max width</label>
-                    <input id="analytics-tablewidth" type="range" min="60" max="100" value="100" class="accent-blue-500">
+                    <div class="relative">
+                      <select id="analytics-sort" class="appearance-none bg-slate-800 border border-slate-700 text-xs text-white rounded-lg px-3 py-1.5 pr-8 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                          <option value="location-asc">Location ↑</option>
+                          <option value="location-desc">Location ↓</option>
+                          <option value="total-asc">Row total ↑</option>
+                          <option value="total-desc">Row total ↓</option>
+                      </select>
+                      <i data-lucide="chevron-down" class="h-3 w-3 text-slate-400 absolute right-2 top-2.5 pointer-events-none"></i>
+                    </div>
                 </div>
             </div>
             <div id="analytics-content" class="overflow-auto rounded-lg border border-slate-800 bg-slate-950/80 custom-scrollbar max-h-96"></div>
@@ -392,7 +396,7 @@
       isDragging: false, dragSourceIndex: null,
       isResizing: false, resizeColId: null, resizeStartX: 0, resizeStartWidth: 0,
       filterCols1: [], filterCols2: [], filterCols3: [],
-      analytics: { location: '', lien: '', sort: 'location-asc', colWidth: 140, tableWidth: 100 },
+      analytics: { location: '', lien: '', sort: 'location-asc', colWidth: 140, tableWidth: 100, selectedLocations: [] },
       replaceContext: { colId: null, label: '' }
     };
 
@@ -1214,6 +1218,8 @@
 
       const locationFilter = state.analytics.location.trim().toLowerCase();
       const lienFilter = state.analytics.lien.trim().toLowerCase();
+      const selectedLocations = new Set(state.analytics.selectedLocations || []);
+      const hasSelectedLocations = selectedLocations.size > 0;
 
       rows.forEach(row => {
         const rawLocation = row[locationCol];
@@ -1222,6 +1228,7 @@
         const lienVal = (rawLien === null || rawLien === undefined || rawLien === '') ? 'Unspecified' : String(rawLien);
 
         if (locationFilter && !locationVal.toLowerCase().includes(locationFilter)) return;
+        if (hasSelectedLocations && !selectedLocations.has(locationVal)) return;
         if (lienFilter && !lienVal.toLowerCase().includes(lienFilter)) return;
 
         locationSet.add(locationVal);
@@ -1264,11 +1271,27 @@
       const colWidth = `${state.analytics.colWidth}px`;
       const tableMaxWidth = `${state.analytics.tableWidth}vw`;
 
-      let html = `<div class="w-full" style="max-width:${tableMaxWidth}">`;
+      let html = `<div class="relative w-full" data-analytics-table="true" style="max-width:${tableMaxWidth}">`;
       html += `<table class="min-w-full text-xs text-slate-200" style="min-width:fit-content;"><thead><tr>`;
-      html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20">Location</th>`;
+      html += `<th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950 z-20">
+                <div class="flex items-center gap-2">
+                  <span>Location</span>
+                  <div class="relative">
+                    <button id="analytics-location-menu-btn" class="text-[10px] font-bold uppercase tracking-wide bg-slate-800 border border-slate-700 px-2 py-1 rounded-md text-slate-200 hover:bg-slate-700">Filter</button>
+                    <div id="analytics-location-menu" class="hidden absolute left-0 mt-1 min-w-[220px] max-h-64 overflow-auto rounded-lg border border-slate-800 bg-slate-950 shadow-xl z-30 p-2 space-y-1">
+                      ${locations.map(loc => {
+                        const checked = !hasSelectedLocations || selectedLocations.has(loc);
+                        return `<label class="flex items-center justify-between gap-2 text-[11px] text-slate-200 px-2 py-1 hover:bg-slate-900 rounded">
+                                  <span class="truncate">${loc}</span>
+                                  <input type="checkbox" data-location-check value="${loc.replace(/"/g,'&quot;')}" class="h-3.5 w-3.5 accent-blue-500" ${checked ? 'checked' : ''}>
+                                </label>`;
+                      }).join('')}
+                    </div>
+                  </div>
+                </div>
+              </th>`;
       liens.forEach(lien => {
-        html += `<th class="px-3 py-2 border-b border-slate-800 text-left" style="min-width:${colWidth}; width:${colWidth};">${lien}</th>`;
+        html += `<th class="px-3 py-2 border-b border-slate-800 text-left relative" style="min-width:${colWidth}; width:${colWidth};">${lien}<span class="analytics-resizer" data-analytics-resize="col"></span></th>`;
       });
       html += `<th class="px-3 py-2 border-b border-slate-800 text-left bg-slate-950">Row total</th>`;
       html += '</tr></thead><tbody>';
@@ -1289,8 +1312,74 @@
         html += `<td class="px-3 py-2 border-t border-slate-800 text-right" style="min-width:${colWidth}; width:${colWidth};">${colTotals.get(lien) || 0}</td>`;
       });
       html += `<td class="px-3 py-2 border-t border-slate-800 text-right">${grandTotal}</td></tr>`;
-      html += '</tbody></table></div>';
+      html += '</tbody></table>';
+      html += `<div id="analytics-table-resizer" class="analytics-table-resizer"></div>`;
+      html += '</div>';
       els.analyticsContent.innerHTML = html;
+
+      const menuBtn = els.analyticsContent.querySelector('#analytics-location-menu-btn');
+      const menu = els.analyticsContent.querySelector('#analytics-location-menu');
+      const menuChecks = els.analyticsContent.querySelectorAll('input[data-location-check]');
+      if (menuBtn && menu) {
+        menuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menu.classList.toggle('hidden');
+        });
+        menuChecks.forEach(chk => {
+          chk.addEventListener('change', () => {
+            const selected = Array.from(menuChecks).filter(c => c.checked).map(c => c.value);
+            state.analytics.selectedLocations = selected.length === locations.length ? [] : selected;
+            renderAnalytics();
+          });
+        });
+        document.addEventListener('click', (e) => {
+          if (!menu.contains(e.target) && e.target !== menuBtn) menu.classList.add('hidden');
+        });
+      }
+
+      const resizers = els.analyticsContent.querySelectorAll('.analytics-resizer');
+      resizers.forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const startX = e.pageX;
+          const startWidth = state.analytics.colWidth;
+          const onMove = (ev) => {
+            const diff = ev.pageX - startX;
+            state.analytics.colWidth = Math.min(220, Math.max(80, startWidth + diff));
+            renderAnalytics();
+          };
+          const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      });
+
+      const tableResizer = els.analyticsContent.querySelector('#analytics-table-resizer');
+      const tableWrapper = els.analyticsContent.querySelector('[data-analytics-table="true"]');
+      if (tableResizer && tableWrapper) {
+        tableResizer.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const startX = e.pageX;
+          const startWidthPx = tableWrapper.getBoundingClientRect().width;
+          const viewportWidth = Math.max(600, document.documentElement.clientWidth || window.innerWidth);
+          const onMove = (ev) => {
+            const diff = ev.pageX - startX;
+            const newWidthPx = Math.max(400, startWidthPx + diff);
+            const percent = Math.min(100, Math.max(60, (newWidthPx / viewportWidth) * 100));
+            state.analytics.tableWidth = percent;
+            renderAnalytics();
+          };
+          const onUp = () => {
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      }
     };
 
     const loadData = async () => {
@@ -1312,11 +1401,8 @@
       els.searchTerms?.addEventListener('input', (e) => { state.search.terms = e.target.value; state.pagination.page = 1; renderTable(); });
       els.termsOperator?.addEventListener('change', (e) => { state.search.termsOperator = e.target.value; state.pagination.page = 1; renderTable(); });
       
-      els.analyticsLocationFilter?.addEventListener('input', (e) => { state.analytics.location = e.target.value; renderAnalytics(); });
       els.analyticsLienFilter?.addEventListener('input', (e) => { state.analytics.lien = e.target.value; renderAnalytics(); });
       els.analyticsSort?.addEventListener('change', (e) => { state.analytics.sort = e.target.value; renderAnalytics(); });
-      els.analyticsColWidth?.addEventListener('input', (e) => { state.analytics.colWidth = Number(e.target.value) || 140; renderAnalytics(); });
-      els.analyticsTableWidth?.addEventListener('input', (e) => { state.analytics.tableWidth = Number(e.target.value) || 100; renderAnalytics(); });
       
       els.addRowBtn?.addEventListener('click', addNewRow);
       els.prevPage?.addEventListener('click', () => { state.pagination.page--; renderTable(); });
