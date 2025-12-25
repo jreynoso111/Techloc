@@ -323,6 +323,7 @@
             auth: { persistSession: true, autoRefreshToken: true },
           })
         : null);
+    const primaryKeyCandidates = [PRIMARY_KEY, (PRIMARY_KEY || '').toLowerCase(), 'id'];
 
     const DEFAULT_LABELS = {
       'account status': 'Vehicle Status',
@@ -404,6 +405,10 @@
     const labelize = (key = '') => key.replace(/_/g, ' ').trim().replace(/\b\w/g, c => c.toUpperCase());
     const cleanId = (key) => 'col-' + key.replace(/[^a-zA-Z0-9-_]/g, '_');
     let columnMenus = [];
+    const resolvePrimaryKey = (row = {}) => {
+        const key = primaryKeyCandidates.find(k => k && Object.prototype.hasOwnProperty.call(row, k) && row[k] !== undefined && row[k] !== null);
+        return { key: key || PRIMARY_KEY, value: key ? row[key] : undefined };
+    };
 
     const closeColumnMenus = (except = null) => {
         columnMenus.forEach(menu => {
@@ -522,15 +527,21 @@
     };
 
     // --- BORRAR FILA ---
-    const deleteRow = async (rowId, btn) => {
+    const deleteRow = async (rowData, btn) => {
         if (!confirm('Are you sure you want to delete this row? This cannot be undone.')) return;
         
         // UI optimista
         const tr = btn.closest('tr');
         tr.style.opacity = '0.5';
+        const { key: primaryKeyField, value: rowId } = resolvePrimaryKey(rowData);
+        if (rowId === undefined || rowId === null) {
+            showToast('Missing row identifier', 'error');
+            tr.style.opacity = '1';
+            return;
+        }
 
         if (supabaseClient) {
-            const { error } = await supabaseClient.from(READ_TABLE).delete().eq(PRIMARY_KEY, rowId);
+            const { error } = await supabaseClient.from(READ_TABLE).delete().eq(primaryKeyField, rowId);
             if (error) {
                 showToast('Error deleting row', 'error');
                 tr.style.opacity = '1';
@@ -539,7 +550,7 @@
         }
         
         // Actualizar estado local
-        state.rows = state.rows.filter(r => r[PRIMARY_KEY] !== rowId);
+        state.rows = state.rows.filter(r => resolvePrimaryKey(r).value !== rowId);
         renderTable();
         showToast('Row deleted', 'info');
     };
@@ -630,14 +641,20 @@
         td.appendChild(wrapper);
     };
 
-    const editCell = (td, rowId, colId, originalValue) => {
+    const editCell = (td, rowData, colId) => {
         if (state.isResizing || state.isDragging) return;
         if (td.querySelector('input')) return;
-        if (typeof originalValue === 'object' && originalValue !== null) return;
+        const currentValue = rowData[colId];
+        if (typeof currentValue === 'object' && currentValue !== null) return;
+        const { key: primaryKeyField, value: rowId } = resolvePrimaryKey(rowData);
+        if (rowId === undefined || rowId === null) {
+            showToast('Missing row identifier', 'error');
+            return;
+        }
 
         const input = document.createElement('input');
         input.type = 'text';
-        input.value = originalValue === null ? '' : originalValue;
+        input.value = currentValue === null ? '' : currentValue;
         input.className = 'cell-input'; 
         td.textContent = ''; 
         td.appendChild(input);
@@ -653,25 +670,25 @@
             const payloadValue = newValue === '' ? null : newValue;
             renderCellContent(td, payloadValue);
 
-            if (String(payloadValue) === String(originalValue === null ? '' : originalValue) && payloadValue !== '') return;
-            if (payloadValue === null && originalValue === null) return;
+            if (String(payloadValue) === String(currentValue === null ? '' : currentValue) && payloadValue !== '') return;
+            if (payloadValue === null && currentValue === null) return;
 
-            const row = state.rows.find(r => r[PRIMARY_KEY] === rowId);
+            const row = state.rows.find(r => resolvePrimaryKey(r).value === rowId);
             if (row) row[colId] = payloadValue;
 
             if (supabaseClient) {
-                const { error } = await supabaseClient.from(READ_TABLE).update({ [colId]: payloadValue }).eq(PRIMARY_KEY, rowId);
+                const { error } = await supabaseClient.from(READ_TABLE).update({ [colId]: payloadValue }).eq(primaryKeyField, rowId);
                 if (error) {
                     showToast('Save failed', 'error');
-                    renderCellContent(td, originalValue); 
-                    if (row) row[colId] = originalValue;
+                    renderCellContent(td, currentValue); 
+                    if (row) row[colId] = currentValue;
                 } else {
                     showToast('Saved', 'info');
                 }
             }
         };
 
-        const cancel = () => { isSaving = true; renderCellContent(td, originalValue); };
+        const cancel = () => { isSaving = true; renderCellContent(td, currentValue); };
         input.addEventListener('blur', save);
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') { e.preventDefault(); input.blur(); } 
@@ -1053,25 +1070,29 @@
             const payloadValue = newValue === '' ? null : newValue;
 
             const matchingIds = [];
+            let primaryKeyField = null;
             state.rows = state.rows.map(row => {
+                const identity = resolvePrimaryKey(row);
+                if (!primaryKeyField && identity.key) primaryKeyField = identity.key;
                 const cellVal = row[col.id];
                 const cellStr = String(cellVal ?? '').trim();
                 const isMatch = targetTrimmed === '' ? true : cellStr === targetTrimmed;
-                if (isMatch) {
-                    matchingIds.push(row[PRIMARY_KEY]);
+                if (isMatch && identity.value !== undefined && identity.value !== null) {
+                    matchingIds.push(identity.value);
                     return { ...row, [col.id]: payloadValue };
                 }
                 return row;
             });
 
             if (!matchingIds.length) { showToast('No rows matched for replacement', 'info'); renderTable(); return; }
+            const idColumn = primaryKeyField || PRIMARY_KEY;
 
             if (supabaseClient) {
                 try {
                     const { error } = await supabaseClient
                         .from(READ_TABLE)
                         .update({ [col.id]: payloadValue })
-                        .in(PRIMARY_KEY, matchingIds);
+                        .in(idColumn, matchingIds);
                     if (error) throw error;
                 } catch (err) {
                     console.error(err);
@@ -1162,7 +1183,7 @@
             const delBtn = document.createElement('button');
             delBtn.className = 'text-slate-600 hover:text-red-500 transition-colors p-1';
             delBtn.innerHTML = '<i data-lucide="trash-2" class="h-3.5 w-3.5"></i>';
-            delBtn.onclick = () => deleteRow(row[PRIMARY_KEY], delBtn);
+            delBtn.onclick = () => deleteRow(row, delBtn);
             tdDel.appendChild(delBtn);
             tr.appendChild(tdDel);
 
@@ -1175,7 +1196,7 @@
                 renderCellContent(td, val);
                 td.addEventListener('dblclick', () => {
                     if (col.id === 'created_at' || col.id === 'updated_at' || col.id === PRIMARY_KEY) { showToast('Read-only', 'info'); return; }
-                    editCell(td, row[PRIMARY_KEY], col.id, val);
+                    editCell(td, row, col.id);
                 });
                 tr.appendChild(td);
             });
