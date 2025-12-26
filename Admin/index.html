@@ -1527,16 +1527,12 @@
         const batch = validRows.slice(i, sliceEnd).map(buildSlimPtPayload);
 
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, validRows.length)} of ${validRows.length})...`);
-        const { data, error } = await supabaseClient.from('PT-LastPing').insert(batch);
+        const { data, error } = await supabaseClient
+          .from('PT-LastPing')
+          .insert(batch, { onConflict: 'Serial,Date', ignoreDuplicates: true })
+          .select();
 
         if (error) {
-          const message = (error.message || '').toLowerCase();
-          const isDuplicate = error.code === '23505' || message.includes('duplicate') || message.includes('unique constraint');
-          if (isDuplicate) {
-            aggregated.skippedDuplicates += batch.length;
-            aggregated.batches += 1;
-            continue;
-          }
           console.error('Supabase insert error:', { error, batchNumber });
           if (isRlsBlocked(error)) {
             showToast('Upload blocked by security policy (RLS).', 'error');
@@ -1550,9 +1546,10 @@
           throw error;
         }
 
-        const rpcSummary = data || [];
+        const insertedCount = Array.isArray(data) ? data.length : 0;
         aggregated.batches += 1;
-        aggregated.inserted += rpcSummary.length || batch.length;
+        aggregated.inserted += insertedCount;
+        aggregated.skippedDuplicates += Math.max(0, batch.length - insertedCount);
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
