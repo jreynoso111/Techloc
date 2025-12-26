@@ -509,6 +509,8 @@
 
       const slim = {
         Serial: clean(row?.['Serial']),
+        read_day: clean(row?.['read_day']),
+        day_half: numericOrValue(row?.['day_half']),
         Year: numericOrValue(row?.['Year']),
         Make: clean(row?.['Make']),
         Model: clean(row?.['Model']),
@@ -1510,32 +1512,71 @@
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
       const cleanedRows = (rows || []).map(sanitizePtPingRow);
+      const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        hour12: false,
+      });
       const aggregated = {
         inserted: 0,
         batches: 0,
         rejectedMissingRequired: 0,
         rejectedInvalidDate: 0,
-        skippedDuplicates: 0,
+        skippedDeduplication: 0,
+        skippedSupabaseDuplicates: 0,
         rejectedNoMatchVin: 0,
       };
 
-      const deduplicateValidRows = (rowsToDedup) => {
-        const uniqueRows = [];
-        const seenKeys = new Set();
+      const derivePtDayParts = (dateVal) => {
+        const parsedDate = new Date(dateVal);
+        if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
+        const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
+          if (part.type !== 'literal') acc[part.type] = part.value;
+          return acc;
+        }, {});
+        const { year, month, day } = parts;
+        const hour = Number(parts.hour);
+        if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
+        const readDay = `${year}-${month}-${day}`;
+        const dayHalf = hour < 12 ? 0 : 1;
+        return { readDay, dayHalf };
+      };
 
-        rowsToDedup.forEach((row) => {
+      const buildPtPingDedupKey = (serialVal, dateVal) => {
+        if (!serialVal || !dateVal) return null;
+        const { readDay, dayHalf } = derivePtDayParts(dateVal);
+        if (!readDay || dayHalf === null) return null;
+        return `${serialVal}__${readDay}__${dayHalf}`;
+      };
+
+      const deduplicateValidRows = (rowsToDedup) => {
+        const latestByKey = new Map();
+
+        rowsToDedup.forEach((row, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const key = `${serialVal}__${dateVal}`;
-          if (seenKeys.has(key)) {
-            aggregated.skippedDuplicates += 1;
+          const readDay = row?.['read_day'];
+          const dayHalf = row?.['day_half'];
+          const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${readDay}__${dayHalf}`;
+          const currentTime = new Date(dateVal).getTime();
+          const existing = latestByKey.get(key);
+          if (existing) {
+            aggregated.skippedDeduplication += 1;
+            const existingTime = new Date(existing.row?.['Date']).getTime();
+            if (!Number.isNaN(currentTime) && (Number.isNaN(existingTime) || currentTime >= existingTime)) {
+              latestByKey.set(key, { row, index });
+            }
             return;
           }
-          seenKeys.add(key);
-          uniqueRows.push(row);
+          latestByKey.set(key, { row, index });
         });
 
-        return uniqueRows;
+        return Array.from(latestByKey.values())
+          .sort((a, b) => a.index - b.index)
+          .map((entry) => entry.row);
       };
 
       const setStatus = (text) => {
@@ -1578,6 +1619,13 @@
           rejectedRows.push({ ...rest, error: 'Missing Serial or Date' });
           return;
         }
+        const { readDay, dayHalf } = derivePtDayParts(date);
+        if (!readDay || dayHalf === null) {
+          aggregated.rejectedInvalidDate += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'Invalid Date bucket' });
+          return;
+        }
         const vinLast6 = normalizeVinLast6(row?.['VIN']);
         if (!vinLast6 || !dealsVinSet.has(vinLast6)) {
           aggregated.rejectedNoMatchVin += 1;
@@ -1586,6 +1634,8 @@
           return;
         }
         delete row.__invalidDate;
+        row.read_day = readDay;
+        row.day_half = dayHalf;
         validRows.push(row);
       });
 
@@ -1606,7 +1656,7 @@
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
         const { data, error } = await supabaseClient
           .from('PT-LastPing')
-          .upsert(batch, { onConflict: 'Serial,Date', ignoreDuplicates: true })
+          .upsert(batch, { onConflict: 'Serial,read_day,day_half', ignoreDuplicates: true })
           .select();
 
         if (error) {
@@ -1626,7 +1676,7 @@
         const insertedCount = Array.isArray(data) ? data.length : 0;
         aggregated.batches += 1;
         aggregated.inserted += insertedCount;
-        aggregated.skippedDuplicates += Math.max(0, batch.length - insertedCount);
+        aggregated.skippedSupabaseDuplicates += Math.max(0, batch.length - insertedCount);
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
@@ -1636,10 +1686,11 @@
         '\nInserted: ' + aggregated.inserted +
         '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
         '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
-        '\nSkipped duplicates: ' + aggregated.skippedDuplicates +
+        '\nSkipped duplicates (client half-day bucket): ' + aggregated.skippedDeduplication +
+        '\nSkipped duplicates (Supabase conflicts): ' + aggregated.skippedSupabaseDuplicates +
         '\nRejected (VIN not in Deals): ' + aggregated.rejectedNoMatchVin +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped duplicates: ${aggregated.skippedDuplicates} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`);
+      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped (client dedup): ${aggregated.skippedDeduplication} Skipped (Supabase): ${aggregated.skippedSupabaseDuplicates} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`);
       showToast(summary, 'success');
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
       lucide.createIcons();
