@@ -1447,6 +1447,25 @@
         rejectedNoMatchVin: 0,
       };
 
+      const deduplicateValidRows = (rowsToDedup) => {
+        const uniqueRows = [];
+        const seenKeys = new Set();
+
+        rowsToDedup.forEach((row) => {
+          const serialVal = row?.['Serial'];
+          const dateVal = row?.['Date'];
+          const key = `${serialVal}__${dateVal}`;
+          if (seenKeys.has(key)) {
+            aggregated.skippedDuplicates += 1;
+            return;
+          }
+          seenKeys.add(key);
+          uniqueRows.push(row);
+        });
+
+        return uniqueRows;
+      };
+
       const downloadRejected = () => {
         if (!rejectedRows.length || !window.Papa?.unparse) return;
         const csv = window.Papa.unparse(rejectedRows);
@@ -1519,17 +1538,18 @@
         return;
       }
 
-      const totalBatches = Math.ceil(validRows.length / PT_PING_BATCH_SIZE);
+      const dedupedRows = deduplicateValidRows(validRows);
+      const totalBatches = Math.ceil(dedupedRows.length / PT_PING_BATCH_SIZE);
 
-      for (let i = 0; i < validRows.length; i += PT_PING_BATCH_SIZE) {
+      for (let i = 0; i < dedupedRows.length; i += PT_PING_BATCH_SIZE) {
         const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
         const sliceEnd = i + PT_PING_BATCH_SIZE;
-        const batch = validRows.slice(i, sliceEnd).map(buildSlimPtPayload);
+        const batch = dedupedRows.slice(i, sliceEnd).map(buildSlimPtPayload);
 
-        setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, validRows.length)} of ${validRows.length})...`);
+        setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
         const { data, error } = await supabaseClient
           .from('PT-LastPing')
-          .insert(batch, { onConflict: 'Serial,Date', ignoreDuplicates: true })
+          .upsert(batch, { onConflict: 'Serial,Date', ignoreDuplicates: true })
           .select();
 
         if (error) {
