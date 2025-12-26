@@ -354,21 +354,18 @@
       'Payment Method'
     ];
     const PT_PING_COLUMNS = [
-      'Name',
       'Serial',
-      'Account',
+      'Year',
+      'Make',
+      'Model',
+      'Color',
+      'Customer',
+      'Vehicle Status',
+      'VIN',
+      'Date',
       'address',
       'Lat',
       'Long',
-      'Type',
-      'Date',
-      'VIN',
-      'InventoryStockNumber',
-      'TimeSinceLastRpt',
-      'Make',
-      'Model',
-      'Year',
-      'Color',
     ];
     const PT_PING_BATCH_SIZE = 200;
     const PT_PING_BATCH_DELAY_MS = 50;
@@ -378,11 +375,7 @@
         map.set(cleanHeaderKey(col), col);
       });
       map.set('serial #', 'Serial');
-      map.set('account #', 'Account');
-      map.set('inventory stock number', 'InventoryStockNumber');
-      map.set('time since last rpt', 'TimeSinceLastRpt');
-      map.set('time since lastrpt', 'TimeSinceLastRpt');
-      map.set('time since last report', 'TimeSinceLastRpt');
+      map.set('serial#', 'Serial');
       return map;
     })();
     
@@ -507,21 +500,18 @@
       };
 
       const slim = {
-        VIN: clean(row?.['VIN']),
         Serial: clean(row?.['Serial']),
-        Account: clean(row?.['Account']),
-        Name: clean(row?.['Name']),
+        Year: numericOrValue(row?.['Year']),
+        Make: clean(row?.['Make']),
+        Model: clean(row?.['Model']),
+        Color: clean(row?.['Color']),
+        Customer: clean(row?.['Customer']),
+        'Vehicle Status': clean(row?.['Vehicle Status']),
+        VIN: clean(row?.['VIN']),
+        Date: clean(row?.['Date']),
         address: clean(row?.['address']),
         Lat: numericOrValue(row?.['Lat']),
         Long: numericOrValue(row?.['Long']),
-        Type: clean(row?.['Type']),
-        Date: clean(row?.['Date']),
-        InventoryStockNumber: clean(row?.['InventoryStockNumber']),
-        TimeSinceLastRpt: clean(row?.['TimeSinceLastRpt']),
-        Make: clean(row?.['Make']),
-        Model: clean(row?.['Model']),
-        Year: numericOrValue(row?.['Year']),
-        Color: clean(row?.['Color']),
       };
 
       return Object.entries(slim).reduce((acc, [key, value]) => {
@@ -1232,54 +1222,43 @@
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
-      submitBtn.addEventListener('click', (event) => {
+      submitBtn.addEventListener('click', async (event) => {
         event.preventDefault();
         if (!requireAdmin()) {
           showToast('Only administrators can upload PT ping data.', 'error');
           return;
         }
+        const hasSession = await ensurePtSession();
+        if (!hasSession) return;
         const file = fileInput.files?.[0];
         if (!file) {
-          showToast('Please select a CSV file to upload.', 'error');
+          showToast('Please select a CSV or XLSX file to upload.', 'error');
           return;
         }
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="animate-pulse">Preparing rows…</span>';
         setStatus('Parsing file...');
-        parsePtPingFile(file)
-          .then(async ({ rows, headers, errors }) => {
-            const normalizedHeaders = normalizePtHeaders(headers);
-            const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
-            if (!valid) {
-              setStatus('Missing headers: ' + missing.join(', '));
-              showToast('Missing required headers: ' + missing.join(', '), 'error');
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              lucide.createIcons();
-              return;
-            }
-            try {
-              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              const normalizedRows = (rows || []).map(normalizePtPingRow);
-              await uploadPtPingRows(normalizedRows, errors?.length || 0);
-            } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + err.message, 'error');
-              setStatus('Upload failed: ' + err.message);
-            } finally {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              lucide.createIcons();
-            }
-          })
-          .catch((err) => {
-            console.error('Parse error:', err);
-            showToast('File parse error: ' + err.message, 'error');
-            setStatus('File parse error: ' + err.message);
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-            lucide.createIcons();
-          });
+        try {
+          const { rows, headers, errors } = await parsePtPingFile(file);
+          const normalizedHeaders = normalizePtHeaders(headers);
+          const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
+          if (!valid) {
+            setStatus('Missing headers: ' + missing.join(', '));
+            showToast('Missing required headers: ' + missing.join(', '), 'error');
+            return;
+          }
+          submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
+          await uploadPtPingRows(rows || [], errors?.length || 0);
+        } catch (err) {
+          console.error('PT Last Ping upload failed:', err);
+          showToast('Upload failed: ' + err.message, 'error');
+          setStatus('Upload failed: ' + err.message);
+          showPtError(err, 'PT Last Ping upload failed');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
+          lucide.createIcons();
+        }
       });
     };
 
@@ -1349,9 +1328,76 @@
 
     const validatePtPingHeaders = (headers = []) => {
       const normalizedHeaders = headers instanceof Set ? headers : normalizePtHeaders(headers);
-      const hasSerial = normalizedHeaders.has('Serial');
-      const missing = hasSerial ? [] : ['Serial'];
+      const missing = [];
+      if (!normalizedHeaders.has('Serial')) missing.push('Serial');
+      if (!normalizedHeaders.has('Date')) missing.push('Date');
       return { valid: missing.length === 0, missing };
+    };
+
+    const excelSerialToIso = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      const date = new Date((num - 25569) * 86400 * 1000);
+      const time = date.getTime();
+      if (Number.isNaN(time)) return null;
+      return date.toISOString();
+    };
+
+    const normalizePtDate = (value) => {
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value.toISOString();
+      }
+      if (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)))) {
+        return excelSerialToIso(value);
+      }
+      if (typeof value === 'string') {
+        const parsed = new Date(value.trim());
+        return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+      }
+      return null;
+    };
+
+    const sanitizePtPingRow = (row = {}) => {
+      const normalized = normalizePtPingRow(row);
+      const cleaned = {};
+      PT_PING_COLUMNS.forEach((column) => {
+        let value = normalized[column];
+        if (typeof value === 'string') value = value.trim();
+        if (column === 'Lat' || column === 'Long' || column === 'Year') {
+          const numeric = toNumber(value);
+          value = numeric !== null ? numeric : value;
+        }
+        if (column === 'Date') {
+          const isoDate = normalizePtDate(value);
+          const hasValue = value !== undefined && value !== null && `${value}`.trim() !== '';
+          if (isoDate) {
+            cleaned.Date = isoDate;
+          } else if (hasValue) {
+            cleaned.__invalidDate = true;
+          }
+          return;
+        }
+        if (value === '') value = null;
+        if (value !== undefined && value !== null) cleaned[column] = value;
+      });
+      return cleaned;
+    };
+
+    const ensurePtSession = async () => {
+      try {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        if (!data?.session) {
+          showToast('You must be signed in to upload PT Last Ping data.', 'error');
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.error('Session check failed:', err);
+        showToast('Unable to verify session. Please sign in again.', 'error');
+        showPtError(err, 'Session validation failed');
+        return false;
+      }
     };
 
     const uploadPtPingRows = async (rows, parseErrors = 0) => {
@@ -1363,11 +1409,13 @@
       const errorBox = document.getElementById('pt-error-box');
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
+      const cleanedRows = (rows || []).map(sanitizePtPingRow);
       const aggregated = {
-        inserted: 0,
-        skippedNoChange: 0,
+        uploaded: 0,
         batches: 0,
-        rejectedMissingSerial: 0,
+        rejectedMissingRequired: 0,
+        rejectedInvalidDate: 0,
+        rejectedDuplicate: 0,
       };
 
       const downloadRejected = () => {
@@ -1395,21 +1443,30 @@
 
       resetErrorBox();
 
-      setStatus('Validating rows (Serial required, VIN not checked)...');
+      setStatus(`Validating ${cleanedRows.length} rows (Serial and Date required)...`);
       const validRows = [];
-      (rows || []).forEach((row) => {
+      cleanedRows.forEach((row) => {
         const serial = row?.['Serial'];
-        if (!serial || `${serial}`.trim() === '') {
-          aggregated.rejectedMissingSerial += 1;
-          rejectedRows.push({ ...row, error: 'Missing Serial' });
+        const date = row?.['Date'];
+        if (row?.__invalidDate) {
+          aggregated.rejectedInvalidDate += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'Invalid Date' });
           return;
         }
+        if (!serial || `${serial}`.trim() === '' || !date || `${date}`.trim() === '') {
+          aggregated.rejectedMissingRequired += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'Missing Serial or Date' });
+          return;
+        }
+        delete row.__invalidDate;
         validRows.push(row);
       });
 
       if (!validRows.length) {
-        setStatus('No rows contained a Serial value.');
-        showToast('No rows contained a Serial value.', 'error');
+        setStatus('No rows contained both Serial and Date values.');
+        showToast('No rows contained both Serial and Date values.', 'error');
         downloadRejected();
         return;
       }
@@ -1418,17 +1475,39 @@
 
       for (let i = 0; i < validRows.length; i += PT_PING_BATCH_SIZE) {
         const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
-        const batch = validRows.slice(i, i + PT_PING_BATCH_SIZE);
-        const slimBatch = batch.map(buildSlimPtPayload);
+        const sliceEnd = i + PT_PING_BATCH_SIZE;
+        const batch = validRows.slice(i, sliceEnd).map(buildSlimPtPayload);
 
-        setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${batch.length} rows)...`);
-        const { data, error } = await supabaseClient.rpc(
-          'ingest_pt_lastping_changes',
-          { p_rows: slimBatch }
-        );
+        setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, validRows.length)} of ${validRows.length})...`);
+        const { data, error } = await supabaseClient.from('PT-LastPing').insert(batch);
 
         if (error) {
-          console.error('Supabase upsert error:', { error, batchNumber });
+          const message = (error.message || '').toLowerCase();
+          const isDuplicate = error.code === '23505' || message.includes('duplicate') || message.includes('unique constraint');
+          if (isDuplicate) {
+            for (const row of batch) {
+              const { error: rowError } = await supabaseClient.from('PT-LastPing').insert(row);
+              if (rowError) {
+                const rowMessage = (rowError.message || '').toLowerCase();
+                const rowDuplicate = rowError.code === '23505' || rowMessage.includes('duplicate') || rowMessage.includes('unique constraint');
+                if (rowDuplicate) {
+                  aggregated.rejectedDuplicate += 1;
+                  rejectedRows.push({ ...row, error: 'Duplicate Serial+Date' });
+                  continue;
+                }
+                console.error('Supabase insert error:', { rowError, batchNumber });
+                showToast('Upload failed', 'error');
+                setStatus('Upload failed: ' + (rowError?.message || 'Unknown error'));
+                showPtError(rowError, `Batch ${batchNumber} failed`);
+                throw rowError;
+              } else {
+                aggregated.uploaded += 1;
+              }
+            }
+            aggregated.batches += 1;
+            continue;
+          }
+          console.error('Supabase insert error:', { error, batchNumber });
           if (isRlsBlocked(error)) {
             showToast('Upload blocked by security policy (RLS).', 'error');
             setStatus('Upload blocked by security policy (RLS).');
@@ -1437,25 +1516,25 @@
           }
           showToast('Upload failed', 'error');
           setStatus('Upload failed: ' + (error?.message || 'Unknown error'));
-          showPtError(error, 'RPC ingest_pt_lastping_changes failed');
+          showPtError(error, `Batch ${batchNumber} failed`);
           throw error;
         }
 
-        const rpcSummary = data || {};
+        const rpcSummary = data || [];
         aggregated.batches += 1;
-        aggregated.inserted += rpcSummary.inserted ?? 0;
-        aggregated.skippedNoChange += rpcSummary.skipped_no_change ?? 0;
+        aggregated.uploaded += rpcSummary.length || batch.length;
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
       const summary =
         'Completed.' +
         '\nBatches: ' + aggregated.batches +
-        '\nInserted: ' + aggregated.inserted +
-        '\nSkipped (no change): ' + aggregated.skippedNoChange +
-        '\nRejected (missing Serial): ' + aggregated.rejectedMissingSerial +
+        '\nUploaded (inserted/updated): ' + aggregated.uploaded +
+        '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
+        '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
+        '\nRejected (duplicates): ' + aggregated.rejectedDuplicate +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped(no change): ${aggregated.skippedNoChange}`);
+      setStatus(`Upload complete. Uploaded: ${aggregated.uploaded} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedDuplicate}`);
       showToast(summary, 'success');
       downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
