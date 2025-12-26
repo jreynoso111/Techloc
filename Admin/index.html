@@ -509,8 +509,6 @@
 
       const slim = {
         Serial: clean(row?.['Serial']),
-        read_day: clean(row?.['read_day']),
-        day_half: numericOrValue(row?.['day_half']),
         Year: numericOrValue(row?.['Year']),
         Make: clean(row?.['Make']),
         Model: clean(row?.['Model']),
@@ -1530,6 +1528,22 @@
         rejectedNoMatchVin: 0,
       };
 
+      const recalcPtMovedForSerials = async (serials = []) => {
+        if (!serials.length) return;
+        try {
+          const { error } = await supabaseClient.rpc('recalc_pt_lastping_moved_2d_for_serials', { serials });
+          if (error) {
+            if (error.code === '42883') {
+              console.warn('RPC recalc_pt_lastping_moved_2d_for_serials unavailable; continuing upload.', error);
+              return;
+            }
+            console.warn('RPC recalc_pt_lastping_moved_2d_for_serials failed; continuing upload.', error);
+          }
+        } catch (err) {
+          console.warn('RPC recalc_pt_lastping_moved_2d_for_serials threw; continuing upload.', err);
+        }
+      };
+
       const derivePtDayParts = (dateVal) => {
         const parsedDate = new Date(dateVal);
         if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
@@ -1555,11 +1569,9 @@
       const deduplicateValidRows = (rowsToDedup) => {
         const latestByKey = new Map();
 
-        rowsToDedup.forEach((row, index) => {
+        rowsToDedup.forEach(({ row, readDay, dayHalf }, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const readDay = row?.['read_day'];
-          const dayHalf = row?.['day_half'];
           const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${readDay}__${dayHalf}`;
           const currentTime = new Date(dateVal).getTime();
           const existing = latestByKey.get(key);
@@ -1634,9 +1646,7 @@
           return;
         }
         delete row.__invalidDate;
-        row.read_day = readDay;
-        row.day_half = dayHalf;
-        validRows.push(row);
+        validRows.push({ row, readDay, dayHalf });
       });
 
       if (!validRows.length) {
@@ -1647,6 +1657,9 @@
 
       const dedupedRows = deduplicateValidRows(validRows);
       const totalBatches = Math.ceil(dedupedRows.length / PT_PING_BATCH_SIZE);
+      const serialsForRecalc = Array.from(
+        new Set(dedupedRows.map((row) => row?.['Serial']).filter(Boolean))
+      );
 
       for (let i = 0; i < dedupedRows.length; i += PT_PING_BATCH_SIZE) {
         const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
@@ -1679,6 +1692,8 @@
         aggregated.skippedSupabaseDuplicates += Math.max(0, batch.length - insertedCount);
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
+
+      await recalcPtMovedForSerials(serialsForRecalc);
 
       const summary =
         'Completed.' +
