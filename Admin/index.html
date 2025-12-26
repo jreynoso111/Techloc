@@ -282,6 +282,10 @@
                   </button>
                 </form>
                 <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Requires VIN present in DealsJP1. Conflicts resolved by VIN + Serial #.</p>
+                <details id="pt-error-box" class="hidden overflow-hidden rounded-xl border border-rose-900/60 bg-rose-950/60 text-xs text-rose-100 shadow-inner shadow-rose-950/50">
+                  <summary class="cursor-pointer px-3 py-2 font-semibold text-rose-200">Error details</summary>
+                  <pre id="pt-error-pre" class="max-h-64 overflow-auto whitespace-pre-wrap px-3 pb-3 pt-1 font-mono text-[11px] leading-relaxed text-rose-100"></pre>
+                </details>
               </div>
             </section>
 
@@ -357,7 +361,8 @@
       'Year',
       'Color',
     ];
-    const PT_PING_BATCH_SIZE = 100;
+    const PT_PING_BATCH_SIZE = 20;
+    const PT_PING_BATCH_DELAY_MS = 250;
     
     // --- LISTA MAESTRA (Validación Local) ---
     const KNOWN_DEALS_COLUMNS = [
@@ -455,6 +460,63 @@
       const stringValue = typeof value === 'string' ? value.trim() : value;
       if (`${stringValue}`.trim() === '') return null;
       return stringValue;
+    };
+
+    const formatSupabaseError = (err) => {
+      if (!err) return 'Unknown error';
+      const parts = [err.message, err.code, err.details, err.hint].filter(Boolean).join(' | ');
+      const serialized = (() => {
+        try {
+          return JSON.stringify(err, null, 2);
+        } catch {
+          return '';
+        }
+      })();
+      return [parts, serialized].filter(Boolean).join('\n\n');
+    };
+
+    const showPtError = (err, contextText = '') => {
+      const box = document.getElementById('pt-error-box');
+      const pre = document.getElementById('pt-error-pre');
+      if (!box || !pre) return;
+      const timestamp = new Date().toLocaleString();
+      const context = contextText ? `Context: ${contextText}\n` : '';
+      const formatted = formatSupabaseError(err);
+      pre.textContent = `${context}Timestamp: ${timestamp}\n\n${formatted}`;
+      box.classList.remove('hidden');
+    };
+
+    const buildSlimPtPayload = (row = {}) => {
+      const clean = (value) => cleanValue(value);
+      const numericOrValue = (value) => {
+        const numeric = toNumber(value);
+        return numeric !== null ? numeric : clean(value);
+      };
+
+      const slim = {
+        VIN: clean(row?.['VIN']),
+        Serial: clean(row?.['Serial']),
+        Account: clean(row?.['Account']),
+        Name: clean(row?.['Name']),
+        address: clean(row?.['address']),
+        Lat: numericOrValue(row?.['Lat']),
+        Long: numericOrValue(row?.['Long']),
+        Type: clean(row?.['Type']),
+        Date: clean(row?.['Date']),
+        InventoryStockNumber: clean(row?.['InventoryStockNumber']),
+        TimeSinceLastRpt: clean(row?.['TimeSinceLastRpt']),
+        Make: clean(row?.['Make']),
+        Model: clean(row?.['Model']),
+        Year: numericOrValue(row?.['Year']),
+        Color: clean(row?.['Color']),
+      };
+
+      return Object.entries(slim).reduce((acc, [key, value]) => {
+        if (value === undefined || value === null) return acc;
+        if (typeof value === 'string' && value === '') return acc;
+        acc[key] = value;
+        return acc;
+      }, {});
     };
 
     const buildColumnMap = (columns = []) => {
@@ -1293,6 +1355,8 @@
 
       const submitBtn = document.getElementById('pt-ping-upload-button');
       const status = document.getElementById('pt-ping-status');
+      const errorBox = document.getElementById('pt-error-box');
+      const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
       const aggregated = {
         inserted: 0,
@@ -1319,6 +1383,13 @@
         if (status) status.textContent = text;
       };
 
+      const resetErrorBox = () => {
+        if (errorBox) errorBox.classList.add('hidden');
+        if (errorPre) errorPre.textContent = '';
+      };
+
+      resetErrorBox();
+
       const vinCandidates = (rows || []).map((row) => row?.['VIN']).filter(Boolean);
 
       setStatus('Validating VINs against DealsJP1...');
@@ -1330,6 +1401,7 @@
         const details = [error?.message, error?.code, error?.details].filter(Boolean).join(' | ');
         showToast('VIN lookup failed: ' + details, 'error');
         setStatus('VIN lookup failed: ' + (details || 'Unknown error'));
+        showPtError(error, 'VIN lookup failed');
         if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
         lucide.createIcons();
         return;
@@ -1364,6 +1436,11 @@
           delete normalizedRow['Account #'];
         }
 
+        if (!normalizedRow['Serial']) {
+          rejectedRows.push({ ...row, error: 'Missing Serial' });
+          return;
+        }
+
         validRows.push(normalizedRow);
       });
 
@@ -1379,23 +1456,25 @@
       for (let i = 0; i < validRows.length; i += PT_PING_BATCH_SIZE) {
         const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
         const batch = validRows.slice(i, i + PT_PING_BATCH_SIZE);
+        const slimBatch = batch.map(buildSlimPtPayload);
 
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${batch.length} rows)...`);
         const { data, error } = await supabaseClient.rpc(
           'ingest_pt_lastping_changes',
-          { p_rows: batch }
+          { p_rows: slimBatch }
         );
 
         if (error) {
-          console.error('Supabase upsert error:', error);
+          console.error('Supabase upsert error:', { error, batchNumber });
           if (isRlsBlocked(error)) {
             showToast('Upload blocked by security policy (RLS).', 'error');
             setStatus('Upload blocked by security policy (RLS).');
+            showPtError(error, `Batch ${batchNumber} blocked`);
             return;
           }
-          const details = [error?.message, error?.code, error?.details].filter(Boolean).join(' | ');
-          showToast('Upload failed: ' + details, 'error');
-          setStatus('Upload failed: ' + (details || 'Unknown error'));
+          showToast('Upload failed', 'error');
+          setStatus('Upload failed: ' + (error?.message || 'Unknown error'));
+          showPtError(error, 'RPC ingest_pt_lastping_changes failed');
           throw error;
         }
 
@@ -1404,7 +1483,7 @@
         aggregated.inserted += rpcSummary.inserted ?? 0;
         aggregated.skippedNoChange += rpcSummary.skipped_no_change ?? 0;
         aggregated.skippedNoVinMatch += rpcSummary.skipped_no_vin_match ?? 0;
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
       const summary =
