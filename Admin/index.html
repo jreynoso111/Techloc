@@ -1510,32 +1510,55 @@
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
       const cleanedRows = (rows || []).map(sanitizePtPingRow);
+      const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        hour12: false,
+      });
       const aggregated = {
         inserted: 0,
         batches: 0,
         rejectedMissingRequired: 0,
         rejectedInvalidDate: 0,
-        skippedDuplicates: 0,
+        skippedDeduplication: 0,
+        skippedSupabaseDuplicates: 0,
         rejectedNoMatchVin: 0,
       };
 
-      const deduplicateValidRows = (rowsToDedup) => {
-        const uniqueRows = [];
-        const seenKeys = new Set();
+      const buildPtPingDedupKey = (serialVal, dateVal) => {
+        if (!serialVal || !dateVal) return null;
+        const parsedDate = new Date(dateVal);
+        if (Number.isNaN(parsedDate.getTime())) return null;
+        const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
+          if (part.type !== 'literal') acc[part.type] = part.value;
+          return acc;
+        }, {});
+        const { year, month, day } = parts;
+        const hour = Number(parts.hour);
+        if (!year || !month || !day || Number.isNaN(hour)) return null;
+        const half = hour < 12 ? 'AM' : 'PM';
+        return `${serialVal}__${year}-${month}-${day}__${half}`;
+      };
 
-        rowsToDedup.forEach((row) => {
+      const deduplicateValidRows = (rowsToDedup) => {
+        const latestByKey = new Map();
+
+        rowsToDedup.forEach((row, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const key = `${serialVal}__${dateVal}`;
-          if (seenKeys.has(key)) {
-            aggregated.skippedDuplicates += 1;
-            return;
+          const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${dateVal}`;
+          if (latestByKey.has(key)) {
+            aggregated.skippedDeduplication += 1;
           }
-          seenKeys.add(key);
-          uniqueRows.push(row);
+          latestByKey.set(key, { row, index });
         });
 
-        return uniqueRows;
+        return Array.from(latestByKey.values())
+          .sort((a, b) => a.index - b.index)
+          .map((entry) => entry.row);
       };
 
       const setStatus = (text) => {
@@ -1626,7 +1649,7 @@
         const insertedCount = Array.isArray(data) ? data.length : 0;
         aggregated.batches += 1;
         aggregated.inserted += insertedCount;
-        aggregated.skippedDuplicates += Math.max(0, batch.length - insertedCount);
+        aggregated.skippedSupabaseDuplicates += Math.max(0, batch.length - insertedCount);
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
@@ -1636,10 +1659,11 @@
         '\nInserted: ' + aggregated.inserted +
         '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
         '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
-        '\nSkipped duplicates: ' + aggregated.skippedDuplicates +
+        '\nSkipped duplicates (client half-day bucket): ' + aggregated.skippedDeduplication +
+        '\nSkipped duplicates (Supabase conflicts): ' + aggregated.skippedSupabaseDuplicates +
         '\nRejected (VIN not in Deals): ' + aggregated.rejectedNoMatchVin +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped duplicates: ${aggregated.skippedDuplicates} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`);
+      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped (client dedup): ${aggregated.skippedDeduplication} Skipped (Supabase): ${aggregated.skippedSupabaseDuplicates} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`);
       showToast(summary, 'success');
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
       lucide.createIcons();
