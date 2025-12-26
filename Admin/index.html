@@ -185,7 +185,7 @@
                     </div>
                     <button id="upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                     </button>
                 </form>
                 <p class="text-xs leading-relaxed text-slate-400">Required: ShortVIN. Updates Status, Loc, GPS, etc.</p>
@@ -210,7 +210,7 @@
                     </div>
                     <button id="deals-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                     </button>
                 </form>
                 <div id="deals-progress" class="hidden space-y-2">
@@ -244,7 +244,7 @@
                   </div>
                   <button id="ns-invoices-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                   </button>
                 </form>
                 <div id="ns-invoices-progress" class="hidden space-y-2">
@@ -278,7 +278,7 @@
                   </div>
                   <button id="pt-ping-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                   </button>
                 </form>
                 <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Requires Serial on each row. Conflicts resolved by VIN + Serial.</p>
@@ -325,6 +325,15 @@
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
+
+    function cleanHeaderKey(key) {
+      return (key || '')
+        .toString()
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .replace(/\.$/, '');
+    }
 
     const DEALS_TABLE = 'DealsJP1';
     const NS_INVOICES_TABLE = 'NS-Invoices&pays';
@@ -449,15 +458,6 @@
       const cleaned = typeof value === 'string' ? value.replace(/,/g, '').trim() : value;
       const num = Number(cleaned);
       return Number.isFinite(num) ? num : null;
-    };
-
-    const cleanHeaderKey = (key) => {
-      return (key || '')
-        .toString()
-        .trim()                
-        .replace(/\s+/g, ' ')  
-        .toLowerCase()
-        .replace(/\.$/, ''); 
     };
 
     const normalizeRow = (row = {}) =>
@@ -1073,14 +1073,14 @@
               showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           },
           error: (err) => {
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           },
         });
@@ -1133,14 +1133,14 @@
               showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           },
           error: (err) => {
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           },
         });
@@ -1193,14 +1193,14 @@
               showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           },
           error: (err) => {
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           },
         });
@@ -1254,7 +1254,7 @@
               setStatus('Missing headers: ' + missing.join(', '));
               showToast('Missing required headers: ' + missing.join(', '), 'error');
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
               return;
             }
@@ -1268,7 +1268,7 @@
               setStatus('Upload failed: ' + err.message);
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           })
@@ -1277,7 +1277,7 @@
             showToast('File parse error: ' + err.message, 'error');
             setStatus('File parse error: ' + err.message);
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           });
       });
@@ -1458,7 +1458,7 @@
       setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped(no change): ${aggregated.skippedNoChange}`);
       showToast(summary, 'success');
       downloadRejected();
-      if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+      if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
       lucide.createIcons();
     };
 
