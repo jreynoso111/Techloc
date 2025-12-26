@@ -357,7 +357,7 @@
       'Year',
       'Color',
     ];
-    const PT_PING_BATCH_SIZE = 300;
+    const PT_PING_BATCH_SIZE = 100;
     
     // --- LISTA MAESTRA (Validación Local) ---
     const KNOWN_DEALS_COLUMNS = [
@@ -1204,23 +1204,33 @@
       lucide.createIcons();
     };
 
-    const fetchDealsVinSet = async () => {
+    const fetchExistingVins = async (vinCandidates = []) => {
       const vinSet = new Set();
-      const PAGE_SIZE = 1000;
-      let from = 0;
-      while (true) {
+      const uniqueVins = Array.from(
+        new Set(
+          vinCandidates
+            .map((vin) => (vin === undefined || vin === null ? '' : String(vin).trim()))
+            .filter(Boolean)
+        )
+      );
+
+      const CHUNK_SIZE = 200;
+      for (let i = 0; i < uniqueVins.length; i += CHUNK_SIZE) {
+        const chunk = uniqueVins.slice(i, i + CHUNK_SIZE);
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
           .select('VIN')
-          .range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
+          .in('VIN', chunk);
+        if (error) {
+          throw error;
+        }
         (data || []).forEach((row) => {
           const vin = row?.VIN;
           if (vin) vinSet.add(String(vin).trim());
         });
-        if (!data || data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
+
       return vinSet;
     };
 
@@ -1309,8 +1319,21 @@
         if (status) status.textContent = text;
       };
 
-      setStatus('Fetching active VINs from Deals...');
-      const vinSet = await fetchDealsVinSet();
+      const vinCandidates = (rows || []).map((row) => row?.['VIN']).filter(Boolean);
+
+      setStatus('Validating VINs against DealsJP1...');
+      let vinSet;
+      try {
+        vinSet = await fetchExistingVins(vinCandidates);
+      } catch (error) {
+        console.error('VIN lookup failed:', error);
+        const details = [error?.message, error?.code, error?.details].filter(Boolean).join(' | ');
+        showToast('VIN lookup failed: ' + details, 'error');
+        setStatus('VIN lookup failed: ' + (details || 'Unknown error'));
+        if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+        lucide.createIcons();
+        return;
+      }
 
       if (!vinSet.size) {
         setStatus('No active VINs found in DealsJP1.');
@@ -1370,7 +1393,9 @@
             setStatus('Upload blocked by security policy (RLS).');
             return;
           }
-          setStatus('Upload failed: ' + error.message);
+          const details = [error?.message, error?.code, error?.details].filter(Boolean).join(' | ');
+          showToast('Upload failed: ' + details, 'error');
+          setStatus('Upload failed: ' + (details || 'Unknown error'));
           throw error;
         }
 
@@ -1379,7 +1404,7 @@
         aggregated.inserted += rpcSummary.inserted ?? 0;
         aggregated.skippedNoChange += rpcSummary.skipped_no_change ?? 0;
         aggregated.skippedNoVinMatch += rpcSummary.skipped_no_vin_match ?? 0;
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
 
       const summary =
