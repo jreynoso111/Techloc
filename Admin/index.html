@@ -1439,11 +1439,11 @@
       const rejectedRows = [];
       const cleanedRows = (rows || []).map(sanitizePtPingRow);
       const aggregated = {
-        uploaded: 0,
+        inserted: 0,
         batches: 0,
         rejectedMissingRequired: 0,
         rejectedInvalidDate: 0,
-        rejectedDuplicate: 0,
+        skippedDuplicates: 0,
         rejectedNoMatchVin: 0,
       };
 
@@ -1533,25 +1533,7 @@
           const message = (error.message || '').toLowerCase();
           const isDuplicate = error.code === '23505' || message.includes('duplicate') || message.includes('unique constraint');
           if (isDuplicate) {
-            for (const row of batch) {
-              const { error: rowError } = await supabaseClient.from('PT-LastPing').insert(row);
-              if (rowError) {
-                const rowMessage = (rowError.message || '').toLowerCase();
-                const rowDuplicate = rowError.code === '23505' || rowMessage.includes('duplicate') || rowMessage.includes('unique constraint');
-                if (rowDuplicate) {
-                  aggregated.rejectedDuplicate += 1;
-                  rejectedRows.push({ ...row, error: 'Duplicate Serial+Date' });
-                  continue;
-                }
-                console.error('Supabase insert error:', { rowError, batchNumber });
-                showToast('Upload failed', 'error');
-                setStatus('Upload failed: ' + (rowError?.message || 'Unknown error'));
-                showPtError(rowError, `Batch ${batchNumber} failed`);
-                throw rowError;
-              } else {
-                aggregated.uploaded += 1;
-              }
-            }
+            aggregated.skippedDuplicates += batch.length;
             aggregated.batches += 1;
             continue;
           }
@@ -1570,20 +1552,20 @@
 
         const rpcSummary = data || [];
         aggregated.batches += 1;
-        aggregated.uploaded += rpcSummary.length || batch.length;
+        aggregated.inserted += rpcSummary.length || batch.length;
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
       const summary =
         'Completed.' +
         '\nBatches: ' + aggregated.batches +
-        '\nUploaded (inserted/updated): ' + aggregated.uploaded +
+        '\nInserted: ' + aggregated.inserted +
         '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
         '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
-        '\nRejected (duplicates): ' + aggregated.rejectedDuplicate +
+        '\nSkipped duplicates: ' + aggregated.skippedDuplicates +
         '\nRejected (VIN not in Deals): ' + aggregated.rejectedNoMatchVin +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Uploaded: ${aggregated.uploaded} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedDuplicate + aggregated.rejectedNoMatchVin}`);
+      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped duplicates: ${aggregated.skippedDuplicates} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`);
       showToast(summary, 'success');
       downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
