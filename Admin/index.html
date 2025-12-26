@@ -453,6 +453,12 @@
       return Number.isFinite(num) ? num : null;
     };
 
+    const normalizeStockNumber = (value) => {
+      if (value === undefined || value === null) return null;
+      const normalized = String(value).trim().toUpperCase();
+      return normalized === '' ? null : normalized;
+    };
+
     const normalizeRow = (row = {}) =>
       Object.entries(row).reduce((acc, [key, val]) => {
         const normalizedKey = cleanHeaderKey(key);
@@ -904,6 +910,27 @@
       setProgress(100, 'Upload complete.');
     };
 
+    const fetchDealsStockNumberSet = async () => {
+      const stockNumberSet = new Set();
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabaseClient
+          .from(DEALS_TABLE)
+          .select('Current Stock No', { head: false })
+          .range(from, to);
+        if (error) throw error;
+        (data || []).forEach((row) => {
+          const normalized = normalizeStockNumber(row?.['Current Stock No']);
+          if (normalized) stockNumberSet.add(normalized);
+        });
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return stockNumberSet;
+    };
+
     const uploadInvoicesRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload invoice data.');
@@ -930,7 +957,25 @@
         return;
       }
 
-      setProgress(0, 'Clearing previous invoice data...');
+      setProgress(0, 'Loading Deals stock numbers...');
+
+      let dealsStockNumberSet;
+      try {
+        dealsStockNumberSet = await fetchDealsStockNumberSet();
+      } catch (err) {
+        console.error('Supabase fetch error (Deals stock numbers):', err);
+        showToast('Unable to load Deals stock numbers for validation.', 'error');
+        setProgress(0, 'Failed to load Deals stock numbers.');
+        return;
+      }
+
+      if (!dealsStockNumberSet.size) {
+        showToast('No Deals stock numbers found. Upload stopped.', 'error');
+        setProgress(0, 'No Deals stock numbers found.');
+        return;
+      }
+
+      setProgress(5, 'Clearing previous invoice data...');
 
       const { error: truncateError } = await supabaseClient.rpc('truncate_ns_invoices');
       if (truncateError) {
@@ -944,21 +989,32 @@
       const uniqueInvoices = new Map();
       let skippedInvalid = 0;
       let duplicatesRemoved = 0;
+      let rejectedStockMismatch = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
         const documentNumber = normalizedRow['document number'];
+        const stockNumberRaw =
+          normalizedRow['stock no'] || normalizedRow['stock number'] || normalizedRow['tam legacy stock #'];
+        const normalizedStockNo = normalizeStockNumber(stockNumberRaw);
 
         if (!documentNumber) {
           skippedInvalid++;
           return;
         }
 
+        if (!normalizedStockNo || !dealsStockNumberSet.has(normalizedStockNo)) {
+          rejectedStockMismatch++;
+          return;
+        }
+
         const mapped = mapInvoiceRow(normalizedRow, columnMap);
         if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
+        if (columnMap.has('stock no') && normalizedStockNo) {
+          mapped[columnMap.get('stock no')] = normalizedStockNo;
+        }
 
-        const stockNumber = normalizedRow['stock no'] || normalizedRow['stock number'] || normalizedRow['tam legacy stock #'];
-        const uniqueKey = stockNumber ? `${documentNumber}_${stockNumber}` : `${documentNumber}`;
+        const uniqueKey = `${documentNumber}_${normalizedStockNo}`;
         if (uniqueInvoices.has(uniqueKey)) {
           duplicatesRemoved++;
         }
@@ -1010,6 +1066,7 @@
         '\nProcessed (Unique): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nSkipped (Missing Document Number): ' + skippedInvalid +
+        '\nRejected (Stock No not in DealsJP1): ' + rejectedStockMismatch +
         '\nDuplicates Removed: ' + duplicatesRemoved +
         '\nErrors: ' + parseErrors;
 
