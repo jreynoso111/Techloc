@@ -509,8 +509,6 @@
 
       const slim = {
         Serial: clean(row?.['Serial']),
-        read_day: clean(row?.['read_day']),
-        day_half: numericOrValue(row?.['day_half']),
         Year: numericOrValue(row?.['Year']),
         Make: clean(row?.['Make']),
         Model: clean(row?.['Model']),
@@ -1555,11 +1553,9 @@
       const deduplicateValidRows = (rowsToDedup) => {
         const latestByKey = new Map();
 
-        rowsToDedup.forEach((row, index) => {
+        rowsToDedup.forEach(({ row, readDay, dayHalf }, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const readDay = row?.['read_day'];
-          const dayHalf = row?.['day_half'];
           const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${readDay}__${dayHalf}`;
           const currentTime = new Date(dateVal).getTime();
           const existing = latestByKey.get(key);
@@ -1634,9 +1630,7 @@
           return;
         }
         delete row.__invalidDate;
-        row.read_day = readDay;
-        row.day_half = dayHalf;
-        validRows.push(row);
+        validRows.push({ row, readDay, dayHalf });
       });
 
       if (!validRows.length) {
