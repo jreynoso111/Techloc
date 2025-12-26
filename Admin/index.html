@@ -185,7 +185,7 @@
                     </div>
                     <button id="upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                     </button>
                 </form>
                 <p class="text-xs leading-relaxed text-slate-400">Required: ShortVIN. Updates Status, Loc, GPS, etc.</p>
@@ -210,7 +210,7 @@
                     </div>
                     <button id="deals-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                     </button>
                 </form>
                 <div id="deals-progress" class="hidden space-y-2">
@@ -244,7 +244,7 @@
                   </div>
                   <button id="ns-invoices-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                   </button>
                 </form>
                 <div id="ns-invoices-progress" class="hidden space-y-2">
@@ -265,9 +265,9 @@
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
                   <h3 class="text-lg font-bold text-white">Import PT Last Ping</h3>
-                  <p class="text-sm text-slate-400">Upsert into PT-LastPing when VIN exists in Deals.</p>
+                  <p class="text-sm text-slate-400">Upload PT-LastPing data to Supabase (Serial required).</p>
                 </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">VIN gated</span>
+                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Serial required</span>
               </div>
 
               <div class="mt-auto space-y-3">
@@ -278,10 +278,10 @@
                   </div>
                   <button id="pt-ping-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload &amp; upsert</span>
+                    <span>Upload</span>
                   </button>
                 </form>
-                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Requires VIN present in DealsJP1. Conflicts resolved by VIN + Serial #.</p>
+                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Requires Serial on each row. Conflicts resolved by VIN + Serial.</p>
                 <details id="pt-error-box" class="hidden overflow-hidden rounded-xl border border-rose-900/60 bg-rose-950/60 text-xs text-rose-100 shadow-inner shadow-rose-950/50">
                   <summary class="cursor-pointer px-3 py-2 font-semibold text-rose-200">Error details</summary>
                   <pre id="pt-error-pre" class="max-h-64 overflow-auto whitespace-pre-wrap px-3 pb-3 pt-1 font-mono text-[11px] leading-relaxed text-rose-100"></pre>
@@ -326,6 +326,15 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
+    function cleanHeaderKey(key) {
+      return (key || '')
+        .toString()
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase()
+        .replace(/\.$/, '');
+    }
+
     const DEALS_TABLE = 'DealsJP1';
     const NS_INVOICES_TABLE = 'NS-Invoices&pays';
     const NS_INVOICES_COLUMNS = [
@@ -346,8 +355,8 @@
     ];
     const PT_PING_COLUMNS = [
       'Name',
-      'Serial #',
-      'Account #',
+      'Serial',
+      'Account',
       'address',
       'Lat',
       'Long',
@@ -361,8 +370,21 @@
       'Year',
       'Color',
     ];
-    const PT_PING_BATCH_SIZE = 20;
-    const PT_PING_BATCH_DELAY_MS = 250;
+    const PT_PING_BATCH_SIZE = 200;
+    const PT_PING_BATCH_DELAY_MS = 50;
+    const PT_PING_HEADER_MAP = (() => {
+      const map = new Map();
+      PT_PING_COLUMNS.forEach((col) => {
+        map.set(cleanHeaderKey(col), col);
+      });
+      map.set('serial #', 'Serial');
+      map.set('account #', 'Account');
+      map.set('inventory stock number', 'InventoryStockNumber');
+      map.set('time since last rpt', 'TimeSinceLastRpt');
+      map.set('time since lastrpt', 'TimeSinceLastRpt');
+      map.set('time since last report', 'TimeSinceLastRpt');
+      return map;
+    })();
     
     // --- LISTA MAESTRA (Validación Local) ---
     const KNOWN_DEALS_COLUMNS = [
@@ -423,7 +445,7 @@
         table: 'PT-LastPing',
         scope: 'Telematics',
         title: 'Import Last Ping',
-        description: 'Latest PassTime ping uploads gated by VIN.',
+        description: 'Latest PassTime ping uploads (Serial required).',
         displayName: 'PT Last Ping'
       }
     ];
@@ -436,15 +458,6 @@
       const cleaned = typeof value === 'string' ? value.replace(/,/g, '').trim() : value;
       const num = Number(cleaned);
       return Number.isFinite(num) ? num : null;
-    };
-
-    const cleanHeaderKey = (key) => {
-      return (key || '')
-        .toString()
-        .trim()                
-        .replace(/\s+/g, ' ')  
-        .toLowerCase()
-        .replace(/\.$/, ''); 
     };
 
     const normalizeRow = (row = {}) =>
@@ -517,6 +530,24 @@
         acc[key] = value;
         return acc;
       }, {});
+    };
+
+    const normalizePtHeaders = (headers = []) => {
+      const normalized = new Set();
+      headers.forEach((header) => {
+        const canonical = PT_PING_HEADER_MAP.get(cleanHeaderKey(header)) || header;
+        normalized.add(canonical);
+      });
+      return normalized;
+    };
+
+    const normalizePtPingRow = (row = {}) => {
+      const normalized = {};
+      Object.entries(row || {}).forEach(([key, value]) => {
+        const canonical = PT_PING_HEADER_MAP.get(cleanHeaderKey(key)) || key;
+        normalized[canonical] = value;
+      });
+      return normalized;
     };
 
     const buildColumnMap = (columns = []) => {
@@ -1042,14 +1073,14 @@
               showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           },
           error: (err) => {
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           },
         });
@@ -1102,14 +1133,14 @@
               showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           },
           error: (err) => {
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           },
         });
@@ -1162,14 +1193,14 @@
               showToast('Upload failed: ' + err.message, 'error');
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           },
           error: (err) => {
             showToast('CSV parse error: ' + err.message, 'error');
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           },
         });
@@ -1213,29 +1244,31 @@
           return;
         }
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Fetching VINs…</span>';
+        submitBtn.innerHTML = '<span class="animate-pulse">Preparing rows…</span>';
         setStatus('Parsing file...');
         parsePtPingFile(file)
           .then(async ({ rows, headers, errors }) => {
-            const { valid, missing } = validatePtPingHeaders(headers);
+            const normalizedHeaders = normalizePtHeaders(headers);
+            const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
             if (!valid) {
               setStatus('Missing headers: ' + missing.join(', '));
               showToast('Missing required headers: ' + missing.join(', '), 'error');
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
               return;
             }
             try {
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadPtPingRows(rows || [], errors?.length || 0);
+              const normalizedRows = (rows || []).map(normalizePtPingRow);
+              await uploadPtPingRows(normalizedRows, errors?.length || 0);
             } catch (err) {
               console.error('Upload failed:', err);
               showToast('Upload failed: ' + err.message, 'error');
               setStatus('Upload failed: ' + err.message);
             } finally {
               submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
               lucide.createIcons();
             }
           })
@@ -1244,7 +1277,7 @@
             showToast('File parse error: ' + err.message, 'error');
             setStatus('File parse error: ' + err.message);
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
             lucide.createIcons();
           });
       });
@@ -1264,36 +1297,6 @@
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
       renderActivityLog(activities);
       lucide.createIcons();
-    };
-
-    const fetchExistingVins = async (vinCandidates = []) => {
-      const vinSet = new Set();
-      const uniqueVins = Array.from(
-        new Set(
-          vinCandidates
-            .map((vin) => (vin === undefined || vin === null ? '' : String(vin).trim()))
-            .filter(Boolean)
-        )
-      );
-
-      const CHUNK_SIZE = 200;
-      for (let i = 0; i < uniqueVins.length; i += CHUNK_SIZE) {
-        const chunk = uniqueVins.slice(i, i + CHUNK_SIZE);
-        const { data, error } = await supabaseClient
-          .from(DEALS_TABLE)
-          .select('VIN')
-          .in('VIN', chunk);
-        if (error) {
-          throw error;
-        }
-        (data || []).forEach((row) => {
-          const vin = row?.VIN;
-          if (vin) vinSet.add(String(vin).trim());
-        });
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      return vinSet;
     };
 
     const ensureXlsxLibrary = () => {
@@ -1345,7 +1348,9 @@
     };
 
     const validatePtPingHeaders = (headers = []) => {
-      const missing = PT_PING_COLUMNS.filter((col) => !headers.includes(col));
+      const normalizedHeaders = headers instanceof Set ? headers : normalizePtHeaders(headers);
+      const hasSerial = normalizedHeaders.has('Serial');
+      const missing = hasSerial ? [] : ['Serial'];
       return { valid: missing.length === 0, missing };
     };
 
@@ -1361,8 +1366,8 @@
       const aggregated = {
         inserted: 0,
         skippedNoChange: 0,
-        skippedNoVinMatch: 0,
         batches: 0,
+        rejectedMissingSerial: 0,
       };
 
       const downloadRejected = () => {
@@ -1390,63 +1395,21 @@
 
       resetErrorBox();
 
-      const vinCandidates = (rows || []).map((row) => row?.['VIN']).filter(Boolean);
-
-      setStatus('Validating VINs against DealsJP1...');
-      let vinSet;
-      try {
-        vinSet = await fetchExistingVins(vinCandidates);
-      } catch (error) {
-        console.error('VIN lookup failed:', error);
-        const details = [error?.message, error?.code, error?.details].filter(Boolean).join(' | ');
-        showToast('VIN lookup failed: ' + details, 'error');
-        setStatus('VIN lookup failed: ' + (details || 'Unknown error'));
-        showPtError(error, 'VIN lookup failed');
-        if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
-        lucide.createIcons();
-        return;
-      }
-
-      if (!vinSet.size) {
-        setStatus('No active VINs found in DealsJP1.');
-        showToast('No active VINs found in DealsJP1.', 'error');
-        return;
-      }
-
-      setStatus('Filtering rows by VIN...');
+      setStatus('Validating rows (Serial required)...');
       const validRows = [];
       (rows || []).forEach((row) => {
-        const vin = row?.['VIN'];
-        if (!vin) {
-          rejectedRows.push({ ...row, error: 'Missing VIN' });
-          return;
-        }
-        if (!vinSet.has(String(vin).trim())) {
-          rejectedRows.push({ ...row, error: 'VIN not found in DealsJP1' });
-          return;
-        }
-
-        const normalizedRow = { ...row };
-        if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Serial #')) {
-          normalizedRow['Serial'] = normalizedRow['Serial #'];
-          delete normalizedRow['Serial #'];
-        }
-        if (Object.prototype.hasOwnProperty.call(normalizedRow, 'Account #')) {
-          normalizedRow['Account'] = normalizedRow['Account #'];
-          delete normalizedRow['Account #'];
-        }
-
-        if (!normalizedRow['Serial']) {
+        const serial = row?.['Serial'];
+        if (!serial || `${serial}`.trim() === '') {
+          aggregated.rejectedMissingSerial += 1;
           rejectedRows.push({ ...row, error: 'Missing Serial' });
           return;
         }
-
-        validRows.push(normalizedRow);
+        validRows.push(row);
       });
 
       if (!validRows.length) {
-        setStatus('No rows matched VINs in DealsJP1.');
-        showToast('No rows matched VINs in DealsJP1.', 'error');
+        setStatus('No rows contained a Serial value.');
+        showToast('No rows contained a Serial value.', 'error');
         downloadRejected();
         return;
       }
@@ -1482,7 +1445,6 @@
         aggregated.batches += 1;
         aggregated.inserted += rpcSummary.inserted ?? 0;
         aggregated.skippedNoChange += rpcSummary.skipped_no_change ?? 0;
-        aggregated.skippedNoVinMatch += rpcSummary.skipped_no_vin_match ?? 0;
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
@@ -1491,12 +1453,12 @@
         '\nBatches: ' + aggregated.batches +
         '\nInserted: ' + aggregated.inserted +
         '\nSkipped (no change): ' + aggregated.skippedNoChange +
-        '\nSkipped (VIN not in Deals): ' + aggregated.skippedNoVinMatch +
+        '\nRejected (missing Serial): ' + aggregated.rejectedMissingSerial +
         '\nErrors: ' + parseErrors;
       setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped(no change): ${aggregated.skippedNoChange}`);
       showToast(summary, 'success');
       downloadRejected();
-      if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
+      if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
       lucide.createIcons();
     };
 
