@@ -1404,6 +1404,34 @@
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload PT ping data.');
 
+      const normalizeVinLast6 = (vin) => {
+        if (!vin && vin !== 0) return null;
+        const str = String(vin).trim().toUpperCase();
+        if (!str) return null;
+        return str.slice(-6);
+      };
+
+      const fetchDealsVinSet = async () => {
+        const set = new Set();
+        const pageSize = 1000;
+        let from = 0;
+        while (true) {
+          const to = from + pageSize - 1;
+          const { data, error } = await supabaseClient
+            .from(DEALS_TABLE)
+            .select('VIN', { head: false })
+            .range(from, to);
+          if (error) throw error;
+          (data || []).forEach((row) => {
+            const last6 = normalizeVinLast6(row?.VIN);
+            if (last6) set.add(last6);
+          });
+          if (!data || data.length < pageSize) break;
+          from += pageSize;
+        }
+        return set;
+      };
+
       const submitBtn = document.getElementById('pt-ping-upload-button');
       const status = document.getElementById('pt-ping-status');
       const errorBox = document.getElementById('pt-error-box');
@@ -1416,6 +1444,7 @@
         rejectedMissingRequired: 0,
         rejectedInvalidDate: 0,
         rejectedDuplicate: 0,
+        rejectedNoMatchVin: 0,
       };
 
       const downloadRejected = () => {
@@ -1444,6 +1473,18 @@
       resetErrorBox();
 
       setStatus(`Validating ${cleanedRows.length} rows (Serial and Date required)...`);
+      let dealsVinSet;
+      try {
+        setStatus('Loading reference VINs...');
+        dealsVinSet = await fetchDealsVinSet();
+      } catch (err) {
+        console.error('Failed to load Deals VINs', err);
+        showToast('Unable to load Deals VINs for validation.', 'error');
+        setStatus('VIN validation unavailable.');
+        showPtError(err, 'Deals VIN fetch failed');
+        return;
+      }
+
       const validRows = [];
       cleanedRows.forEach((row) => {
         const serial = row?.['Serial'];
@@ -1458,6 +1499,13 @@
           aggregated.rejectedMissingRequired += 1;
           const { __invalidDate, ...rest } = row;
           rejectedRows.push({ ...rest, error: 'Missing Serial or Date' });
+          return;
+        }
+        const vinLast6 = normalizeVinLast6(row?.['VIN']);
+        if (!vinLast6 || !dealsVinSet.has(vinLast6)) {
+          aggregated.rejectedNoMatchVin += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'VIN not in Deals (last 6 mismatch)' });
           return;
         }
         delete row.__invalidDate;
@@ -1533,8 +1581,9 @@
         '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
         '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
         '\nRejected (duplicates): ' + aggregated.rejectedDuplicate +
+        '\nRejected (VIN not in Deals): ' + aggregated.rejectedNoMatchVin +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Uploaded: ${aggregated.uploaded} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedDuplicate}`);
+      setStatus(`Upload complete. Uploaded: ${aggregated.uploaded} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate + aggregated.rejectedDuplicate + aggregated.rejectedNoMatchVin}`);
       showToast(summary, 'success');
       downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
