@@ -329,6 +329,8 @@
     function cleanHeaderKey(key) {
       return (key || '')
         .toString()
+        .replace(/^\uFEFF/, '')
+        .replace(/\u00A0/g, ' ')
         .trim()
         .replace(/\s+/g, ' ')
         .toLowerCase()
@@ -1298,6 +1300,8 @@
         try {
           const { rows, headers, errors } = await parsePtPingFile(file);
           const normalizedHeaders = normalizePtHeaders(headers);
+          console.log('RAW HEADERS:', headers);
+          console.log('NORMALIZED HEADERS:', Array.from(normalizedHeaders));
           const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
           if (!valid) {
             setStatus('Missing headers: ' + missing.join(', '));
@@ -1354,6 +1358,12 @@
           window.Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
+            transformHeader: (header) =>
+              (header || '')
+                .toString()
+                .replace(/^\uFEFF/, '')
+                .replace(/\u00A0/g, ' ')
+                .trim(),
             worker: false,
             complete: (results) => {
               const headers = results.meta?.fields || [];
@@ -1370,7 +1380,12 @@
         const firstSheet = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheet];
         const rowsMatrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
-        const headers = (rowsMatrix[0] || []).map((h) => (h === undefined || h === null ? '' : String(h)));
+        const headers = (rowsMatrix[0] || []).map((h) =>
+          (h === undefined || h === null ? '' : String(h))
+            .replace(/^\uFEFF/, '')
+            .replace(/\u00A0/g, ' ')
+            .trim()
+        );
         const rows = rowsMatrix.slice(1).map((row) => {
           const obj = {};
           headers.forEach((header, idx) => {
