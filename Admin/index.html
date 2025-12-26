@@ -357,6 +357,7 @@
       'Year',
       'Color',
     ];
+    const PT_PING_BATCH_SIZE = 300;
     
     // --- LISTA MAESTRA (Validación Local) ---
     const KNOWN_DEALS_COLUMNS = [
@@ -1283,6 +1284,12 @@
       const submitBtn = document.getElementById('pt-ping-upload-button');
       const status = document.getElementById('pt-ping-status');
       const rejectedRows = [];
+      const aggregated = {
+        inserted: 0,
+        skippedNoChange: 0,
+        skippedNoVinMatch: 0,
+        batches: 0,
+      };
 
       const downloadRejected = () => {
         if (!rejectedRows.length || !window.Papa?.unparse) return;
@@ -1344,36 +1351,45 @@
         return;
       }
 
-      setStatus(`Uploading ${validRows.length} rows...`);
-      const { data, error } = await supabaseClient.rpc(
-        'ingest_pt_lastping_changes',
-        { p_rows: validRows }
-      );
+      const totalBatches = Math.ceil(validRows.length / PT_PING_BATCH_SIZE);
 
-      if (error) {
-        console.error('Supabase upsert error:', error);
-        if (isRlsBlocked(error)) {
-          showToast('Upload blocked by security policy (RLS).', 'error');
-          setStatus('Upload blocked by security policy (RLS).');
-          return;
+      for (let i = 0; i < validRows.length; i += PT_PING_BATCH_SIZE) {
+        const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
+        const batch = validRows.slice(i, i + PT_PING_BATCH_SIZE);
+
+        setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${batch.length} rows)...`);
+        const { data, error } = await supabaseClient.rpc(
+          'ingest_pt_lastping_changes',
+          { p_rows: batch }
+        );
+
+        if (error) {
+          console.error('Supabase upsert error:', error);
+          if (isRlsBlocked(error)) {
+            showToast('Upload blocked by security policy (RLS).', 'error');
+            setStatus('Upload blocked by security policy (RLS).');
+            return;
+          }
+          setStatus('Upload failed: ' + error.message);
+          throw error;
         }
-        throw error;
-      }
 
-      const rpcSummary = data || {};
-      const batchId = rpcSummary.batch_id ?? 0;
-      const inserted = rpcSummary.inserted ?? 0;
-      const skippedNoChange = rpcSummary.skipped_no_change ?? 0;
-      const skippedNoVinMatch = rpcSummary.skipped_no_vin_match ?? 0;
+        const rpcSummary = data || {};
+        aggregated.batches += 1;
+        aggregated.inserted += rpcSummary.inserted ?? 0;
+        aggregated.skippedNoChange += rpcSummary.skipped_no_change ?? 0;
+        aggregated.skippedNoVinMatch += rpcSummary.skipped_no_vin_match ?? 0;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
 
       const summary =
         'Completed.' +
-        '\nBatch: ' + batchId +
-        '\nInserted: ' + inserted +
-        '\nSkipped (no change): ' + skippedNoChange +
-        '\nSkipped (VIN not in Deals): ' + skippedNoVinMatch +
+        '\nBatches: ' + aggregated.batches +
+        '\nInserted: ' + aggregated.inserted +
+        '\nSkipped (no change): ' + aggregated.skippedNoChange +
+        '\nSkipped (VIN not in Deals): ' + aggregated.skippedNoVinMatch +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Batch: ${batchId} Inserted: ${inserted} Skipped(no change): ${skippedNoChange}`);
+      setStatus(`Upload complete. Inserted: ${aggregated.inserted} Skipped(no change): ${aggregated.skippedNoChange}`);
       showToast(summary, 'success');
       downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
