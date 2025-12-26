@@ -1334,6 +1334,29 @@
       return { valid: missing.length === 0, missing };
     };
 
+    const excelSerialToIso = (value) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) return null;
+      const date = new Date((num - 25569) * 86400 * 1000);
+      const time = date.getTime();
+      if (Number.isNaN(time)) return null;
+      return date.toISOString();
+    };
+
+    const normalizePtDate = (value) => {
+      if (value instanceof Date) {
+        return Number.isNaN(value.getTime()) ? null : value.toISOString();
+      }
+      if (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value)))) {
+        return excelSerialToIso(value);
+      }
+      if (typeof value === 'string') {
+        const parsed = new Date(value.trim());
+        return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+      }
+      return null;
+    };
+
     const sanitizePtPingRow = (row = {}) => {
       const normalized = normalizePtPingRow(row);
       const cleaned = {};
@@ -1343,6 +1366,16 @@
         if (column === 'Lat' || column === 'Long' || column === 'Year') {
           const numeric = toNumber(value);
           value = numeric !== null ? numeric : value;
+        }
+        if (column === 'Date') {
+          const isoDate = normalizePtDate(value);
+          const hasValue = value !== undefined && value !== null && `${value}`.trim() !== '';
+          if (isoDate) {
+            cleaned.Date = isoDate;
+          } else if (hasValue) {
+            cleaned.__invalidDate = true;
+          }
+          return;
         }
         if (value === '') value = null;
         if (value !== undefined && value !== null) cleaned[column] = value;
@@ -1381,6 +1414,7 @@
         uploaded: 0,
         batches: 0,
         rejectedMissingRequired: 0,
+        rejectedInvalidDate: 0,
       };
 
       const downloadRejected = () => {
@@ -1413,11 +1447,19 @@
       cleanedRows.forEach((row) => {
         const serial = row?.['Serial'];
         const date = row?.['Date'];
-        if (!serial || `${serial}`.trim() === '' || !date || `${date}`.trim() === '') {
-          aggregated.rejectedMissingRequired += 1;
-          rejectedRows.push({ ...row, error: 'Missing Serial or Date' });
+        if (row?.__invalidDate) {
+          aggregated.rejectedInvalidDate += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'Invalid Date' });
           return;
         }
+        if (!serial || `${serial}`.trim() === '' || !date || `${date}`.trim() === '') {
+          aggregated.rejectedMissingRequired += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'Missing Serial or Date' });
+          return;
+        }
+        delete row.__invalidDate;
         validRows.push(row);
       });
 
@@ -1466,8 +1508,9 @@
         '\nBatches: ' + aggregated.batches +
         '\nUploaded (inserted/updated): ' + aggregated.uploaded +
         '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
+        '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
         '\nErrors: ' + parseErrors;
-      setStatus(`Upload complete. Uploaded: ${aggregated.uploaded} Rejected: ${aggregated.rejectedMissingRequired}`);
+      setStatus(`Upload complete. Uploaded: ${aggregated.uploaded} Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedInvalidDate}`);
       showToast(summary, 'success');
       downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
