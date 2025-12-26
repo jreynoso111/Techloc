@@ -12,7 +12,7 @@ if (!supabaseLibReady) {
   );
 }
 
-const DEFAULT_FETCH_TIMEOUT_MS = 120_000;
+const DEFAULT_FETCH_TIMEOUT_MS = 300_000; // 5 minutes to accommodate large uploads
 
 const createFetchWithTimeout = (timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) => {
   if (typeof fetch !== 'function') return null;
