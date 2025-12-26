@@ -509,6 +509,8 @@
 
       const slim = {
         Serial: clean(row?.['Serial']),
+        read_day: clean(row?.['read_day']),
+        day_half: numericOrValue(row?.['day_half']),
         Year: numericOrValue(row?.['Year']),
         Make: clean(row?.['Make']),
         Model: clean(row?.['Model']),
@@ -1528,19 +1530,26 @@
         rejectedNoMatchVin: 0,
       };
 
-      const buildPtPingDedupKey = (serialVal, dateVal) => {
-        if (!serialVal || !dateVal) return null;
+      const derivePtDayParts = (dateVal) => {
         const parsedDate = new Date(dateVal);
-        if (Number.isNaN(parsedDate.getTime())) return null;
+        if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
         const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
           if (part.type !== 'literal') acc[part.type] = part.value;
           return acc;
         }, {});
         const { year, month, day } = parts;
         const hour = Number(parts.hour);
-        if (!year || !month || !day || Number.isNaN(hour)) return null;
-        const half = hour < 12 ? 'AM' : 'PM';
-        return `${serialVal}__${year}-${month}-${day}__${half}`;
+        if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
+        const readDay = `${year}-${month}-${day}`;
+        const dayHalf = hour < 12 ? 0 : 1;
+        return { readDay, dayHalf };
+      };
+
+      const buildPtPingDedupKey = (serialVal, dateVal) => {
+        if (!serialVal || !dateVal) return null;
+        const { readDay, dayHalf } = derivePtDayParts(dateVal);
+        if (!readDay || dayHalf === null) return null;
+        return `${serialVal}__${readDay}__${dayHalf}`;
       };
 
       const deduplicateValidRows = (rowsToDedup) => {
@@ -1549,9 +1558,18 @@
         rowsToDedup.forEach((row, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${dateVal}`;
-          if (latestByKey.has(key)) {
+          const readDay = row?.['read_day'];
+          const dayHalf = row?.['day_half'];
+          const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${readDay}__${dayHalf}`;
+          const currentTime = new Date(dateVal).getTime();
+          const existing = latestByKey.get(key);
+          if (existing) {
             aggregated.skippedDeduplication += 1;
+            const existingTime = new Date(existing.row?.['Date']).getTime();
+            if (!Number.isNaN(currentTime) && (Number.isNaN(existingTime) || currentTime >= existingTime)) {
+              latestByKey.set(key, { row, index });
+            }
+            return;
           }
           latestByKey.set(key, { row, index });
         });
@@ -1601,6 +1619,13 @@
           rejectedRows.push({ ...rest, error: 'Missing Serial or Date' });
           return;
         }
+        const { readDay, dayHalf } = derivePtDayParts(date);
+        if (!readDay || dayHalf === null) {
+          aggregated.rejectedInvalidDate += 1;
+          const { __invalidDate, ...rest } = row;
+          rejectedRows.push({ ...rest, error: 'Invalid Date bucket' });
+          return;
+        }
         const vinLast6 = normalizeVinLast6(row?.['VIN']);
         if (!vinLast6 || !dealsVinSet.has(vinLast6)) {
           aggregated.rejectedNoMatchVin += 1;
@@ -1609,6 +1634,8 @@
           return;
         }
         delete row.__invalidDate;
+        row.read_day = readDay;
+        row.day_half = dayHalf;
         validRows.push(row);
       });
 
@@ -1629,7 +1656,7 @@
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
         const { data, error } = await supabaseClient
           .from('PT-LastPing')
-          .upsert(batch, { onConflict: 'Serial,Date', ignoreDuplicates: true })
+          .upsert(batch, { onConflict: 'Serial,read_day,day_half', ignoreDuplicates: true })
           .select();
 
         if (error) {
