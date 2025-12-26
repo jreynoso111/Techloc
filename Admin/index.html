@@ -1345,9 +1345,10 @@
       }
 
       setStatus(`Uploading ${validRows.length} rows...`);
-      const { error } = await supabaseClient
-        .from('PT-LastPing')
-        .upsert(validRows, { onConflict: 'VIN,Serial', ignoreDuplicates: false });
+      const { data, error } = await supabaseClient.rpc(
+        'ingest_pt_lastping_changes',
+        { p_rows: validRows }
+      );
 
       if (error) {
         console.error('Supabase upsert error:', error);
@@ -1359,13 +1360,20 @@
         throw error;
       }
 
+      const rpcSummary = data || {};
+      const batchId = rpcSummary.batch_id ?? 0;
+      const inserted = rpcSummary.inserted ?? 0;
+      const skippedNoChange = rpcSummary.skipped_no_change ?? 0;
+      const skippedNoVinMatch = rpcSummary.skipped_no_vin_match ?? 0;
+
       const summary =
         'Completed.' +
-        '\nProcessed: ' + rows.length +
-        '\nUpserted: ' + validRows.length +
-        '\nSkipped (VIN not in Deals): ' + (rows.length - validRows.length) +
+        '\nBatch: ' + batchId +
+        '\nInserted: ' + inserted +
+        '\nSkipped (no change): ' + skippedNoChange +
+        '\nSkipped (VIN not in Deals): ' + skippedNoVinMatch +
         '\nErrors: ' + parseErrors;
-      setStatus('Upload complete.');
+      setStatus(`Upload complete. Batch: ${batchId} Inserted: ${inserted} Skipped(no change): ${skippedNoChange}`);
       showToast(summary, 'success');
       downloadRejected();
       if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload &amp; upsert</span>';
