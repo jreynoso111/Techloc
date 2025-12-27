@@ -768,17 +768,20 @@
 
         const th = document.createElement('th');
 
-        th.className = 'px-3 py-2 text-left font-semibold whitespace-nowrap bg-slate-950/80 border-b border-slate-800';
+        th.className = 'px-3 py-2 text-left font-semibold whitespace-normal break-words leading-tight bg-slate-950/80 border-b border-slate-800';
         th.dataset.header = header;
         const storedWidth = state.columnWidths[header];
-        if (storedWidth) th.style.width = storedWidth;
+        if (storedWidth) {
+          th.style.width = storedWidth;
+          th.style.minWidth = storedWidth;
+        }
 
         const headerControls = document.createElement('div');
         headerControls.className = 'header-controls';
 
         const labelBtn = document.createElement('button');
         labelBtn.type = 'button';
-        labelBtn.className = 'header-label text-[11px] font-semibold text-slate-300';
+        labelBtn.className = 'header-label text-[11px] font-semibold text-slate-300 break-words text-left leading-tight';
         labelBtn.title = 'Double click to rename column';
         labelBtn.addEventListener('dblclick', (e) => {
           e.stopPropagation();
@@ -998,20 +1001,23 @@
             ? 'px-2 py-2 font-semibold text-white whitespace-normal leading-snug'
             : 'px-2 py-2 text-slate-200 whitespace-normal leading-snug';
           const storedWidth = state.columnWidths[header];
-          if (storedWidth) td.style.width = storedWidth;
+          if (storedWidth) {
+            td.style.width = storedWidth;
+            td.style.minWidth = storedWidth;
+          }
           td.textContent = formatCellValue(header, row[header]);
           if (allowEdit) {
             td.title = 'Double click to edit cell';
             td.addEventListener('dblclick', () => startCellEdit(td, row, header));
           }
           tr.appendChild(td);
-        });
-
-        els.tableBody.appendChild(tr);
-
       });
 
-      syncScrollbars();
+      els.tableBody.appendChild(tr);
+
+    });
+
+      applyColumnWidths();
       lucide.createIcons();
 
     };
@@ -1606,6 +1612,27 @@
       };
       top.addEventListener('scroll', () => sync(top, bottom));
       bottom.addEventListener('scroll', () => sync(bottom, top));
+    };
+
+    const applyColumnWidths = () => {
+      const headers = getVisibleHeaders();
+      headers.forEach((header, index) => {
+        const width = state.columnWidths[header];
+        if (!width) return;
+        const headCell = els.tableHead.querySelectorAll('th')[index];
+        if (headCell) {
+          headCell.style.width = width;
+          headCell.style.minWidth = width;
+        }
+        els.tableBody.querySelectorAll('tr').forEach((row) => {
+          const cell = row.children[index];
+          if (cell) {
+            cell.style.width = width;
+            cell.style.minWidth = width;
+          }
+        });
+      });
+      syncScrollbars();
     };
 
     const setupColumnSelector = () => {
