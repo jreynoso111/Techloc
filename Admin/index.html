@@ -864,8 +864,10 @@
       // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
+      let skippedStatus = 0;
       let duplicatesRemoved = 0;
       let droppedMissingVinStock = 0;
+      const allowedVehicleStatuses = new Set(['ACTIVE', 'STOCK']);
 
       cleanedRows.forEach(({ normalizedRow, financeChannel }) => {
 
@@ -875,10 +877,16 @@
         
         const stockNumber = normalizedRow['current stock no'];
         const vin = normalizedRow['vin'];
+        const vehicleStatus = typeof normalizedRow['vehicle status'] === 'string' ? normalizedRow['vehicle status'].toUpperCase() : null;
 
         if (!isFinance) {
           skippedInvalid += 1;
           return; 
+        }
+
+        if (vehicleStatus && !allowedVehicleStatuses.has(vehicleStatus)) {
+          skippedStatus += 1;
+          return;
         }
 
         if (!stockNumber || !vin) {
@@ -955,6 +963,7 @@
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nSkipped (Not Finance): ' + skippedInvalid +
+        '\nSkipped (Vehicle Status): ' + skippedStatus +
         '\nDropped (Missing VIN/Stock): ' + droppedMissingVinStock +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
@@ -963,6 +972,7 @@
       console.log(
         '[Deals Upload] Summary => Total rows:', rows.length,
         '| Cleaned rows:', cleanedRows.length,
+        '| Skipped status:', skippedStatus,
         '| Dropped missing VIN/Stock:', droppedMissingVinStock,
         '| Duplicates removed:', duplicatesRemoved
       );
@@ -1235,8 +1245,9 @@
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadDealsRows(results.data || [], parseErrors);
             } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + err.message, 'error');
+              const detailed = formatSupabaseError(err);
+              console.error('Deals upload failed:', detailed);
+              showToast('Upload failed: ' + detailed, 'error');
             } finally {
               submitBtn.disabled = false;
               submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
