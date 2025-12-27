@@ -166,31 +166,6 @@
         </section>
 
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
-            
-            <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
-                  <h3 class="text-lg font-bold text-white">Import Vehicles CSV</h3>
-                  <p class="text-sm text-slate-400">Upsert into vehicles table using ShortVIN.</p>
-                </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">ShortVIN</span>
-              </div>
-              
-              <div class="mt-auto space-y-4">
-                <form id="csv-upload-form" class="grid gap-3">
-                    <div class="space-y-2">
-                    <label for="csv-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
-                    <input id="csv-file" name="csv-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-blue-500 focus:outline-none" />
-                    </div>
-                    <button id="upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60">
-                    <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload</span>
-                    </button>
-                </form>
-                <p class="text-xs leading-relaxed text-slate-400">Required: ShortVIN. Updates Status, Loc, GPS, etc.</p>
-              </div>
-            </section>
 
             <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
               <div class="flex items-center justify-between gap-3">
@@ -324,7 +299,6 @@
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
-    import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
     function cleanHeaderKey(key) {
       return (key || '')
@@ -557,48 +531,6 @@
       return map;
     };
 
-    const pickAllowed = (obj) =>
-      Object.fromEntries(
-        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMNS.has(k) && v !== undefined)
-      );
-
-    const getCsv = (row, ...possibleHeaders) => {
-      for (const header of possibleHeaders) {
-        const searchKey = cleanHeaderKey(header);
-        const v = row[searchKey]; 
-        if (v !== undefined && v !== null && `${v}`.trim() !== '') return v;
-      }
-      return '';
-    };
-
-    const mapVehicleRow = (row) => {
-      const r = normalizeRow(row);
-      const raw = {
-        'deal status': cleanValue(getCsv(r, 'deal status', 'deal_status', 'dealstatus')),
-        'customer id': cleanValue(getCsv(r, 'customer id', 'customer_id', 'customerid')),
-        'unit type': cleanValue(getCsv(r, 'unit type', 'unit_type', 'unittype')),
-        'model year': cleanValue(getCsv(r, 'model year', 'model_year', 'modelyear')),
-        'model': cleanValue(getCsv(r, 'model')),
-        'shortvin': cleanValue(getCsv(r, 'shortvin', 'short vin', 'short_vin')),
-        'inv. prep. stat.': cleanValue(getCsv(r, 'inv. prep. stat.', 'inv prep stat', 'inv_prep_stat', 'inv prep. stat.')),
-        'phys_loc': cleanValue(getCsv(r, 'phys_loc', 'phys loc', 'physloc', 'physical loc', 'physical location')),
-        'deal completion': cleanValue(getCsv(r, 'deal completion', 'deal_completion', 'dealcompletion')),
-        'gps fix': cleanValue(getCsv(r, 'gps fix', 'gps_fix')),
-        'gps fix reason': cleanValue(getCsv(r, 'gps fix reason', 'gps_fix_reason')),
-        'pt status': cleanValue(getCsv(r, 'pt status', 'pt_status')),
-        'pt serial': cleanValue(getCsv(r, 'pt serial', 'pt_serial')),
-        'encore serial': cleanValue(getCsv(r, 'encore serial', 'encore_serial')),
-        'moving': cleanValue(getCsv(r, 'moving')),
-        'pt last read': cleanValue(getCsv(r, 'pt last read', 'pt_last_read')),
-        'state loc': cleanValue(getCsv(r, 'state loc', 'state_loc')),
-        'pt city': cleanValue(getCsv(r, 'pt city', 'pt_city')),
-        'pt zipcode': cleanValue(getCsv(r, 'pt zipcode', 'pt zip code', 'pt_zipcode')),
-        'lat': toNumber(getCsv(r, 'lat', 'latitude')),
-        'long': toNumber(getCsv(r, 'long', 'lng', 'longitude')),
-      };
-      return pickAllowed(raw);
-    };
-
     const mapInvoiceRow = (normalizedRow = {}, columnMap) => {
       const mapped = {};
       columnMap.forEach((originalHeader, normalizedKey) => {
@@ -737,55 +669,6 @@
         toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
         setTimeout(() => toast.remove(), 320);
       }, 4200);
-    };
-
-    // --- UPLOAD VEHICLES ---
-    const uploadCsvRows = async (rows, parseErrors = 0) => {
-      if (!supabaseClient) throw new Error('Supabase client unavailable.');
-      if (!isAdminUser()) throw new Error('Only administrators can upload vehicle data.');
-      const submitBtn = document.getElementById('upload-button');
-      const mapped = rows
-        .map(mapVehicleRow)
-        .filter((row) => {
-          const valid = !!(row.shortvin && `${row.shortvin}`.trim() !== '');
-          return valid;
-        });
-      if (!mapped.length) {
-        showToast('No valid rows detected. Each row must include a ShortVIN value.', 'error');
-        return;
-      }
-      const BATCH_SIZE = 1000;
-      let totalUpserted = 0;
-      let skippedInvalid = rows.length - mapped.length;
-      const totalBatches = Math.ceil(mapped.length / BATCH_SIZE);
-      for (let i = 0; i < mapped.length; i += BATCH_SIZE) {
-        const batch = mapped.slice(i, i + BATCH_SIZE);
-        const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
-        if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
-        }
-        const { data, error } = await supabaseClient
-          .from('vehicles')
-          .upsert(batch, { onConflict: 'shortvin', ignoreDuplicates: false })
-          .select('shortvin');
-        if (error) {
-          console.error('Supabase upsert error:', error);
-          if (isRlsBlocked(error)) {
-            showToast('Upload blocked by security policy (RLS).', 'error');
-            return;
-          }
-          throw error;
-        }
-        totalUpserted += (data ? data.length : 0);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-      const summary =
-        'Completed.' +
-        '\nProcessed: ' + rows.length +
-        '\nUpserted: ' + totalUpserted +
-        '\nSkipped (No ShortVIN): ' + skippedInvalid +
-        '\nErrors: ' + parseErrors;
-      showToast(summary, 'success');
     };
 
     // --- UPLOAD DEALS: AHORA ROBUSTO Y NORMALIZADO (CON FILTRO DE DUPLICADOS) ---
@@ -1084,66 +967,6 @@
 
       showToast(summary, 'success');
       setProgress(100, 'Upload complete.');
-    };
-
-    const wireCsvUpload = () => {
-      const form = document.getElementById('csv-upload-form');
-      const fileInput = document.getElementById('csv-file');
-      const submitBtn = document.getElementById('upload-button');
-      const requireAdmin = () => {
-        const allowed = isAdminUser();
-        if (fileInput) fileInput.disabled = !allowed;
-        if (submitBtn) submitBtn.disabled = !allowed;
-        const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
-        if (submitBtn) submitBtn.title = titleText;
-        return allowed;
-      };
-      if (!form || !fileInput || !submitBtn) return;
-      const syncAccess = () => requireAdmin();
-      syncAccess();
-      window.addEventListener('auth:role-updated', syncAccess);
-      
-      submitBtn.addEventListener('click', (event) => {
-        event.preventDefault(); 
-        if (!requireAdmin()) {
-          showToast('Only administrators can upload vehicle data.', 'error');
-          return;
-        }
-        const file = fileInput.files?.[0];
-        if (!file) {
-          showToast('Please select a CSV file to upload.', 'error');
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-        window.Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (h) => h.trim(),
-          worker: false, 
-          complete: async (results) => {
-            try {
-              const parseErrors = results.errors?.length || 0;
-              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadCsvRows(results.data || [], parseErrors);
-            } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + err.message, 'error');
-            } finally {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              lucide.createIcons();
-            }
-          },
-          error: (err) => {
-            showToast('CSV parse error: ' + err.message, 'error');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-            lucide.createIcons();
-          },
-        });
-      });
     };
 
     const wireDealsUpload = () => {
@@ -1723,7 +1546,6 @@
 
     createConstellationBackground();
     mount();
-    wireCsvUpload();
     wireDealsUpload();
     wireInvoicesUpload();
     wirePtPingUpload();
