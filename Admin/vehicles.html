@@ -24,8 +24,6 @@
 
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
 
-  <script src="../assets/scripts/datasets.js"></script>
-
   <script>
 
     tailwind.config = {
@@ -71,14 +69,15 @@
       color: #e2e8f0;
     }
     .admin-table .header-controls {
-      display: inline-flex;
-      align-items: center;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 6px;
     }
     .admin-table .header-actions {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
       color: rgb(148 163 184);
     }
     .admin-table .header-actions button {
@@ -128,80 +127,100 @@
       color: rgb(148 163 184);
       font-weight: 700;
     }
-    .filter-popover select {
-      width: 100%;
-      background: rgba(15, 23, 42, 0.8);
-      border: 1px solid rgba(51, 65, 85, 0.9);
-      color: #e2e8f0;
+    .filter-popover .filter-options {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .filter-popover .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(51, 65, 85, 0.5);
       border-radius: 10px;
       padding: 8px 10px;
-      font-weight: 600;
       font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+    .filter-popover .filter-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .filter-popover button {
+      font-size: 12px;
+      font-weight: 700;
     }
   </style>
 
 </head>
 
-<body class="min-h-screen bg-slate-950 text-slate-50">
+  <body class="min-h-screen bg-slate-950 text-slate-50">
 
-  <div class="sticky top-0 z-50 space-y-px">
+    <div class="sticky top-0 z-50 space-y-px">
 
-    <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
+      <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
 
-    <div class="flex items-center justify-between px-6 py-4 lg:px-10">
+        <div class="flex items-center justify-between px-6 py-4 lg:px-10">
 
-      <a href="../index.html" class="flex items-center gap-3">
+          <a href="../index.html" class="flex items-center gap-3">
 
-        <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+            <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
 
-          <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+              <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+
+            </div>
+
+            <div>
+
+              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
+
+              <h1 class="text-base font-black leading-tight text-white">Inspectors</h1>
+
+            </div>
+
+          </a>
+
+          <div class="flex flex-wrap items-center justify-end gap-3">
+
+            <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
+
+              <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+
+              <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
+
+              <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
+
+            </nav>
+
+            <div class="flex items-center gap-2">
+              <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+            </div>
+
+          </div>
 
         </div>
 
-        <div>
+      </header>
 
-          <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Admin</p>
-
-          <h1 class="text-base font-black leading-tight text-white">Inspectors</h1>
-
+      <nav class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+        <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3 lg:px-10">
+          <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Admin navigation</span>
+          <div class="flex flex-wrap items-center gap-1">
+            <a href="./index.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
+            <a href="./profiles.html" data-admin-only class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Profiles</a>
+            <a href="./services.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Services</a>
+            <a href="./titles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Titles</a>
+            <a href="./vehicles.html" class="rounded-lg border border-blue-500 bg-blue-600/90 px-4 py-2 text-xs font-semibold text-white shadow shadow-blue-500/30 transition">Vehicles</a>
+            <a href="./analytics.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Analytics</a>
+          </div>
         </div>
-
-      </a>
-
-      <div class="flex flex-wrap items-center justify-end gap-3">
-
-        <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-
-          <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-
-          <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control View</a>
-
-          <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
-
-        </nav>
-
-        <div class="flex items-center gap-2">
-          <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
-        </div>
-
-      </div>
-
-    </div>
-
-  </header>
-  <nav class="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-6 py-3 lg:px-10">
-      <span class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Admin navigation</span>
-      <div class="flex flex-wrap items-center gap-1">
-        <a href="./index.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Dashboard</a>
-        <a href="./profiles.html" data-admin-only class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Profiles</a>
-        <a href="./services.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Services</a>
-        <a href="./titles.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Titles</a>
-        <a href="./vehicles.html" class="rounded-lg border border-blue-500 bg-blue-600/90 px-4 py-2 text-xs font-semibold text-white shadow shadow-blue-500/30 transition">Vehicles</a>
-        <a href="./analytics.html" class="rounded-lg border border-slate-800/60 px-4 py-2 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white">Analytics</a>
-      </div>
-    </div>
-  </nav>
+      </nav>
 
   </div>
 
@@ -230,7 +249,7 @@
 
               <i data-lucide="file-up" class="h-4 w-4"></i>
 
-              <span id="dataset-status">Bundled asset</span>
+                  <span id="dataset-status">Supabase table</span>
 
             </div>
 
@@ -281,50 +300,28 @@
               </div>
 
               <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-
-                <div class="flex flex-wrap gap-2">
-
-                  <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
-
+                <div class="flex flex-wrap items-center gap-2">
+                  <span id="dataset-status" class="rounded-full border border-slate-700/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Supabase table</span>
                   <a id="template-download" href="#" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-
                     <i data-lucide="download" class="h-4 w-4"></i>
-
                     Download data
-
                   </a>
-
-                  <form id="csv-upload-form" class="flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 md:flex-row md:items-center md:gap-3 md:rounded-full md:py-1">
-                    <label for="csv-upload-input" class="inline-flex cursor-pointer items-center gap-2 rounded-full px-2 py-1 transition hover:text-white">
-                      <i data-lucide="file-up" class="h-4 w-4"></i>
-                      <span id="csv-upload-label">Select CSV</span>
-                      <input id="csv-upload-input" type="file" accept=".csv" class="hidden" />
-                    </label>
-                    <button id="csv-upload-button" type="submit" class="rounded-full bg-blue-600 px-3 py-1 text-white transition hover:bg-blue-500">Upload</button>
-                    <span id="csv-upload-status" class="text-[10px] font-semibold normal-case text-slate-400">Supabase import with dedupe</span>
-                    <div id="upload-progress" class="hidden w-full rounded-full border border-slate-800/60 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold normal-case text-slate-200 md:w-64">
-                      <div class="relative h-2 overflow-hidden rounded-full bg-slate-800/80">
-                        <div id="upload-progress-bar" class="absolute inset-y-0 left-0 w-0 rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 transition-[width]" style="transition-duration:200ms"></div>
+                  <div class="relative">
+                    <button id="column-selector-toggle" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+                      <i data-lucide="columns" class="h-4 w-4"></i>
+                      Columns
+                    </button>
+                    <div id="column-selector-panel" class="filter-popover hidden w-64">
+                      <label>Visible columns</label>
+                      <div id="column-selector-list" class="filter-options"></div>
+                      <div class="filter-actions">
+                        <button id="column-selector-apply" type="button" class="flex-1 rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-500">Apply</button>
+                        <button id="column-selector-reset" type="button" class="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200 hover:border-blue-500">Reset</button>
                       </div>
-                      <div id="upload-progress-label" class="mt-1 text-[10px] font-semibold text-slate-300">0% Ready to upload</div>
                     </div>
-                  </form>
-
+                  </div>
                 </div>
-
               </div>
-
-            </div>
-
-            <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/40">
-
-              <table class="min-w-full table-fixed divide-y divide-slate-800 text-xs leading-tight admin-table">
-
-                <thead id="table-head" class="bg-slate-950/60 text-slate-300"></thead>
-
-                <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
-
-              </table>
 
             </div>
 
@@ -354,6 +351,18 @@
 
               </div>
 
+            </div>
+
+            <div class="space-y-2 rounded-xl border border-slate-800 bg-slate-950/40">
+              <div id="table-scroll-top" class="overflow-x-auto border-b border-slate-800 bg-slate-950/80">
+                <div id="table-scroll-shadow" class="h-2"></div>
+              </div>
+              <div id="table-scroll-container" class="overflow-x-auto">
+                <table id="vehicles-table" class="min-w-full table-fixed divide-y divide-slate-800 text-xs leading-tight admin-table">
+                  <thead id="table-head" class="bg-slate-950/60 text-slate-300"></thead>
+                  <tbody id="table-body" class="divide-y divide-slate-800 bg-slate-950/40"></tbody>
+                </table>
+              </div>
             </div>
 
           </section>
@@ -449,14 +458,6 @@
     const CHANGE_LOG_TABLE = 'admin_change_log';
 
     const actor = { id: 'anon', email: '' };
-
-    const DATASET = { key: 'vehicles', path: getDatasetPath('vehicles') };
-
-    const templateDownload = document.getElementById('template-download');
-
-    if (templateDownload) templateDownload.href = DATASET.path;
-
-    const localKey = (suffix = 'csv') => `techloc:dataset:${DATASET.key}:${suffix}`;
 
     const normalizeHeader = (header = '') => {
       const aliases = {
@@ -683,24 +684,42 @@
 
 
 
-    const loadDataset = async () => {
+    const setDatasetStatus = (text) => {
+      const status = document.getElementById('dataset-status');
+      if (status) status.textContent = text;
+    };
 
-      const override = localStorage.getItem(localKey());
+    const fetchVehiclesFromSupabase = async () => {
+      if (!supabaseClient) throw new Error('Supabase client is not available.');
+      const { data, error } = await supabaseClient.from('vehicles').select('*');
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      const headers = rows.length ? Object.keys(rows[0]) : [];
+      setDatasetStatus('Supabase table');
+      return { headers, rows };
+    };
 
-      if (override) {
-
-        document.getElementById('dataset-status').textContent = 'Using uploaded data';
-
-        return override;
-
+    const loadVehiclesData = async () => {
+      try {
+        const { headers, rows } = await fetchVehiclesFromSupabase();
+        state.headers = headers;
+        applyVisibleColumns();
+        state.rows = rows;
+        state.pagination.page = 1;
+        state.remoteTotal = rows.length;
+        updateStats(rows);
+        refreshTable();
+        await fetchVehiclesCount();
+        renderColumnSelector();
+      } catch (error) {
+        console.error('Error loading vehicles from Supabase', error);
+        setDatasetStatus('Supabase unavailable');
+        state.headers = [];
+        state.rows = [];
+        state.remoteTotal = null;
+        updateStats([]);
+        refreshTable();
       }
-
-      const response = await fetch(DATASET.path);
-
-      document.getElementById('dataset-status').textContent = 'Bundled asset';
-
-      return response.text();
-
     };
 
 
@@ -717,28 +736,6 @@
 
       const headerRow = document.createElement('tr');
 
-      if (allowEdit) {
-
-        const editHeader = document.createElement('th');
-
-        editHeader.className = 'px-3 py-2 text-left text-xs font-semibold whitespace-nowrap';
-
-        editHeader.textContent = '';
-
-        headerRow.appendChild(editHeader);
-
-      } else {
-
-        const readOnlyHeader = document.createElement('th');
-
-        readOnlyHeader.className = 'px-3 py-2 text-left text-xs font-semibold whitespace-nowrap text-slate-500';
-
-        readOnlyHeader.textContent = 'Access';
-
-        headerRow.appendChild(readOnlyHeader);
-
-      }
-
       state.headers.forEach((header) => {
 
         const th = document.createElement('th');
@@ -754,7 +751,7 @@
         const labelBtn = document.createElement('button');
         labelBtn.type = 'button';
         labelBtn.className = 'header-label text-[11px] font-semibold text-slate-300';
-        labelBtn.title = 'Doble click para renombrar';
+        labelBtn.title = 'Double click to rename column';
         labelBtn.addEventListener('dblclick', (e) => {
           e.stopPropagation();
           renameHeader(header);
@@ -765,9 +762,100 @@
         const actions = document.createElement('div');
         actions.className = 'header-actions';
 
+        const filterWrapper = document.createElement('div');
+        filterWrapper.className = 'relative';
+        const filterBtn = document.createElement('button');
+        filterBtn.type = 'button';
+        filterBtn.title = 'Filter column';
+        const activeFilters = state.filters.columnFilters[header] || [];
+        const filterIcon = document.createElement('span');
+        filterIcon.textContent = activeFilters.length ? '●' : '⧉';
+        filterBtn.appendChild(filterIcon);
+
+        const filterPopover = document.createElement('div');
+        filterPopover.className = 'filter-popover hidden';
+        const label = document.createElement('label');
+        label.textContent = `Filter ${getHeaderLabel(header)}`;
+        filterPopover.appendChild(label);
+
+        const optionsWrapper = document.createElement('div');
+        optionsWrapper.className = 'filter-options';
+        const selected = new Set(activeFilters);
+        getFilterOptionsForHeader(header).forEach((value) => {
+          const optionLabel = document.createElement('label');
+          optionLabel.className = 'filter-option';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.value = value;
+          checkbox.checked = selected.has(value);
+          checkbox.addEventListener('change', (event) => {
+            if (event.target.checked) {
+              selected.add(value);
+            } else {
+              selected.delete(value);
+            }
+          });
+          const text = document.createElement('span');
+          text.textContent = value ? value.toUpperCase() : 'N/A';
+          optionLabel.appendChild(checkbox);
+          optionLabel.appendChild(text);
+          optionsWrapper.appendChild(optionLabel);
+        });
+
+        filterPopover.appendChild(optionsWrapper);
+
+        const actionsRow = document.createElement('div');
+        actionsRow.className = 'filter-actions';
+        const applyBtn = document.createElement('button');
+        applyBtn.type = 'button';
+        applyBtn.className = 'flex-1 rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-500';
+        applyBtn.textContent = 'Apply';
+        applyBtn.addEventListener('click', () => {
+          setColumnFilter(header, Array.from(selected));
+          closePopover();
+        });
+
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200 hover:border-blue-500';
+        clearBtn.textContent = 'Clear';
+        clearBtn.addEventListener('click', () => {
+          setColumnFilter(header, []);
+          selected.clear();
+          optionsWrapper.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+            checkbox.checked = false;
+          });
+          closePopover();
+        });
+
+        actionsRow.appendChild(applyBtn);
+        actionsRow.appendChild(clearBtn);
+        filterPopover.appendChild(actionsRow);
+
+        filterWrapper.appendChild(filterBtn);
+        filterWrapper.appendChild(filterPopover);
+
+        const closePopover = (event) => {
+          if (!event || !filterWrapper.contains(event.target)) {
+            filterPopover.classList.add('hidden');
+            document.removeEventListener('click', closePopover);
+          }
+        };
+
+        filterBtn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const willOpen = filterPopover.classList.contains('hidden');
+          filterPopover.classList.toggle('hidden');
+          if (willOpen) {
+            document.addEventListener('click', closePopover);
+          } else {
+            document.removeEventListener('click', closePopover);
+          }
+        });
+
         const sortBtn = document.createElement('button');
         sortBtn.type = 'button';
-        sortBtn.title = 'Ordenar columna';
+        sortBtn.title = 'Sort column';
         const sortIcon = document.createElement('span');
         const isSorted = state.filters.sortKey === header;
         sortIcon.textContent = isSorted ? (state.filters.sortDir === 'asc' ? '↑' : '↓') : '⇅';
@@ -776,65 +864,9 @@
           event.stopPropagation();
           toggleSortForHeader(header);
         });
+
+        actions.appendChild(filterWrapper);
         actions.appendChild(sortBtn);
-
-        const filterableKey = getFilterableKey(header);
-        if (filterableKey) {
-          const filterWrapper = document.createElement('div');
-          filterWrapper.className = 'relative';
-          const filterBtn = document.createElement('button');
-          filterBtn.type = 'button';
-          filterBtn.title = 'Filtrar columna';
-          const filterIcon = document.createElement('span');
-          filterIcon.textContent = state.filters.columnFilters[header] ? '●' : '⧉';
-          filterBtn.appendChild(filterIcon);
-
-          const filterPopover = document.createElement('div');
-          filterPopover.className = 'filter-popover hidden';
-          const label = document.createElement('label');
-          label.textContent = `Filtrar ${FILTERABLE_KEYS[filterableKey]}`;
-          filterPopover.appendChild(label);
-          const select = document.createElement('select');
-          const optionAll = document.createElement('option');
-          optionAll.value = 'all';
-          optionAll.textContent = 'Mostrar todos';
-          select.appendChild(optionAll);
-          getFilterOptionsForHeader(header).forEach((value) => {
-            const option = document.createElement('option');
-            option.value = value;
-            option.textContent = value.toUpperCase();
-            select.appendChild(option);
-          });
-          select.value = state.filters.columnFilters[header] || 'all';
-          select.addEventListener('change', (event) => {
-            setColumnFilter(header, event.target.value);
-            document.removeEventListener('click', closePopover);
-            filterPopover.classList.add('hidden');
-          });
-          filterPopover.appendChild(select);
-          filterWrapper.appendChild(filterBtn);
-          filterWrapper.appendChild(filterPopover);
-
-          const closePopover = (event) => {
-            if (!filterWrapper.contains(event.target)) {
-              filterPopover.classList.add('hidden');
-              document.removeEventListener('click', closePopover);
-            }
-          };
-
-          filterBtn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            const willOpen = filterPopover.classList.contains('hidden');
-            filterPopover.classList.toggle('hidden');
-            if (willOpen) {
-              document.addEventListener('click', closePopover);
-            } else {
-              document.removeEventListener('click', closePopover);
-            }
-          });
-
-          actions.appendChild(filterWrapper);
-        }
 
         headerControls.appendChild(actions);
         th.appendChild(headerControls);
@@ -854,6 +886,7 @@
               const cell = row.children[columnIndex];
               if (cell) cell.style.width = `${nextWidth}px`;
             });
+            syncScrollbars();
           };
           const handleUp = () => {
             document.removeEventListener('mousemove', handleMove);
@@ -901,10 +934,6 @@
 
 
 
-      state.pagination.pageSize = Math.max(1, rows.length);
-
-      state.pagination.page = 1;
-
       const totalPages = Math.max(1, Math.ceil(rows.length / state.pagination.pageSize));
 
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
@@ -935,47 +964,26 @@
 
         tr.className = 'transition hover:bg-slate-800/40';
 
-        const actionCell = allowEdit
-          ? [
-
-              '<td class="px-2 py-2 align-top text-center">',
-
-              '<button type="button" class="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">',
-
-              '<i data-lucide="pencil" class="h-3 w-3"></i>',
-
-              '<span class="sr-only">Edit row</span>',
-
-              '</button>',
-
-              '</td>',
-
-            ].join('')
-          : '<td class="px-2 py-2 align-top text-[10px] font-semibold uppercase tracking-wide text-slate-600">Read only</td>';
-
-        const dataCells = state.headers.map((header, idx) => {
-
-          const value = row[header] ?? '';
-
-          const baseClass = 'px-2 py-2';
-          const widthStyle = state.columnWidths[header] ? ` style="width:${state.columnWidths[header]}"` : '';
-
-          if (idx === 0) {
-
-            return `<td class="${baseClass} font-semibold text-white whitespace-normal leading-snug"${widthStyle}>${value || ''}</td>`;
-
+        getVisibleHeaders().forEach((header, idx) => {
+          const td = document.createElement('td');
+          td.className = idx === 0
+            ? 'px-2 py-2 font-semibold text-white whitespace-normal leading-snug'
+            : 'px-2 py-2 text-slate-200 whitespace-normal leading-snug';
+          const storedWidth = state.columnWidths[header];
+          if (storedWidth) td.style.width = storedWidth;
+          td.textContent = formatCellValue(header, row[header]);
+          if (allowEdit) {
+            td.title = 'Double click to edit cell';
+            td.addEventListener('dblclick', () => startCellEdit(td, row, header));
           }
-
-          return `<td class="${baseClass} text-slate-200 whitespace-normal leading-snug"${widthStyle}>${value || ''}</td>`;
-
-        }).join('');
-
-        tr.innerHTML = `${actionCell}${dataCells}`;
+          tr.appendChild(td);
+        });
 
         els.tableBody.appendChild(tr);
 
       });
 
+      syncScrollbars();
       lucide.createIcons();
 
     };
@@ -1160,7 +1168,7 @@
 
       updateUploadProgress(90, 'Refreshing counts');
 
-      await fetchVehiclesCount();
+      await loadVehiclesData();
 
       finishUploadProgress();
 
@@ -1200,31 +1208,90 @@
 
     };
 
-    const applySearch = (rows, term) => {
+    const getText = (value) => String(value || '').toLowerCase();
 
-      if (!term) return rows;
 
-      const query = term.toLowerCase();
-
-      return rows.filter((row) => [
-
-        getValue(row, 'Model', 'model'),
-
-        getValue(row, 'ShortVIN', 'Short VIN', 'shortvin', 'short vin'),
-
-        getValue(row, 'PT City', 'pt city'),
-
-        getValue(row, 'State Loc', 'state loc'),
-
-      ]
-
-        .some((value) => String(value || '').toLowerCase().includes(query)));
-
+    const getRowIdentifier = (row = {}) => {
+      return row.short_vin || row.shortvin || row.model || 'vehicle row';
     };
 
+    const formatDateTime = (value) => {
+      if (!value) return '';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    };
 
+    const formatCellValue = (header, value) => {
+      const normalized = normalizeHeader(header);
+      if (normalized === 'pt_last_read') return formatDateTime(value);
+      return value ?? '';
+    };
 
-    const getText = (value) => String(value || '').toLowerCase();
+    const getVisibleHeaders = () => {
+      const fromState = Array.isArray(state.visibleColumns) ? state.visibleColumns : [];
+      const filtered = state.headers.filter((header) => fromState.includes(header));
+      return filtered.length ? filtered : [...state.headers];
+    };
+
+    const applyVisibleColumns = () => {
+      const stored = loadVisibleColumns();
+      const filtered = state.headers.filter((header) => stored.includes(header));
+      state.visibleColumns = filtered.length ? filtered : [...state.headers];
+    };
+
+    const updateVisibleColumns = (columns = []) => {
+      const filtered = state.headers.filter((header) => columns.includes(header));
+      state.visibleColumns = filtered.length ? filtered : [...state.headers];
+      saveVisibleColumns();
+      refreshTable();
+      renderColumnSelector();
+    };
+
+    const finishCellEdit = (cell, input, { commit = false, row, header, original }) => {
+      if (!cell.dataset.editing) return;
+      delete cell.dataset.editing;
+
+      const nextValue = commit ? input.value : original;
+      cell.textContent = nextValue;
+      if (!commit || nextValue === original) return;
+
+      row[header] = nextValue;
+      logChange({
+        action: 'update',
+        summary: `Updated "${header}" for ${getRowIdentifier(row)}`,
+      });
+      refreshTable();
+    };
+
+    const startCellEdit = (cell, row, header) => {
+      if (cell.dataset.editing) return;
+      const original = row[header] ?? '';
+      cell.dataset.editing = 'true';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = original;
+      input.className = 'w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-50 focus:border-blue-500 focus:outline-none';
+
+      const endEdit = (commit = false) => finishCellEdit(cell, input, { commit, row, header, original });
+
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          endEdit(true);
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          endEdit(false);
+        }
+      });
+      input.addEventListener('blur', () => endEdit(true));
+
+      cell.textContent = '';
+      cell.appendChild(input);
+      input.focus();
+      input.select();
+    };
 
 
 
@@ -1235,6 +1302,8 @@
       rows: [],
 
       columnLabels: {},
+
+      visibleColumns: [],
 
       filters: {
 
@@ -1266,6 +1335,7 @@
 
     const LABEL_STORAGE_KEY = 'techloc_vehicle_column_labels';
     const COLUMN_WIDTHS_KEY = 'techloc_vehicle_column_widths';
+    const VISIBLE_COLUMNS_KEY = 'techloc_vehicle_visible_columns';
     const FILTERABLE_KEYS = {
       deal_status: 'Status',
       gps_fix: 'GPS Fix',
@@ -1284,10 +1354,16 @@
     const saveColumnWidths = () => {
       localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(state.columnWidths || {}));
     };
+    const loadVisibleColumns = () => {
+      try { return JSON.parse(localStorage.getItem(VISIBLE_COLUMNS_KEY)) || []; } catch { return []; }
+    };
+    const saveVisibleColumns = () => {
+      localStorage.setItem(VISIBLE_COLUMNS_KEY, JSON.stringify(state.visibleColumns || []));
+    };
     const getHeaderLabel = (header) => state.columnLabels[header] || header;
     const renameHeader = (header) => {
       const current = getHeaderLabel(header);
-      const next = prompt('Nuevo nombre de columna', current);
+      const next = prompt('New column name', current);
       if (next === null) return;
       const trimmed = next.trim();
       if (!trimmed) return;
@@ -1303,19 +1379,38 @@
       const values = Array.from(
         new Set(
           state.rows
-            .map((row) => getText(row[header]))
+            .map((row) => getText(formatCellValue(header, row[header])))
             .filter(Boolean),
         ),
       ).sort();
       return values;
     };
     const setColumnFilter = (header, value) => {
-      if (!value || value === 'all') {
+      const values = Array.isArray(value) ? value.filter(Boolean) : [];
+      if (!values.length) {
         delete state.filters.columnFilters[header];
       } else {
-        state.filters.columnFilters[header] = value;
+        state.filters.columnFilters[header] = values;
       }
       refreshTable();
+    };
+    const renderColumnSelector = () => {
+      if (!els.columnSelectorList || !els.columnSelectorApply) return;
+      els.columnSelectorList.innerHTML = '';
+      const visibleSet = new Set(getVisibleHeaders());
+      state.headers.forEach((header) => {
+        const optionLabel = document.createElement('label');
+        optionLabel.className = 'filter-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = header;
+        checkbox.checked = visibleSet.has(header);
+        optionLabel.appendChild(checkbox);
+        const text = document.createElement('span');
+        text.textContent = getHeaderLabel(header);
+        optionLabel.appendChild(text);
+        els.columnSelectorList.appendChild(optionLabel);
+      });
     };
     const toggleSortForHeader = (header) => {
       if (state.filters.sortKey === header) {
@@ -1358,6 +1453,17 @@
       uploadProgressBar: document.getElementById('upload-progress-bar'),
 
       uploadProgressLabel: document.getElementById('upload-progress-label'),
+
+      table: document.getElementById('vehicles-table'),
+      topScroller: document.getElementById('table-scroll-top'),
+      bottomScroller: document.getElementById('table-scroll-container'),
+      tableScrollShadow: document.getElementById('table-scroll-shadow'),
+
+      columnSelectorToggle: document.getElementById('column-selector-toggle'),
+      columnSelectorPanel: document.getElementById('column-selector-panel'),
+      columnSelectorList: document.getElementById('column-selector-list'),
+      columnSelectorApply: document.getElementById('column-selector-apply'),
+      columnSelectorReset: document.getElementById('column-selector-reset'),
 
     };
 
@@ -1447,6 +1553,68 @@
 
       }
 
+    };
+
+    const syncScrollbars = () => {
+      if (!els.table) return;
+      const tableWidth = els.table.scrollWidth;
+      if (els.tableScrollShadow) {
+        els.tableScrollShadow.style.width = `${tableWidth}px`;
+      }
+    };
+
+    const linkScrollContainers = () => {
+      const top = els.topScroller;
+      const bottom = els.bottomScroller;
+      if (!top || !bottom) return;
+      let syncing = false;
+      const sync = (from, to) => {
+        if (syncing) return;
+        syncing = true;
+        to.scrollLeft = from.scrollLeft;
+        requestAnimationFrame(() => {
+          syncing = false;
+        });
+      };
+      top.addEventListener('scroll', () => sync(top, bottom));
+      bottom.addEventListener('scroll', () => sync(bottom, top));
+    };
+
+    const setupColumnSelector = () => {
+      if (!els.columnSelectorToggle || !els.columnSelectorPanel || !els.columnSelectorList) return;
+      const closePanel = () => {
+        els.columnSelectorPanel.classList.add('hidden');
+        document.removeEventListener('click', handleOutsideClick);
+      };
+      const openPanel = () => {
+        renderColumnSelector();
+        els.columnSelectorPanel.classList.remove('hidden');
+        document.addEventListener('click', handleOutsideClick);
+      };
+      const handleOutsideClick = (event) => {
+        if (!els.columnSelectorPanel.contains(event.target) && !els.columnSelectorToggle.contains(event.target)) {
+          closePanel();
+        }
+      };
+      els.columnSelectorToggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const willOpen = els.columnSelectorPanel.classList.contains('hidden');
+        if (willOpen) openPanel();
+        else closePanel();
+      });
+      if (els.columnSelectorApply) {
+        els.columnSelectorApply.addEventListener('click', () => {
+          const checked = Array.from(els.columnSelectorList.querySelectorAll('input[type="checkbox"]:checked')).map((input) => input.value);
+          updateVisibleColumns(checked);
+          closePanel();
+        });
+      }
+      if (els.columnSelectorReset) {
+        els.columnSelectorReset.addEventListener('click', () => {
+          updateVisibleColumns(state.headers);
+          closePanel();
+        });
+      }
     };
 
 
@@ -1569,11 +1737,10 @@
 
       let result = [...rows];
 
-      result = applySearch(result, state.filters.search);
-
       Object.entries(state.filters.columnFilters || {}).forEach(([header, value]) => {
-        if (!value || value === 'all') return;
-        result = result.filter((row) => getText(row[header]) === getText(value));
+        const filters = Array.isArray(value) ? value : [];
+        if (!filters.length) return;
+        result = result.filter((row) => filters.some((filterValue) => getText(formatCellValue(header, row[header])) === getText(filterValue)));
       });
 
       if (state.filters.sortKey) {
@@ -1602,49 +1769,15 @@
     const mount = async () => {
 
       wireUploadForm();
+      linkScrollContainers();
 
       await hydrateActor();
 
-      const text = await loadDataset();
-
-      const { headers, rows } = parseCsvText(text);
-
-      state.headers = headers;
       state.columnLabels = loadColumnLabels();
       state.columnWidths = loadColumnWidths();
 
-      state.rows = rows;
-
-      state.pagination.page = 1;
-
-      await fetchVehiclesCount();
-
-      updateStats(rows);
-
-
-
-      const handleFiltersChange = () => {
-
-        state.pagination.page = 1;
-
-        refreshTable();
-
-      };
-
-
-
-      document.getElementById('search').addEventListener('input', (event) => {
-
-        state.filters.search = event.target.value;
-
-        handleFiltersChange();
-
-      });
-
-      refreshTable();
-
-      lucide.createIcons();
-
+      await loadVehiclesData();
+      setupColumnSelector();
     };
 
 
