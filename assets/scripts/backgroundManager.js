@@ -6,7 +6,6 @@ import { getCoordsIpFirst } from './geoResolver.js';
 const STORAGE_KEY = 'techloc-background-mode';
 const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
 const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]);
-const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]);
 const WEATHER_URL = (lat, lon) =>
   `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=weather_code&timezone=auto`;
 
@@ -175,8 +174,14 @@ export const setupBackgroundManager = ({
     }
 
     stopWeatherInterval();
-    applyVariant(mode === 'snow' ? 'snow' : 'constellation');
-    setStatus(mode === 'snow' ? 'Snow mode active' : 'Constellations mode active');
+    applyVariant(mode === 'snow' ? 'snow' : mode === 'rain' ? 'rain' : 'constellation');
+    setStatus(
+      mode === 'snow'
+        ? 'Snow mode active'
+        : mode === 'rain'
+        ? 'Rain mode active'
+        : 'Constellations mode active'
+    );
   };
 
   const handleMenuSelection = (event) => {
@@ -185,7 +190,7 @@ export const setupBackgroundManager = ({
     const selectedMode = option.getAttribute('data-bg-option');
 
     if (selectedMode === 'auto') {
-      const cycle = ['auto', 'constellation', 'snow'];
+      const cycle = ['auto', 'constellation', 'snow', 'rain'];
       const currentIndex = cycle.indexOf(currentMode);
       const nextMode = cycle[(currentIndex + 1) % cycle.length];
       applyMode(nextMode);
