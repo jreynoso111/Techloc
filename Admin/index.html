@@ -326,6 +326,16 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
+    const VEHICLES_COLUMN_SET = (() => {
+      if (VEHICLES_COLUMNS instanceof Set) return VEHICLES_COLUMNS;
+      try {
+        return new Set(Array.isArray(VEHICLES_COLUMNS) ? VEHICLES_COLUMNS : []);
+      } catch {
+        console.error('VEHICLES_COLUMNS is not a Set or iterable; defaulting to empty Set.');
+        return new Set();
+      }
+    })();
+
     function cleanHeaderKey(key) {
       return (key || '')
         .toString()
@@ -559,7 +569,7 @@
 
     const pickAllowed = (obj) =>
       Object.fromEntries(
-        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMNS.has(k) && v !== undefined)
+        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMN_SET.has(k) && v !== undefined)
       );
 
     const getCsv = (row, ...possibleHeaders) => {
@@ -1743,12 +1753,26 @@
       lucide.createIcons();
     };
 
-    createConstellationBackground();
-    mount();
-    wireCsvUpload();
-    wireDealsUpload();
-    wireInvoicesUpload();
-    wirePtPingUpload();
+    const safeBoot = async () => {
+      const steps = [
+        { name: 'createConstellationBackground', fn: () => createConstellationBackground() },
+        { name: 'mount', fn: () => mount() },
+        { name: 'wireCsvUpload', fn: () => wireCsvUpload() },
+        { name: 'wireDealsUpload', fn: () => wireDealsUpload() },
+        { name: 'wireInvoicesUpload', fn: () => wireInvoicesUpload() },
+        { name: 'wirePtPingUpload', fn: () => wirePtPingUpload() },
+      ];
+
+      for (const step of steps) {
+        try {
+          await Promise.resolve(step.fn());
+        } catch (err) {
+          console.error(`Initialization step "${step.name}" failed:`, err);
+        }
+      }
+    };
+
+    safeBoot();
   </script>
 </body>
 </html>
