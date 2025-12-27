@@ -463,7 +463,11 @@
   </main>
 
   <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
+    import {
+      loadPreferredBackgroundMode,
+      persistBackgroundMode,
+    } from '../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
     import { logAdminEvent } from '../assets/scripts/adminAudit.js';
@@ -2301,10 +2305,19 @@
       syncScrollbars(); 
     };
 
+    const initBackground = async () => {
+      const initialMode = await loadPreferredBackgroundMode();
+      setupBackgroundManager({
+        canvasId: 'constellation-canvas',
+        initialMode,
+        onModeChange: persistBackgroundMode,
+      });
+    };
+
     const init = async () => {
       try {
-        createConstellationBackground();
-        
+        await initBackground();
+
         // Carga de preferencias con autenticación
         await loadPrefs();
         

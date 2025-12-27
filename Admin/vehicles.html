@@ -377,7 +377,11 @@
 
   <script type="module">
 
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
+    import {
+      loadPreferredBackgroundMode,
+      persistBackgroundMode,
+    } from '../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { logAdminEvent } from '../assets/scripts/adminAudit.js';
 
@@ -1895,7 +1899,18 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
 
 
 
-    createConstellationBackground();
+    const initBackground = async () => {
+      const initialMode = await loadPreferredBackgroundMode();
+      setupBackgroundManager({
+        canvasId: 'constellation-canvas',
+        initialMode,
+        onModeChange: persistBackgroundMode,
+      });
+    };
+
+    initBackground().catch((error) =>
+      console.error('Unable to initialize background manager', error)
+    );
 
     setupDashboardDropdown();
 

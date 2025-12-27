@@ -13,7 +13,6 @@
   <script type="module" src="../assets/scripts/admin-auth.js"></script>
   
   <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
     tailwind.config = {
       theme: {
         extend: {
@@ -175,7 +174,11 @@
   </main>
 
   <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
+    import {
+      loadPreferredBackgroundMode,
+      persistBackgroundMode,
+    } from '../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { logAdminEvent } from '../assets/scripts/adminAudit.js';
 
@@ -457,8 +460,19 @@
       renderProfiles();
     }
 
+    const initBackground = async () => {
+      const initialMode = await loadPreferredBackgroundMode();
+      setupBackgroundManager({
+        canvasId: 'constellation-canvas',
+        initialMode,
+        onModeChange: persistBackgroundMode,
+      });
+    };
+
     document.addEventListener('DOMContentLoaded', () => {
-      createConstellationBackground();
+      initBackground().catch((error) =>
+        console.error('Unable to initialize background manager', error)
+      );
       fetchProfiles();
     });
   </script>
