@@ -302,7 +302,7 @@
               <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                 <div class="flex flex-wrap items-center gap-2">
                   <span id="dataset-status" class="rounded-full border border-slate-700/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Supabase table</span>
-                  <a id="template-download" href="#" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
+                  <a id="template-download" href="../assets/data/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
                     <i data-lucide="download" class="h-4 w-4"></i>
                     Download data
                   </a>
@@ -458,6 +458,7 @@
     const CHANGE_LOG_TABLE = 'admin_change_log';
 
     const actor = { id: 'anon', email: '' };
+    const FALLBACK_DATASET_PATH = '../assets/data/vehicles.csv';
 
     const normalizeHeader = (header = '') => {
       const aliases = {
@@ -699,27 +700,53 @@
       return { headers, rows };
     };
 
+    const fetchVehiclesFromCsv = async () => {
+      const response = await fetch(FALLBACK_DATASET_PATH);
+      const text = await response.text();
+      const { rows } = parseCsvText(text);
+      const mapped = mapVehicleRows(rows);
+      const headerSet = new Set();
+      mapped.forEach((row) => Object.keys(row).forEach((key) => headerSet.add(key)));
+      const headers = Array.from(headerSet);
+      return { headers, rows: mapped };
+    };
+
     const loadVehiclesData = async () => {
+      let fetchedHeaders = [];
+      let fetchedRows = [];
+      let usedSupabase = false;
       try {
         const { headers, rows } = await fetchVehiclesFromSupabase();
-        state.headers = headers;
-        applyVisibleColumns();
-        state.rows = rows;
-        state.pagination.page = 1;
-        state.remoteTotal = rows.length;
-        updateStats(rows);
-        refreshTable();
-        await fetchVehiclesCount();
-        renderColumnSelector();
+        fetchedHeaders = headers;
+        fetchedRows = rows;
+        usedSupabase = true;
+        setDatasetStatus('Supabase table');
       } catch (error) {
         console.error('Error loading vehicles from Supabase', error);
-        setDatasetStatus('Supabase unavailable');
-        state.headers = [];
-        state.rows = [];
-        state.remoteTotal = null;
-        updateStats([]);
-        refreshTable();
       }
+
+      if (!fetchedHeaders.length || !fetchedRows.length) {
+        try {
+          const { headers, rows } = await fetchVehiclesFromCsv();
+          fetchedHeaders = headers;
+          fetchedRows = rows;
+          usedSupabase = false;
+          setDatasetStatus('Fallback CSV');
+        } catch (csvError) {
+          console.error('Error loading fallback CSV', csvError);
+          setDatasetStatus('No data available');
+        }
+      }
+
+      state.headers = fetchedHeaders;
+      applyVisibleColumns();
+      state.rows = fetchedRows;
+      state.pagination.page = 1;
+      state.remoteTotal = usedSupabase ? fetchedRows.length : null;
+      updateStats(fetchedRows);
+      refreshTable();
+      if (usedSupabase) await fetchVehiclesCount();
+      renderColumnSelector();
     };
 
 
@@ -735,8 +762,9 @@
 
 
       const headerRow = document.createElement('tr');
+      const headersToRender = getVisibleHeaders();
 
-      state.headers.forEach((header) => {
+      headersToRender.forEach((header) => {
 
         const th = document.createElement('th');
 
@@ -1246,56 +1274,6 @@
       saveVisibleColumns();
       refreshTable();
       renderColumnSelector();
-    };
-
-    const finishCellEdit = (cell, input, { commit = false, row, header, original }) => {
-      if (!cell.dataset.editing) return;
-      delete cell.dataset.editing;
-
-      const nextValue = commit ? input.value : original;
-      cell.textContent = nextValue;
-      if (!commit || nextValue === original) return;
-
-      row[header] = nextValue;
-      logChange({
-        action: 'update',
-        summary: `Updated "${header}" for ${getRowIdentifier(row)}`,
-      });
-      refreshTable();
-    };
-
-    const startCellEdit = (cell, row, header) => {
-      if (cell.dataset.editing) return;
-      const original = row[header] ?? '';
-      cell.dataset.editing = 'true';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = original;
-      input.className = 'w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-50 focus:border-blue-500 focus:outline-none';
-
-      const endEdit = (commit = false) => finishCellEdit(cell, input, { commit, row, header, original });
-
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          endEdit(true);
-        }
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          endEdit(false);
-        }
-      });
-      input.addEventListener('blur', () => endEdit(true));
-
-      cell.textContent = '';
-      cell.appendChild(input);
-      input.focus();
-      input.select();
-    };
-
-
-    const getRowIdentifier = (row = {}) => {
-      return row.short_vin || row.shortvin || row.model || 'vehicle row';
     };
 
     const finishCellEdit = (cell, input, { commit = false, row, header, original }) => {
