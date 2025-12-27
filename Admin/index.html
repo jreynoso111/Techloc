@@ -825,6 +825,18 @@
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
         
+        // Limpieza de estado del vehículo (trim + uppercase)
+        const vehicleStatusRaw = normalizedRow['vehicle status'];
+        const normalizedVehicleStatus = vehicleStatusRaw === undefined || vehicleStatusRaw === null
+          ? ''
+          : String(vehicleStatusRaw).trim().toUpperCase();
+        const isAllowedVehicleStatus = normalizedVehicleStatus === 'ACTIVE' || normalizedVehicleStatus === 'STOCK';
+
+        if (!isAllowedVehicleStatus) {
+          rejectedVehicleStatus += 1;
+          return;
+        }
+
         // Validaciones
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
