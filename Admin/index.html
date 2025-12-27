@@ -326,6 +326,16 @@
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
     import { VEHICLES_COLUMNS } from '../assets/scripts/config.js';
 
+    const VEHICLES_COLUMN_SET = (() => {
+      if (VEHICLES_COLUMNS instanceof Set) return VEHICLES_COLUMNS;
+      try {
+        return new Set(Array.isArray(VEHICLES_COLUMNS) ? VEHICLES_COLUMNS : []);
+      } catch {
+        console.error('VEHICLES_COLUMNS is not a Set or iterable; defaulting to empty Set.');
+        return new Set();
+      }
+    })();
+
     function cleanHeaderKey(key) {
       return (key || '')
         .toString()
@@ -559,7 +569,7 @@
 
     const pickAllowed = (obj) =>
       Object.fromEntries(
-        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMNS.has(k) && v !== undefined)
+        Object.entries(obj).filter(([k, v]) => VEHICLES_COLUMN_SET.has(k) && v !== undefined)
       );
 
     const getCsv = (row, ...possibleHeaders) => {
@@ -820,10 +830,23 @@
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
       let duplicatesRemoved = 0;
+      let rejectedVehicleStatus = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
         
+        // Limpieza de estado del vehículo (trim + uppercase)
+        const vehicleStatusRaw = normalizedRow['vehicle status'];
+        const normalizedVehicleStatus = vehicleStatusRaw === undefined || vehicleStatusRaw === null
+          ? ''
+          : String(vehicleStatusRaw).trim().toUpperCase();
+        const isAllowedVehicleStatus = normalizedVehicleStatus === 'ACTIVE' || normalizedVehicleStatus === 'STOCK';
+
+        if (!isAllowedVehicleStatus) {
+          rejectedVehicleStatus += 1;
+          return;
+        }
+
         // Validaciones
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
@@ -839,8 +862,10 @@
         const mapped = {};
         Object.entries(normalizedRow).forEach(([key, value]) => {
           const columnName = columnMap.get(key);
-          const cleanedValue = cleanValue(value);
-          if (!columnName || cleanedValue === null) return;
+          if (!columnName) return;
+          const cleanedValue =
+            columnName === 'Vehicle Status' ? normalizedVehicleStatus : cleanValue(value);
+          if (cleanedValue === null || cleanedValue === undefined) return;
           mapped[columnName] = cleanedValue;
         });
 
@@ -861,8 +886,14 @@
       const filteredRows = Array.from(uniqueDealsMap.values());
 
       if (!filteredRows.length) {
-        setProgress(0, 'No finance rows detected.');
-        showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
+        setProgress(0, 'No eligible rows found.');
+        showToast(
+          'No eligible rows to upload.\n' +
+          'Requirements: Finance channel, VIN, Current Stock No, Vehicle Status ACTIVE/STOCK.\n' +
+          'Rejected by Vehicle Status: ' + rejectedVehicleStatus +
+          '\nSkipped (Invalid/Not Finance): ' + skippedInvalid,
+          'error'
+        );
         return;
       }
 
@@ -905,6 +936,7 @@
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
+        '\nRejected (Vehicle Status not ACTIVE/STOCK): ' + rejectedVehicleStatus +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
@@ -1711,12 +1743,26 @@
       lucide.createIcons();
     };
 
-    createConstellationBackground();
-    mount();
-    wireCsvUpload();
-    wireDealsUpload();
-    wireInvoicesUpload();
-    wirePtPingUpload();
+    const safeBoot = async () => {
+      const steps = [
+        { name: 'createConstellationBackground', fn: () => createConstellationBackground() },
+        { name: 'mount', fn: () => mount() },
+        { name: 'wireCsvUpload', fn: () => wireCsvUpload() },
+        { name: 'wireDealsUpload', fn: () => wireDealsUpload() },
+        { name: 'wireInvoicesUpload', fn: () => wireInvoicesUpload() },
+        { name: 'wirePtPingUpload', fn: () => wirePtPingUpload() },
+      ];
+
+      for (const step of steps) {
+        try {
+          await Promise.resolve(step.fn());
+        } catch (err) {
+          console.error(`Initialization step "${step.name}" failed:`, err);
+        }
+      }
+    };
+
+    safeBoot();
   </script>
 </body>
 </html>
