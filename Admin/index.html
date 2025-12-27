@@ -820,10 +820,23 @@
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
       let duplicatesRemoved = 0;
+      let rejectedVehicleStatus = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
         
+        // Limpieza de estado del vehículo (trim + uppercase)
+        const vehicleStatusRaw = normalizedRow['vehicle status'];
+        const normalizedVehicleStatus = vehicleStatusRaw === undefined || vehicleStatusRaw === null
+          ? ''
+          : String(vehicleStatusRaw).trim().toUpperCase();
+        const isAllowedVehicleStatus = normalizedVehicleStatus === 'ACTIVE' || normalizedVehicleStatus === 'STOCK';
+
+        if (!isAllowedVehicleStatus) {
+          rejectedVehicleStatus += 1;
+          return;
+        }
+
         // Validaciones
         const salesChannel = normalizedRow['sales channel'];
         const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
@@ -839,8 +852,10 @@
         const mapped = {};
         Object.entries(normalizedRow).forEach(([key, value]) => {
           const columnName = columnMap.get(key);
-          const cleanedValue = cleanValue(value);
-          if (!columnName || cleanedValue === null) return;
+          if (!columnName) return;
+          const cleanedValue =
+            columnName === 'Vehicle Status' ? normalizedVehicleStatus : cleanValue(value);
+          if (cleanedValue === null || cleanedValue === undefined) return;
           mapped[columnName] = cleanedValue;
         });
 
@@ -905,6 +920,7 @@
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
+        '\nRejected (Vehicle Status not ACTIVE/STOCK): ' + rejectedVehicleStatus +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
