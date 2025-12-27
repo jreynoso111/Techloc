@@ -461,6 +461,50 @@
       return normalized === '' ? null : normalized;
     };
 
+    const cleanDealsRow = (rawRow = {}) => {
+      const normalizeText = (text = '') =>
+        text
+          .toString()
+          .replace(/[\uFEFF\ufeff]/g, '')
+          .replace(/\u00A0/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const normalizedRow = {};
+      let financeChannel = null;
+
+      Object.entries(rawRow || {}).forEach(([rawKey, rawValue]) => {
+        const sanitizedKey = normalizeText(rawKey);
+        const normalizedKey = cleanHeaderKey(sanitizedKey);
+        if (!normalizedKey) return;
+
+        let value = rawValue;
+        if (typeof value === 'string') {
+          value = normalizeText(value);
+        }
+
+        if (value === '') {
+          value = null;
+        }
+
+        if (normalizedKey === 'vin' && typeof value === 'string') {
+          value = value.toUpperCase();
+        }
+
+        if (normalizedKey === 'current stock no' && typeof value === 'string') {
+          value = value.toUpperCase();
+        }
+
+        if (normalizedKey === 'sales channel' && typeof value === 'string') {
+          financeChannel = value.toLowerCase();
+        }
+
+        normalizedRow[normalizedKey] = value;
+      });
+
+      return { normalizedRow, financeChannel };
+    };
+
     const normalizeRow = (row = {}) =>
       Object.entries(row).reduce((acc, [key, val]) => {
         const normalizedKey = cleanHeaderKey(key);
@@ -793,6 +837,7 @@
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
+      const cleanedRows = rows.map((row) => cleanDealsRow(row));
       const submitBtn = document.getElementById('deals-upload-button');
       const progressWrap = document.getElementById('deals-progress');
       const progressBar = document.getElementById('deals-progress-bar');
@@ -819,20 +864,33 @@
       // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
+      let skippedStatus = 0;
       let duplicatesRemoved = 0;
+      let droppedMissingVinStock = 0;
+      const allowedVehicleStatuses = new Set(['ACTIVE', 'STOCK']);
 
-      rows.forEach((rawRow) => {
-        const normalizedRow = normalizeRow(rawRow);
-        
+      cleanedRows.forEach(({ normalizedRow, financeChannel }) => {
+
         // Validaciones
-        const salesChannel = normalizedRow['sales channel'];
-        const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
+        const salesChannel = financeChannel ?? (typeof normalizedRow['sales channel'] === 'string' ? normalizedRow['sales channel'].toLowerCase() : null);
+        const isFinance = typeof salesChannel === 'string' && salesChannel.includes('finance');
         
         const stockNumber = normalizedRow['current stock no'];
         const vin = normalizedRow['vin'];
+        const vehicleStatus = typeof normalizedRow['vehicle status'] === 'string' ? normalizedRow['vehicle status'].toUpperCase() : null;
 
-        if (!isFinance || !stockNumber || !vin) {
+        if (!isFinance) {
           skippedInvalid += 1;
+          return; 
+        }
+
+        if (vehicleStatus && !allowedVehicleStatuses.has(vehicleStatus)) {
+          skippedStatus += 1;
+          return;
+        }
+
+        if (!stockNumber || !vin) {
+          droppedMissingVinStock += 1;
           return; 
         }
 
@@ -904,11 +962,20 @@
         'Completed.' +
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
-        '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
+        '\nSkipped (Not Finance): ' + skippedInvalid +
+        '\nSkipped (Vehicle Status): ' + skippedStatus +
+        '\nDropped (Missing VIN/Stock): ' + droppedMissingVinStock +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
       showToast(summary, 'success');
+      console.log(
+        '[Deals Upload] Summary => Total rows:', rows.length,
+        '| Cleaned rows:', cleanedRows.length,
+        '| Skipped status:', skippedStatus,
+        '| Dropped missing VIN/Stock:', droppedMissingVinStock,
+        '| Duplicates removed:', duplicatesRemoved
+      );
       setProgress(100, 'Upload complete.');
     };
 
@@ -1178,8 +1245,9 @@
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadDealsRows(results.data || [], parseErrors);
             } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + err.message, 'error');
+              const detailed = formatSupabaseError(err);
+              console.error('Deals upload failed:', detailed);
+              showToast('Upload failed: ' + detailed, 'error');
             } finally {
               submitBtn.disabled = false;
               submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
