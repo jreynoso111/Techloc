@@ -1,13 +1,16 @@
 import { createConstellationBackground } from './constellation.js';
 import { createSnowBackground } from './snow.js';
+import { createRainBackground } from './rain.js';
 import { getCoordsIpFirst } from './geoResolver.js';
 
 const STORAGE_KEY = 'techloc-background-mode';
 const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
+const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]);
+const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]);
 const WEATHER_URL = (lat, lon) =>
   `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=weather_code&timezone=auto`;
 
-const VALID_MODES = new Set(['snow', 'constellation', 'auto']);
+const VALID_MODES = new Set(['snow', 'rain', 'constellation', 'auto']);
 
 export const BACKGROUND_STORAGE_KEY = STORAGE_KEY;
 export const BACKGROUND_MODES = Array.from(VALID_MODES);
@@ -35,24 +38,26 @@ export const setupBackgroundManager = ({
     try {
       const coords = await getCoordsIpFirst();
       if (!coords?.lat || !coords?.lon) {
-        return { snowing: false, reason: null };
+        return { snowing: false, raining: false, reason: null };
       }
 
       const response = await fetch(WEATHER_URL(coords.lat, coords.lon), { cache: 'no-store' });
       if (!response.ok) {
-        return { snowing: false, reason: null };
+        return { snowing: false, raining: false, reason: null };
       }
 
       const data = await response.json();
       const code = Number(data?.current?.weather_code);
       const snowing = SNOW_CODES.has(code);
+      const raining = RAIN_CODES.has(code);
 
       return {
         snowing,
-        reason: snowing ? 'Snow detected in your area' : 'No snow right now',
+        raining,
+        reason: snowing ? 'Snow detected in your area' : raining ? 'Rain detected in your area' : 'No precipitation right now',
       };
     } catch (error) {
-      return { snowing: false, reason: null };
+      return { snowing: false, raining: false, reason: null };
     }
   };
 
@@ -66,9 +71,9 @@ export const setupBackgroundManager = ({
   const checkAutoWeather = async () => {
     if (currentMode !== 'auto') return;
     setStatus('Checking local weather for background…');
-    const { snowing, reason } = await fetchIsSnowing();
+    const { snowing, raining, reason } = await fetchIsSnowing();
     if (currentMode !== 'auto') return;
-    applyVariant(snowing ? 'snow' : 'constellation');
+    applyVariant(snowing ? 'snow' : raining ? 'rain' : 'constellation');
     setStatus(reason || '');
   };
 
@@ -100,6 +105,8 @@ export const setupBackgroundManager = ({
     const runner =
       variant === 'snow'
         ? createSnowBackground(canvasId)
+        : variant === 'rain'
+        ? createRainBackground(canvasId)
         : createConstellationBackground(canvasId);
     activeCleanup = runner?.cleanup || null;
   };
@@ -123,6 +130,7 @@ export const setupBackgroundManager = ({
       const labels = {
         auto: 'Background: Auto',
         snow: 'Background: Snow',
+        rain: 'Background: Rain',
         constellation: 'Background: Constellations',
       };
       labelEl.textContent = labels[currentMode] || 'Background';
@@ -132,7 +140,13 @@ export const setupBackgroundManager = ({
     if (icon) {
       icon.setAttribute(
         'data-lucide',
-        currentMode === 'snow' ? 'snowflake' : currentMode === 'constellation' ? 'sparkles' : 'cloud-sun'
+        currentMode === 'snow'
+          ? 'snowflake'
+          : currentMode === 'rain'
+          ? 'cloud-rain'
+          : currentMode === 'constellation'
+          ? 'sparkles'
+          : 'cloud-sun'
       );
       if (window.lucide) window.lucide.createIcons();
     }
