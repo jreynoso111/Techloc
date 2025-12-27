@@ -1029,7 +1029,8 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
             td.style.width = storedWidth;
             td.style.minWidth = storedWidth;
           }
-          td.textContent = formatCellValue(header, row[header]);
+          const cellValue = getValue(row, header);
+          td.textContent = formatCellValue(header, cellValue);
           if (allowEdit) {
             td.title = 'Double click to edit cell';
             td.addEventListener('dblclick', () => startCellEdit(td, row, header));
@@ -1445,7 +1446,7 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
       const values = Array.from(
         new Set(
           state.rows
-            .map((row) => getText(formatCellValue(header, row[header])))
+            .map((row) => getText(formatCellValue(header, getValue(row, header))))
             .filter(Boolean),
         ),
       ).sort();
@@ -1838,7 +1839,7 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
       Object.entries(state.filters.columnFilters || {}).forEach(([header, value]) => {
         const filters = Array.isArray(value) ? value : [];
         if (!filters.length) return;
-        result = result.filter((row) => filters.some((filterValue) => getText(formatCellValue(header, row[header])) === getText(filterValue)));
+        result = result.filter((row) => filters.some((filterValue) => getText(formatCellValue(header, getValue(row, header))) === getText(filterValue)));
       });
 
       if (state.filters.sortKey) {
