@@ -820,9 +820,18 @@
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
       let duplicatesRemoved = 0;
+      let skippedStatus = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
+        const vehicleStatus = normalizedRow['vehicle status'];
+        const normalizedStatus =
+          typeof vehicleStatus === 'string' ? vehicleStatus.trim().toLowerCase() : '';
+
+        if (normalizedStatus !== 'active' && normalizedStatus !== 'stock') {
+          skippedStatus += 1;
+          return;
+        }
         
         // Validaciones
         const salesChannel = normalizedRow['sales channel'];
@@ -905,6 +914,7 @@
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
+        '\nSkipped (Vehicle Status): ' + skippedStatus +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
