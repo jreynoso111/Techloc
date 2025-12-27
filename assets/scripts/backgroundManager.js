@@ -1,8 +1,11 @@
 import { createConstellationBackground } from './constellation.js';
 import { createSnowBackground } from './snow.js';
+import { getCoordsIpFirst } from './geoResolver.js';
 
 const STORAGE_KEY = 'techloc-background-mode';
-const SNOW_CODES = new Set([70, 71, 72, 73, 75, 77, 85, 86]);
+const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
+const WEATHER_URL = (lat, lon) =>
+  `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=weather_code&timezone=auto`;
 
 const getStoredMode = () => {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -10,50 +13,6 @@ const getStoredMode = () => {
 };
 
 const saveMode = (mode) => localStorage.setItem(STORAGE_KEY, mode);
-
-const requestPosition = () =>
-  new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation not available'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      maximumAge: 15 * 60 * 1000,
-      timeout: 8000,
-    });
-  });
-
-const fetchIsSnowing = async () => {
-  try {
-    const position = await requestPosition();
-    const { latitude, longitude } = position.coords || {};
-    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return { snowing: false, reason: 'Location unavailable' };
-    }
-
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=weather_code,precipitation&timezone=auto`;
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) {
-      return { snowing: false, reason: 'Weather lookup failed' };
-    }
-
-    const data = await response.json();
-    const code = Number(data?.current?.weather_code);
-    const precipitation = Number(data?.current?.precipitation ?? 0);
-    const snowing = SNOW_CODES.has(code) || (precipitation > 0 && code >= 70 && code < 80);
-
-    return {
-      snowing,
-      reason: snowing ? 'Snow detected in your area' : 'No snow right now',
-    };
-  } catch (error) {
-    if (error?.code === error?.PERMISSION_DENIED) {
-      return { snowing: false, reason: 'Location permission denied' };
-    }
-    return { snowing: false, reason: 'Could not detect weather' };
-  }
-};
 
 export const setupBackgroundManager = ({
   canvasId = 'constellation-canvas',
@@ -65,6 +24,54 @@ export const setupBackgroundManager = ({
   let activeCleanup = null;
   let menuOpen = false;
   let appliedVariant = null;
+  let weatherIntervalId = null;
+
+  const fetchIsSnowing = async () => {
+    try {
+      const coords = await getCoordsIpFirst();
+      if (!coords?.lat || !coords?.lon) {
+        return { snowing: false, reason: null };
+      }
+
+      const response = await fetch(WEATHER_URL(coords.lat, coords.lon), { cache: 'no-store' });
+      if (!response.ok) {
+        return { snowing: false, reason: null };
+      }
+
+      const data = await response.json();
+      const code = Number(data?.current?.weather_code);
+      const snowing = SNOW_CODES.has(code);
+
+      return {
+        snowing,
+        reason: snowing ? 'Snow detected in your area' : 'No snow right now',
+      };
+    } catch (error) {
+      return { snowing: false, reason: null };
+    }
+  };
+
+  const stopWeatherInterval = () => {
+    if (weatherIntervalId) {
+      clearInterval(weatherIntervalId);
+      weatherIntervalId = null;
+    }
+  };
+
+  const checkAutoWeather = async () => {
+    if (currentMode !== 'auto') return;
+    setStatus('Checking local weather for background…');
+    const { snowing, reason } = await fetchIsSnowing();
+    if (currentMode !== 'auto') return;
+    applyVariant(snowing ? 'snow' : 'constellation');
+    setStatus(reason || '');
+  };
+
+  const startWeatherInterval = () => {
+    stopWeatherInterval();
+    checkAutoWeather();
+    weatherIntervalId = setInterval(checkAutoWeather, 10 * 60 * 1000);
+  };
 
   const setStatus = (text) => {
     if (statusLabel) statusLabel.textContent = text;
@@ -133,13 +140,11 @@ export const setupBackgroundManager = ({
     updateButtonLabel();
 
     if (mode === 'auto') {
-      setStatus('Checking local weather for background…');
-      const { snowing, reason } = await fetchIsSnowing();
-      applyVariant(snowing ? 'snow' : 'constellation');
-      setStatus(reason);
+      startWeatherInterval();
       return;
     }
 
+    stopWeatherInterval();
     applyVariant(mode === 'snow' ? 'snow' : 'constellation');
     setStatus(mode === 'snow' ? 'Snow mode active' : 'Constellations mode active');
   };
