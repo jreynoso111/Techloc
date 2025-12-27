@@ -1294,6 +1294,56 @@
     };
 
 
+    const getRowIdentifier = (row = {}) => {
+      return row.short_vin || row.shortvin || row.model || 'vehicle row';
+    };
+
+    const finishCellEdit = (cell, input, { commit = false, row, header, original }) => {
+      if (!cell.dataset.editing) return;
+      delete cell.dataset.editing;
+
+      const nextValue = commit ? input.value : original;
+      cell.textContent = nextValue;
+      if (!commit || nextValue === original) return;
+
+      row[header] = nextValue;
+      logChange({
+        action: 'update',
+        summary: `Updated "${header}" for ${getRowIdentifier(row)}`,
+      });
+      refreshTable();
+    };
+
+    const startCellEdit = (cell, row, header) => {
+      if (cell.dataset.editing) return;
+      const original = row[header] ?? '';
+      cell.dataset.editing = 'true';
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = original;
+      input.className = 'w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-50 focus:border-blue-500 focus:outline-none';
+
+      const endEdit = (commit = false) => finishCellEdit(cell, input, { commit, row, header, original });
+
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          endEdit(true);
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          endEdit(false);
+        }
+      });
+      input.addEventListener('blur', () => endEdit(true));
+
+      cell.textContent = '';
+      cell.appendChild(input);
+      input.focus();
+      input.select();
+    };
+
+
 
     const state = {
 
