@@ -1929,6 +1929,32 @@
       });
     };
 
+    const pieDataLabelPlugin = {
+      id: 'pieDataLabelPlugin',
+      afterDatasetsDraw(chart, args, pluginOptions = {}) {
+        const { ctx } = chart;
+        const color = pluginOptions.color || '#f8fafc';
+        const fontSize = pluginOptions.fontSize || 11;
+        ctx.save();
+        chart.data.datasets.forEach((dataset, datasetIndex) => {
+          const meta = chart.getDatasetMeta(datasetIndex);
+          meta.data.forEach((arc, idx) => {
+            const value = dataset.data[idx];
+            if (value === undefined || value === null || value === 0) return;
+            const { x, y } = arc.tooltipPosition();
+            ctx.fillStyle = color;
+            ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(15, 23, 42, 0.6)';
+            ctx.shadowBlur = 4;
+            ctx.fillText(value, x, y);
+          });
+        });
+        ctx.restore();
+      }
+    };
+
     const updatePieChart = (key, canvasId, emptyId, countId, counts) => {
       const canvas = document.getElementById(canvasId);
       const empty = document.getElementById(emptyId);
@@ -1951,10 +1977,10 @@
       empty.classList.add('hidden');
 
       const palette = [
-        'rgba(59,130,246,0.82)', 'rgba(124,58,237,0.82)', 'rgba(6,182,212,0.82)',
-        'rgba(16,185,129,0.82)', 'rgba(56,189,248,0.82)', 'rgba(99,102,241,0.82)',
-        'rgba(168,85,247,0.82)', 'rgba(20,184,166,0.82)', 'rgba(34,211,238,0.82)',
-        'rgba(96,165,250,0.82)'
+        'rgba(59,130,246,0.65)', 'rgba(124,58,237,0.65)', 'rgba(6,182,212,0.65)',
+        'rgba(16,185,129,0.65)', 'rgba(56,189,248,0.65)', 'rgba(99,102,241,0.65)',
+        'rgba(168,85,247,0.65)', 'rgba(20,184,166,0.65)', 'rgba(34,211,238,0.65)',
+        'rgba(96,165,250,0.65)'
       ];
       const backgroundColor = labels.map((_, idx) => palette[idx % palette.length]);
       const ctx = canvas.getContext('2d');
@@ -1968,14 +1994,16 @@
         maintainAspectRatio: false,
         plugins: {
           legend: { display: true, position: 'bottom', labels: { color: '#e2e8f0', boxWidth: 10 } },
-          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}` } }
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.raw}` } },
+          pieDataLabelPlugin: { color: '#f8fafc', fontSize: 11 }
         }
       };
       if (existing) {
         existing.data = chartData;
+        existing.options = options;
         existing.update();
       } else {
-        state.analyticsCharts[key] = new Chart(ctx, { type: 'pie', data: chartData, options });
+        state.analyticsCharts[key] = new Chart(ctx, { type: 'pie', data: chartData, options, plugins: [pieDataLabelPlugin] });
       }
     };
 
