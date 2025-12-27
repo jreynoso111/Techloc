@@ -1,11 +1,13 @@
 export const createConstellationBackground = (canvasId = 'constellation-canvas') => {
   const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
+  if (!canvas) return { cleanup: () => {} };
 
   const ctx = canvas.getContext('2d');
   const particles = [];
   let width = 0;
   let height = 0;
+  let animationFrameId;
+  let running = true;
 
   const resize = () => {
     width = window.innerWidth;
@@ -82,14 +84,25 @@ export const createConstellationBackground = (canvasId = 'constellation-canvas')
 
   let lastTime = performance.now();
   const loop = (time) => {
+    if (!running) return;
     const delta = Math.min(40, time - lastTime);
     lastTime = time;
     update(delta);
     draw();
-    requestAnimationFrame(loop);
+    animationFrameId = requestAnimationFrame(loop);
   };
 
   resize();
   window.addEventListener('resize', resize);
-  requestAnimationFrame(loop);
+  animationFrameId = requestAnimationFrame(loop);
+
+  const cleanup = () => {
+    running = false;
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    window.removeEventListener('resize', resize);
+    ctx.clearRect(0, 0, width, height);
+    particles.splice(0, particles.length);
+  };
+
+  return { cleanup };
 };
