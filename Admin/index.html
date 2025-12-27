@@ -393,7 +393,6 @@
       'Lat',
       'Long',
     ];
-    const PT_PING_REQUIRED_HEADERS = [...PT_PING_COLUMNS];
     const PT_PING_BATCH_SIZE = 200;
     const PT_PING_BATCH_DELAY_MS = 50;
     const PT_PING_HEADER_MAP = (() => {
@@ -1182,17 +1181,12 @@
         submitBtn.innerHTML = '<span class="animate-pulse">Preparing rows…</span>';
         setStatus('Parsing file...');
         try {
-          const { rows, headers, errors, headerRowIndex = 0 } = await parsePtPingFile(file);
+          const { rows, headers, errors } = await parsePtPingFile(file);
           const normalizedHeaders = normalizePtHeaders(headers);
           console.log('RAW HEADERS:', headers);
           console.log('NORMALIZED HEADERS:', Array.from(normalizedHeaders));
           const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
           if (!valid) {
-            console.error('PT Last Ping upload blocked: missing required headers', {
-              detectedHeaders: headers,
-              missingRequiredHeaders: missing,
-              headerRowIndex,
-            });
             setStatus('Missing headers: ' + missing.join(', '));
             showToast('Missing required headers: ' + missing.join(', '), 'error');
             return;
@@ -1239,66 +1233,24 @@
       });
     };
 
-    const stripInvisibleChars = (value = '') =>
-      value.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200D\u2060\uFEFF]/g, '');
-
-    const sanitizePtHeaderBase = (header) =>
-      stripInvisibleChars((header ?? '').toString())
-        .replace(/\r\n|\n/g, ' ')
-        .replace(/\u00A0/g, ' ')
-        .trim()
-        .replace(/\s+/g, ' ');
-
-    const buildPtHeaderDeduper = () => {
-      const seen = new Map();
-      return (rawHeader, index) => {
-        const base = sanitizePtHeaderBase(rawHeader);
-        const fallback = base || `unnamed_${index}`;
-        const current = seen.get(fallback) || 0;
-        const finalName = current === 0 ? fallback : `${fallback}_${current + 1}`;
-        seen.set(fallback, current + 1);
-        return finalName;
-      };
-    };
-
-    const sanitizePtHeadersList = (headers = []) => {
-      const dedupe = buildPtHeaderDeduper();
-      return headers.map((header, index) => dedupe(header, index));
-    };
-
-    const findXlsxHeaderRow = (rowsMatrix = []) => {
-      let bestIndex = 0;
-      let bestScore = -1;
-      const scanLimit = Math.min(30, rowsMatrix.length);
-      for (let i = 0; i < scanLimit; i++) {
-        const row = rowsMatrix[i] || [];
-        if (!Array.isArray(row) || row.length < 6) continue;
-        const score = row.reduce((count, cell) => {
-          const cleaned = sanitizePtHeaderBase(cell);
-          return cleaned ? count + 1 : count;
-        }, 0);
-        if (score > bestScore) {
-          bestScore = score;
-          bestIndex = i;
-        }
-      }
-      return bestScore === -1 ? 0 : bestIndex;
-    };
-
     const parsePtPingFile = async (file) => {
       const name = file?.name || '';
       const lowerName = name.toLowerCase();
       if (lowerName.endsWith('.csv')) {
-        const dedupeHeader = buildPtHeaderDeduper();
         return new Promise((resolve, reject) => {
           window.Papa.parse(file, {
             header: true,
             skipEmptyLines: true,
-            transformHeader: (header, index) => dedupeHeader(header, index),
+            transformHeader: (header) =>
+              (header || '')
+                .toString()
+                .replace(/^\uFEFF/, '')
+                .replace(/\u00A0/g, ' ')
+                .trim(),
             worker: false,
             complete: (results) => {
               const headers = results.meta?.fields || [];
-              resolve({ rows: results.data || [], headers, errors: results.errors || [], headerRowIndex: 0 });
+              resolve({ rows: results.data || [], headers, errors: results.errors || [] });
             },
             error: (err) => reject(err),
           });
@@ -1311,24 +1263,29 @@
         const firstSheet = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheet];
         const rowsMatrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
-        const headerRowIndex = findXlsxHeaderRow(rowsMatrix);
-        const headers = sanitizePtHeadersList(rowsMatrix[headerRowIndex] || []);
-        const dataRows = rowsMatrix.slice(headerRowIndex + 1);
-        const rows = dataRows.map((row) => {
+        const headers = (rowsMatrix[0] || []).map((h) =>
+          (h === undefined || h === null ? '' : String(h))
+            .replace(/^\uFEFF/, '')
+            .replace(/\u00A0/g, ' ')
+            .trim()
+        );
+        const rows = rowsMatrix.slice(1).map((row) => {
           const obj = {};
           headers.forEach((header, idx) => {
             obj[header] = row[idx];
           });
           return obj;
         });
-        return { rows, headers, errors: [], headerRowIndex };
+        return { rows, headers, errors: [] };
       }
       throw new Error('Unsupported file type. Please upload CSV or XLSX.');
     };
 
-    const validatePtPingHeaders = (headers = [], requiredHeaders = PT_PING_REQUIRED_HEADERS) => {
+    const validatePtPingHeaders = (headers = []) => {
       const normalizedHeaders = headers instanceof Set ? headers : normalizePtHeaders(headers);
-      const missing = requiredHeaders.filter((required) => !normalizedHeaders.has(required));
+      const missing = [];
+      if (!normalizedHeaders.has('Serial')) missing.push('Serial');
+      if (!normalizedHeaders.has('Date')) missing.push('Date');
       return { valid: missing.length === 0, missing };
     };
 
