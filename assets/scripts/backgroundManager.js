@@ -7,20 +7,25 @@ const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
 const WEATHER_URL = (lat, lon) =>
   `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=weather_code&timezone=auto`;
 
-const getStoredMode = () => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === 'snow' || stored === 'constellation' || stored === 'auto' ? stored : 'auto';
-};
+const VALID_MODES = new Set(['snow', 'constellation', 'auto']);
 
-const saveMode = (mode) => localStorage.setItem(STORAGE_KEY, mode);
+export const BACKGROUND_STORAGE_KEY = STORAGE_KEY;
+export const BACKGROUND_MODES = Array.from(VALID_MODES);
+export const normalizeBackgroundMode = (mode) => (VALID_MODES.has(mode) ? mode : 'auto');
+
+const getStoredMode = () => normalizeBackgroundMode(localStorage.getItem(STORAGE_KEY));
+
+const saveMode = (mode) => localStorage.setItem(STORAGE_KEY, normalizeBackgroundMode(mode));
 
 export const setupBackgroundManager = ({
   canvasId = 'constellation-canvas',
   controlButton,
   controlMenu,
   statusLabel,
+  initialMode,
+  onModeChange,
 } = {}) => {
-  let currentMode = getStoredMode();
+  let currentMode = normalizeBackgroundMode(initialMode ?? getStoredMode());
   let activeCleanup = null;
   let menuOpen = false;
   let appliedVariant = null;
@@ -133,9 +138,20 @@ export const setupBackgroundManager = ({
     }
   };
 
+  const persistMode = (modeToPersist) => {
+    const normalized = normalizeBackgroundMode(modeToPersist);
+    saveMode(normalized);
+
+    if (typeof onModeChange === 'function') {
+      Promise.resolve()
+        .then(() => onModeChange(normalized))
+        .catch((error) => console.warn('Unable to sync background mode', error));
+    }
+  };
+
   const applyMode = async (mode = currentMode) => {
-    currentMode = mode;
-    saveMode(mode);
+    currentMode = normalizeBackgroundMode(mode);
+    persistMode(currentMode);
     highlightActiveOption();
     updateButtonLabel();
 

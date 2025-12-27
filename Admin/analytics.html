@@ -305,7 +305,11 @@
   </div>
 
   <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
+    import {
+      loadPreferredBackgroundMode,
+      persistBackgroundMode,
+    } from '../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     // --- CONFIG ---
@@ -573,7 +577,17 @@
     els.detailModalClose.onclick = () => els.detailModal.classList.add('hidden');
 
     (async () => {
-        createConstellationBackground();
+        try {
+          const initialMode = await loadPreferredBackgroundMode();
+          setupBackgroundManager({
+            canvasId: 'constellation-canvas',
+            initialMode,
+            onModeChange: persistBackgroundMode,
+          });
+        } catch (error) {
+          console.error('Unable to initialize background manager', error);
+        }
+
         await loadData();
         await loadChangeLog();
     })();
