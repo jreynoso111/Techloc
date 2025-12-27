@@ -311,9 +311,9 @@
                       <i data-lucide="columns" class="h-4 w-4"></i>
                       Columns
                     </button>
-                    <div id="column-selector-panel" class="filter-popover hidden w-64">
+                    <div id="column-selector-panel" class="filter-popover hidden w-72 z-30">
                       <label>Visible columns</label>
-                      <div id="column-selector-list" class="filter-options"></div>
+                      <div id="column-selector-list" class="filter-options max-h-80"></div>
                       <div class="filter-actions">
                         <button id="column-selector-apply" type="button" class="flex-1 rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-500">Apply</button>
                         <button id="column-selector-reset" type="button" class="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200 hover:border-blue-500">Reset</button>
@@ -739,6 +739,7 @@
       }
 
       state.headers = fetchedHeaders;
+      state.headers = applyHeaderOrder(state.headers);
       applyVisibleColumns();
       state.rows = fetchedRows;
       state.pagination.page = 1;
@@ -794,7 +795,7 @@
         actions.className = 'header-actions';
 
         const filterWrapper = document.createElement('div');
-        filterWrapper.className = 'relative';
+        filterWrapper.className = 'relative z-20';
         const filterBtn = document.createElement('button');
         filterBtn.type = 'button';
         filterBtn.title = 'Filter column';
@@ -950,6 +951,7 @@
           const [moved] = state.headers.splice(fromIndex, 1);
           state.headers.splice(toIndex, 0, moved);
           state.draggingHeader = null;
+          saveHeaderOrder();
           refreshTable();
         });
         th.addEventListener('dragend', () => {
@@ -1370,6 +1372,8 @@
     const LABEL_STORAGE_KEY = 'techloc_vehicle_column_labels';
     const COLUMN_WIDTHS_KEY = 'techloc_vehicle_column_widths';
     const VISIBLE_COLUMNS_KEY = 'techloc_vehicle_visible_columns';
+    const HEADER_ORDER_KEY = 'techloc_vehicle_header_order';
+    const storageKey = (base) => `${base}:${actor.id || 'anon'}`;
     const FILTERABLE_KEYS = {
       deal_status: 'Status',
       gps_fix: 'GPS Fix',
@@ -1377,16 +1381,28 @@
     };
 
     const loadColumnLabels = () => {
-      try { return JSON.parse(localStorage.getItem(LABEL_STORAGE_KEY)) || {}; } catch { return {}; }
+      try { return JSON.parse(localStorage.getItem(storageKey(LABEL_STORAGE_KEY))) || {}; } catch { return {}; }
     };
     const saveColumnLabels = () => {
-      localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(state.columnLabels || {}));
+      localStorage.setItem(storageKey(LABEL_STORAGE_KEY), JSON.stringify(state.columnLabels || {}));
     };
     const loadColumnWidths = () => {
-      try { return JSON.parse(localStorage.getItem(COLUMN_WIDTHS_KEY)) || {}; } catch { return {}; }
+      try { return JSON.parse(localStorage.getItem(storageKey(COLUMN_WIDTHS_KEY))) || {}; } catch { return {}; }
     };
     const saveColumnWidths = () => {
-      localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(state.columnWidths || {}));
+      localStorage.setItem(storageKey(COLUMN_WIDTHS_KEY), JSON.stringify(state.columnWidths || {}));
+    };
+    const loadVisibleColumns = () => {
+      try { return JSON.parse(localStorage.getItem(storageKey(VISIBLE_COLUMNS_KEY))) || []; } catch { return []; }
+    };
+    const saveVisibleColumns = () => {
+      localStorage.setItem(storageKey(VISIBLE_COLUMNS_KEY), JSON.stringify(state.visibleColumns || []));
+    };
+    const loadHeaderOrder = () => {
+      try { return JSON.parse(localStorage.getItem(storageKey(HEADER_ORDER_KEY))) || []; } catch { return []; }
+    };
+    const saveHeaderOrder = () => {
+      localStorage.setItem(storageKey(HEADER_ORDER_KEY), JSON.stringify(state.headers || []));
     };
     const loadVisibleColumns = () => {
       try { return JSON.parse(localStorage.getItem(VISIBLE_COLUMNS_KEY)) || []; } catch { return []; }
@@ -1454,6 +1470,17 @@
         state.filters.sortDir = 'asc';
       }
       refreshTable();
+    };
+
+    const applyHeaderOrder = (headers = []) => {
+      const saved = loadHeaderOrder();
+      if (!saved.length) return headers;
+      const savedSet = new Set(saved);
+      const ordered = saved.filter((h) => headers.includes(h));
+      headers.forEach((header) => {
+        if (!savedSet.has(header)) ordered.push(header);
+      });
+      return ordered;
     };
 
 
@@ -1830,6 +1857,8 @@
 
       state.columnLabels = loadColumnLabels();
       state.columnWidths = loadColumnWidths();
+      state.visibleColumns = loadVisibleColumns();
+      state.headers = applyHeaderOrder(state.headers);
 
       await loadVehiclesData();
       setupColumnSelector();
