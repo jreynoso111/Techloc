@@ -461,50 +461,6 @@
       return normalized === '' ? null : normalized;
     };
 
-    const cleanDealsRow = (rawRow = {}) => {
-      const normalizeText = (text = '') =>
-        text
-          .toString()
-          .replace(/[\uFEFF\ufeff]/g, '')
-          .replace(/\u00A0/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-      const normalizedRow = {};
-      let financeChannel = null;
-
-      Object.entries(rawRow || {}).forEach(([rawKey, rawValue]) => {
-        const sanitizedKey = normalizeText(rawKey);
-        const normalizedKey = cleanHeaderKey(sanitizedKey);
-        if (!normalizedKey) return;
-
-        let value = rawValue;
-        if (typeof value === 'string') {
-          value = normalizeText(value);
-        }
-
-        if (value === '') {
-          value = null;
-        }
-
-        if (normalizedKey === 'vin' && typeof value === 'string') {
-          value = value.toUpperCase();
-        }
-
-        if (normalizedKey === 'current stock no' && typeof value === 'string') {
-          value = value.toUpperCase();
-        }
-
-        if (normalizedKey === 'sales channel' && typeof value === 'string') {
-          financeChannel = value.toLowerCase();
-        }
-
-        normalizedRow[normalizedKey] = value;
-      });
-
-      return { normalizedRow, financeChannel };
-    };
-
     const normalizeRow = (row = {}) =>
       Object.entries(row).reduce((acc, [key, val]) => {
         const normalizedKey = cleanHeaderKey(key);
@@ -837,7 +793,6 @@
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
-      const cleanedRows = rows.map((row) => cleanDealsRow(row));
       const submitBtn = document.getElementById('deals-upload-button');
       const progressWrap = document.getElementById('deals-progress');
       const progressBar = document.getElementById('deals-progress-bar');
@@ -865,24 +820,19 @@
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
       let duplicatesRemoved = 0;
-      let droppedMissingVinStock = 0;
 
-      cleanedRows.forEach(({ normalizedRow, financeChannel }) => {
-
+      rows.forEach((rawRow) => {
+        const normalizedRow = normalizeRow(rawRow);
+        
         // Validaciones
-        const salesChannel = financeChannel ?? (typeof normalizedRow['sales channel'] === 'string' ? normalizedRow['sales channel'].toLowerCase() : null);
-        const isFinance = typeof salesChannel === 'string' && salesChannel.includes('finance');
+        const salesChannel = normalizedRow['sales channel'];
+        const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
         
         const stockNumber = normalizedRow['current stock no'];
         const vin = normalizedRow['vin'];
 
-        if (!isFinance) {
+        if (!isFinance || !stockNumber || !vin) {
           skippedInvalid += 1;
-          return; 
-        }
-
-        if (!stockNumber || !vin) {
-          droppedMissingVinStock += 1;
           return; 
         }
 
@@ -954,18 +904,11 @@
         'Completed.' +
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
-        '\nSkipped (Not Finance): ' + skippedInvalid +
-        '\nDropped (Missing VIN/Stock): ' + droppedMissingVinStock +
+        '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
       showToast(summary, 'success');
-      console.log(
-        '[Deals Upload] Summary => Total rows:', rows.length,
-        '| Cleaned rows:', cleanedRows.length,
-        '| Dropped missing VIN/Stock:', droppedMissingVinStock,
-        '| Duplicates removed:', duplicatesRemoved
-      );
       setProgress(100, 'Upload complete.');
     };
 
