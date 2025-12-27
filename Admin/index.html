@@ -83,6 +83,45 @@
               <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Dashboard</p>
               <h1 class="text-3xl font-black text-white">Command center for field operations</h1>
               <p class="text-sm leading-relaxed text-slate-300">Monitor providers, fleet assets, and live data from a compact console. Quickly access key modules or review table health before loading new sources.</p>
+              <div class="flex flex-wrap items-center gap-3">
+                <div class="relative">
+                  <button
+                    type="button"
+                    data-bg-control
+                    class="inline-flex items-center gap-2 rounded-full border border-blue-700/60 bg-slate-900/70 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-blue-100 shadow-inner shadow-blue-900/40 transition hover:-translate-y-0.5 hover:border-blue-400 hover:text-white"
+                  >
+                    <i data-lucide="cloud-sun" data-bg-icon class="h-4 w-4 text-blue-300"></i>
+                    <span data-bg-label>Background: Auto</span>
+                  </button>
+                  <div
+                    data-bg-menu
+                    class="absolute right-0 z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 shadow-xl shadow-slate-900/60 backdrop-blur hidden"
+                  >
+                    <button type="button" data-bg-option="auto" class="flex w-full items-start gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-slate-800">
+                      <i data-lucide="cloud-sun" class="h-4 w-4 mt-0.5 text-blue-300"></i>
+                      <div class="text-left">
+                        <p class="font-semibold text-white">Automatic</p>
+                        <p class="text-xs text-slate-400">Use local weather to pick a background. Click again to cycle backgrounds.</p>
+                      </div>
+                    </button>
+                    <button type="button" data-bg-option="constellation" class="flex w-full items-start gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-slate-800">
+                      <i data-lucide="sparkles" class="h-4 w-4 mt-0.5 text-indigo-300"></i>
+                      <div class="text-left">
+                        <p class="font-semibold text-white">Constellations</p>
+                        <p class="text-xs text-slate-400">Keep the nodes and lines on screen.</p>
+                      </div>
+                    </button>
+                    <button type="button" data-bg-option="snow" class="flex w-full items-start gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-slate-800">
+                      <i data-lucide="snowflake" class="h-4 w-4 mt-0.5 text-cyan-200"></i>
+                      <div class="text-left">
+                        <p class="font-semibold text-white">Snow</p>
+                        <p class="text-xs text-slate-400">Show soft falling snow in the background.</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-400" data-bg-status>Checking local weather for background…</p>
+              </div>
               <div class="flex flex-wrap gap-2">
                 <a href="./services.html" class="inline-flex items-center gap-2 rounded-full border border-emerald-600 bg-emerald-600/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-400">
                   <i data-lucide="wrench" class="h-4 w-4"></i>
@@ -297,7 +336,7 @@
   </template>
    
   <script type="module">
-    import { createConstellationBackground } from '../assets/scripts/constellation.js';
+    import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     function cleanHeaderKey(key) {
@@ -1544,7 +1583,12 @@
       lucide.createIcons();
     };
 
-    createConstellationBackground();
+    setupBackgroundManager({
+      canvasId: 'constellation-canvas',
+      controlButton: document.querySelector('[data-bg-control]'),
+      controlMenu: document.querySelector('[data-bg-menu]'),
+      statusLabel: document.querySelector('[data-bg-status]'),
+    });
     mount();
     wireDealsUpload();
     wireInvoicesUpload();
