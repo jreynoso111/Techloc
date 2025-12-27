@@ -53,6 +53,8 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: rgb(148 163 184);
+      position: relative;
+      user-select: none;
     }
     .admin-table td {
       font-size: 12px;
@@ -67,6 +69,74 @@
     }
     .admin-table .header-label:hover {
       color: #e2e8f0;
+    }
+    .admin-table .header-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .admin-table .header-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: rgb(148 163 184);
+    }
+    .admin-table .header-actions button {
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+    .admin-table .header-actions button:hover {
+      background-color: rgba(51, 65, 85, 0.7);
+      color: #e2e8f0;
+    }
+    .admin-table th.drag-over {
+      outline: 2px dashed rgba(37, 99, 235, 0.5);
+      outline-offset: -3px;
+    }
+    .column-resizer {
+      position: absolute;
+      top: 0;
+      right: -4px;
+      width: 8px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 10;
+    }
+    .filter-popover {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 8px;
+      min-width: 180px;
+      border-radius: 12px;
+      border: 1px solid rgba(30, 41, 59, 0.8);
+      background: rgba(2, 6, 23, 0.95);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+      padding: 10px;
+    }
+    .filter-popover label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      color: rgb(148 163 184);
+      font-weight: 700;
+    }
+    .filter-popover select {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(51, 65, 85, 0.9);
+      color: #e2e8f0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 600;
+      font-size: 12px;
     }
   </style>
 
@@ -213,40 +283,6 @@
               <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
 
                 <div class="flex flex-wrap gap-2">
-
-                  <select id="status-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-
-                    <option value="all">All statuses</option>
-
-                  </select>
-
-                  <select id="gps-filter" class="w-36 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-
-                    <option value="all">GPS: Any</option>
-
-                  </select>
-
-                  <select id="state-filter" class="w-40 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm font-semibold text-slate-100 focus:border-blue-500 focus:outline-none">
-
-                    <option value="all">All states</option>
-
-                  </select>
-
-                </div>
-
-                <div class="flex flex-wrap gap-2">
-
-                  <div class="flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200">
-
-                    <span class="text-slate-400">Sort:</span>
-
-                    <button data-sort="status" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Status</button>
-
-                    <button data-sort="model" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Model</button>
-
-                    <button data-sort="location" class="rounded-full px-3 py-1 transition hover:bg-slate-800/80">Location</button>
-
-                  </div>
 
                   <input id="search" type="search" placeholder="Search by model, VIN, or city" class="w-72 rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
 
@@ -708,6 +744,12 @@
         const th = document.createElement('th');
 
         th.className = 'px-3 py-2 text-left font-semibold whitespace-nowrap bg-slate-950/80 border-b border-slate-800';
+        th.dataset.header = header;
+        const storedWidth = state.columnWidths[header];
+        if (storedWidth) th.style.width = storedWidth;
+
+        const headerControls = document.createElement('div');
+        headerControls.className = 'header-controls';
 
         const labelBtn = document.createElement('button');
         labelBtn.type = 'button';
@@ -718,8 +760,138 @@
           renameHeader(header);
         });
         labelBtn.textContent = getHeaderLabel(header);
+        headerControls.appendChild(labelBtn);
 
-        th.appendChild(labelBtn);
+        const actions = document.createElement('div');
+        actions.className = 'header-actions';
+
+        const sortBtn = document.createElement('button');
+        sortBtn.type = 'button';
+        sortBtn.title = 'Ordenar columna';
+        const sortIcon = document.createElement('span');
+        const isSorted = state.filters.sortKey === header;
+        sortIcon.textContent = isSorted ? (state.filters.sortDir === 'asc' ? '↑' : '↓') : '⇅';
+        sortBtn.appendChild(sortIcon);
+        sortBtn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          toggleSortForHeader(header);
+        });
+        actions.appendChild(sortBtn);
+
+        const filterableKey = getFilterableKey(header);
+        if (filterableKey) {
+          const filterWrapper = document.createElement('div');
+          filterWrapper.className = 'relative';
+          const filterBtn = document.createElement('button');
+          filterBtn.type = 'button';
+          filterBtn.title = 'Filtrar columna';
+          const filterIcon = document.createElement('span');
+          filterIcon.textContent = state.filters.columnFilters[header] ? '●' : '⧉';
+          filterBtn.appendChild(filterIcon);
+
+          const filterPopover = document.createElement('div');
+          filterPopover.className = 'filter-popover hidden';
+          const label = document.createElement('label');
+          label.textContent = `Filtrar ${FILTERABLE_KEYS[filterableKey]}`;
+          filterPopover.appendChild(label);
+          const select = document.createElement('select');
+          const optionAll = document.createElement('option');
+          optionAll.value = 'all';
+          optionAll.textContent = 'Mostrar todos';
+          select.appendChild(optionAll);
+          getFilterOptionsForHeader(header).forEach((value) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value.toUpperCase();
+            select.appendChild(option);
+          });
+          select.value = state.filters.columnFilters[header] || 'all';
+          select.addEventListener('change', (event) => {
+            setColumnFilter(header, event.target.value);
+            document.removeEventListener('click', closePopover);
+            filterPopover.classList.add('hidden');
+          });
+          filterPopover.appendChild(select);
+          filterWrapper.appendChild(filterBtn);
+          filterWrapper.appendChild(filterPopover);
+
+          const closePopover = (event) => {
+            if (!filterWrapper.contains(event.target)) {
+              filterPopover.classList.add('hidden');
+              document.removeEventListener('click', closePopover);
+            }
+          };
+
+          filterBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const willOpen = filterPopover.classList.contains('hidden');
+            filterPopover.classList.toggle('hidden');
+            if (willOpen) {
+              document.addEventListener('click', closePopover);
+            } else {
+              document.removeEventListener('click', closePopover);
+            }
+          });
+
+          actions.appendChild(filterWrapper);
+        }
+
+        headerControls.appendChild(actions);
+        th.appendChild(headerControls);
+
+        const resizer = document.createElement('span');
+        resizer.className = 'column-resizer';
+        resizer.addEventListener('mousedown', (event) => {
+          event.stopPropagation();
+          const startX = event.clientX;
+          const startWidth = th.offsetWidth;
+          const columnIndex = Array.from(th.parentElement.children).indexOf(th);
+          const handleMove = (moveEvent) => {
+            const nextWidth = Math.max(90, startWidth + (moveEvent.clientX - startX));
+            th.style.width = `${nextWidth}px`;
+            state.columnWidths[header] = `${nextWidth}px`;
+            els.tableBody.querySelectorAll('tr').forEach((row) => {
+              const cell = row.children[columnIndex];
+              if (cell) cell.style.width = `${nextWidth}px`;
+            });
+          };
+          const handleUp = () => {
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleUp);
+            saveColumnWidths();
+          };
+          document.addEventListener('mousemove', handleMove);
+          document.addEventListener('mouseup', handleUp);
+        });
+        th.appendChild(resizer);
+
+        th.draggable = true;
+        th.addEventListener('dragstart', () => {
+          state.draggingHeader = header;
+        });
+        th.addEventListener('dragover', (event) => {
+          event.preventDefault();
+          if (state.draggingHeader && state.draggingHeader !== header) {
+            th.classList.add('drag-over');
+          }
+        });
+        th.addEventListener('dragleave', () => th.classList.remove('drag-over'));
+        th.addEventListener('drop', (event) => {
+          event.preventDefault();
+          th.classList.remove('drag-over');
+          if (!state.draggingHeader || state.draggingHeader === header) return;
+          const fromIndex = state.headers.indexOf(state.draggingHeader);
+          const toIndex = state.headers.indexOf(header);
+          if (fromIndex === -1 || toIndex === -1) return;
+          const [moved] = state.headers.splice(fromIndex, 1);
+          state.headers.splice(toIndex, 0, moved);
+          state.draggingHeader = null;
+          refreshTable();
+        });
+        th.addEventListener('dragend', () => {
+          state.draggingHeader = null;
+          th.classList.remove('drag-over');
+        });
 
         headerRow.appendChild(th);
 
@@ -786,14 +958,15 @@
           const value = row[header] ?? '';
 
           const baseClass = 'px-2 py-2';
+          const widthStyle = state.columnWidths[header] ? ` style="width:${state.columnWidths[header]}"` : '';
 
           if (idx === 0) {
 
-            return `<td class="${baseClass} font-semibold text-white whitespace-normal leading-snug">${value || ''}</td>`;
+            return `<td class="${baseClass} font-semibold text-white whitespace-normal leading-snug"${widthStyle}>${value || ''}</td>`;
 
           }
 
-          return `<td class="${baseClass} text-slate-200 whitespace-normal leading-snug">${value || ''}</td>`;
+          return `<td class="${baseClass} text-slate-200 whitespace-normal leading-snug"${widthStyle}>${value || ''}</td>`;
 
         }).join('');
 
@@ -1067,17 +1240,17 @@
 
         search: '',
 
-        status: 'all',
-
-        gps: 'all',
-
-        state: 'all',
-
         sortKey: '',
 
         sortDir: 'asc',
 
+        columnFilters: {},
+
       },
+
+      columnWidths: {},
+
+      draggingHeader: null,
 
       pagination: {
 
@@ -1092,11 +1265,24 @@
     };
 
     const LABEL_STORAGE_KEY = 'techloc_vehicle_column_labels';
+    const COLUMN_WIDTHS_KEY = 'techloc_vehicle_column_widths';
+    const FILTERABLE_KEYS = {
+      deal_status: 'Status',
+      gps_fix: 'GPS Fix',
+      state_loc: 'State',
+    };
+
     const loadColumnLabels = () => {
       try { return JSON.parse(localStorage.getItem(LABEL_STORAGE_KEY)) || {}; } catch { return {}; }
     };
     const saveColumnLabels = () => {
       localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify(state.columnLabels || {}));
+    };
+    const loadColumnWidths = () => {
+      try { return JSON.parse(localStorage.getItem(COLUMN_WIDTHS_KEY)) || {}; } catch { return {}; }
+    };
+    const saveColumnWidths = () => {
+      localStorage.setItem(COLUMN_WIDTHS_KEY, JSON.stringify(state.columnWidths || {}));
     };
     const getHeaderLabel = (header) => state.columnLabels[header] || header;
     const renameHeader = (header) => {
@@ -1107,6 +1293,37 @@
       if (!trimmed) return;
       state.columnLabels[header] = trimmed;
       saveColumnLabels();
+      refreshTable();
+    };
+    const getFilterableKey = (header) => {
+      const normalized = normalizeHeader(header);
+      return FILTERABLE_KEYS[normalized] ? normalized : null;
+    };
+    const getFilterOptionsForHeader = (header) => {
+      const values = Array.from(
+        new Set(
+          state.rows
+            .map((row) => getText(row[header]))
+            .filter(Boolean),
+        ),
+      ).sort();
+      return values;
+    };
+    const setColumnFilter = (header, value) => {
+      if (!value || value === 'all') {
+        delete state.filters.columnFilters[header];
+      } else {
+        state.filters.columnFilters[header] = value;
+      }
+      refreshTable();
+    };
+    const toggleSortForHeader = (header) => {
+      if (state.filters.sortKey === header) {
+        state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.filters.sortKey = header;
+        state.filters.sortDir = 'asc';
+      }
       refreshTable();
     };
 
@@ -1354,87 +1571,19 @@
 
       result = applySearch(result, state.filters.search);
 
+      Object.entries(state.filters.columnFilters || {}).forEach(([header, value]) => {
+        if (!value || value === 'all') return;
+        result = result.filter((row) => getText(row[header]) === getText(value));
+      });
 
-
-      if (state.filters.status !== 'all') {
-
-        result = result.filter((row) => getText(getValue(row, 'Deal Status', 'Status')) === state.filters.status);
-
-      }
-
-
-
-      if (state.filters.gps !== 'all') {
-
-        result = result.filter((row) => getText(getValue(row, 'GPS Fix', 'gps fix')) === state.filters.gps);
-
-      }
-
-
-
-      if (state.filters.state !== 'all') {
-
-        result = result.filter((row) => getText(getValue(row, 'State Loc', 'state loc')) === state.filters.state);
-
-      }
-
-
-
-      const sorters = {
-
-        status: (a, b) => getText(getValue(a, 'Deal Status', 'Status')).localeCompare(getText(getValue(b, 'Deal Status', 'Status'))),
-
-        model: (a, b) => `${getValue(a, 'Model Year', 'model year') || ''} ${getValue(a, 'Model', 'Unit Type', 'model', 'unit type') || ''}`
-
-          .localeCompare(`${getValue(b, 'Model Year', 'model year') || ''} ${getValue(b, 'Model', 'Unit Type', 'model', 'unit type') || ''}`),
-
-        location: (a, b) => `${getValue(a, 'State Loc', 'state loc') || ''} ${getValue(a, 'PT City', 'pt city') || ''}`
-
-          .localeCompare(`${getValue(b, 'State Loc', 'state loc') || ''} ${getValue(b, 'PT City', 'pt city') || ''}`),
-
-      };
-
-
-
-      if (state.filters.sortKey && sorters[state.filters.sortKey]) {
-
+      if (state.filters.sortKey) {
         result = result.sort((a, b) => {
-
-          const comparison = sorters[state.filters.sortKey](a, b);
-
+          const comparison = getText(a[state.filters.sortKey]).localeCompare(getText(b[state.filters.sortKey]));
           return state.filters.sortDir === 'asc' ? comparison : -comparison;
-
         });
-
       }
-
-
 
       return result;
-
-    };
-
-
-
-    const populateSelect = (elementId, values, label) => {
-
-      const select = document.getElementById(elementId);
-
-      const options = Array.from(new Set(values.filter(Boolean).map((value) => getText(value)))).sort();
-
-      select.innerHTML = `<option value="all">${label}</option>`;
-
-      options.forEach((value) => {
-
-        const option = document.createElement('option');
-
-        option.value = value;
-
-        option.textContent = value.toUpperCase();
-
-        select.appendChild(option);
-
-      });
 
     };
 
@@ -1445,24 +1594,6 @@
       const filtered = applyFiltersAndSort(state.rows);
 
       renderTable(filtered);
-
-    };
-
-
-
-    const updateSortButtons = () => {
-
-      document.querySelectorAll('[data-sort]').forEach((button) => {
-
-        const isActive = button.dataset.sort === state.filters.sortKey;
-
-        button.classList.toggle('bg-blue-600/30', isActive);
-
-        button.classList.toggle('text-white', isActive);
-
-        button.textContent = `${button.dataset.sort.charAt(0).toUpperCase() + button.dataset.sort.slice(1)}${isActive ? (state.filters.sortDir === 'asc' ? ' ↑' : ' ↓') : ''}`;
-
-      });
 
     };
 
@@ -1480,6 +1611,7 @@
 
       state.headers = headers;
       state.columnLabels = loadColumnLabels();
+      state.columnWidths = loadColumnWidths();
 
       state.rows = rows;
 
@@ -1488,14 +1620,6 @@
       await fetchVehiclesCount();
 
       updateStats(rows);
-
-
-
-      populateSelect('status-filter', rows.map((row) => getValue(row, 'Deal Status', 'Status', 'deal status', 'status')), 'All statuses');
-
-      populateSelect('gps-filter', rows.map((row) => getValue(row, 'GPS Fix', 'gps fix')), 'GPS: Any');
-
-      populateSelect('state-filter', rows.map((row) => getValue(row, 'State Loc', 'state loc')), 'All states');
 
 
 
@@ -1509,36 +1633,6 @@
 
 
 
-      document.getElementById('status-filter').addEventListener('change', (event) => {
-
-        state.filters.status = event.target.value;
-
-        handleFiltersChange();
-
-      });
-
-
-
-      document.getElementById('gps-filter').addEventListener('change', (event) => {
-
-        state.filters.gps = event.target.value;
-
-        handleFiltersChange();
-
-      });
-
-
-
-      document.getElementById('state-filter').addEventListener('change', (event) => {
-
-        state.filters.state = event.target.value;
-
-        handleFiltersChange();
-
-      });
-
-
-
       document.getElementById('search').addEventListener('input', (event) => {
 
         state.filters.search = event.target.value;
@@ -1546,38 +1640,6 @@
         handleFiltersChange();
 
       });
-
-
-
-      document.querySelectorAll('[data-sort]').forEach((button) => {
-
-        button.addEventListener('click', () => {
-
-          const key = button.dataset.sort;
-
-          if (state.filters.sortKey === key) {
-
-            state.filters.sortDir = state.filters.sortDir === 'asc' ? 'desc' : 'asc';
-
-          } else {
-
-            state.filters.sortKey = key;
-
-            state.filters.sortDir = 'asc';
-
-          }
-
-          updateSortButtons();
-
-          handleFiltersChange();
-
-        });
-
-      });
-
-
-
-      updateSortButtons();
 
       refreshTable();
 
