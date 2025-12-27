@@ -495,6 +495,19 @@
         const ts = row.created_at ? new Date(row.created_at).toLocaleString() : '—';
         const user = row.user_email || row.user_id || row.actor || row.author || 'System';
         const avatarChar = String(user).charAt(0).toUpperCase();
+        const action = String(row.action || 'edit').toLowerCase();
+        const actionLabel = action.replace(/_/g, ' ').toUpperCase();
+        const badgeByAction = {
+          delete: 'bg-red-500/10 text-red-300 border border-red-500/20',
+          insert: 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20',
+          edit: 'bg-blue-500/10 text-blue-300 border border-blue-500/20',
+          update: 'bg-blue-500/10 text-blue-300 border border-blue-500/20',
+          upsert: 'bg-cyan-500/10 text-cyan-200 border border-cyan-500/20',
+          bulk_upsert: 'bg-cyan-500/10 text-cyan-200 border border-cyan-500/20',
+          login: 'bg-indigo-500/10 text-indigo-200 border border-indigo-500/20',
+        };
+        const badgeClass = badgeByAction[action] || badgeByAction.edit;
+        const summary = row.summary || row.description || `Admin ${action} recorded`;
 
         els.changeLogBody.insertAdjacentHTML('beforeend', `
           <tr class="border-b border-white/5 hover:bg-white/5 transition-colors group">
@@ -511,11 +524,11 @@
             </td>
             <td class="px-4 py-3 text-sm text-slate-400 font-mono text-xs">${row.table_name || row.table || '—'}</td>
             <td class="px-4 py-3 text-sm">
-              <span class="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${row.action === 'delete' ? 'bg-red-500/10 text-red-300 border border-red-500/20' : row.action === 'insert' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-blue-500/10 text-blue-300 border border-blue-500/20'}">
-                ${(row.action || 'update').toUpperCase()}
+              <span class="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${badgeClass}">
+                ${actionLabel}
               </span>
             </td>
-            <td class="px-4 py-3 text-xs text-slate-300">${row.summary || row.description || 'Modified record'}</td>
+            <td class="px-4 py-3 text-xs text-slate-300">${summary}</td>
             <td class="px-4 py-3 text-right text-[11px] text-slate-500 font-mono">${ts}</td>
           </tr>
         `);

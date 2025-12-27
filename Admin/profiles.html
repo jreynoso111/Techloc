@@ -177,9 +177,17 @@
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
+    import { logAdminEvent } from '../assets/scripts/adminAudit.js';
 
     const supabase = supabaseClient;
     let profiles = [];
+    const recordAudit = (details = {}) =>
+      logAdminEvent({
+        client: supabase,
+        tableName: 'profiles',
+        action: 'edit',
+        ...details,
+      });
 
     // PENDING REMOVIDO DE ESTILOS
     const statusStyles = {
@@ -337,6 +345,12 @@
         if (index !== -1) {
           profiles[index] = { ...profiles[index], name, email, role, status };
         }
+        await recordAudit({
+          action: 'edit',
+          summary: `Updated profile for ${email}`,
+          recordId: id,
+          newValue: JSON.stringify({ role, status, name }),
+        });
       } else {
         // INSERT: Incluye name
         const { data, error } = await supabase
@@ -357,6 +371,11 @@
           return; 
         }
         profiles.unshift(normalizeProfile(data));
+        await recordAudit({
+          action: 'insert',
+          summary: `Created profile for ${email}`,
+          recordId: data?.id ?? null,
+        });
       }
 
       resetForm();
@@ -381,6 +400,12 @@
 
       profile.role = nextRole;
       profile.status = 'active';
+      await recordAudit({
+        action: 'edit',
+        summary: `Promoted ${profile.email} to ${nextRole}`,
+        recordId: id,
+        newValue: JSON.stringify({ role: nextRole, status: 'active' }),
+      });
       renderProfiles();
     };
 
@@ -388,8 +413,15 @@
       if(!confirm("Are you sure?")) return;
       const index = profiles.findIndex((p) => p.id === id);
       if (index === -1) return;
+      const profile = profiles[index];
       const { error } = await supabase.from('profiles').delete().eq('id', id);
       if (error) { console.error('Error deleting', error); return; }
+      await recordAudit({
+        action: 'delete',
+        summary: `Removed profile for ${profile?.email || 'user'}`,
+        recordId: id,
+        previousValue: profile ? JSON.stringify(profile) : null,
+      });
       profiles.splice(index, 1);
       renderProfiles();
     };

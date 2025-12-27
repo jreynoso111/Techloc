@@ -466,6 +466,7 @@
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClientModule } from '../assets/scripts/supabaseClient.js';
     import { SUPABASE_KEY, SUPABASE_URL } from '../assets/scripts/env.js';
+    import { logAdminEvent } from '../assets/scripts/adminAudit.js';
 
     const READ_TABLE = 'Titles';
     const PRIMARY_KEY = 'UID'; 
@@ -477,6 +478,13 @@
           })
         : null);
     const primaryKeyCandidates = [PRIMARY_KEY, (PRIMARY_KEY || '').toLowerCase(), 'id'];
+    const recordAuditEvent = (details = {}) =>
+      logAdminEvent({
+        client: supabaseClient,
+        tableName: READ_TABLE,
+        action: 'edit',
+        ...details,
+      });
 
     const DEFAULT_LABELS = {
       'account status': 'Vehicle Status',
@@ -686,6 +694,12 @@
             renderTable();
             populateSheetFilter(state.rows);
             showToast('Row added', 'info');
+            const { key: primaryKeyField, value: newRowId } = resolvePrimaryKey(data);
+            recordAuditEvent({
+              action: 'insert',
+              summary: `Created new ${READ_TABLE} row (${primaryKeyField || 'id'}: ${newRowId ?? 'pending'})`,
+              recordId: newRowId ?? null,
+            });
             els.tableContainer.scrollTop = 0;
         } catch (err) {
             console.error(err);
@@ -718,6 +732,11 @@
                 tr.style.opacity = '1';
                 return;
             }
+            recordAuditEvent({
+              action: 'delete',
+              summary: `Deleted ${READ_TABLE} row (${primaryKeyField || 'id'}: ${rowId})`,
+              recordId: rowId,
+            });
         }
         
         // Actualizar estado local
@@ -855,6 +874,14 @@
                     if (row) row[colId] = currentValue;
                 } else {
                     showToast('Saved', 'info');
+                    recordAuditEvent({
+                      action: 'edit',
+                      summary: `Updated ${colId} for ${primaryKeyField || 'id'}: ${rowId}`,
+                      recordId: rowId,
+                      columnName: colId,
+                      previousValue: currentValue,
+                      newValue: payloadValue,
+                    });
                 }
             }
         };
@@ -895,10 +922,18 @@
       // Guardado Remoto en Supabase
       if (supabaseClient && state.user_id) {
         // Upsert simple basado en user_id + table_name
-        await supabaseClient.from(CONFIG_TABLE).upsert(
-            { user_id: state.user_id, table_name: READ_TABLE, config: config },
-            { onConflict: 'user_id, table_name' }
+        const { error } = await supabaseClient.from(CONFIG_TABLE).upsert(
+          { user_id: state.user_id, table_name: READ_TABLE, config: config },
+          { onConflict: 'user_id, table_name' }
         );
+        if (!error) {
+          recordAuditEvent({
+            action: 'upsert',
+            tableName: CONFIG_TABLE,
+            summary: `Saved ${READ_TABLE} preferences for user ${state.user_id}`,
+            recordId: state.user_id,
+          });
+        }
       }
     };
 

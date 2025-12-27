@@ -307,6 +307,7 @@
   <script type="module">
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
+    import { logAdminEvent } from '../assets/scripts/adminAudit.js';
 
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
@@ -617,7 +618,7 @@
     };
 
     const logChange = async ({
-      action = 'update',
+      action = 'edit',
       summary = '',
       tableName = WRITE_TABLE,
       recordId = null,
@@ -625,24 +626,17 @@
       previousValue = null,
       newValue = null,
     } = {}) => {
-      if (!supabaseClient) return;
-      try {
-        await supabaseClient.from(CHANGE_LOG_TABLE).insert([
-          {
-            table_name: tableName,
-            action,
-            summary,
-            actor: state.currentUserEmail || state.currentUserId || 'anon',
-            record_id: recordId,
-            column_name: columnName,
-            previous_value: previousValue,
-            new_value: newValue,
-            created_at: new Date().toISOString(),
-          },
-        ]);
-      } catch (err) {
-        console.warn('Unable to record change log entry', err?.message || err);
-      }
+      await logAdminEvent({
+        client: supabaseClient,
+        action,
+        tableName,
+        summary,
+        recordId,
+        columnName,
+        previousValue,
+        newValue,
+        actor: state.currentUserEmail || state.currentUserId || null,
+      });
     };
 
     const showConfirm = (message, { confirmText = 'Confirm', cancelText = 'Cancel' } = {}) =>
@@ -1350,7 +1344,7 @@
         renderCharts(applySort(applyFilters()));
 
         logChange({
-          action: 'update',
+          action: 'edit',
           summary: `Updated ${col?.label || colId} for ${row.company || 'Service'} (#${rowId})`,
           recordId: rowId,
           columnName: colId,
