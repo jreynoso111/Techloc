@@ -337,6 +337,10 @@
    
   <script type="module">
     import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
+    import {
+      loadPreferredBackgroundMode,
+      persistBackgroundMode,
+    } from '../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
 
     function cleanHeaderKey(key) {
@@ -1583,12 +1587,21 @@
       lucide.createIcons();
     };
 
-    setupBackgroundManager({
-      canvasId: 'constellation-canvas',
-      controlButton: document.querySelector('[data-bg-control]'),
-      controlMenu: document.querySelector('[data-bg-menu]'),
-      statusLabel: document.querySelector('[data-bg-status]'),
-    });
+    const initBackground = async () => {
+      const initialMode = await loadPreferredBackgroundMode();
+      setupBackgroundManager({
+        canvasId: 'constellation-canvas',
+        controlButton: document.querySelector('[data-bg-control]'),
+        controlMenu: document.querySelector('[data-bg-menu]'),
+        statusLabel: document.querySelector('[data-bg-status]'),
+        initialMode,
+        onModeChange: persistBackgroundMode,
+      });
+    };
+
+    initBackground().catch((error) =>
+      console.error('Unable to initialize background manager', error)
+    );
     mount();
     wireDealsUpload();
     wireInvoicesUpload();
