@@ -379,6 +379,7 @@
 
     import { createConstellationBackground } from '../assets/scripts/constellation.js';
     import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
+    import { logAdminEvent } from '../assets/scripts/adminAudit.js';
 
 
 
@@ -1143,36 +1144,14 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
 
 
 
-    const logChange = async ({ action = 'update', summary = '' } = {}) => {
-
-      if (!supabaseClient) return;
-
-      try {
-
-        await supabaseClient.from(CHANGE_LOG_TABLE).insert([
-
-          {
-
-            table_name: 'vehicles',
-
-            action,
-
-            summary,
-
-            actor: actor.email || actor.id || 'anon',
-
-            created_at: new Date().toISOString(),
-
-          },
-
-        ]);
-
-      } catch (error) {
-
-        console.warn('Unable to record vehicle change', error?.message || error);
-
-      }
-
+    const logChange = async ({ action = 'edit', summary = '' } = {}) => {
+      await logAdminEvent({
+        client: supabaseClient,
+        action,
+        tableName: 'vehicles',
+        summary,
+        actor: actor.email || actor.id || 'anon',
+      });
     };
 
 

@@ -65,6 +65,8 @@
 
   <script type="module">
     import { createConstellationBackground } from './assets/scripts/constellation.js';
+    import { supabase as supabaseClient } from './assets/scripts/supabaseClient.js';
+    import { logAdminEvent } from './assets/scripts/adminAudit.js';
 
     const loginForm = document.getElementById('login-form');
     const emailInput = document.getElementById('email');
@@ -82,7 +84,7 @@
       const email = emailInput.value.trim();
       const password = passwordInput.value;
 
-      const { error } = await window.supabaseClient.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
 
       if (error) {
         alert(error.message);
@@ -90,6 +92,15 @@
         submitLabel.textContent = originalText;
         return;
       }
+
+      await logAdminEvent({
+        client: supabaseClient,
+        action: 'login',
+        tableName: 'auth',
+        summary: `User ${data?.user?.email || email} signed in`,
+        recordId: data?.user?.id || null,
+        actor: data?.user?.email || email,
+      });
 
       const basePath = window.location.hostname.includes('github.io') ? '/Techloc' : '';
       window.location.replace(basePath + '/index.html');
