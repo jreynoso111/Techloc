@@ -29,13 +29,13 @@ const fetchIsSnowing = async () => {
     const position = await requestPosition();
     const { latitude, longitude } = position.coords || {};
     if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-      return { snowing: false, reason: 'Ubicación no disponible' };
+      return { snowing: false, reason: 'Location unavailable' };
     }
 
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=weather_code,precipitation&timezone=auto`;
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) {
-      return { snowing: false, reason: 'No se pudo leer el clima' };
+      return { snowing: false, reason: 'Weather lookup failed' };
     }
 
     const data = await response.json();
@@ -45,13 +45,13 @@ const fetchIsSnowing = async () => {
 
     return {
       snowing,
-      reason: snowing ? 'Nieve detectada en tu zona' : 'Sin nieve ahora',
+      reason: snowing ? 'Snow detected in your area' : 'No snow right now',
     };
   } catch (error) {
     if (error?.code === error?.PERMISSION_DENIED) {
-      return { snowing: false, reason: 'Permiso de ubicación denegado' };
+      return { snowing: false, reason: 'Location permission denied' };
     }
-    return { snowing: false, reason: 'No fue posible detectar clima' };
+    return { snowing: false, reason: 'Could not detect weather' };
   }
 };
 
@@ -109,11 +109,11 @@ export const setupBackgroundManager = ({
     const labelEl = controlButton.querySelector('[data-bg-label]');
     if (labelEl) {
       const labels = {
-        auto: 'Fondo: Automático',
-        snow: 'Fondo: Nieve',
-        constellation: 'Fondo: Constelaciones',
+        auto: 'Background: Auto',
+        snow: 'Background: Snow',
+        constellation: 'Background: Constellations',
       };
-      labelEl.textContent = labels[currentMode] || 'Fondo';
+      labelEl.textContent = labels[currentMode] || 'Background';
     }
 
     const icon = controlButton.querySelector('[data-bg-icon]');
@@ -133,7 +133,7 @@ export const setupBackgroundManager = ({
     updateButtonLabel();
 
     if (mode === 'auto') {
-      setStatus('Detectando clima para el fondo…');
+      setStatus('Checking local weather for background…');
       const { snowing, reason } = await fetchIsSnowing();
       applyVariant(snowing ? 'snow' : 'constellation');
       setStatus(reason);
@@ -141,13 +141,22 @@ export const setupBackgroundManager = ({
     }
 
     applyVariant(mode === 'snow' ? 'snow' : 'constellation');
-    setStatus(mode === 'snow' ? 'Modo nieve activo' : 'Modo constelaciones activo');
+    setStatus(mode === 'snow' ? 'Snow mode active' : 'Constellations mode active');
   };
 
   const handleMenuSelection = (event) => {
     const option = event.target.closest('[data-bg-option]');
     if (!option) return;
     const selectedMode = option.getAttribute('data-bg-option');
+
+    if (selectedMode === 'auto') {
+      const cycle = ['auto', 'constellation', 'snow'];
+      const currentIndex = cycle.indexOf(currentMode);
+      const nextMode = cycle[(currentIndex + 1) % cycle.length];
+      applyMode(nextMode);
+      return;
+    }
+
     closeMenu();
     applyMode(selectedMode);
   };
