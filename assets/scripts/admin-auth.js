@@ -1,6 +1,5 @@
-const SUPABASE_URL = 'https://ewgtclzscwbokxmzxbcu.supabase.co';
-const SUPABASE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3Z3RjbHpzY3dib2t4bXp4YmN1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODA3MzIsImV4cCI6MjA4MDY1NjczMn0.QkM72rVeBpm6uGgBVdG4ulIzEg3V_7T8usqvIf6vBto';
+import { SUPABASE_KEY, SUPABASE_URL } from './env.js';
+import { supabase as sharedSupabaseClient } from './supabaseClient.js';
 
 const LOGIN_PAGE = new URL('../../login.html', import.meta.url).toString();
 const ADMIN_HOME = new URL('../../Admin/index.html', import.meta.url).toString();
@@ -8,13 +7,30 @@ const CONTROL_VIEW = new URL('../../vehicles.html', import.meta.url).toString();
 
 
 const supabaseClient =
+  sharedSupabaseClient ||
   window.supabaseClient ||
-  window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  });
+  (window.supabase?.createClient && SUPABASE_URL && SUPABASE_KEY
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+        },
+      })
+    : null);
+
+if (!supabaseClient) {
+  console.error('Supabase client not initialized. Verify the Supabase library and credentials.');
+  const loading = typeof document !== 'undefined' ? document.querySelector('[data-auth-loading]') : null;
+  if (loading) {
+    loading.classList.remove('hidden');
+    loading.innerHTML =
+      '<div class="rounded-2xl border border-red-700/60 bg-red-900/40 px-4 py-3 text-sm text-red-50 shadow-lg shadow-red-900/50">' +
+      '<p class="font-semibold">Unable to reach Supabase.</p>' +
+      '<p class="text-red-100">Check your connection and credentials, then refresh.</p>' +
+      '</div>';
+  }
+  throw new Error('Supabase client unavailable');
+}
 
 window.supabaseClient = supabaseClient;
 
