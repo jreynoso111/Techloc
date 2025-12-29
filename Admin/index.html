@@ -527,6 +527,30 @@
       box.classList.remove('hidden');
     };
 
+    const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    });
+
+    const derivePtDayParts = (dateVal) => {
+      const parsedDate = new Date(dateVal);
+      if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
+      const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
+        if (part.type !== 'literal') acc[part.type] = part.value;
+        return acc;
+      }, {});
+      const { year, month, day } = parts;
+      const hour = Number(parts.hour);
+      if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
+      const readDay = `${year}-${month}-${day}`;
+      const dayHalf = hour < 12 ? 0 : 1;
+      return { readDay, dayHalf };
+    };
+
     const buildSlimPtPayload = (row = {}) => {
       const clean = (value) => cleanValue(value);
       const numericOrValue = (value) => {
@@ -1444,6 +1468,7 @@
         const rows = rowsMatrix.slice(bestHeaderIndex + 1).map((row) => {
           const obj = {};
           headers.forEach((header, idx) => {
+            if (!header) return;
             obj[header] = row[idx];
           });
           return obj;
@@ -1566,14 +1591,6 @@
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
       const cleanedRows = (rows || []).map(sanitizePtPingRow);
-      const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        hour12: false,
-      });
       const aggregated = {
         inserted: 0,
         batches: 0,
@@ -1598,21 +1615,6 @@
         } catch (err) {
           console.warn('RPC recalc_pt_lastping_moved_2d_for_serials threw; continuing upload.', err);
         }
-      };
-
-      const derivePtDayParts = (dateVal) => {
-        const parsedDate = new Date(dateVal);
-        if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
-        const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
-          if (part.type !== 'literal') acc[part.type] = part.value;
-          return acc;
-        }, {});
-        const { year, month, day } = parts;
-        const hour = Number(parts.hour);
-        if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
-        const readDay = `${year}-${month}-${day}`;
-        const dayHalf = hour < 12 ? 0 : 1;
-        return { readDay, dayHalf };
       };
 
       const buildPtPingDedupKey = (serialVal, dateVal) => {
