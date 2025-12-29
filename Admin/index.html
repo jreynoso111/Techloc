@@ -557,7 +557,7 @@
         const numeric = toNumber(value);
         return numeric !== null ? numeric : clean(value);
       };
-      const { readDay, dayHalf } = derivePtDayParts(row?.['Date']);
+      const { dayHalf } = derivePtDayParts(row?.['Date']);
       const slim = {
         Serial: clean(row?.['Serial']),
         Year: numericOrValue(row?.['Year']),
@@ -571,7 +571,6 @@
         address: clean(row?.['address']),
         Lat: numericOrValue(row?.['Lat']),
         Long: numericOrValue(row?.['Long']),
-        read_day: readDay,
         day_half: dayHalf,
       };
 
@@ -1726,7 +1725,7 @@
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
         const { data, error } = await supabaseClient
           .from('PT-LastPing')
-          .upsert(batch, { onConflict: 'Serial,read_day,day_half', ignoreDuplicates: true })
+          .upsert(batch, { onConflict: 'Serial,Date,day_half', ignoreDuplicates: true })
           .select();
 
         if (error) {
