@@ -470,6 +470,11 @@
     ];
 
     const ADMIN_ROLE = 'administrator';
+    const DEBUG_UPLOADS = false;
+    const debugLog = (...args) => {
+      if (!DEBUG_UPLOADS) return;
+      console.log('[upload-debug]', ...args);
+    };
     const isAdminUser = () => (window.currentUserRole || '').toLowerCase() === ADMIN_ROLE;
 
     const toNumber = (value) => {
@@ -705,10 +710,14 @@
       const variantClasses =
         type === 'success'
           ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-50 shadow-emerald-500/30'
-          : 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30';
+          : type === 'error'
+            ? 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30'
+            : 'border-slate-600/60 bg-slate-800/80 text-slate-100 shadow-slate-700/30';
       toast.className = `flex min-w-[260px] max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${variantClasses}`;
       const icon = document.createElement('span');
-      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${type === 'success' ? 'bg-emerald-400' : 'bg-red-400'}`;
+      const iconColor =
+        type === 'success' ? 'bg-emerald-400' : type === 'error' ? 'bg-red-400' : 'bg-blue-400';
+      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${iconColor}`;
       const text = document.createElement('p');
       text.className = 'whitespace-pre-line font-semibold leading-relaxed';
       text.textContent = message;
@@ -719,6 +728,45 @@
         toast.classList.add('opacity-0', 'translate-y-2', 'transition', 'duration-300');
         setTimeout(() => toast.remove(), 320);
       }, 4200);
+    };
+
+    const wireOnce = (el, key, fn) => {
+      if (!el || !key || typeof fn !== 'function') return;
+      const datasetTarget = el.dataset || el.documentElement?.dataset;
+      if (!datasetTarget) return;
+      if (datasetTarget[key]) return;
+      datasetTarget[key] = '1';
+      fn();
+    };
+
+    const withUiLock = async (button, busyHtml, fn, timeoutMs = 120000) => {
+      const originalHtml = button?.innerHTML;
+      const originalDisabled = button?.disabled;
+
+      if (button) {
+        debugLog('UI lock start', button.id || button);
+        button.disabled = true;
+        button.innerHTML = busyHtml;
+      }
+
+      let timeoutId;
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Operation timed out.')), timeoutMs);
+      });
+
+      try {
+        return await Promise.race([Promise.resolve().then(fn), timeoutPromise]);
+      } finally {
+        clearTimeout(timeoutId);
+        if (button) {
+          button.disabled = !!originalDisabled;
+          button.innerHTML = originalHtml ?? '';
+          debugLog('UI lock end', button.id || button);
+        }
+        if (window?.lucide) {
+          lucide.createIcons();
+        }
+      }
     };
 
     // --- UPLOAD DEALS: AHORA ROBUSTO Y NORMALIZADO (CON FILTRO DE DUPLICADOS) ---
@@ -741,9 +789,14 @@
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
       const conflictColumn = columnMap.get('current stock no'); 
+      const vinColumn = columnMap.get('vin');
 
       if (!conflictColumn) {
         showToast('Local configuration error: "Current Stock No" missing from whitelist.', 'error');
+        return;
+      }
+      if (!vinColumn) {
+        showToast('Local configuration error: "VIN" missing from whitelist.', 'error');
         return;
       }
 
@@ -786,12 +839,20 @@
           mapped[columnName] = cleanedValue;
         });
 
-        if (!mapped[conflictColumn]) {
-            mapped[conflictColumn] = stockNumber;
+        const normalizedVin = cleanValue(vin);
+        if (!mapped[vinColumn] && normalizedVin) {
+          mapped[vinColumn] = normalizedVin;
+        }
+        if (!mapped[conflictColumn] && stockNumber) {
+          mapped[conflictColumn] = stockNumber;
+        }
+        if (!mapped[vinColumn] || !mapped[conflictColumn]) {
+          skippedInvalid += 1;
+          return;
         }
 
         // LLAVE UNICA: VIN + Stock
-        const uniqueKey = `${vin}_${stockNumber}`;
+        const uniqueKey = `${mapped[vinColumn]}_${mapped[conflictColumn]}`;
 
         if (uniqueDealsMap.has(uniqueKey)) {
             duplicatesRemoved++;
@@ -817,9 +878,6 @@
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
-        if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
-        }
         setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
         // UPSERT
@@ -983,9 +1041,6 @@
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
-        if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
-        }
         setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
         const { data, error } = await supabaseClient
@@ -1025,56 +1080,90 @@
       const submitBtn = document.getElementById('deals-upload-button');
       const requireAdmin = () => {
         const allowed = isAdminUser();
-        if (fileInput) fileInput.disabled = !allowed;
-        if (submitBtn) submitBtn.disabled = !allowed;
         const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
-        if (submitBtn) submitBtn.title = titleText;
+        const hintClasses = ['opacity-60', 'cursor-not-allowed'];
+        if (fileInput) {
+          fileInput.title = titleText;
+          fileInput.classList.toggle(hintClasses[0], !allowed);
+          fileInput.classList.toggle(hintClasses[1], !allowed);
+        }
+        if (submitBtn) {
+          submitBtn.title = titleText;
+          submitBtn.classList.toggle(hintClasses[0], !allowed);
+          submitBtn.classList.toggle(hintClasses[1], !allowed);
+        }
         return allowed;
       };
       if (!form || !fileInput || !submitBtn) return;
       const syncAccess = () => requireAdmin();
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
-      
-      submitBtn.addEventListener('click', (event) => {
-        event.preventDefault(); 
-        if (!requireAdmin()) {
-          showToast('Only administrators can upload deals data.', 'error');
-          return;
-        }
-        const file = fileInput.files?.[0];
-        if (!file) {
-          showToast('Please select a CSV file to upload.', 'error');
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-        window.Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (h) => h.trim(),
-          worker: false, 
-          complete: async (results) => {
-            try {
-              const parseErrors = results.errors?.length || 0;
-              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadDealsRows(results.data || [], parseErrors);
-            } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + err.message, 'error');
-            } finally {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              lucide.createIcons();
+
+      wireOnce(document, 'dealsUploadHandler', () => {
+        document.addEventListener('click', async (event) => {
+          const button = event.target?.closest('#deals-upload-button');
+          if (!button) return;
+          event.preventDefault();
+          debugLog('Deals upload click role', window.currentUserRole);
+          if (!requireAdmin()) {
+            showToast('Only administrators can upload deals data.', 'error');
+            return;
+          }
+          const file = fileInput.files?.[0];
+          if (!file) {
+            showToast('Please select a CSV file to upload.', 'error');
+            return;
+          }
+          try {
+            await withUiLock(
+              button,
+              '<span class="animate-pulse">Reading file…</span>',
+              () =>
+                new Promise((resolve, reject) => {
+                  let settled = false;
+                  const safeResolve = () => {
+                    if (settled) return;
+                    settled = true;
+                    resolve();
+                  };
+                  const safeReject = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    reject(err);
+                  };
+                  window.Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: (h) => h.trim(),
+                    worker: true,
+                    chunkSize: 1024 * 1024,
+                    complete: async (results) => {
+                      try {
+                        const parseErrors = results.errors?.length || 0;
+                        button.innerHTML = '<span class="animate-pulse">Processing…</span>';
+                        await uploadDealsRows(results.data || [], parseErrors);
+                        safeResolve();
+                      } catch (err) {
+                        console.error('Upload failed:', err);
+                        showToast('Upload failed: ' + err.message, 'error');
+                        safeReject(err);
+                      }
+                    },
+                    error: (err) => {
+                      showToast('CSV parse error: ' + err.message, 'error');
+                      safeReject(err);
+                    },
+                  });
+                })
+            );
+          } catch (err) {
+            console.error('Upload aborted:', err);
+            if (err?.message?.toLowerCase().includes('timed out')) {
+              showToast('Upload timed out. Please try again.', 'error');
             }
-          },
-          error: (err) => {
-            showToast('CSV parse error: ' + err.message, 'error');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-            lucide.createIcons();
-          },
+          } finally {
+            if (fileInput) fileInput.value = '';
+          }
         });
       });
     };
@@ -1085,11 +1174,18 @@
       const submitBtn = document.getElementById('ns-invoices-upload-button');
       const requireAdmin = () => {
         const allowed = isAdminUser();
-        if (fileInput) fileInput.disabled = !allowed;
-        if (submitBtn) submitBtn.disabled = !allowed;
         const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
-        if (submitBtn) submitBtn.title = titleText;
+        const hintClasses = ['opacity-60', 'cursor-not-allowed'];
+        if (fileInput) {
+          fileInput.title = titleText;
+          fileInput.classList.toggle(hintClasses[0], !allowed);
+          fileInput.classList.toggle(hintClasses[1], !allowed);
+        }
+        if (submitBtn) {
+          submitBtn.title = titleText;
+          submitBtn.classList.toggle(hintClasses[0], !allowed);
+          submitBtn.classList.toggle(hintClasses[1], !allowed);
+        }
         return allowed;
       };
       if (!form || !fileInput || !submitBtn) return;
@@ -1097,44 +1193,69 @@
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
-      submitBtn.addEventListener('click', (event) => {
-        event.preventDefault();
-        if (!requireAdmin()) {
-          showToast('Only administrators can upload invoice data.', 'error');
-          return;
-        }
-        const file = fileInput.files?.[0];
-        if (!file) {
-          showToast('Please select a CSV file to upload.', 'error');
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-        window.Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (h) => h.trim(),
-          worker: false,
-          complete: async (results) => {
-            try {
-              const parseErrors = results.errors?.length || 0;
-              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadInvoicesRows(results.data || [], parseErrors);
-            } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + err.message, 'error');
-            } finally {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              lucide.createIcons();
+      wireOnce(document, 'nsInvoicesUploadHandler', () => {
+        document.addEventListener('click', (event) => {
+          const button = event.target?.closest('#ns-invoices-upload-button');
+          if (!button) return;
+          event.preventDefault();
+          debugLog('Invoices upload click role', window.currentUserRole);
+          if (!requireAdmin()) {
+            showToast('Only administrators can upload invoice data.', 'error');
+            return;
+          }
+          const file = fileInput.files?.[0];
+          if (!file) {
+            showToast('Please select a CSV file to upload.', 'error');
+            return;
+          }
+          withUiLock(
+            button,
+            '<span class="animate-pulse">Reading file…</span>',
+            () =>
+              new Promise((resolve, reject) => {
+                let settled = false;
+                const safeResolve = () => {
+                  if (settled) return;
+                  settled = true;
+                  resolve();
+                };
+                const safeReject = (err) => {
+                  if (settled) return;
+                  settled = true;
+                  reject(err);
+                };
+                window.Papa.parse(file, {
+                  header: true,
+                  skipEmptyLines: true,
+                  transformHeader: (h) => h.trim(),
+                  worker: true,
+                  chunkSize: 1024 * 1024,
+                  complete: async (results) => {
+                    try {
+                      const parseErrors = results.errors?.length || 0;
+                      button.innerHTML = '<span class="animate-pulse">Processing…</span>';
+                      await uploadInvoicesRows(results.data || [], parseErrors);
+                      safeResolve();
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                      showToast('Upload failed: ' + err.message, 'error');
+                      safeReject(err);
+                    }
+                  },
+                  error: (err) => {
+                    showToast('CSV parse error: ' + err.message, 'error');
+                    safeReject(err);
+                  },
+                });
+              })
+          ).catch((err) => {
+            console.error('Upload aborted:', err);
+            if (err?.message?.toLowerCase().includes('timed out')) {
+              showToast('Upload timed out. Please try again.', 'error');
             }
-          },
-          error: (err) => {
-            showToast('CSV parse error: ' + err.message, 'error');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-            lucide.createIcons();
-          },
+          }).finally(() => {
+            if (fileInput) fileInput.value = '';
+          });
         });
       });
     };
@@ -1151,11 +1272,18 @@
 
       const requireAdmin = () => {
         const allowed = isAdminUser();
-        if (fileInput) fileInput.disabled = !allowed;
-        if (submitBtn) submitBtn.disabled = !allowed;
         const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
-        if (submitBtn) submitBtn.title = titleText;
+        const hintClasses = ['opacity-60', 'cursor-not-allowed'];
+        if (fileInput) {
+          fileInput.title = titleText;
+          fileInput.classList.toggle(hintClasses[0], !allowed);
+          fileInput.classList.toggle(hintClasses[1], !allowed);
+        }
+        if (submitBtn) {
+          submitBtn.title = titleText;
+          submitBtn.classList.toggle(hintClasses[0], !allowed);
+          submitBtn.classList.toggle(hintClasses[1], !allowed);
+        }
         return allowed;
       };
 
@@ -1164,45 +1292,59 @@
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
-      submitBtn.addEventListener('click', async (event) => {
-        event.preventDefault();
-        if (!requireAdmin()) {
-          showToast('Only administrators can upload PT ping data.', 'error');
-          return;
-        }
-        const hasSession = await ensurePtSession();
-        if (!hasSession) return;
-        const file = fileInput.files?.[0];
-        if (!file) {
-          showToast('Please select a CSV or XLSX file to upload.', 'error');
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Preparing rows…</span>';
-        setStatus('Parsing file...');
-        try {
-          const { rows, headers, errors } = await parsePtPingFile(file);
-          const normalizedHeaders = normalizePtHeaders(headers);
-          console.log('RAW HEADERS:', headers);
-          console.log('NORMALIZED HEADERS:', Array.from(normalizedHeaders));
-          const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
-          if (!valid) {
-            setStatus('Missing headers: ' + missing.join(', '));
-            showToast('Missing required headers: ' + missing.join(', '), 'error');
-            return;
+      wireOnce(document, 'ptPingUploadHandler', () => {
+        document.addEventListener('click', async (event) => {
+          const button = event.target?.closest('#pt-ping-upload-button');
+          if (!button) return;
+          event.preventDefault();
+          debugLog('PT upload click role', window.currentUserRole);
+          try {
+            await withUiLock(
+              button,
+              '<span class="animate-pulse">Preparing rows…</span>',
+              async () => {
+                if (!requireAdmin()) {
+                  setStatus('Administrator access required.');
+                  showToast('Only administrators can upload PT ping data.', 'error');
+                  return;
+                }
+                const hasSession = await ensurePtSession();
+                if (!hasSession) {
+                  setStatus('Session validation failed.');
+                  return;
+                }
+                const file = fileInput.files?.[0];
+                if (!file) {
+                  setStatus('Please select a CSV or XLSX file to upload.');
+                  showToast('Please select a CSV or XLSX file to upload.', 'error');
+                  return;
+                }
+                setStatus('Parsing file...');
+                const { rows, headers, errors } = await parsePtPingFile(file);
+                const normalizedHeaders = normalizePtHeaders(headers);
+                console.log('RAW HEADERS:', headers);
+                console.log('NORMALIZED HEADERS:', Array.from(normalizedHeaders));
+                const { valid, missing } = validatePtPingHeaders(normalizedHeaders);
+                if (!valid) {
+                  const missingText = missing.join(', ');
+                  setStatus('Missing headers: ' + missingText);
+                  showToast('Missing required headers: ' + missingText, 'error');
+                  return;
+                }
+                button.innerHTML = '<span class="animate-pulse">Processing…</span>';
+                await uploadPtPingRows(rows || [], errors?.length || 0);
+              }
+            );
+          } catch (err) {
+            console.error('PT Last Ping upload failed:', err);
+            setStatus('Upload failed: ' + err.message);
+            if (err?.message?.toLowerCase().includes('timed out')) {
+              showToast('Upload timed out. Please try again.', 'error');
+            }
+          } finally {
+            if (fileInput) fileInput.value = '';
           }
-          submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-          await uploadPtPingRows(rows || [], errors?.length || 0);
-        } catch (err) {
-          console.error('PT Last Ping upload failed:', err);
-          showToast('Upload failed: ' + err.message, 'error');
-          setStatus('Upload failed: ' + err.message);
-          showPtError(err, 'PT Last Ping upload failed');
-        } finally {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-          lucide.createIcons();
-        }
+        });
       });
     };
 
@@ -1341,6 +1483,7 @@
     const ensurePtSession = async () => {
       try {
         const { data, error } = await supabaseClient.auth.getSession();
+        debugLog('PT session exists', !!data?.session, 'error', error);
         if (error) throw error;
         if (!data?.session) {
           showToast('You must be signed in to upload PT Last Ping data.', 'error');
