@@ -302,7 +302,7 @@
                     <span>Upload</span>
                   </button>
                 </form>
-                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Serial is required; all rows are sent to Supabase (no VIN check). Conflicts resolved by VIN + Serial.</p>
+                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Serial is required; all rows are sent to Supabase (no VIN check). Conflicts resolved by Serial + read_day + day_half.</p>
                 <details id="pt-error-box" class="hidden overflow-hidden rounded-xl border border-rose-900/60 bg-rose-950/60 text-xs text-rose-100 shadow-inner shadow-rose-950/50">
                   <summary class="cursor-pointer px-3 py-2 font-semibold text-rose-200">Error details</summary>
                   <pre id="pt-error-pre" class="max-h-64 overflow-auto whitespace-pre-wrap px-3 pb-3 pt-1 font-mono text-[11px] leading-relaxed text-rose-100"></pre>
@@ -1220,7 +1220,7 @@
       window.addEventListener('auth:role-updated', syncAccess);
 
       wireOnce(document, 'nsInvoicesUploadHandler', () => {
-        document.addEventListener('click', (event) => {
+        document.addEventListener('click', async (event) => {
           const button = event.target?.closest('#ns-invoices-upload-button');
           if (!button) return;
           event.preventDefault();
@@ -1234,55 +1234,57 @@
             showToast('Please select a CSV file to upload.', 'error');
             return;
           }
-          withUiLock(
-            button,
-            '<span class="animate-pulse">Reading file…</span>',
-            () =>
-              new Promise((resolve, reject) => {
-                let settled = false;
-                const safeResolve = () => {
-                  if (settled) return;
-                  settled = true;
-                  resolve();
-                };
-                const safeReject = (err) => {
-                  if (settled) return;
-                  settled = true;
-                  reject(err);
-                };
-                window.Papa.parse(file, {
-                  header: true,
-                  skipEmptyLines: true,
-                  transformHeader: (h) => h.trim(),
-                  worker: true,
-                  chunkSize: 1024 * 1024,
-                  complete: async (results) => {
-                    try {
+          try {
+            await withUiLock(
+              button,
+              '<span class=\"animate-pulse\">Reading file…</span>',
+              () =>
+                new Promise((resolve, reject) => {
+                  let settled = false;
+                  const safeResolve = () => {
+                    if (settled) return;
+                    settled = true;
+                    resolve();
+                  };
+                  const safeReject = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    reject(err);
+                  };
+                  window.Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: (h) => h.trim(),
+                    worker: true,
+                    chunkSize: 1024 * 1024,
+                    complete: async (results) => {
+                      try {
                 const parseErrors = results.errors?.length || 0;
                 const progressLabel = document.getElementById('ns-invoices-progress-label');
                 if (progressLabel) progressLabel.textContent = 'Processing…';
                 await uploadInvoicesRows(results.data || [], parseErrors);
                 safeResolve();
-                    } catch (err) {
-                      console.error('Upload failed:', err);
-                      showToast('Upload failed: ' + err.message, 'error');
+                      } catch (err) {
+                        console.error('Upload failed:', err);
+                        showToast('Upload failed: ' + err.message, 'error');
+                        safeReject(err);
+                      }
+                    },
+                    error: (err) => {
+                      showToast('CSV parse error: ' + err.message, 'error');
                       safeReject(err);
-                    }
-                  },
-                  error: (err) => {
-                    showToast('CSV parse error: ' + err.message, 'error');
-                    safeReject(err);
-                  },
-                });
-              })
-          ).catch((err) => {
+                    },
+                  });
+                })
+            );
+          } catch (err) {
             console.error('Upload aborted:', err);
             if (err?.message?.toLowerCase().includes('timed out')) {
               showToast('Upload timed out. Please try again.', 'error');
             }
-          }).finally(() => {
+          } finally {
             if (fileInput) fileInput.value = '';
-          });
+          }
         });
       });
     };
@@ -1358,7 +1360,6 @@
                   showToast('Missing required headers: ' + missingText, 'error');
                   return;
                 }
-                button.innerHTML = '<span class="animate-pulse">Processing…</span>';
                 await uploadPtPingRows(rows || [], errors?.length || 0);
               }
             );
@@ -1465,14 +1466,13 @@
           }
         }
         const headers = (rowsMatrix[bestHeaderIndex] || []).map(cleanXlsxHeaderCell);
-        const rows = rowsMatrix.slice(bestHeaderIndex + 1).map((row) => {
-          const obj = {};
-          headers.forEach((header, idx) => {
-            if (!header) return;
+        const rows = rowsMatrix
+          .slice(bestHeaderIndex + 1)
+          .map((row) => headers.reduce((obj, header, idx) => {
+            if (!header) return obj;
             obj[header] = row[idx];
-          });
-          return obj;
-        });
+            return obj;
+          }, {}));
         return { rows, headers, errors: [] };
       }
       throw new Error('Unsupported file type. Please upload CSV or XLSX.');
@@ -1617,10 +1617,8 @@
         }
       };
 
-      const buildPtPingDedupKey = (serialVal, dateVal) => {
-        if (!serialVal || !dateVal) return null;
-        const { readDay, dayHalf } = derivePtDayParts(dateVal);
-        if (!readDay || dayHalf === null) return null;
+      const buildPtPingDedupKey = (serialVal, readDay, dayHalf) => {
+        if (!serialVal || !readDay || dayHalf === null) return null;
         return `${serialVal}__${readDay}__${dayHalf}`;
       };
 
@@ -1630,7 +1628,8 @@
         rowsToDedup.forEach(({ row, readDay, dayHalf }, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${readDay}__${dayHalf}`;
+          const key = buildPtPingDedupKey(serialVal, readDay, dayHalf);
+          if (!key) return;
           const currentTime = new Date(dateVal).getTime();
           const existing = latestByKey.get(key);
           if (existing) {
