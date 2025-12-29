@@ -710,10 +710,14 @@
       const variantClasses =
         type === 'success'
           ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-50 shadow-emerald-500/30'
-          : 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30';
+          : type === 'error'
+            ? 'border-red-500/60 bg-red-500/10 text-red-50 shadow-red-500/30'
+            : 'border-slate-600/60 bg-slate-800/80 text-slate-100 shadow-slate-700/30';
       toast.className = `flex min-w-[260px] max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-xl backdrop-blur ${variantClasses}`;
       const icon = document.createElement('span');
-      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${type === 'success' ? 'bg-emerald-400' : 'bg-red-400'}`;
+      const iconColor =
+        type === 'success' ? 'bg-emerald-400' : type === 'error' ? 'bg-red-400' : 'bg-blue-400';
+      icon.className = `mt-0.5 h-2.5 w-2.5 rounded-full ${iconColor}`;
       const text = document.createElement('p');
       text.className = 'whitespace-pre-line font-semibold leading-relaxed';
       text.textContent = message;
@@ -785,9 +789,14 @@
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
       const conflictColumn = columnMap.get('current stock no'); 
+      const vinColumn = columnMap.get('vin');
 
       if (!conflictColumn) {
         showToast('Local configuration error: "Current Stock No" missing from whitelist.', 'error');
+        return;
+      }
+      if (!vinColumn) {
+        showToast('Local configuration error: "VIN" missing from whitelist.', 'error');
         return;
       }
 
@@ -830,12 +839,20 @@
           mapped[columnName] = cleanedValue;
         });
 
-        if (!mapped[conflictColumn]) {
-            mapped[conflictColumn] = stockNumber;
+        const normalizedVin = cleanValue(vin);
+        if (!mapped[vinColumn] && normalizedVin) {
+          mapped[vinColumn] = normalizedVin;
+        }
+        if (!mapped[conflictColumn] && stockNumber) {
+          mapped[conflictColumn] = stockNumber;
+        }
+        if (!mapped[vinColumn] || !mapped[conflictColumn]) {
+          skippedInvalid += 1;
+          return;
         }
 
         // LLAVE UNICA: VIN + Stock
-        const uniqueKey = `${vin}_${stockNumber}`;
+        const uniqueKey = `${mapped[vinColumn]}_${mapped[conflictColumn]}`;
 
         if (uniqueDealsMap.has(uniqueKey)) {
             duplicatesRemoved++;
@@ -861,9 +878,6 @@
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
-        if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
-        }
         setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
         // UPSERT
@@ -1027,9 +1041,6 @@
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
-        if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
-        }
         setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
 
         const { data, error } = await supabaseClient
@@ -1109,6 +1120,17 @@
               '<span class="animate-pulse">Reading file…</span>',
               () =>
                 new Promise((resolve, reject) => {
+                  let settled = false;
+                  const safeResolve = () => {
+                    if (settled) return;
+                    settled = true;
+                    resolve();
+                  };
+                  const safeReject = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    reject(err);
+                  };
                   window.Papa.parse(file, {
                     header: true,
                     skipEmptyLines: true,
@@ -1120,16 +1142,16 @@
                         const parseErrors = results.errors?.length || 0;
                         button.innerHTML = '<span class="animate-pulse">Processing…</span>';
                         await uploadDealsRows(results.data || [], parseErrors);
-                        resolve();
+                        safeResolve();
                       } catch (err) {
                         console.error('Upload failed:', err);
                         showToast('Upload failed: ' + err.message, 'error');
-                        reject(err);
+                        safeReject(err);
                       }
                     },
                     error: (err) => {
                       showToast('CSV parse error: ' + err.message, 'error');
-                      reject(err);
+                      safeReject(err);
                     },
                   });
                 })
@@ -1186,36 +1208,53 @@
             showToast('Please select a CSV file to upload.', 'error');
             return;
           }
-          button.disabled = true;
-          button.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-          window.Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            transformHeader: (h) => h.trim(),
-            worker: true,
-            chunkSize: 1024 * 1024,
-            complete: async (results) => {
-              try {
-                const parseErrors = results.errors?.length || 0;
-                button.innerHTML = '<span class="animate-pulse">Processing…</span>';
-                await uploadInvoicesRows(results.data || [], parseErrors);
-              } catch (err) {
-                console.error('Upload failed:', err);
-                showToast('Upload failed: ' + err.message, 'error');
-              } finally {
-                button.disabled = false;
-                button.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-                if (fileInput) fileInput.value = '';
-                lucide.createIcons();
-              }
-            },
-            error: (err) => {
-              showToast('CSV parse error: ' + err.message, 'error');
-              button.disabled = false;
-              button.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              if (fileInput) fileInput.value = '';
-              lucide.createIcons();
-            },
+          withUiLock(
+            button,
+            '<span class="animate-pulse">Reading file…</span>',
+            () =>
+              new Promise((resolve, reject) => {
+                let settled = false;
+                const safeResolve = () => {
+                  if (settled) return;
+                  settled = true;
+                  resolve();
+                };
+                const safeReject = (err) => {
+                  if (settled) return;
+                  settled = true;
+                  reject(err);
+                };
+                window.Papa.parse(file, {
+                  header: true,
+                  skipEmptyLines: true,
+                  transformHeader: (h) => h.trim(),
+                  worker: true,
+                  chunkSize: 1024 * 1024,
+                  complete: async (results) => {
+                    try {
+                      const parseErrors = results.errors?.length || 0;
+                      button.innerHTML = '<span class="animate-pulse">Processing…</span>';
+                      await uploadInvoicesRows(results.data || [], parseErrors);
+                      safeResolve();
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                      showToast('Upload failed: ' + err.message, 'error');
+                      safeReject(err);
+                    }
+                  },
+                  error: (err) => {
+                    showToast('CSV parse error: ' + err.message, 'error');
+                    safeReject(err);
+                  },
+                });
+              })
+          ).catch((err) => {
+            console.error('Upload aborted:', err);
+            if (err?.message?.toLowerCase().includes('timed out')) {
+              showToast('Upload timed out. Please try again.', 'error');
+            }
+          }).finally(() => {
+            if (fileInput) fileInput.value = '';
           });
         });
       });
