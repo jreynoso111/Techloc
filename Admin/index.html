@@ -728,8 +728,10 @@
 
     const wireOnce = (el, key, fn) => {
       if (!el || !key || typeof fn !== 'function') return;
-      if (el.dataset[key]) return;
-      el.dataset[key] = '1';
+      const datasetTarget = el.dataset || el.documentElement?.dataset;
+      if (!datasetTarget) return;
+      if (datasetTarget[key]) return;
+      datasetTarget[key] = '1';
       fn();
     };
 
