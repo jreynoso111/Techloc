@@ -310,9 +310,7 @@
               </div>
             </section>
 
-        </div>
-      </section>
-    </div>
+        </div> <!-- end uploads grid -->
   </main>
 
   <template id="dataset-card-template">
@@ -529,13 +527,37 @@
       box.classList.remove('hidden');
     };
 
+    const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    });
+
+    const derivePtDayParts = (dateVal) => {
+      const parsedDate = new Date(dateVal);
+      if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
+      const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
+        if (part.type !== 'literal') acc[part.type] = part.value;
+        return acc;
+      }, {});
+      const { year, month, day } = parts;
+      const hour = Number(parts.hour);
+      if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
+      const readDay = `${year}-${month}-${day}`;
+      const dayHalf = hour < 12 ? 0 : 1;
+      return { readDay, dayHalf };
+    };
+
     const buildSlimPtPayload = (row = {}) => {
       const clean = (value) => cleanValue(value);
       const numericOrValue = (value) => {
         const numeric = toNumber(value);
         return numeric !== null ? numeric : clean(value);
       };
-
+      const { readDay, dayHalf } = derivePtDayParts(row?.['Date']);
       const slim = {
         Serial: clean(row?.['Serial']),
         Year: numericOrValue(row?.['Year']),
@@ -549,6 +571,8 @@
         address: clean(row?.['address']),
         Lat: numericOrValue(row?.['Lat']),
         Long: numericOrValue(row?.['Long']),
+        read_day: readDay,
+        day_half: dayHalf,
       };
 
       return Object.entries(slim).reduce((acc, [key, value]) => {
@@ -1408,15 +1432,43 @@
         const firstSheet = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheet];
         const rowsMatrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
-        const headers = (rowsMatrix[0] || []).map((h) =>
-          (h === undefined || h === null ? '' : String(h))
+        const cleanXlsxHeaderCell = (value) =>
+          (value === undefined || value === null ? '' : String(value))
             .replace(/^\uFEFF/, '')
             .replace(/\u00A0/g, ' ')
-            .trim()
-        );
-        const rows = rowsMatrix.slice(1).map((row) => {
+            .trim();
+        const scoreHeaderRow = (row = []) => {
+          if (!row || row.length === 0) return -1;
+          const normalized = new Set();
+          row.forEach((cell) => {
+            const cleaned = cleanXlsxHeaderCell(cell);
+            if (!cleaned) return;
+            const canonical = PT_PING_HEADER_MAP.get(cleanHeaderKey(cleaned)) || cleaned;
+            normalized.add(canonical);
+          });
+          let score = 0;
+          if (normalized.has('Serial')) score += 6;
+          if (normalized.has('Date')) score += 6;
+          if (normalized.has('VIN')) score += 2;
+          if (normalized.has('Lat')) score += 1;
+          if (normalized.has('Long')) score += 1;
+          return score;
+        };
+        const limit = Math.min(rowsMatrix.length, 30);
+        let bestHeaderIndex = 0;
+        let bestScore = -1;
+        for (let i = 0; i < limit; i += 1) {
+          const currentScore = scoreHeaderRow(rowsMatrix[i]);
+          if (currentScore > bestScore) {
+            bestScore = currentScore;
+            bestHeaderIndex = i;
+          }
+        }
+        const headers = (rowsMatrix[bestHeaderIndex] || []).map(cleanXlsxHeaderCell);
+        const rows = rowsMatrix.slice(bestHeaderIndex + 1).map((row) => {
           const obj = {};
           headers.forEach((header, idx) => {
+            if (!header) return;
             obj[header] = row[idx];
           });
           return obj;
@@ -1539,14 +1591,6 @@
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
       const cleanedRows = (rows || []).map(sanitizePtPingRow);
-      const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/New_York',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        hour12: false,
-      });
       const aggregated = {
         inserted: 0,
         batches: 0,
@@ -1571,21 +1615,6 @@
         } catch (err) {
           console.warn('RPC recalc_pt_lastping_moved_2d_for_serials threw; continuing upload.', err);
         }
-      };
-
-      const derivePtDayParts = (dateVal) => {
-        const parsedDate = new Date(dateVal);
-        if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
-        const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
-          if (part.type !== 'literal') acc[part.type] = part.value;
-          return acc;
-        }, {});
-        const { year, month, day } = parts;
-        const hour = Number(parts.hour);
-        if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
-        const readDay = `${year}-${month}-${day}`;
-        const dayHalf = hour < 12 ? 0 : 1;
-        return { readDay, dayHalf };
       };
 
       const buildPtPingDedupKey = (serialVal, dateVal) => {
@@ -1760,5 +1789,6 @@
     wireInvoicesUpload();
     wirePtPingUpload();
   </script>
+</div> <!-- close data-auth-protected -->
 </body>
 </html>
