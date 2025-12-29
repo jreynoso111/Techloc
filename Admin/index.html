@@ -302,7 +302,7 @@
                     <span>Upload</span>
                   </button>
                 </form>
-                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Serial is required; all rows are sent to Supabase (no VIN check). Conflicts resolved by Serial + read_day + day_half.</p>
+                <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Serial is required; all rows are sent to Supabase (no VIN check). Conflicts resolved by VIN + Serial.</p>
                 <details id="pt-error-box" class="hidden overflow-hidden rounded-xl border border-rose-900/60 bg-rose-950/60 text-xs text-rose-100 shadow-inner shadow-rose-950/50">
                   <summary class="cursor-pointer px-3 py-2 font-semibold text-rose-200">Error details</summary>
                   <pre id="pt-error-pre" class="max-h-64 overflow-auto whitespace-pre-wrap px-3 pb-3 pt-1 font-mono text-[11px] leading-relaxed text-rose-100"></pre>
@@ -527,37 +527,13 @@
       box.classList.remove('hidden');
     };
 
-    const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      hour12: false,
-    });
-
-    const derivePtDayParts = (dateVal) => {
-      const parsedDate = new Date(dateVal);
-      if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
-      const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
-        if (part.type !== 'literal') acc[part.type] = part.value;
-        return acc;
-      }, {});
-      const { year, month, day } = parts;
-      const hour = Number(parts.hour);
-      if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
-      const readDay = `${year}-${month}-${day}`;
-      const dayHalf = hour < 12 ? 0 : 1;
-      return { readDay, dayHalf };
-    };
-
     const buildSlimPtPayload = (row = {}) => {
       const clean = (value) => cleanValue(value);
       const numericOrValue = (value) => {
         const numeric = toNumber(value);
         return numeric !== null ? numeric : clean(value);
       };
-      const { dayHalf } = derivePtDayParts(row?.['Date']);
+
       const slim = {
         Serial: clean(row?.['Serial']),
         Year: numericOrValue(row?.['Year']),
@@ -571,7 +547,6 @@
         address: clean(row?.['address']),
         Lat: numericOrValue(row?.['Lat']),
         Long: numericOrValue(row?.['Long']),
-        day_half: dayHalf,
       };
 
       return Object.entries(slim).reduce((acc, [key, value]) => {
@@ -1219,7 +1194,7 @@
       window.addEventListener('auth:role-updated', syncAccess);
 
       wireOnce(document, 'nsInvoicesUploadHandler', () => {
-        document.addEventListener('click', async (event) => {
+        document.addEventListener('click', (event) => {
           const button = event.target?.closest('#ns-invoices-upload-button');
           if (!button) return;
           event.preventDefault();
@@ -1233,57 +1208,55 @@
             showToast('Please select a CSV file to upload.', 'error');
             return;
           }
-          try {
-            await withUiLock(
-              button,
-              '<span class=\"animate-pulse\">Reading file…</span>',
-              () =>
-                new Promise((resolve, reject) => {
-                  let settled = false;
-                  const safeResolve = () => {
-                    if (settled) return;
-                    settled = true;
-                    resolve();
-                  };
-                  const safeReject = (err) => {
-                    if (settled) return;
-                    settled = true;
-                    reject(err);
-                  };
-                  window.Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    transformHeader: (h) => h.trim(),
-                    worker: true,
-                    chunkSize: 1024 * 1024,
-                    complete: async (results) => {
-                      try {
+          withUiLock(
+            button,
+            '<span class="animate-pulse">Reading file…</span>',
+            () =>
+              new Promise((resolve, reject) => {
+                let settled = false;
+                const safeResolve = () => {
+                  if (settled) return;
+                  settled = true;
+                  resolve();
+                };
+                const safeReject = (err) => {
+                  if (settled) return;
+                  settled = true;
+                  reject(err);
+                };
+                window.Papa.parse(file, {
+                  header: true,
+                  skipEmptyLines: true,
+                  transformHeader: (h) => h.trim(),
+                  worker: true,
+                  chunkSize: 1024 * 1024,
+                  complete: async (results) => {
+                    try {
                 const parseErrors = results.errors?.length || 0;
                 const progressLabel = document.getElementById('ns-invoices-progress-label');
                 if (progressLabel) progressLabel.textContent = 'Processing…';
                 await uploadInvoicesRows(results.data || [], parseErrors);
                 safeResolve();
-                      } catch (err) {
-                        console.error('Upload failed:', err);
-                        showToast('Upload failed: ' + err.message, 'error');
-                        safeReject(err);
-                      }
-                    },
-                    error: (err) => {
-                      showToast('CSV parse error: ' + err.message, 'error');
+                    } catch (err) {
+                      console.error('Upload failed:', err);
+                      showToast('Upload failed: ' + err.message, 'error');
                       safeReject(err);
-                    },
-                  });
-                })
-            );
-          } catch (err) {
+                    }
+                  },
+                  error: (err) => {
+                    showToast('CSV parse error: ' + err.message, 'error');
+                    safeReject(err);
+                  },
+                });
+              })
+          ).catch((err) => {
             console.error('Upload aborted:', err);
             if (err?.message?.toLowerCase().includes('timed out')) {
               showToast('Upload timed out. Please try again.', 'error');
             }
-          } finally {
+          }).finally(() => {
             if (fileInput) fileInput.value = '';
-          }
+          });
         });
       });
     };
@@ -1359,6 +1332,7 @@
                   showToast('Missing required headers: ' + missingText, 'error');
                   return;
                 }
+                button.innerHTML = '<span class="animate-pulse">Processing…</span>';
                 await uploadPtPingRows(rows || [], errors?.length || 0);
               }
             );
@@ -1432,46 +1406,19 @@
         const firstSheet = workbook.SheetNames[0];
         const sheet = workbook.Sheets[firstSheet];
         const rowsMatrix = window.XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false });
-        const cleanXlsxHeaderCell = (value) =>
-          (value === undefined || value === null ? '' : String(value))
+        const headers = (rowsMatrix[0] || []).map((h) =>
+          (h === undefined || h === null ? '' : String(h))
             .replace(/^\uFEFF/, '')
             .replace(/\u00A0/g, ' ')
-            .trim();
-        const scoreHeaderRow = (row = []) => {
-          if (!row || row.length === 0) return -1;
-          const normalized = new Set();
-          row.forEach((cell) => {
-            const cleaned = cleanXlsxHeaderCell(cell);
-            if (!cleaned) return;
-            const canonical = PT_PING_HEADER_MAP.get(cleanHeaderKey(cleaned)) || cleaned;
-            normalized.add(canonical);
-          });
-          let score = 0;
-          if (normalized.has('Serial')) score += 6;
-          if (normalized.has('Date')) score += 6;
-          if (normalized.has('VIN')) score += 2;
-          if (normalized.has('Lat')) score += 1;
-          if (normalized.has('Long')) score += 1;
-          return score;
-        };
-        const limit = Math.min(rowsMatrix.length, 30);
-        let bestHeaderIndex = 0;
-        let bestScore = -1;
-        for (let i = 0; i < limit; i += 1) {
-          const currentScore = scoreHeaderRow(rowsMatrix[i]);
-          if (currentScore > bestScore) {
-            bestScore = currentScore;
-            bestHeaderIndex = i;
-          }
-        }
-        const headers = (rowsMatrix[bestHeaderIndex] || []).map(cleanXlsxHeaderCell);
-        const rows = rowsMatrix
-          .slice(bestHeaderIndex + 1)
-          .map((row) => headers.reduce((obj, header, idx) => {
-            if (!header) return obj;
+            .trim()
+        );
+        const rows = rowsMatrix.slice(1).map((row) => {
+          const obj = {};
+          headers.forEach((header, idx) => {
             obj[header] = row[idx];
-            return obj;
-          }, {}));
+          });
+          return obj;
+        });
         return { rows, headers, errors: [] };
       }
       throw new Error('Unsupported file type. Please upload CSV or XLSX.');
@@ -1590,6 +1537,14 @@
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
       const cleanedRows = (rows || []).map(sanitizePtPingRow);
+      const ptPingDedupFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        hour12: false,
+      });
       const aggregated = {
         inserted: 0,
         batches: 0,
@@ -1616,8 +1571,25 @@
         }
       };
 
-      const buildPtPingDedupKey = (serialVal, readDay, dayHalf) => {
-        if (!serialVal || !readDay || dayHalf === null) return null;
+      const derivePtDayParts = (dateVal) => {
+        const parsedDate = new Date(dateVal);
+        if (Number.isNaN(parsedDate.getTime())) return { readDay: null, dayHalf: null };
+        const parts = ptPingDedupFormatter.formatToParts(parsedDate).reduce((acc, part) => {
+          if (part.type !== 'literal') acc[part.type] = part.value;
+          return acc;
+        }, {});
+        const { year, month, day } = parts;
+        const hour = Number(parts.hour);
+        if (!year || !month || !day || Number.isNaN(hour)) return { readDay: null, dayHalf: null };
+        const readDay = `${year}-${month}-${day}`;
+        const dayHalf = hour < 12 ? 0 : 1;
+        return { readDay, dayHalf };
+      };
+
+      const buildPtPingDedupKey = (serialVal, dateVal) => {
+        if (!serialVal || !dateVal) return null;
+        const { readDay, dayHalf } = derivePtDayParts(dateVal);
+        if (!readDay || dayHalf === null) return null;
         return `${serialVal}__${readDay}__${dayHalf}`;
       };
 
@@ -1627,8 +1599,7 @@
         rowsToDedup.forEach(({ row, readDay, dayHalf }, index) => {
           const serialVal = row?.['Serial'];
           const dateVal = row?.['Date'];
-          const key = buildPtPingDedupKey(serialVal, readDay, dayHalf);
-          if (!key) return;
+          const key = buildPtPingDedupKey(serialVal, dateVal) || `${serialVal}__${readDay}__${dayHalf}`;
           const currentTime = new Date(dateVal).getTime();
           const existing = latestByKey.get(key);
           if (existing) {
@@ -1725,7 +1696,7 @@
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
         const { data, error } = await supabaseClient
           .from('PT-LastPing')
-          .upsert(batch, { onConflict: 'Serial,Date,day_half', ignoreDuplicates: true })
+          .upsert(batch, { onConflict: 'Serial,read_day,day_half', ignoreDuplicates: true })
           .select();
 
         if (error) {
