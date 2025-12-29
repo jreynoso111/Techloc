@@ -1131,29 +1131,31 @@
                     settled = true;
                     reject(err);
                   };
-                  window.Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    transformHeader: (h) => h.trim(),
-                    worker: true,
-                    chunkSize: 1024 * 1024,
-                    complete: async (results) => {
-                      try {
-                        const parseErrors = results.errors?.length || 0;
-                        button.innerHTML = '<span class="animate-pulse">Processing…</span>';
-                        await uploadDealsRows(results.data || [], parseErrors);
-                        safeResolve();
-                      } catch (err) {
-                        console.error('Upload failed:', err);
-                        showToast('Upload failed: ' + err.message, 'error');
-                        safeReject(err);
-                      }
-                    },
-                    error: (err) => {
-                      showToast('CSV parse error: ' + err.message, 'error');
-                      safeReject(err);
-                    },
-                  });
+          window.Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (h) => h.trim(),
+            worker: true,
+            chunkSize: 1024 * 1024,
+            complete: async (results) => {
+              try {
+                const parseErrors = results.errors?.length || 0;
+                if (document.getElementById('deals-progress-label')) {
+                  document.getElementById('deals-progress-label').textContent = 'Processing…';
+                }
+                await uploadDealsRows(results.data || [], parseErrors);
+                safeResolve();
+              } catch (err) {
+                console.error('Upload failed:', err);
+                showToast('Upload failed: ' + err.message, 'error');
+                safeReject(err);
+              }
+            },
+            error: (err) => {
+              showToast('CSV parse error: ' + err.message, 'error');
+              safeReject(err);
+            },
+          });
                 })
             );
           } catch (err) {
@@ -1232,10 +1234,11 @@
                   chunkSize: 1024 * 1024,
                   complete: async (results) => {
                     try {
-                      const parseErrors = results.errors?.length || 0;
-                      button.innerHTML = '<span class="animate-pulse">Processing…</span>';
-                      await uploadInvoicesRows(results.data || [], parseErrors);
-                      safeResolve();
+                const parseErrors = results.errors?.length || 0;
+                const progressLabel = document.getElementById('ns-invoices-progress-label');
+                if (progressLabel) progressLabel.textContent = 'Processing…';
+                await uploadInvoicesRows(results.data || [], parseErrors);
+                safeResolve();
                     } catch (err) {
                       console.error('Upload failed:', err);
                       showToast('Upload failed: ' + err.message, 'error');
