@@ -11,7 +11,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="assets/scripts/authManager.js"></script>
+  <script type="module" src="assets/scripts/authManager.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <script>
@@ -93,12 +93,11 @@
         </div>
         <div class="flex flex-wrap gap-3">
           <div class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200">
-            <i data-lucide="sparkles" class="h-4 w-4 text-blue-400"></i>
-            <span>Auto-sync every 15 min</span>
+            <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]"></span>
+            <span id="connection-status">Live</span>
           </div>
         </div>
       </div>
-
       <div class="mt-6 grid gap-4 md:grid-cols-4">
         <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
           <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
@@ -123,6 +122,74 @@
       </div>
     </section>
 
+    <section class="sticky top-4 z-30 rounded-3xl border border-slate-800 bg-slate-950/80 p-5 shadow-dashboard backdrop-blur">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Filter Bar</p>
+          <h3 class="text-lg font-bold text-white">Refine Inventory View</h3>
+        </div>
+        <button id="reset-filters" type="button" class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">Clear all</button>
+      </div>
+
+      <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-200" id="active-filters"></div>
+
+      <div class="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Start date
+            <input id="filter-start-date" type="date" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
+          </label>
+          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            End date
+            <input id="filter-end-date" type="date" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
+          </label>
+          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            State
+            <select id="filter-state" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
+          </label>
+          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            City / Yard
+            <select id="filter-yard" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
+          </label>
+          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Unit type
+            <select id="filter-unit-type" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
+          </label>
+          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            Brand
+            <select id="filter-brand" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
+          </label>
+        </div>
+
+        <div class="flex flex-col gap-4">
+          <fieldset class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+            <legend class="px-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Status</legend>
+            <div id="filter-status" class="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-200"></div>
+          </fieldset>
+          <div class="grid gap-3">
+            <div class="flex flex-wrap gap-2">
+              <label class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
+                <input id="toggle-gps" type="checkbox" class="h-4 w-4 rounded border-slate-700 bg-slate-950" />
+                Only GPS Offline
+              </label>
+              <label class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
+                <input id="toggle-hold" type="checkbox" class="h-4 w-4 rounded border-slate-700 bg-slate-950" />
+                Only On Hold
+              </label>
+              <label class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
+                <input id="toggle-recovery" type="checkbox" class="h-4 w-4 rounded border-slate-700 bg-slate-950" />
+                Only Recovery Priority
+              </label>
+            </div>
+            <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              VIN / short VIN / plate
+              <input id="filter-search" type="search" placeholder="Search VIN, short VIN, or plate" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
       <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
         <div class="flex flex-wrap items-center justify-between gap-4">
@@ -130,51 +197,10 @@
             <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Inventory Movement</p>
             <h3 class="text-lg font-bold text-white">Units by Status</h3>
           </div>
-          <div class="flex flex-wrap gap-2" role="group" aria-label="Inventory movement range">
-            <button data-range="week" class="rounded-full border border-blue-500 bg-blue-600 px-3 py-1 text-xs font-semibold text-white">Week</button>
-            <button data-range="month" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-blue-500">Month</button>
-            <button data-range="quarter" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-blue-500">Quarter</button>
-          </div>
+          <span id="status-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Based on current filters</span>
         </div>
 
-        <div class="mt-6 grid grid-cols-6 gap-3" data-bar-chart>
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-28 w-8 rounded-full bg-slate-800/70">
-              <div class="bar-fill h-14 w-full rounded-full bg-gradient-to-t from-emerald-400 to-blue-500"></div>
-            </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Active</span>
-          </div>
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-28 w-8 rounded-full bg-slate-800/70">
-              <div class="bar-fill h-8 w-full rounded-full bg-gradient-to-t from-amber-400 to-orange-500"></div>
-            </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">On Hold</span>
-          </div>
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-28 w-8 rounded-full bg-slate-800/70">
-              <div class="bar-fill h-16 w-full rounded-full bg-gradient-to-t from-blue-400 to-indigo-500"></div>
-            </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">In Transit</span>
-          </div>
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-28 w-8 rounded-full bg-slate-800/70">
-              <div class="bar-fill h-10 w-full rounded-full bg-gradient-to-t from-rose-400 to-red-500"></div>
-            </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Recovery</span>
-          </div>
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-28 w-8 rounded-full bg-slate-800/70">
-              <div class="bar-fill h-20 w-full rounded-full bg-gradient-to-t from-teal-400 to-cyan-500"></div>
-            </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Ready</span>
-          </div>
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-28 w-8 rounded-full bg-slate-800/70">
-              <div class="bar-fill h-6 w-full rounded-full bg-gradient-to-t from-slate-500 to-slate-400"></div>
-            </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Write-Off</span>
-          </div>
-        </div>
+        <div class="mt-6 grid grid-cols-6 gap-3" data-bar-chart></div>
       </div>
 
       <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
@@ -183,7 +209,7 @@
             <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Utilization Trend</p>
             <h3 class="text-lg font-bold text-white">Dynamic Load Curve</h3>
           </div>
-          <button id="trend-toggle" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-blue-500">Refresh</button>
+          <span id="trend-caption" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">7-day utilization</span>
         </div>
 
         <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
@@ -191,7 +217,7 @@
             <span>Low</span>
             <span>High</span>
           </div>
-          <svg viewBox="0 0 260 120" class="mt-3 h-32 w-full">
+          <svg viewBox="0 0 260 120" class="mt-3 h-32 w-full" id="trend-chart">
             <defs>
               <linearGradient id="trend-gradient" x1="0" x2="1" y1="0" y2="0">
                 <stop offset="0%" stop-color="#38bdf8" />
@@ -199,22 +225,17 @@
                 <stop offset="100%" stop-color="#22c55e" />
               </linearGradient>
             </defs>
+            <rect id="trend-brush-rect" x="0" y="10" width="0" height="100" fill="rgba(56,189,248,0.2)"></rect>
             <polyline
               id="trend-line"
-              points="0,90 40,70 80,80 120,60 160,65 200,45 260,35"
+              points=""
               fill="none"
               stroke="url(#trend-gradient)"
               stroke-width="6"
               stroke-linecap="round"
               stroke-linejoin="round"
             />
-            <circle class="trend-dot" cx="0" cy="90" r="4" fill="#38bdf8" />
-            <circle class="trend-dot" cx="40" cy="70" r="4" fill="#38bdf8" />
-            <circle class="trend-dot" cx="80" cy="80" r="4" fill="#38bdf8" />
-            <circle class="trend-dot" cx="120" cy="60" r="4" fill="#818cf8" />
-            <circle class="trend-dot" cx="160" cy="65" r="4" fill="#818cf8" />
-            <circle class="trend-dot" cx="200" cy="45" r="4" fill="#22c55e" />
-            <circle class="trend-dot" cx="260" cy="35" r="4" fill="#22c55e" />
+            <g id="trend-dots"></g>
           </svg>
           <p class="mt-3 text-xs text-slate-400">
             Hover insight: active units are trending <span class="text-emerald-300 font-semibold">upward</span> over the last
@@ -233,36 +254,7 @@
           </div>
           <span class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Updated 3m ago</span>
         </div>
-        <div class="mt-6 grid gap-4 sm:grid-cols-2">
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <p class="text-xs text-slate-400">Pacific Corridor</p>
-            <p class="mt-2 text-2xl font-black text-white">96%</p>
-            <div class="mt-3 h-2 rounded-full bg-slate-800">
-              <div class="h-2 w-[96%] rounded-full bg-gradient-to-r from-blue-500 to-emerald-400"></div>
-            </div>
-          </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <p class="text-xs text-slate-400">Midwest Recovery</p>
-            <p class="mt-2 text-2xl font-black text-white">82%</p>
-            <div class="mt-3 h-2 rounded-full bg-slate-800">
-              <div class="h-2 w-[82%] rounded-full bg-gradient-to-r from-indigo-500 to-sky-400"></div>
-            </div>
-          </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <p class="text-xs text-slate-400">Southwest Utilization</p>
-            <p class="mt-2 text-2xl font-black text-white">74%</p>
-            <div class="mt-3 h-2 rounded-full bg-slate-800">
-              <div class="h-2 w-[74%] rounded-full bg-gradient-to-r from-amber-400 to-orange-500"></div>
-            </div>
-          </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <p class="text-xs text-slate-400">Northeast Reserve</p>
-            <p class="mt-2 text-2xl font-black text-white">69%</p>
-            <div class="mt-3 h-2 rounded-full bg-slate-800">
-              <div class="h-2 w-[69%] rounded-full bg-gradient-to-r from-rose-400 to-pink-500"></div>
-            </div>
-          </div>
-        </div>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2" id="regional-coverage"></div>
       </div>
       <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
         <div class="flex items-center justify-between">
@@ -288,60 +280,795 @@
         </ul>
       </div>
     </section>
+
+    <section class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Inventory Details</p>
+          <h3 class="text-lg font-bold text-white">Filtered Asset Table</h3>
+          <p class="mt-1 text-xs text-slate-400">Each row responds to the active filter set.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <span id="table-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">0 assets</span>
+          <div class="flex items-center gap-2 text-xs font-semibold text-slate-200">
+            <button id="table-prev" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Prev</button>
+            <span id="table-page">Page 1</span>
+            <button id="table-next" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Next</button>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 overflow-x-auto">
+        <table class="min-w-full text-left text-sm text-slate-200">
+          <thead class="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+            <tr>
+              <th class="px-3 py-2">VIN</th>
+              <th class="px-3 py-2">Plate</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Yard</th>
+              <th class="px-3 py-2">State</th>
+              <th class="px-3 py-2">Unit Type</th>
+              <th class="px-3 py-2">Brand</th>
+              <th class="px-3 py-2">Lien</th>
+              <th class="px-3 py-2">Hold</th>
+              <th class="px-3 py-2">Updated</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
   <script>
     lucide.createIcons();
 
-    const rangeButtons = document.querySelectorAll('[data-range]');
-    const metrics = {
-      week: { active: '1,284', hold: '92', recovery: '58', utilization: '78%' },
-      month: { active: '4,965', hold: '311', recovery: '142', utilization: '75%' },
-      quarter: { active: '14,228', hold: '882', recovery: '401', utilization: '81%' },
+    const DashboardState = {
+      filters: {
+        dateRange: { start: '', end: '' },
+        statuses: [],
+        yard: 'all',
+        state: 'all',
+        unitType: 'all',
+        brand: 'all',
+        lien: 'all',
+        hold: 'all',
+        gpsOfflineOnly: false,
+        onHoldOnly: false,
+        recoveryPriorityOnly: false,
+        search: '',
+      },
+      vehiclesRaw: new Map(),
+      table: {
+        page: 1,
+        perPage: 8,
+      },
+      derived: {
+        filtered: [],
+        kpis: { active: 0, hold: 0, recovery: 0, utilization: 0 },
+        statusBars: [],
+        trendPoints: [],
+        regionCoverage: [],
+      },
+      realtime: {
+        channel: null,
+      },
     };
-    const barSets = {
-      week: [50, 30, 60, 40, 70, 20],
-      month: [60, 45, 55, 50, 65, 25],
-      quarter: [72, 38, 68, 44, 80, 30],
-    };
-    const trendSets = [
-      '0,90 40,70 80,80 120,60 160,65 200,45 260,35',
-      '0,85 40,60 80,75 120,55 160,50 200,40 260,30',
-      '0,95 40,82 80,78 120,68 160,60 200,52 260,44',
+
+    const inventoryData = [
+      { vin: '1HGCM82633A004352', shortVin: '04352', plate: 'TX-4218', status: 'Active', yard: 'Houston Central', state: 'TX', unitType: 'SUV', brand: 'Honda', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-19', updated_at: '2024-09-18' },
+      { vin: '1J4FA49S94P708101', shortVin: '08101', plate: 'TX-2290', status: 'On Hold', yard: 'Houston Central', state: 'TX', unitType: 'Sedan', brand: 'Jeep', lien: false, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-17', updated_at: '2024-09-17' },
+      { vin: '5N1AR2MM0FC679214', shortVin: '79214', plate: 'CA-3389', status: 'Active', yard: 'Los Angeles South', state: 'CA', unitType: 'SUV', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-20', updated_at: '2024-09-20' },
+      { vin: '2T1BURHE6FC291334', shortVin: '91334', plate: 'CA-1044', status: 'In Transit', yard: 'Los Angeles South', state: 'CA', unitType: 'Sedan', brand: 'Toyota', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-22', updated_at: '2024-09-21' },
+      { vin: '1FTFW1ET5EFA03977', shortVin: '03977', plate: 'NV-8721', status: 'Recovery', yard: 'Las Vegas Hub', state: 'NV', unitType: 'Truck', brand: 'Ford', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-16', updated_at: '2024-09-16' },
+      { vin: '1G1BE5SM2H7249911', shortVin: '9911', plate: 'AZ-5501', status: 'Ready', yard: 'Phoenix East', state: 'AZ', unitType: 'Sedan', brand: 'Chevrolet', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-19', updated_at: '2024-09-19' },
+      { vin: '3FA6P0HD9ER355120', shortVin: '55120', plate: 'CO-6609', status: 'Active', yard: 'Denver Metro', state: 'CO', unitType: 'Sedan', brand: 'Ford', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-14', updated_at: '2024-09-14' },
+      { vin: '1C4RJFBG5FC625019', shortVin: '25019', plate: 'WA-7134', status: 'On Hold', yard: 'Seattle Harbor', state: 'WA', unitType: 'SUV', brand: 'Jeep', lien: true, hold: true, gps_offline: true, recovery_priority: false, created_at: '2024-08-13', updated_at: '2024-09-13' },
+      { vin: '2HGFB2F59FH574223', shortVin: '74223', plate: 'OR-2207', status: 'Active', yard: 'Portland Yard', state: 'OR', unitType: 'Sedan', brand: 'Honda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-20', updated_at: '2024-09-20' },
+      { vin: '5XXGM4A76CG095833', shortVin: '95833', plate: 'UT-1093', status: 'Write-Off', yard: 'Salt Lake East', state: 'UT', unitType: 'Sedan', brand: 'Kia', lien: true, hold: false, gps_offline: true, recovery_priority: false, created_at: '2024-08-12', updated_at: '2024-09-12' },
+      { vin: '1N4AL3AP6GN394812', shortVin: '94812', plate: 'OK-7308', status: 'Active', yard: 'Oklahoma City', state: 'OK', unitType: 'Sedan', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-21', updated_at: '2024-09-21' },
+      { vin: '2C3CDXHG7JH152310', shortVin: '52310', plate: 'LA-4702', status: 'In Transit', yard: 'New Orleans Port', state: 'LA', unitType: 'Sedan', brand: 'Dodge', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-18', updated_at: '2024-09-18' },
+      { vin: '1GCUKREC7GF152618', shortVin: '52618', plate: 'NM-8851', status: 'Recovery', yard: 'Albuquerque Yard', state: 'NM', unitType: 'Truck', brand: 'Chevrolet', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-15', updated_at: '2024-09-15' },
+      { vin: '5YJ3E1EA7KF317442', shortVin: '17442', plate: 'CA-3004', status: 'Active', yard: 'Los Angeles South', state: 'CA', unitType: 'EV', brand: 'Tesla', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-22', updated_at: '2024-09-22' },
+      { vin: '1HGCV1F13JA101004', shortVin: '01004', plate: 'TX-9402', status: 'Ready', yard: 'Dallas North', state: 'TX', unitType: 'Sedan', brand: 'Honda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-20', updated_at: '2024-09-20' },
+      { vin: '5NPE24AF6FH110820', shortVin: '10820', plate: 'GA-6622', status: 'Active', yard: 'Atlanta Core', state: 'GA', unitType: 'Sedan', brand: 'Hyundai', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-11', updated_at: '2024-09-11' },
+      { vin: '1FT7W2BT0JEC34117', shortVin: '34117', plate: 'KS-2203', status: 'On Hold', yard: 'Kansas City', state: 'KS', unitType: 'Truck', brand: 'Ford', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-10', updated_at: '2024-09-10' },
+      { vin: 'JM1GL1UM3H1119051', shortVin: '19051', plate: 'NC-5514', status: 'Active', yard: 'Charlotte Hub', state: 'NC', unitType: 'Sedan', brand: 'Mazda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-09', updated_at: '2024-09-09' },
+      { vin: '3N1AB7AP4HY222930', shortVin: '22930', plate: 'FL-1027', status: 'Ready', yard: 'Orlando West', state: 'FL', unitType: 'Sedan', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-08', updated_at: '2024-09-08' },
+      { vin: '1C6RR7LT6HS730120', shortVin: '30120', plate: 'AZ-8842', status: 'In Transit', yard: 'Phoenix East', state: 'AZ', unitType: 'Truck', brand: 'Ram', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-22', updated_at: '2024-09-22' },
+      { vin: '1FADP3F28EL282811', shortVin: '82811', plate: 'TN-7731', status: 'Active', yard: 'Nashville Lane', state: 'TN', unitType: 'Sedan', brand: 'Ford', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-07', updated_at: '2024-09-07' },
+      { vin: '2GNFLFEK6F6349220', shortVin: '49220', plate: 'IL-3904', status: 'Recovery', yard: 'Chicago Central', state: 'IL', unitType: 'SUV', brand: 'Chevrolet', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-06', updated_at: '2024-09-06' },
+      { vin: '1G1ZT54845F148928', shortVin: '48928', plate: 'MI-5005', status: 'Active', yard: 'Detroit Yard', state: 'MI', unitType: 'Sedan', brand: 'Chevrolet', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-05', updated_at: '2024-09-05' },
+      { vin: '5TDZZRFH3FS112390', shortVin: '12390', plate: 'WA-4221', status: 'Ready', yard: 'Seattle Harbor', state: 'WA', unitType: 'SUV', brand: 'Toyota', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-19', updated_at: '2024-09-19' },
+      { vin: '1C4PJMBS1EW315908', shortVin: '15908', plate: 'NY-9308', status: 'On Hold', yard: 'Albany Secure', state: 'NY', unitType: 'SUV', brand: 'Jeep', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-16', updated_at: '2024-09-16' },
+      { vin: '1HGFA16526L081230', shortVin: '81230', plate: 'PA-6620', status: 'Active', yard: 'Philadelphia Yard', state: 'PA', unitType: 'Sedan', brand: 'Honda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-14', updated_at: '2024-09-14' },
+      { vin: '1FTEX1EP8JKE91022', shortVin: '91022', plate: 'MN-3412', status: 'In Transit', yard: 'Minneapolis Hub', state: 'MN', unitType: 'Truck', brand: 'Ford', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-15', updated_at: '2024-09-15' },
+      { vin: 'JN1BJ1CP7KW604332', shortVin: '04332', plate: 'CO-9951', status: 'Active', yard: 'Denver Metro', state: 'CO', unitType: 'SUV', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-21', updated_at: '2024-09-21' },
+      { vin: '2T3WFREV5JW456701', shortVin: '56701', plate: 'MA-8210', status: 'Ready', yard: 'Boston Harbor', state: 'MA', unitType: 'SUV', brand: 'Toyota', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-12', updated_at: '2024-09-12' },
+      { vin: '3CZRU6H59HM734112', shortVin: '34112', plate: 'VA-4920', status: 'Write-Off', yard: 'Richmond Yard', state: 'VA', unitType: 'SUV', brand: 'Honda', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-09', updated_at: '2024-09-09' },
     ];
-    let trendIndex = 0;
 
-    const updateMetrics = (range) => {
-      const set = metrics[range];
-      document.querySelector('[data-metric="active"]').textContent = set.active;
-      document.querySelector('[data-metric="hold"]').textContent = set.hold;
-      document.querySelector('[data-metric="recovery"]').textContent = set.recovery;
-      document.querySelector('[data-metric="utilization"]').textContent = set.utilization;
+    const STATUS_COLORS = {
+      Active: 'from-emerald-400 to-blue-500',
+      'On Hold': 'from-amber-400 to-orange-500',
+      'In Transit': 'from-blue-400 to-indigo-500',
+      Recovery: 'from-rose-400 to-red-500',
+      Ready: 'from-teal-400 to-cyan-500',
+      'Write-Off': 'from-slate-500 to-slate-400',
+    };
 
-      const bars = document.querySelectorAll('[data-bar-chart] .bar-fill');
-      bars.forEach((bar, index) => {
-        bar.style.height = `${barSets[range][index]}%`;
+    const formatDate = (value) => {
+      if (!value) return '--';
+      return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.short_vin ?? vehicle.shortVin ?? vehicle.vin ?? '';
+
+    const normalizeVehicle = (vehicle) => {
+      const updatedAt = vehicle.updated_at || vehicle.updatedAt || '';
+      const createdAt = vehicle.created_at || vehicle.createdAt || '';
+      const dateValue = updatedAt || createdAt || vehicle.date || '';
+      return {
+        id: vehicle.id ?? null,
+        vin: vehicle.vin || '',
+        shortVin: vehicle.short_vin || vehicle.shortVin || vehicle.short_vin || '',
+        plate: vehicle.plate || '',
+        status: vehicle.status || 'Active',
+        yard: vehicle.yard || vehicle.location || '',
+        state: vehicle.state || '',
+        unitType: vehicle.unit_type || vehicle.unitType || '',
+        brand: vehicle.brand || '',
+        lien: Boolean(vehicle.lien),
+        hold: Boolean(vehicle.hold),
+        gpsOffline: Boolean(vehicle.gps_offline ?? vehicle.gpsOffline),
+        recoveryPriority: Boolean(vehicle.recovery_priority ?? vehicle.recoveryPriority),
+        createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
+        updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
+        date: dateValue ? String(dateValue).slice(0, 10) : '',
+      };
+    };
+
+    const getCurrentDataset = () => Array.from(DashboardState.vehiclesRaw.values());
+
+    const setVehiclesFromArray = (vehicles) => {
+      DashboardState.vehiclesRaw.clear();
+      vehicles.forEach((vehicle) => {
+        const normalized = normalizeVehicle(vehicle);
+        const key = getVehicleKey(normalized);
+        if (key) {
+          DashboardState.vehiclesRaw.set(key, normalized);
+        }
       });
     };
 
-    rangeButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        rangeButtons.forEach((btn) => {
-          btn.classList.remove('bg-blue-600', 'border-blue-500', 'text-white');
-          btn.classList.add('bg-slate-950/60', 'border-slate-700', 'text-slate-200');
+    const setupFilters = ({ preserveSelections = false } = {}) => {
+      const dataset = getCurrentDataset();
+      const currentFilters = DashboardState.filters;
+      const uniqueValues = (key) => ['all', ...new Set(dataset.map((item) => item[key]).filter(Boolean).sort())];
+
+      const fillSelect = (id, values, label) => {
+        const select = document.getElementById(id);
+        const currentValue = preserveSelections ? select.value || 'all' : 'all';
+        select.innerHTML = values
+          .map((value) => {
+            if (value === 'all') {
+              return `<option value="all">${label}</option>`;
+            }
+            return `<option value="${value}">${value}</option>`;
+          })
+          .join('');
+        select.value = values.includes(currentValue) ? currentValue : 'all';
+      };
+
+      fillSelect('filter-yard', uniqueValues('yard'), 'All yards');
+      fillSelect('filter-state', uniqueValues('state'), 'All states');
+      fillSelect('filter-unit-type', uniqueValues('unitType'), 'All unit types');
+      fillSelect('filter-brand', uniqueValues('brand'), 'All brands');
+
+      const statusContainer = document.getElementById('filter-status');
+      const selectedStatuses = preserveSelections ? currentFilters.statuses : [];
+      statusContainer.innerHTML = Object.keys(STATUS_COLORS)
+        .map((status) => {
+          const checked = selectedStatuses.length ? selectedStatuses.includes(status) : true;
+          return `
+            <label class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+              <input type="checkbox" value="${status}" class="h-4 w-4 rounded border-slate-700 bg-slate-950" ${checked ? 'checked' : ''} />
+              <span>${status}</span>
+            </label>
+          `;
+        })
+        .join('');
+
+      const dates = dataset.map((item) => item.date).filter(Boolean).sort();
+      const startInput = document.getElementById('filter-start-date');
+      const endInput = document.getElementById('filter-end-date');
+      if (dates.length && !preserveSelections) {
+        const latestDate = dates[dates.length - 1];
+        const latest = new Date(latestDate);
+        const startDate = new Date(latest);
+        startDate.setDate(startDate.getDate() - 29);
+        const startIso = startDate.toISOString().slice(0, 10);
+        startInput.value = startIso;
+        endInput.value = latestDate;
+        DashboardState.filters.dateRange = { start: startInput.value, end: endInput.value };
+      } else if (!dates.length) {
+        startInput.value = '';
+        endInput.value = '';
+      }
+
+      DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map(
+        (input) => input.value
+      );
+      DashboardState.filters.yard = document.getElementById('filter-yard').value;
+      DashboardState.filters.state = document.getElementById('filter-state').value;
+      DashboardState.filters.unitType = document.getElementById('filter-unit-type').value;
+      DashboardState.filters.brand = document.getElementById('filter-brand').value;
+    };
+
+    const applyFilters = () => {
+      const { filters } = DashboardState;
+      const searchText = filters.search.trim().toLowerCase();
+      return getCurrentDataset().filter((item) => {
+      const inDateRange =
+        (!filters.dateRange.start || item.date >= filters.dateRange.start) &&
+        (!filters.dateRange.end || item.date <= filters.dateRange.end);
+      const statusMatch = filters.statuses.length ? filters.statuses.includes(item.status) : true;
+      const yardMatch = filters.yard === 'all' || item.yard === filters.yard;
+      const stateMatch = filters.state === 'all' || item.state === filters.state;
+      const unitMatch = filters.unitType === 'all' || item.unitType === filters.unitType;
+      const brandMatch = filters.brand === 'all' || item.brand === filters.brand;
+      const lienMatch = filters.lien === 'all' || (filters.lien === 'yes' ? item.lien : !item.lien);
+      const holdMatch = filters.hold === 'all' || (filters.hold === 'yes' ? item.hold : !item.hold);
+      const gpsMatch = !filters.gpsOfflineOnly || item.gpsOffline;
+      const onHoldMatch = !filters.onHoldOnly || item.status === 'On Hold' || item.hold;
+      const recoveryMatch = !filters.recoveryPriorityOnly || item.recoveryPriority;
+      const searchMatch =
+        !searchText ||
+        item.vin.toLowerCase().includes(searchText) ||
+        item.shortVin.toLowerCase().includes(searchText) ||
+        item.plate.toLowerCase().includes(searchText);
+
+      return (
+        inDateRange &&
+        statusMatch &&
+        yardMatch &&
+        stateMatch &&
+        unitMatch &&
+        brandMatch &&
+        lienMatch &&
+        holdMatch &&
+        gpsMatch &&
+        onHoldMatch &&
+        recoveryMatch &&
+        searchMatch
+      );
+    });
+    };
+
+    const computeTrend = (items) => {
+      const filters = DashboardState.filters;
+      const activeDates = [...new Set(items.map((item) => item.date))].filter(Boolean).sort();
+      let dates = activeDates.slice(-7);
+      if (!dates.length) {
+        const endDate = filters.dateRange.end ? new Date(filters.dateRange.end) : new Date();
+        dates = Array.from({ length: 7 }, (_, index) => {
+          const date = new Date(endDate);
+          date.setDate(date.getDate() - (6 - index));
+          return date.toISOString().slice(0, 10);
         });
-        button.classList.add('bg-blue-600', 'border-blue-500', 'text-white');
-        button.classList.remove('bg-slate-950/60', 'border-slate-700', 'text-slate-200');
-        updateMetrics(button.dataset.range);
+      }
+      return dates.map((date, index) => {
+        const dayItems = items.filter((item) => item.date === date);
+        const activeCount = dayItems.filter((item) => item.status === 'Active').length;
+        const value = dayItems.length ? Math.round((activeCount / dayItems.length) * 100) : 0;
+        return { x: index, value, date };
       });
-    });
+    };
 
-    document.getElementById('trend-toggle').addEventListener('click', () => {
-      trendIndex = (trendIndex + 1) % trendSets.length;
-      document.getElementById('trend-line').setAttribute('points', trendSets[trendIndex]);
-    });
+    const computeRegionalCoverage = (items) => {
+      const byState = items.reduce((acc, item) => {
+        const entry = acc[item.state] || { state: item.state, total: 0, active: 0 };
+        entry.total += 1;
+        if (item.status === 'Active') {
+          entry.active += 1;
+        }
+        acc[item.state] = entry;
+        return acc;
+      }, {});
 
-    updateMetrics('week');
+      return Object.values(byState)
+        .map((entry) => ({
+          label: entry.state,
+          percent: entry.total ? Math.round((entry.active / entry.total) * 100) : 0,
+        }))
+        .sort((a, b) => b.percent - a.percent)
+        .slice(0, 4);
+    };
+
+    const computeDerivedState = () => {
+      const filtered = applyFilters();
+      const activeCount = filtered.filter((item) => item.status === 'Active').length;
+      const holdCount = filtered.filter((item) => item.hold).length;
+      const recoveryCount = filtered.filter((item) => item.status === 'Recovery').length;
+      const utilization = filtered.length ? Math.round((activeCount / filtered.length) * 100) : 0;
+      const statusCounts = Object.keys(STATUS_COLORS).map((status) => ({
+        status,
+        count: filtered.filter((item) => item.status === status).length,
+      }));
+      const maxCount = Math.max(1, ...statusCounts.map((item) => item.count));
+      const statusBars = statusCounts.map((item) => ({
+        ...item,
+        percentage: Math.round((item.count / maxCount) * 100),
+      }));
+
+      DashboardState.derived = {
+        filtered,
+        kpis: { active: activeCount, hold: holdCount, recovery: recoveryCount, utilization },
+        statusBars,
+        trendPoints: computeTrend(filtered),
+        regionCoverage: computeRegionalCoverage(filtered),
+      };
+    };
+
+    const renderKpis = () => {
+      const { kpis } = DashboardState.derived;
+      document.querySelector('[data-metric="active"]').textContent = kpis.active.toLocaleString();
+      document.querySelector('[data-metric="hold"]').textContent = kpis.hold.toLocaleString();
+      document.querySelector('[data-metric="recovery"]').textContent = kpis.recovery.toLocaleString();
+      document.querySelector('[data-metric="utilization"]').textContent = `${kpis.utilization}%`;
+    };
+
+    const renderStatusBars = () => {
+      const container = document.querySelector('[data-bar-chart]');
+      container.innerHTML = DashboardState.derived.statusBars
+        .map(
+          (item) => `
+            <button type="button" data-status="${item.status}" class="flex flex-col items-center gap-2 rounded-2xl px-1 py-2 transition hover:bg-slate-900/60">
+              <div class="h-28 w-8 rounded-full bg-slate-800/70">
+                <div class="bar-fill w-full rounded-full bg-gradient-to-t ${STATUS_COLORS[item.status]}" style="height: ${item.percentage}%"></div>
+              </div>
+              <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
+              <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
+            </button>
+          `
+        )
+        .join('');
+    };
+
+    const renderTrend = () => {
+      const points = DashboardState.derived.trendPoints;
+      const width = 260;
+      const height = 100;
+      const step = points.length > 1 ? width / (points.length - 1) : width;
+      const pointStrings = points
+        .map((point, index) => {
+          const x = index * step;
+          const y = height - (point.value / 100) * height + 10;
+          return `${x},${y}`;
+        })
+        .join(' ');
+      document.getElementById('trend-line').setAttribute('points', pointStrings);
+      const dots = points
+        .map((point, index) => {
+          const x = index * step;
+          const y = height - (point.value / 100) * height + 10;
+          return `<circle class="trend-dot" cx="${x}" cy="${y}" r="4" fill="#38bdf8" />`;
+        })
+        .join('');
+      document.getElementById('trend-dots').innerHTML = dots;
+    };
+
+    const renderRegionalCoverage = () => {
+      const container = document.getElementById('regional-coverage');
+      if (!DashboardState.derived.regionCoverage.length) {
+        container.innerHTML = '<p class="text-sm text-slate-400">No regional coverage available for the selected filters.</p>';
+        return;
+      }
+      container.innerHTML = DashboardState.derived.regionCoverage
+        .map(
+          (zone, index) => `
+            <button type="button" data-state="${zone.label}" class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-blue-500 hover:bg-slate-950/80">
+              <p class="text-xs text-slate-400">State ${zone.label}</p>
+              <p class="mt-2 text-2xl font-black text-white">${zone.percent}%</p>
+              <div class="mt-3 h-2 rounded-full bg-slate-800">
+                <div class="h-2 rounded-full bg-gradient-to-r ${
+                  index % 2 === 0 ? 'from-blue-500 to-emerald-400' : 'from-indigo-500 to-sky-400'
+                }" style="width: ${zone.percent}%"></div>
+              </div>
+            </button>
+          `
+        )
+        .join('');
+    };
+
+    const renderTable = () => {
+      const tableBody = document.getElementById('inventory-table');
+      const totalRows = DashboardState.derived.filtered.length;
+      const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
+      const currentPage = Math.min(DashboardState.table.page, totalPages);
+      DashboardState.table.page = currentPage;
+      const startIndex = (currentPage - 1) * DashboardState.table.perPage;
+      const pageItems = DashboardState.derived.filtered.slice(startIndex, startIndex + DashboardState.table.perPage);
+
+      const rows = pageItems
+        .map(
+          (item) => `
+            <tr class="text-xs">
+              <td class="px-3 py-2 font-semibold text-white">${item.vin}</td>
+              <td class="px-3 py-2">${item.plate}</td>
+              <td class="px-3 py-2">${item.status}</td>
+              <td class="px-3 py-2">${item.yard}</td>
+              <td class="px-3 py-2">${item.state}</td>
+              <td class="px-3 py-2">${item.unitType}</td>
+              <td class="px-3 py-2">${item.brand}</td>
+              <td class="px-3 py-2">${item.lien ? 'Yes' : 'No'}</td>
+              <td class="px-3 py-2">${item.hold ? 'Yes' : 'No'}</td>
+              <td class="px-3 py-2">${formatDate(item.date)}</td>
+            </tr>
+          `
+        )
+        .join('');
+      tableBody.innerHTML = rows || '<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="10">No assets match the current filters.</td></tr>';
+      document.getElementById('table-summary').textContent = `${totalRows} assets`;
+      document.getElementById('table-page').textContent = `Page ${currentPage} of ${totalPages}`;
+      document.getElementById('table-prev').disabled = currentPage <= 1;
+      document.getElementById('table-next').disabled = currentPage >= totalPages;
+    };
+
+    const renderDashboard = () => {
+      computeDerivedState();
+      renderKpis();
+      renderStatusBars();
+      renderTrend();
+      renderRegionalCoverage();
+      renderTable();
+      renderActiveFilters();
+      document.getElementById('status-summary').textContent = `${DashboardState.derived.filtered.length} units in view`;
+    };
+
+    const renderActiveFilters = () => {
+      const chipsContainer = document.getElementById('active-filters');
+      const { filters } = DashboardState;
+      const chips = [];
+      if (filters.dateRange.start || filters.dateRange.end) {
+        chips.push(`Date: ${filters.dateRange.start || 'Any'} → ${filters.dateRange.end || 'Any'}`);
+      }
+      if (filters.statuses.length) {
+        chips.push(`Status: ${filters.statuses.join(', ')}`);
+      }
+      if (filters.state !== 'all') chips.push(`State: ${filters.state}`);
+      if (filters.yard !== 'all') chips.push(`Yard: ${filters.yard}`);
+      if (filters.unitType !== 'all') chips.push(`Unit: ${filters.unitType}`);
+      if (filters.brand !== 'all') chips.push(`Brand: ${filters.brand}`);
+      if (filters.gpsOfflineOnly) chips.push('Only GPS Offline');
+      if (filters.onHoldOnly) chips.push('Only On Hold');
+      if (filters.recoveryPriorityOnly) chips.push('Only Recovery Priority');
+      if (filters.search) chips.push(`Search: ${filters.search}`);
+
+      chipsContainer.innerHTML = chips.length
+        ? chips.map((chip) => `<span class="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1">${chip}</span>`).join('')
+        : '<span class="text-slate-400">No active filters</span>';
+    };
+
+    const updateStatusCheckboxes = () => {
+      const statusContainer = document.getElementById('filter-status');
+      const selected = new Set(DashboardState.filters.statuses);
+      statusContainer.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+        input.checked = selected.size ? selected.has(input.value) : true;
+      });
+    };
+
+    const toggleStatusFilter = (status) => {
+      const current = new Set(DashboardState.filters.statuses);
+      if (current.has(status)) {
+        current.delete(status);
+      } else {
+        current.add(status);
+      }
+      DashboardState.filters.statuses = Array.from(current);
+      updateStatusCheckboxes();
+      DashboardState.table.page = 1;
+      renderDashboard();
+    };
+
+    const applyStateFilter = (state) => {
+      const stateSelect = document.getElementById('filter-state');
+      DashboardState.filters.state = state;
+      stateSelect.value = state;
+      DashboardState.table.page = 1;
+      renderDashboard();
+    };
+
+    const applyDateRangeFilter = (start, end) => {
+      const startInput = document.getElementById('filter-start-date');
+      const endInput = document.getElementById('filter-end-date');
+      DashboardState.filters.dateRange = { start, end };
+      startInput.value = start;
+      endInput.value = end;
+      DashboardState.table.page = 1;
+      renderDashboard();
+    };
+
+    const bindChartInteractions = () => {
+      const statusContainer = document.querySelector('[data-bar-chart]');
+      statusContainer.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-status]');
+        if (!button) return;
+        toggleStatusFilter(button.dataset.status);
+      });
+
+      const regionalContainer = document.getElementById('regional-coverage');
+      regionalContainer.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-state]');
+        if (!button) return;
+        applyStateFilter(button.dataset.state);
+      });
+
+      const trendChart = document.getElementById('trend-chart');
+      const brushRect = document.getElementById('trend-brush-rect');
+      let brushing = false;
+      let startX = 0;
+      let startIndex = 0;
+
+      const getIndexFromEvent = (event) => {
+        const rect = trendChart.getBoundingClientRect();
+        const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+        const pointCount = DashboardState.derived.trendPoints.length;
+        if (pointCount <= 1) return 0;
+        const index = Math.round((x / rect.width) * (pointCount - 1));
+        return Math.min(Math.max(index, 0), pointCount - 1);
+      };
+
+      const updateBrush = (currentX) => {
+        const rect = trendChart.getBoundingClientRect();
+        const clampedX = Math.min(Math.max(currentX - rect.left, 0), rect.width);
+        const start = Math.min(startX, clampedX);
+        const width = Math.abs(clampedX - startX);
+        const viewBoxWidth = 260;
+        const ratio = viewBoxWidth / rect.width;
+        brushRect.setAttribute('x', String(start * ratio));
+        brushRect.setAttribute('width', String(width * ratio));
+      };
+
+      trendChart.addEventListener('mousedown', (event) => {
+        brushing = true;
+        const rect = trendChart.getBoundingClientRect();
+        startX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+        startIndex = getIndexFromEvent(event);
+        updateBrush(event.clientX);
+      });
+      window.addEventListener('mousemove', (event) => {
+        if (!brushing) return;
+        updateBrush(event.clientX);
+      });
+      window.addEventListener('mouseup', (event) => {
+        if (!brushing) return;
+        brushing = false;
+        updateBrush(event.clientX);
+        const endIndex = getIndexFromEvent(event);
+        const minIndex = Math.min(startIndex, endIndex);
+        const maxIndex = Math.max(startIndex, endIndex);
+        const points = DashboardState.derived.trendPoints;
+        if (points.length) {
+          const startDate = points[minIndex].date;
+          const endDate = points[maxIndex].date;
+          applyDateRangeFilter(startDate, endDate);
+        }
+        brushRect.setAttribute('width', '0');
+      });
+      trendChart.addEventListener('mouseleave', () => {
+        if (!brushing) return;
+        brushing = false;
+        brushRect.setAttribute('width', '0');
+      });
+    };
+
+    const setConnectionStatus = (status) => {
+      const statusEl = document.getElementById('connection-status');
+      const dotEl = document.getElementById('connection-dot');
+      if (!statusEl || !dotEl) return;
+      statusEl.textContent = status;
+      dotEl.className = 'h-2.5 w-2.5 rounded-full';
+      if (status === 'Live') {
+        dotEl.classList.add('bg-emerald-400', 'shadow-[0_0_10px_rgba(52,211,153,0.8)]');
+      } else if (status === 'Reconnecting…') {
+        dotEl.classList.add('bg-amber-400', 'shadow-[0_0_10px_rgba(251,191,36,0.8)]');
+      } else {
+        dotEl.classList.add('bg-slate-500');
+      }
+    };
+
+    const handleVehicleChange = (payload) => {
+      const eventType = payload.eventType;
+      const record = payload.new || payload.old;
+      if (!record) return;
+      const normalized = normalizeVehicle(record);
+      const key = getVehicleKey(normalized);
+      if (!key) return;
+
+      if (eventType === 'DELETE') {
+        DashboardState.vehiclesRaw.delete(key);
+      } else {
+        DashboardState.vehiclesRaw.set(key, normalized);
+      }
+
+      renderDashboard();
+    };
+
+    const initializeSupabaseRealtime = () => {
+      const supabaseClient = window.supabaseClient;
+      if (!supabaseClient) {
+        setConnectionStatus('Offline');
+        return;
+      }
+
+      if (DashboardState.realtime.channel) {
+        return;
+      }
+
+      const channel = supabaseClient
+        .channel('vehicles-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, handleVehicleChange);
+
+      DashboardState.realtime.channel = channel;
+
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('Live');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setConnectionStatus('Reconnecting…');
+        } else if (status === 'CLOSED') {
+          setConnectionStatus('Offline');
+        }
+      });
+
+      window.addEventListener('beforeunload', () => {
+        if (DashboardState.realtime.channel) {
+          supabaseClient.removeChannel(DashboardState.realtime.channel);
+          DashboardState.realtime.channel = null;
+        }
+      });
+    };
+
+    const hydrateVehiclesFromSupabase = async () => {
+      const supabaseClient = window.supabaseClient;
+      if (!supabaseClient) return;
+      setConnectionStatus('Reconnecting…');
+
+      const { data, error } = await supabaseClient
+        .from('vehicles')
+        .select(
+          'id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at'
+        );
+      if (error || !data) {
+        console.error('Failed to load vehicles from Supabase', error);
+        setConnectionStatus('Offline');
+        return;
+      }
+
+      setVehiclesFromArray(data);
+      setupFilters({ preserveSelections: true });
+      renderDashboard();
+      setConnectionStatus('Live');
+    };
+
+    const bindFilterEvents = () => {
+      const startInput = document.getElementById('filter-start-date');
+      const endInput = document.getElementById('filter-end-date');
+      const statusContainer = document.getElementById('filter-status');
+      const yardSelect = document.getElementById('filter-yard');
+      const stateSelect = document.getElementById('filter-state');
+      const unitSelect = document.getElementById('filter-unit-type');
+      const brandSelect = document.getElementById('filter-brand');
+      const gpsToggle = document.getElementById('toggle-gps');
+      const holdToggle = document.getElementById('toggle-hold');
+      const recoveryToggle = document.getElementById('toggle-recovery');
+      const searchInput = document.getElementById('filter-search');
+
+      const updateStatuses = () => {
+        DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map(
+          (input) => input.value
+        );
+      };
+
+      const resetPagination = () => {
+        DashboardState.table.page = 1;
+      };
+
+      startInput.addEventListener('change', () => {
+        DashboardState.filters.dateRange.start = startInput.value;
+        resetPagination();
+        renderDashboard();
+      });
+      endInput.addEventListener('change', () => {
+        DashboardState.filters.dateRange.end = endInput.value;
+        resetPagination();
+        renderDashboard();
+      });
+      statusContainer.addEventListener('change', () => {
+        updateStatuses();
+        resetPagination();
+        renderDashboard();
+      });
+      yardSelect.addEventListener('change', () => {
+        DashboardState.filters.yard = yardSelect.value;
+        resetPagination();
+        renderDashboard();
+      });
+      stateSelect.addEventListener('change', () => {
+        DashboardState.filters.state = stateSelect.value;
+        resetPagination();
+        renderDashboard();
+      });
+      unitSelect.addEventListener('change', () => {
+        DashboardState.filters.unitType = unitSelect.value;
+        resetPagination();
+        renderDashboard();
+      });
+      brandSelect.addEventListener('change', () => {
+        DashboardState.filters.brand = brandSelect.value;
+        resetPagination();
+        renderDashboard();
+      });
+      gpsToggle.addEventListener('change', () => {
+        DashboardState.filters.gpsOfflineOnly = gpsToggle.checked;
+        resetPagination();
+        renderDashboard();
+      });
+      holdToggle.addEventListener('change', () => {
+        DashboardState.filters.onHoldOnly = holdToggle.checked;
+        resetPagination();
+        renderDashboard();
+      });
+      recoveryToggle.addEventListener('change', () => {
+        DashboardState.filters.recoveryPriorityOnly = recoveryToggle.checked;
+        resetPagination();
+        renderDashboard();
+      });
+
+      let searchTimeout;
+      const scheduleSearch = () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          DashboardState.filters.search = searchInput.value;
+          resetPagination();
+          renderDashboard();
+        }, 300);
+      };
+      searchInput.addEventListener('input', scheduleSearch);
+
+      document.getElementById('reset-filters').addEventListener('click', () => {
+        setupFilters();
+        DashboardState.filters.search = '';
+        DashboardState.filters.gpsOfflineOnly = false;
+        DashboardState.filters.onHoldOnly = false;
+        DashboardState.filters.recoveryPriorityOnly = false;
+        gpsToggle.checked = false;
+        holdToggle.checked = false;
+        recoveryToggle.checked = false;
+        searchInput.value = '';
+        resetPagination();
+        renderDashboard();
+      });
+
+      updateStatuses();
+
+      document.getElementById('table-prev').addEventListener('click', () => {
+        DashboardState.table.page = Math.max(1, DashboardState.table.page - 1);
+        renderDashboard();
+      });
+      document.getElementById('table-next').addEventListener('click', () => {
+        DashboardState.table.page += 1;
+        renderDashboard();
+      });
+    };
+
+    setVehiclesFromArray(inventoryData);
+    setupFilters();
+    bindFilterEvents();
+    bindChartInteractions();
+    renderDashboard();
+    initializeSupabaseRealtime();
+    hydrateVehiclesFromSupabase();
 
     const mobileToggle = document.getElementById('mobile-menu-toggle');
     const primaryNav = document.getElementById('primary-nav');
