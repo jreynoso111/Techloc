@@ -11,8 +11,6 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="assets/scripts/supabaseClient.js"></script>
-  <script type="module" src="assets/scripts/authManager.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <script>
@@ -21,9 +19,7 @@
         extend: {
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
           colors: { slate: { 950: '#020617' } },
-          boxShadow: {
-            dashboard: '0 20px 60px rgba(15, 23, 42, 0.45)',
-          },
+          boxShadow: { dashboard: '0 20px 60px rgba(15, 23, 42, 0.45)' },
         },
       },
     };
@@ -31,6 +27,7 @@
 
   <link rel="stylesheet" href="assets/visuals/theme.css" />
 </head>
+
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
   <div class="pointer-events-none fixed inset-0 z-10 opacity-60 mix-blend-screen">
     <canvas id="constellation-canvas" class="h-full w-full"></canvas>
@@ -64,14 +61,8 @@
               <a id="nav-services" href="services-request.html" class="block rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">Service Requests</a>
             </div>
           </div>
-          <a
-            id="nav-dashboard"
-            href="Admin/index.html"
-            data-dashboard-link
-            aria-hidden="true"
-            tabindex="-1"
-            class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex"
-          >
+          <a id="nav-dashboard" href="Admin/index.html" data-dashboard-link aria-hidden="true" tabindex="-1"
+             class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">
             Dashboard
           </a>
           <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About Us</a>
@@ -87,6 +78,23 @@
   </header>
 
   <main class="relative z-20 mx-auto flex w-full max-w-none flex-1 flex-col gap-6 px-6 py-8">
+
+    <!-- Debug banner (solo aparece si hay error) -->
+    <section id="debug-banner" class="hidden rounded-3xl border border-rose-800/60 bg-rose-950/40 p-5">
+      <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.3em] text-rose-200/80">Data / Supabase Debug</p>
+          <h3 class="text-lg font-bold text-white">No se pudieron cargar datos</h3>
+          <p id="debug-text" class="mt-1 text-sm text-rose-100/80"></p>
+        </div>
+        <button id="debug-copy" type="button"
+                class="rounded-full border border-rose-400/30 bg-rose-900/30 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-rose-100 transition hover:border-rose-300 hover:text-white">
+          Copy error
+        </button>
+      </div>
+      <pre id="debug-pre" class="mt-4 max-h-64 overflow-auto rounded-2xl border border-rose-400/20 bg-black/30 p-4 text-xs text-rose-100/90"></pre>
+    </section>
+
     <section class="p-6">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -98,33 +106,34 @@
         </div>
         <div class="flex flex-wrap gap-3">
           <div class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200">
-            <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]"></span>
-            <span id="connection-status">Live</span>
+            <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
+            <span id="connection-status">Booting…</span>
           </div>
         </div>
       </div>
-        <div class="mt-6 grid gap-4 md:grid-cols-4" aria-live="polite">
-          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
-            <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
-            <p class="mt-2 text-3xl font-black text-white" data-metric="active">--</p>
-            <p class="text-xs text-emerald-300">+4.1% vs last period</p>
-          </div>
-          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
-            <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
-            <p class="mt-2 text-3xl font-black text-white" data-metric="hold">--</p>
-            <p class="text-xs text-amber-300">-3.5% hold rate</p>
-          </div>
-          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
-            <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Recovery Queue</p>
-            <p class="mt-2 text-3xl font-black text-white" data-metric="recovery">--</p>
-            <p class="text-xs text-rose-300">Priority alerts: 12</p>
-          </div>
-          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
-            <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Utilization</p>
-            <p class="mt-2 text-3xl font-black text-white" data-metric="utilization">--</p>
-            <p class="text-xs text-blue-300">Healthy threshold 70%</p>
-          </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-4" aria-live="polite">
+        <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="active">--</p>
+          <p class="text-xs text-emerald-300">Realtime</p>
         </div>
+        <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="hold">--</p>
+          <p class="text-xs text-amber-300">Realtime</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Recovery Queue</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="recovery">--</p>
+          <p class="text-xs text-rose-300">Realtime</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Utilization</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="utilization">--</p>
+          <p class="text-xs text-blue-300">Realtime</p>
+        </div>
+      </div>
     </section>
 
     <section class="sticky top-4 z-30 p-5">
@@ -133,7 +142,9 @@
           <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Filter Bar</p>
           <h3 class="text-lg font-bold text-white">Refine Inventory View</h3>
         </div>
-        <button id="reset-filters" type="button" class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">Clear all</button>
+        <button id="reset-filters" type="button" class="rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">
+          Clear all
+        </button>
       </div>
 
       <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-200" id="active-filters"></div>
@@ -202,9 +213,8 @@
             <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Inventory Movement</p>
             <h3 class="text-lg font-bold text-white">Units by Status</h3>
           </div>
-          <span id="status-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Based on current filters</span>
+          <span id="status-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Loading…</span>
         </div>
-
         <div class="mt-6 grid grid-cols-6 gap-3" data-bar-chart aria-label="Units by status chart"></div>
       </div>
 
@@ -231,20 +241,11 @@
               </linearGradient>
             </defs>
             <rect id="trend-brush-rect" x="0" y="10" width="0" height="100" fill="rgba(56,189,248,0.2)"></rect>
-            <polyline
-              id="trend-line"
-              points=""
-              fill="none"
-              stroke="url(#trend-gradient)"
-              stroke-width="6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
+            <polyline id="trend-line" points="" fill="none" stroke="url(#trend-gradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></polyline>
             <g id="trend-dots"></g>
           </svg>
           <p class="mt-3 text-xs text-slate-400">
-            Hover insight: active units are trending <span class="text-emerald-300 font-semibold">upward</span> over the last
-            cycle.
+            Hover insight: active units are trending <span class="text-emerald-300 font-semibold">upward</span> over the last cycle.
           </p>
         </div>
       </div>
@@ -257,30 +258,31 @@
             <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Regional Coverage</p>
             <h3 class="text-lg font-bold text-white">Top Performance Zones</h3>
           </div>
-          <span class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Updated 3m ago</span>
+          <span class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Realtime</span>
         </div>
         <div class="mt-6 grid gap-4 sm:grid-cols-2" id="regional-coverage" aria-label="Top performance zones"></div>
       </div>
+
       <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Alerts</p>
             <h3 class="text-lg font-bold text-white">Priority Actions</h3>
           </div>
-          <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">12 urgent</span>
+          <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
         </div>
         <ul class="mt-6 space-y-3 text-sm text-slate-200">
           <li class="rounded-2xl border border-slate-800 bg-transparent p-3">
             <p class="font-semibold text-white">GPS Offline Cluster</p>
-            <p class="text-xs text-slate-400">18 units in South TX flagged 6 hours ago.</p>
+            <p class="text-xs text-slate-400">Auto-highlights via toggle filter.</p>
           </li>
           <li class="rounded-2xl border border-slate-800 bg-transparent p-3">
             <p class="font-semibold text-white">Recovery Dispatch</p>
-            <p class="text-xs text-slate-400">12 assets require on-site verification.</p>
+            <p class="text-xs text-slate-400">Click a row to open details drawer.</p>
           </li>
           <li class="rounded-2xl border border-slate-800 bg-transparent p-3">
             <p class="font-semibold text-white">Utilization Dip</p>
-            <p class="text-xs text-slate-400">Northeast reserve dropped below 70%.</p>
+            <p class="text-xs text-slate-400">Brush the trend chart to filter by date.</p>
           </li>
         </ul>
       </div>
@@ -295,13 +297,17 @@
         </div>
         <div class="flex flex-wrap items-center gap-3">
           <div class="relative">
-            <button id="column-chooser-toggle" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false">Columns</button>
+            <button id="column-chooser-toggle" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false">
+              Columns
+            </button>
             <div id="column-chooser" class="absolute right-0 z-20 mt-2 hidden w-48 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
               <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
               <div id="column-chooser-options" class="mt-2 grid gap-2"></div>
             </div>
           </div>
-          <button id="export-csv" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">Export CSV</button>
+          <button id="export-csv" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">
+            Export CSV
+          </button>
           <span id="table-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">0 assets</span>
           <div class="flex items-center gap-2 text-xs font-semibold text-slate-200">
             <button id="table-prev" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Prev</button>
@@ -310,6 +316,7 @@
           </div>
         </div>
       </div>
+
       <div class="mt-6 overflow-x-auto">
         <table class="min-w-full text-left text-sm text-slate-200" aria-label="Filtered inventory table">
           <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
@@ -354,14 +361,75 @@
 
   <script type="module">
     import { createConstellationBackground } from './assets/scripts/constellation.js';
-
     createConstellationBackground();
   </script>
 
   <script type="module">
-    import { supabase as supabaseClient } from './assets/scripts/supabaseClient.js';
+    // ==========================================================
+    // 1) SUPABASE CLIENT (robusto)
+    // - Primero intenta importar tu supabaseClient.js
+    // - Si falla, crea el cliente aquí con URL/KEY
+    // ==========================================================
 
     lucide.createIcons();
+
+    // ✅ Fallback: pega tus credenciales si tu módulo no exporta bien.
+    //    (Anon key es pública, pero igual cuida RLS.)
+    const SUPABASE_URL = '';       // <-- pega aquí
+    const SUPABASE_ANON_KEY = '';  // <-- pega aquí
+
+    const showDebug = (title, detail, obj) => {
+      const banner = document.getElementById('debug-banner');
+      const text = document.getElementById('debug-text');
+      const pre = document.getElementById('debug-pre');
+      banner.classList.remove('hidden');
+      text.textContent = `${title} — ${detail || ''}`.trim();
+      pre.textContent = obj ? JSON.stringify(obj, null, 2) : '';
+      document.getElementById('debug-copy').onclick = async () => {
+        const payload = `${title}\n${detail || ''}\n\n${pre.textContent}`.trim();
+        try { await navigator.clipboard.writeText(payload); } catch {}
+      };
+    };
+
+    const setConnectionStatus = (status) => {
+      const statusEl = document.getElementById('connection-status');
+      const dotEl = document.getElementById('connection-dot');
+      statusEl.textContent = status;
+
+      dotEl.className = 'h-2.5 w-2.5 rounded-full';
+      if (status === 'Live') dotEl.classList.add('bg-emerald-400', 'shadow-[0_0_10px_rgba(52,211,153,0.8)]');
+      else if (status.includes('Reconnect')) dotEl.classList.add('bg-amber-400', 'shadow-[0_0_10px_rgba(251,191,36,0.8)]');
+      else dotEl.classList.add('bg-slate-500');
+    };
+
+    let supabaseClient = null;
+
+    const getSupabaseClient = async () => {
+      // Try import your module (best option)
+      try {
+        const mod = await import('./assets/scripts/supabaseClient.js');
+        // common patterns: export const supabase; export default supabase;
+        supabaseClient = mod.supabase || mod.default || null;
+        if (supabaseClient?.from) return supabaseClient;
+        throw new Error('supabaseClient.js loaded but did not export a Supabase client (expected export const supabase = createClient(...)).');
+      } catch (e) {
+        // Fallback: create client here
+        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          return supabaseClient;
+        }
+        showDebug(
+          'Supabase client not available',
+          'Tu import falló y el fallback no tiene URL/KEY. Revisa supabaseClient.js export o pega credenciales aquí.',
+          { error: String(e) }
+        );
+        return null;
+      }
+    };
+
+    // ==========================================================
+    // 2) DASHBOARD STATE + HELPERS (tu lógica con mejoras mínimas)
+    // ==========================================================
 
     const DashboardState = {
       filters: {
@@ -392,12 +460,8 @@
         trendPoints: [],
         regionCoverage: [],
       },
-      realtime: {
-        channel: null,
-      },
-      ui: {
-        isLoading: true,
-      },
+      realtime: { channel: null },
+      ui: { isLoading: true },
     };
 
     const STATUS_COLORS = {
@@ -429,7 +493,6 @@
       if (!value) return '--';
       return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
-
     const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value);
 
     const formatRelativeTime = (timestamp) => {
@@ -437,11 +500,14 @@
       const diffSeconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
       if (diffSeconds < 60) return `Updated ${diffSeconds}s ago`;
       const minutes = Math.floor(diffSeconds / 60);
-      return `Updated ${minutes}m ago`;
+      if (minutes < 60) return `Updated ${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `Updated ${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `Updated ${days}d ago`;
     };
 
-    const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.short_vin ?? vehicle.shortVin ?? vehicle.vin ?? '';
-
+    const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.shortVin ?? vehicle.vin ?? '';
     const normalizeVehicle = (vehicle) => {
       const updatedAt = vehicle.updated_at || vehicle.updatedAt || '';
       const createdAt = vehicle.created_at || vehicle.createdAt || '';
@@ -449,7 +515,7 @@
       return {
         id: vehicle.id ?? null,
         vin: vehicle.vin || '',
-        shortVin: vehicle.short_vin || vehicle.shortVin || vehicle.short_vin || '',
+        shortVin: vehicle.short_vin || vehicle.shortVin || '',
         plate: vehicle.plate || '',
         status: vehicle.status || 'Active',
         yard: vehicle.yard || vehicle.location || '',
@@ -468,15 +534,12 @@
     };
 
     const getCurrentDataset = () => Array.from(DashboardState.vehiclesRaw.values());
-
     const setVehiclesFromArray = (vehicles) => {
       DashboardState.vehiclesRaw.clear();
       vehicles.forEach((vehicle) => {
         const normalized = normalizeVehicle(vehicle);
         const key = getVehicleKey(normalized);
-        if (key) {
-          DashboardState.vehiclesRaw.set(key, normalized);
-        }
+        if (key) DashboardState.vehiclesRaw.set(key, normalized);
       });
     };
 
@@ -487,15 +550,8 @@
 
       const fillSelect = (id, values, label) => {
         const select = document.getElementById(id);
-        const currentValue = preserveSelections ? select.value || 'all' : 'all';
-        select.innerHTML = values
-          .map((value) => {
-            if (value === 'all') {
-              return `<option value="all">${label}</option>`;
-            }
-            return `<option value="${value}">${value}</option>`;
-          })
-          .join('');
+        const currentValue = preserveSelections ? (select.value || 'all') : 'all';
+        select.innerHTML = values.map((v) => (v === 'all' ? `<option value="all">${label}</option>` : `<option value="${v}">${v}</option>`)).join('');
         select.value = values.includes(currentValue) ? currentValue : 'all';
       };
 
@@ -506,38 +562,35 @@
 
       const statusContainer = document.getElementById('filter-status');
       const selectedStatuses = preserveSelections ? currentFilters.statuses : [];
-      statusContainer.innerHTML = Object.keys(STATUS_COLORS)
-        .map((status) => {
-          const checked = selectedStatuses.length ? selectedStatuses.includes(status) : true;
-          return `
-            <label class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-              <input type="checkbox" value="${status}" class="h-4 w-4 rounded border-slate-700 bg-slate-950" ${checked ? 'checked' : ''} />
-              <span>${status}</span>
-            </label>
-          `;
-        })
-        .join('');
+      statusContainer.innerHTML = Object.keys(STATUS_COLORS).map((status) => {
+        const checked = selectedStatuses.length ? selectedStatuses.includes(status) : true;
+        return `
+          <label class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+            <input type="checkbox" value="${status}" class="h-4 w-4 rounded border-slate-700 bg-slate-950" ${checked ? 'checked' : ''} />
+            <span>${status}</span>
+          </label>
+        `;
+      }).join('');
 
-      const dates = dataset.map((item) => item.date).filter(Boolean).sort();
+      const dates = dataset.map((i) => i.date).filter(Boolean).sort();
       const startInput = document.getElementById('filter-start-date');
       const endInput = document.getElementById('filter-end-date');
+
       if (dates.length && !preserveSelections) {
         const latestDate = dates[dates.length - 1];
         const latest = new Date(latestDate);
         const startDate = new Date(latest);
         startDate.setDate(startDate.getDate() - 29);
-        const startIso = startDate.toISOString().slice(0, 10);
-        startInput.value = startIso;
+        startInput.value = startDate.toISOString().slice(0, 10);
         endInput.value = latestDate;
         DashboardState.filters.dateRange = { start: startInput.value, end: endInput.value };
       } else if (!dates.length) {
         startInput.value = '';
         endInput.value = '';
+        DashboardState.filters.dateRange = { start: '', end: '' };
       }
 
-      DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map(
-        (input) => input.value
-      );
+      DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map((i) => i.value);
       DashboardState.filters.yard = document.getElementById('filter-yard').value;
       DashboardState.filters.state = document.getElementById('filter-state').value;
       DashboardState.filters.unitType = document.getElementById('filter-unit-type').value;
@@ -547,58 +600,49 @@
     const applyFilters = () => {
       const { filters } = DashboardState;
       const searchText = filters.search.trim().toLowerCase();
-      return getCurrentDataset().filter((item) => {
-      const inDateRange =
-        (!filters.dateRange.start || item.date >= filters.dateRange.start) &&
-        (!filters.dateRange.end || item.date <= filters.dateRange.end);
-      const statusMatch = filters.statuses.length ? filters.statuses.includes(item.status) : true;
-      const yardMatch = filters.yard === 'all' || item.yard === filters.yard;
-      const stateMatch = filters.state === 'all' || item.state === filters.state;
-      const unitMatch = filters.unitType === 'all' || item.unitType === filters.unitType;
-      const brandMatch = filters.brand === 'all' || item.brand === filters.brand;
-      const lienMatch = filters.lien === 'all' || (filters.lien === 'yes' ? item.lien : !item.lien);
-      const holdMatch = filters.hold === 'all' || (filters.hold === 'yes' ? item.hold : !item.hold);
-      const gpsMatch = !filters.gpsOfflineOnly || item.gpsOffline;
-      const onHoldMatch = !filters.onHoldOnly || item.status === 'On Hold' || item.hold;
-      const recoveryMatch = !filters.recoveryPriorityOnly || item.recoveryPriority;
-      const searchMatch =
-        !searchText ||
-        item.vin.toLowerCase().includes(searchText) ||
-        item.shortVin.toLowerCase().includes(searchText) ||
-        item.plate.toLowerCase().includes(searchText);
 
-      return (
-        inDateRange &&
-        statusMatch &&
-        yardMatch &&
-        stateMatch &&
-        unitMatch &&
-        brandMatch &&
-        lienMatch &&
-        holdMatch &&
-        gpsMatch &&
-        onHoldMatch &&
-        recoveryMatch &&
-        searchMatch
-      );
-    });
+      return getCurrentDataset().filter((item) => {
+        const inDateRange =
+          (!filters.dateRange.start || item.date >= filters.dateRange.start) &&
+          (!filters.dateRange.end || item.date <= filters.dateRange.end);
+
+        const statusMatch = filters.statuses.length ? filters.statuses.includes(item.status) : true;
+        const yardMatch = filters.yard === 'all' || item.yard === filters.yard;
+        const stateMatch = filters.state === 'all' || item.state === filters.state;
+        const unitMatch = filters.unitType === 'all' || item.unitType === filters.unitType;
+        const brandMatch = filters.brand === 'all' || item.brand === filters.brand;
+
+        const gpsMatch = !filters.gpsOfflineOnly || item.gpsOffline;
+        const onHoldMatch = !filters.onHoldOnly || item.status === 'On Hold' || item.hold;
+        const recoveryMatch = !filters.recoveryPriorityOnly || item.recoveryPriority;
+
+        const searchMatch =
+          !searchText ||
+          item.vin.toLowerCase().includes(searchText) ||
+          item.shortVin.toLowerCase().includes(searchText) ||
+          item.plate.toLowerCase().includes(searchText);
+
+        return inDateRange && statusMatch && yardMatch && stateMatch && unitMatch && brandMatch && gpsMatch && onHoldMatch && recoveryMatch && searchMatch;
+      });
     };
 
     const computeTrend = (items) => {
       const filters = DashboardState.filters;
-      const activeDates = [...new Set(items.map((item) => item.date))].filter(Boolean).sort();
+      const activeDates = [...new Set(items.map((i) => i.date))].filter(Boolean).sort();
       let dates = activeDates.slice(-7);
+
       if (!dates.length) {
         const endDate = filters.dateRange.end ? new Date(filters.dateRange.end) : new Date();
-        dates = Array.from({ length: 7 }, (_, index) => {
-          const date = new Date(endDate);
-          date.setDate(date.getDate() - (6 - index));
-          return date.toISOString().slice(0, 10);
+        dates = Array.from({ length: 7 }, (_, idx) => {
+          const d = new Date(endDate);
+          d.setDate(d.getDate() - (6 - idx));
+          return d.toISOString().slice(0, 10);
         });
       }
+
       return dates.map((date, index) => {
-        const dayItems = items.filter((item) => item.date === date);
-        const activeCount = dayItems.filter((item) => item.status === 'Active').length;
+        const dayItems = items.filter((i) => i.date === date);
+        const activeCount = dayItems.filter((i) => i.status === 'Active').length;
         const value = dayItems.length ? Math.round((activeCount / dayItems.length) * 100) : 0;
         return { x: index, value, date };
       });
@@ -606,39 +650,32 @@
 
     const computeRegionalCoverage = (items) => {
       const byState = items.reduce((acc, item) => {
-        const entry = acc[item.state] || { state: item.state, total: 0, active: 0 };
+        const key = item.state || '—';
+        const entry = acc[key] || { state: key, total: 0, active: 0 };
         entry.total += 1;
-        if (item.status === 'Active') {
-          entry.active += 1;
-        }
-        acc[item.state] = entry;
+        if (item.status === 'Active') entry.active += 1;
+        acc[key] = entry;
         return acc;
       }, {});
-
       return Object.values(byState)
-        .map((entry) => ({
-          label: entry.state,
-          percent: entry.total ? Math.round((entry.active / entry.total) * 100) : 0,
-        }))
+        .map((e) => ({ label: e.state, percent: e.total ? Math.round((e.active / e.total) * 100) : 0 }))
         .sort((a, b) => b.percent - a.percent)
         .slice(0, 4);
     };
 
     const computeDerivedState = () => {
       const filtered = applyFilters();
-      const activeCount = filtered.filter((item) => item.status === 'Active').length;
-      const holdCount = filtered.filter((item) => item.hold).length;
-      const recoveryCount = filtered.filter((item) => item.status === 'Recovery').length;
+      const activeCount = filtered.filter((i) => i.status === 'Active').length;
+      const holdCount = filtered.filter((i) => i.hold || i.status === 'On Hold').length;
+      const recoveryCount = filtered.filter((i) => i.status === 'Recovery').length;
       const utilization = filtered.length ? Math.round((activeCount / filtered.length) * 100) : 0;
+
       const statusCounts = Object.keys(STATUS_COLORS).map((status) => ({
         status,
-        count: filtered.filter((item) => item.status === status).length,
+        count: filtered.filter((i) => i.status === status).length,
       }));
-      const maxCount = Math.max(1, ...statusCounts.map((item) => item.count));
-      const statusBars = statusCounts.map((item) => ({
-        ...item,
-        percentage: Math.round((item.count / maxCount) * 100),
-      }));
+      const maxCount = Math.max(1, ...statusCounts.map((i) => i.count));
+      const statusBars = statusCounts.map((i) => ({ ...i, percentage: Math.round((i.count / maxCount) * 100) }));
 
       DashboardState.derived = {
         filtered,
@@ -657,18 +694,12 @@
       const recovery = document.querySelector('[data-metric="recovery"]');
       const utilization = document.querySelector('[data-metric="utilization"]');
 
-      [active, hold, recovery, utilization].forEach((el) => {
-        el.classList.toggle('animate-pulse', isLoading);
-      });
+      [active, hold, recovery, utilization].forEach((el) => el.classList.toggle('animate-pulse', isLoading));
 
       if (isLoading) {
-        active.textContent = '...';
-        hold.textContent = '...';
-        recovery.textContent = '...';
-        utilization.textContent = '...';
+        active.textContent = hold.textContent = recovery.textContent = utilization.textContent = '...';
         return;
       }
-
       active.textContent = formatNumber(kpis.active);
       hold.textContent = formatNumber(kpis.hold);
       recovery.textContent = formatNumber(kpis.recovery);
@@ -678,37 +709,31 @@
     const renderStatusBars = () => {
       const container = document.querySelector('[data-bar-chart]');
       if (DashboardState.ui.isLoading) {
-        container.innerHTML = Array.from({ length: 6 })
-          .map(
-            () => `
-            <div class="flex flex-col items-center gap-2">
-              <div class="h-28 w-8 rounded-full bg-slate-800/70 overflow-hidden">
-                <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
-              </div>
-              <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
+        container.innerHTML = Array.from({ length: 6 }).map(() => `
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70 overflow-hidden">
+              <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
             </div>
-          `
-          )
-          .join('');
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
+          </div>
+        `).join('');
         return;
       }
+
       if (!DashboardState.derived.statusBars.length) {
         container.innerHTML = '<p class="col-span-6 text-center text-xs text-slate-400">No vehicles match current filters.</p>';
         return;
       }
-      container.innerHTML = DashboardState.derived.statusBars
-        .map(
-          (item) => `
-            <button type="button" data-status="${item.status}" class="flex flex-col items-center gap-2 rounded-2xl px-1 py-2 transition hover:bg-slate-900/60">
-              <div class="h-28 w-8 rounded-full bg-slate-800/70">
-                <div class="bar-fill w-full rounded-full bg-gradient-to-t ${STATUS_COLORS[item.status]}" style="height: ${item.percentage}%"></div>
-              </div>
-              <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
-              <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
-            </button>
-          `
-        )
-        .join('');
+
+      container.innerHTML = DashboardState.derived.statusBars.map((item) => `
+        <button type="button" data-status="${item.status}" class="flex flex-col items-center gap-2 rounded-2xl px-1 py-2 transition hover:bg-slate-900/60">
+          <div class="h-28 w-8 rounded-full bg-slate-800/70">
+            <div class="bar-fill w-full rounded-full bg-gradient-to-t ${STATUS_COLORS[item.status]}" style="height: ${item.percentage}%"></div>
+          </div>
+          <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
+          <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
+        </button>
+      `).join('');
     };
 
     const renderTrend = () => {
@@ -718,101 +743,126 @@
         return;
       }
       const points = DashboardState.derived.trendPoints;
-      const width = 260;
-      const height = 100;
+      const width = 260, height = 100;
       const step = points.length > 1 ? width / (points.length - 1) : width;
-      const pointStrings = points
-        .map((point, index) => {
-          const x = index * step;
-          const y = height - (point.value / 100) * height + 10;
-          return `${x},${y}`;
-        })
-        .join(' ');
-      document.getElementById('trend-line').setAttribute('points', pointStrings);
-      const dots = points
-        .map((point, index) => {
-          const x = index * step;
-          const y = height - (point.value / 100) * height + 10;
-          return `<circle class="trend-dot" cx="${x}" cy="${y}" r="4" fill="#38bdf8" />`;
-        })
-        .join('');
-      document.getElementById('trend-dots').innerHTML = dots;
+
+      const poly = points.map((p, idx) => {
+        const x = idx * step;
+        const y = height - (p.value / 100) * height + 10;
+        return `${x},${y}`;
+      }).join(' ');
+
+      document.getElementById('trend-line').setAttribute('points', poly);
+
+      document.getElementById('trend-dots').innerHTML = points.map((p, idx) => {
+        const x = idx * step;
+        const y = height - (p.value / 100) * height + 10;
+        return `<circle cx="${x}" cy="${y}" r="4" fill="#38bdf8" />`;
+      }).join('');
     };
 
     const renderRegionalCoverage = () => {
       const container = document.getElementById('regional-coverage');
       if (DashboardState.ui.isLoading) {
-        container.innerHTML = Array.from({ length: 4 })
-          .map(
-            () => `
-            <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-              <div class="h-4 w-20 rounded-full bg-slate-800/70 animate-pulse"></div>
-              <div class="mt-3 h-6 w-16 rounded-full bg-slate-800/70 animate-pulse"></div>
-              <div class="mt-3 h-2 rounded-full bg-slate-800"></div>
-            </div>
-          `
-          )
-          .join('');
+        container.innerHTML = Array.from({ length: 4 }).map(() => `
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <div class="h-4 w-20 rounded-full bg-slate-800/70 animate-pulse"></div>
+            <div class="mt-3 h-6 w-16 rounded-full bg-slate-800/70 animate-pulse"></div>
+            <div class="mt-3 h-2 rounded-full bg-slate-800"></div>
+          </div>
+        `).join('');
         return;
       }
-      if (!DashboardState.derived.regionCoverage.length) {
+
+      const zones = DashboardState.derived.regionCoverage;
+      if (!zones.length) {
         container.innerHTML = '<p class="text-sm text-slate-400">No regional coverage available for the selected filters.</p>';
         return;
       }
-      container.innerHTML = DashboardState.derived.regionCoverage
-        .map(
-          (zone, index) => `
-            <button type="button" data-state="${zone.label}" class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-blue-500 hover:bg-slate-950/80">
-              <p class="text-xs text-slate-400">State ${zone.label}</p>
-              <p class="mt-2 text-2xl font-black text-white">${zone.percent}%</p>
-              <div class="mt-3 h-2 rounded-full bg-slate-800">
-                <div class="h-2 rounded-full bg-gradient-to-r ${
-                  index % 2 === 0 ? 'from-blue-500 to-emerald-400' : 'from-indigo-500 to-sky-400'
-                }" style="width: ${zone.percent}%"></div>
-              </div>
-            </button>
-          `
-        )
-        .join('');
+
+      container.innerHTML = zones.map((z, i) => `
+        <button type="button" data-state="${z.label}" class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-blue-500 hover:bg-slate-950/80">
+          <p class="text-xs text-slate-400">State ${z.label}</p>
+          <p class="mt-2 text-2xl font-black text-white">${z.percent}%</p>
+          <div class="mt-3 h-2 rounded-full bg-slate-800">
+            <div class="h-2 rounded-full bg-gradient-to-r ${i % 2 === 0 ? 'from-blue-500 to-emerald-400' : 'from-indigo-500 to-sky-400'}" style="width: ${z.percent}%"></div>
+          </div>
+        </button>
+      `).join('');
+    };
+
+    const renderActiveFilters = () => {
+      const chipsContainer = document.getElementById('active-filters');
+      const { filters } = DashboardState;
+      const chips = [];
+
+      if (filters.dateRange.start || filters.dateRange.end) chips.push(`Date: ${filters.dateRange.start || 'Any'} → ${filters.dateRange.end || 'Any'}`);
+      if (filters.statuses.length) chips.push(`Status: ${filters.statuses.join(', ')}`);
+      if (filters.state !== 'all') chips.push(`State: ${filters.state}`);
+      if (filters.yard !== 'all') chips.push(`Yard: ${filters.yard}`);
+      if (filters.unitType !== 'all') chips.push(`Unit: ${filters.unitType}`);
+      if (filters.brand !== 'all') chips.push(`Brand: ${filters.brand}`);
+      if (filters.gpsOfflineOnly) chips.push('Only GPS Offline');
+      if (filters.onHoldOnly) chips.push('Only On Hold');
+      if (filters.recoveryPriorityOnly) chips.push('Only Recovery Priority');
+      if (filters.search) chips.push(`Search: ${filters.search}`);
+
+      chipsContainer.innerHTML = chips.length
+        ? chips.map((c) => `<span class="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1">${c}</span>`).join('')
+        : '<span class="text-slate-400">No active filters</span>';
     };
 
     const renderTableHead = () => {
       const head = document.getElementById('inventory-table-head');
-      const visibleColumns = TABLE_COLUMNS.filter((col) => DashboardState.table.columns[col.key]);
+      const visibleColumns = TABLE_COLUMNS.filter((c) => DashboardState.table.columns[c.key]);
       const sortState = DashboardState.table.sort;
-      const headerCells = visibleColumns
-        .map((column) => {
-          const isSorted = sortState.key === column.key;
+
+      head.innerHTML = `<tr>${
+        visibleColumns.map((c) => {
+          const isSorted = sortState.key === c.key;
           const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
           return `
             <th class="px-3 py-2">
-              <button type="button" data-sort="${column.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${column.label}">
-                <span>${column.label}</span>
+              <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
+                <span>${c.label}</span>
                 <span class="text-[10px] text-blue-300">${indicator}</span>
               </button>
             </th>
           `;
-        })
-        .join('');
-      head.innerHTML = `<tr>${headerCells}</tr>`;
+        }).join('')
+      }</tr>`;
     };
 
     const renderTable = () => {
       const tableBody = document.getElementById('inventory-table');
+      const visibleColumns = TABLE_COLUMNS.filter((c) => DashboardState.table.columns[c.key]);
+
+      if (DashboardState.ui.isLoading) {
+        tableBody.innerHTML = Array.from({ length: DashboardState.table.perPage }).map(() => `
+          <tr class="text-xs">
+            <td class="px-3 py-3" colspan="${visibleColumns.length}">
+              <div class="h-3 w-full rounded-full bg-slate-800/70 animate-pulse"></div>
+            </td>
+          </tr>
+        `).join('');
+        return;
+      }
+
       const sortedRows = [...DashboardState.derived.filtered].sort((a, b) => {
         const { key, direction } = DashboardState.table.sort;
-        const column = TABLE_COLUMNS.find((col) => col.key === key);
+        const column = TABLE_COLUMNS.find((c) => c.key === key);
         if (!column) return 0;
+
         const getValue = (item) => {
-          const value = item[key];
-          if (column.type === 'date') return value ? new Date(value).getTime() : 0;
-          if (column.type === 'boolean') return value ? 1 : 0;
-          return String(value || '').toLowerCase();
+          const v = item[key];
+          if (column.type === 'date') return v ? new Date(v).getTime() : 0;
+          if (column.type === 'boolean') return v ? 1 : 0;
+          return String(v || '').toLowerCase();
         };
-        const valueA = getValue(a);
-        const valueB = getValue(b);
-        if (valueA < valueB) return direction === 'asc' ? -1 : 1;
-        if (valueA > valueB) return direction === 'asc' ? 1 : -1;
+
+        const va = getValue(a), vb = getValue(b);
+        if (va < vb) return direction === 'asc' ? -1 : 1;
+        if (va > vb) return direction === 'asc' ? 1 : -1;
         return 0;
       });
 
@@ -820,47 +870,26 @@
       const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
       const currentPage = Math.min(DashboardState.table.page, totalPages);
       DashboardState.table.page = currentPage;
+
       const startIndex = (currentPage - 1) * DashboardState.table.perPage;
       const pageItems = sortedRows.slice(startIndex, startIndex + DashboardState.table.perPage);
-      DashboardState.table.pageItems = pageItems;
 
-      const visibleColumns = TABLE_COLUMNS.filter((col) => DashboardState.table.columns[col.key]);
-      if (DashboardState.ui.isLoading) {
-        tableBody.innerHTML = Array.from({ length: DashboardState.table.perPage })
-          .map(
-            () => `
-          <tr class="text-xs">
-            <td class="px-3 py-3" colspan="${visibleColumns.length}">
-              <div class="h-3 w-full rounded-full bg-slate-800/70 animate-pulse"></div>
-            </td>
-          </tr>
-        `
-          )
-          .join('');
-        return;
-      }
+      const rowsHtml = pageItems.map((item) => {
+        const cells = visibleColumns.map((col) => {
+          let value = item[col.key];
 
-      const rows = pageItems
-        .map((item) => {
-          const cells = visibleColumns
-            .map((column) => {
-              let value = item[column.key];
-              if (column.key === 'updatedAt') {
-                value = formatRelativeTime(item.lastEventAt);
-              } else if (column.type === 'boolean') {
-                value = value ? 'Yes' : 'No';
-              } else if (column.type === 'date') {
-                value = value ? formatDate(value) : '--';
-              }
-              return `<td class="px-3 py-2">${value || '--'}</td>`;
-            })
-            .join('');
-          return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
-        })
-        .join('');
-      tableBody.innerHTML =
-        rows ||
-        `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${visibleColumns.length}">No vehicles match current filters.</td></tr>`;
+          if (col.key === 'updatedAt') value = formatRelativeTime(item.lastEventAt);
+          else if (col.type === 'boolean') value = value ? 'Yes' : 'No';
+          else if (col.type === 'date') value = value ? formatDate(value) : '--';
+
+          return `<td class="px-3 py-2">${value || '--'}</td>`;
+        }).join('');
+
+        return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
+      }).join('');
+
+      tableBody.innerHTML = rowsHtml || `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${visibleColumns.length}">No vehicles match current filters.</td></tr>`;
+
       document.getElementById('table-summary').textContent = `${formatNumber(totalRows)} assets`;
       document.getElementById('table-page').textContent = `Page ${currentPage} of ${totalPages}`;
       document.getElementById('table-prev').disabled = currentPage <= 1;
@@ -879,253 +908,76 @@
       document.getElementById('status-summary').textContent = `${DashboardState.derived.filtered.length} units in view`;
     };
 
-    const renderActiveFilters = () => {
-      const chipsContainer = document.getElementById('active-filters');
-      const { filters } = DashboardState;
-      const chips = [];
-      if (filters.dateRange.start || filters.dateRange.end) {
-        chips.push(`Date: ${filters.dateRange.start || 'Any'} → ${filters.dateRange.end || 'Any'}`);
-      }
-      if (filters.statuses.length) {
-        chips.push(`Status: ${filters.statuses.join(', ')}`);
-      }
-      if (filters.state !== 'all') chips.push(`State: ${filters.state}`);
-      if (filters.yard !== 'all') chips.push(`Yard: ${filters.yard}`);
-      if (filters.unitType !== 'all') chips.push(`Unit: ${filters.unitType}`);
-      if (filters.brand !== 'all') chips.push(`Brand: ${filters.brand}`);
-      if (filters.gpsOfflineOnly) chips.push('Only GPS Offline');
-      if (filters.onHoldOnly) chips.push('Only On Hold');
-      if (filters.recoveryPriorityOnly) chips.push('Only Recovery Priority');
-      if (filters.search) chips.push(`Search: ${filters.search}`);
-
-      chipsContainer.innerHTML = chips.length
-        ? chips.map((chip) => `<span class="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1">${chip}</span>`).join('')
-        : '<span class="text-slate-400">No active filters</span>';
-    };
-
-    const updateStatusCheckboxes = () => {
-      const statusContainer = document.getElementById('filter-status');
-      const selected = new Set(DashboardState.filters.statuses);
-      statusContainer.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-        input.checked = selected.size ? selected.has(input.value) : true;
-      });
-    };
-
-    const toggleStatusFilter = (status) => {
-      const current = new Set(DashboardState.filters.statuses);
-      if (current.has(status)) {
-        current.delete(status);
-      } else {
-        current.add(status);
-      }
-      DashboardState.filters.statuses = Array.from(current);
-      updateStatusCheckboxes();
-      DashboardState.table.page = 1;
-      renderDashboard();
-    };
-
-    const applyStateFilter = (state) => {
-      const stateSelect = document.getElementById('filter-state');
-      DashboardState.filters.state = state;
-      stateSelect.value = state;
-      DashboardState.table.page = 1;
-      renderDashboard();
-    };
-
-    const applyDateRangeFilter = (start, end) => {
-      const startInput = document.getElementById('filter-start-date');
-      const endInput = document.getElementById('filter-end-date');
-      DashboardState.filters.dateRange = { start, end };
-      startInput.value = start;
-      endInput.value = end;
-      DashboardState.table.page = 1;
-      renderDashboard();
-    };
-
-    const bindChartInteractions = () => {
-      const statusContainer = document.querySelector('[data-bar-chart]');
-      statusContainer.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-status]');
-        if (!button) return;
-        toggleStatusFilter(button.dataset.status);
-      });
-
-      const regionalContainer = document.getElementById('regional-coverage');
-      regionalContainer.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-state]');
-        if (!button) return;
-        applyStateFilter(button.dataset.state);
-      });
-
-      const trendChart = document.getElementById('trend-chart');
-      const brushRect = document.getElementById('trend-brush-rect');
-      let brushing = false;
-      let startX = 0;
-      let startIndex = 0;
-
-      const getIndexFromEvent = (event) => {
-        const rect = trendChart.getBoundingClientRect();
-        const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-        const pointCount = DashboardState.derived.trendPoints.length;
-        if (pointCount <= 1) return 0;
-        const index = Math.round((x / rect.width) * (pointCount - 1));
-        return Math.min(Math.max(index, 0), pointCount - 1);
-      };
-
-      const updateBrush = (currentX) => {
-        const rect = trendChart.getBoundingClientRect();
-        const clampedX = Math.min(Math.max(currentX - rect.left, 0), rect.width);
-        const start = Math.min(startX, clampedX);
-        const width = Math.abs(clampedX - startX);
-        const viewBoxWidth = 260;
-        const ratio = viewBoxWidth / rect.width;
-        brushRect.setAttribute('x', String(start * ratio));
-        brushRect.setAttribute('width', String(width * ratio));
-      };
-
-      trendChart.addEventListener('mousedown', (event) => {
-        brushing = true;
-        const rect = trendChart.getBoundingClientRect();
-        startX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-        startIndex = getIndexFromEvent(event);
-        updateBrush(event.clientX);
-      });
-      window.addEventListener('mousemove', (event) => {
-        if (!brushing) return;
-        updateBrush(event.clientX);
-      });
-      window.addEventListener('mouseup', (event) => {
-        if (!brushing) return;
-        brushing = false;
-        updateBrush(event.clientX);
-        const endIndex = getIndexFromEvent(event);
-        const minIndex = Math.min(startIndex, endIndex);
-        const maxIndex = Math.max(startIndex, endIndex);
-        const points = DashboardState.derived.trendPoints;
-        if (points.length) {
-          const startDate = points[minIndex].date;
-          const endDate = points[maxIndex].date;
-          applyDateRangeFilter(startDate, endDate);
-        }
-        brushRect.setAttribute('width', '0');
-      });
-      trendChart.addEventListener('mouseleave', () => {
-        if (!brushing) return;
-        brushing = false;
-        brushRect.setAttribute('width', '0');
-      });
-    };
-
     const initializeTablePreferences = () => {
       const stored = localStorage.getItem(COLUMN_STORAGE_KEY);
-      const defaults = TABLE_COLUMNS.reduce((acc, column) => {
-        acc[column.key] = true;
-        return acc;
-      }, {});
+      const defaults = TABLE_COLUMNS.reduce((acc, c) => ((acc[c.key] = true), acc), {});
       DashboardState.table.columns = stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
       renderColumnChooser();
     };
 
-    const setConnectionStatus = (status) => {
-      const statusEl = document.getElementById('connection-status');
-      const dotEl = document.getElementById('connection-dot');
-      if (!statusEl || !dotEl) return;
-      statusEl.textContent = status;
-      dotEl.className = 'h-2.5 w-2.5 rounded-full';
-      if (status === 'Live') {
-        dotEl.classList.add('bg-emerald-400', 'shadow-[0_0_10px_rgba(52,211,153,0.8)]');
-      } else if (status === 'Reconnecting…') {
-        dotEl.classList.add('bg-amber-400', 'shadow-[0_0_10px_rgba(251,191,36,0.8)]');
-      } else {
-        dotEl.classList.add('bg-slate-500');
-      }
+    const renderColumnChooser = () => {
+      const container = document.getElementById('column-chooser-options');
+      container.innerHTML = TABLE_COLUMNS.map((c) => `
+        <label class="flex items-center gap-2 text-xs">
+          <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
+          <span>${c.label}</span>
+        </label>
+      `).join('');
     };
 
-    const handleVehicleChange = (payload) => {
-      const eventType = payload.eventType;
-      const record = payload.new || payload.old;
-      if (!record) return;
-      const normalized = normalizeVehicle(record);
-      const eventTimestamp = payload.commit_timestamp ? new Date(payload.commit_timestamp).getTime() : Date.now();
-      normalized.lastEventAt = eventTimestamp;
-      const key = getVehicleKey(normalized);
-      if (!key) return;
+    const openDrawer = (record) => {
+      document.getElementById('drawer-vin').textContent = record.vin || '--';
+      document.getElementById('drawer-status').textContent = record.status || '--';
+      document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
+      document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
 
-      if (eventType === 'DELETE') {
-        DashboardState.vehiclesRaw.delete(key);
-      } else {
-        DashboardState.vehiclesRaw.set(key, normalized);
-      }
+      const flags = [
+        record.gpsOffline ? 'GPS Offline' : null,
+        record.hold ? 'Hold' : null,
+        record.lien ? 'Lien' : null,
+        record.recoveryPriority ? 'Recovery Priority' : null,
+      ].filter(Boolean).join(' • ');
 
-      renderDashboard();
+      document.getElementById('drawer-flags').textContent = flags || 'None';
+
+      const timeline = [
+        { label: 'Created', value: record.createdAt || record.date },
+        { label: 'Last updated', value: record.updatedAt || record.date },
+      ];
+
+      document.getElementById('drawer-timeline').innerHTML = timeline.map((e) => `
+        <li class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+          <span>${e.label}</span>
+          <span class="text-slate-200">${e.value ? formatDate(e.value) : '--'}</span>
+        </li>
+      `).join('');
+
+      document.getElementById('row-drawer').classList.remove('translate-x-full');
     };
 
-    const initializeSupabaseRealtime = () => {
-      if (!supabaseClient) {
-        setConnectionStatus('Offline');
-        return;
-      }
+    const closeDrawer = () => document.getElementById('row-drawer').classList.add('translate-x-full');
 
-      if (DashboardState.realtime.channel) {
-        return;
-      }
-
-      const channel = supabaseClient
-        .channel('vehicles-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, handleVehicleChange);
-
-      DashboardState.realtime.channel = channel;
-
-      channel.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          setConnectionStatus('Live');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnectionStatus('Reconnecting…');
-        } else if (status === 'CLOSED') {
-          setConnectionStatus('Offline');
-        }
-      });
-
-      window.addEventListener('beforeunload', () => {
-        if (DashboardState.realtime.channel) {
-          supabaseClient.removeChannel(DashboardState.realtime.channel);
-          DashboardState.realtime.channel = null;
-        }
-      });
-    };
-
-    const hydrateVehiclesFromSupabase = async () => {
-      if (!supabaseClient) {
-        DashboardState.ui.isLoading = false;
-        setConnectionStatus('Offline');
-        renderDashboard();
-        return;
-      }
-      setConnectionStatus('Reconnecting…');
-
-      const { data, error } = await supabaseClient
-        .from('vehicles')
-        .select(
-          'id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at'
-        );
-      if (error || !data) {
-        console.error('Failed to load vehicles from Supabase', error);
-        setConnectionStatus('Offline');
-        DashboardState.ui.isLoading = false;
-        renderDashboard();
-        return;
-      }
-
-      setVehiclesFromArray(
-        data.map((vehicle) => ({
-          ...vehicle,
-          lastEventAt: vehicle.updated_at ? new Date(vehicle.updated_at).getTime() : null,
-        }))
+    const exportCsv = () => {
+      const visibleColumns = TABLE_COLUMNS.filter((c) => DashboardState.table.columns[c.key]);
+      const rows = DashboardState.derived.filtered.map((item) =>
+        visibleColumns.map((c) => {
+          let value = item[c.key];
+          if (c.type === 'boolean') value = value ? 'Yes' : 'No';
+          if (c.type === 'date') value = value ? formatDate(value) : '';
+          return `"${String(value ?? '').replace(/\"/g, '""')}"`;
+        })
       );
-      setupFilters({ preserveSelections: true });
-      DashboardState.ui.isLoading = false;
-      renderDashboard();
-      setConnectionStatus('Live');
+      const header = visibleColumns.map((c) => `"${c.label}"`).join(',');
+      const csv = [header, ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'inventory-export.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     };
 
     const bindFilterEvents = () => {
@@ -1142,76 +994,30 @@
       const searchInput = document.getElementById('filter-search');
 
       const updateStatuses = () => {
-        DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map(
-          (input) => input.value
-        );
+        DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map((i) => i.value);
       };
+      const resetPagination = () => (DashboardState.table.page = 1);
 
-      const resetPagination = () => {
-        DashboardState.table.page = 1;
-      };
-
-      startInput.addEventListener('change', () => {
-        DashboardState.filters.dateRange.start = startInput.value;
-        resetPagination();
-        renderDashboard();
-      });
-      endInput.addEventListener('change', () => {
-        DashboardState.filters.dateRange.end = endInput.value;
-        resetPagination();
-        renderDashboard();
-      });
-      statusContainer.addEventListener('change', () => {
-        updateStatuses();
-        resetPagination();
-        renderDashboard();
-      });
-      yardSelect.addEventListener('change', () => {
-        DashboardState.filters.yard = yardSelect.value;
-        resetPagination();
-        renderDashboard();
-      });
-      stateSelect.addEventListener('change', () => {
-        DashboardState.filters.state = stateSelect.value;
-        resetPagination();
-        renderDashboard();
-      });
-      unitSelect.addEventListener('change', () => {
-        DashboardState.filters.unitType = unitSelect.value;
-        resetPagination();
-        renderDashboard();
-      });
-      brandSelect.addEventListener('change', () => {
-        DashboardState.filters.brand = brandSelect.value;
-        resetPagination();
-        renderDashboard();
-      });
-      gpsToggle.addEventListener('change', () => {
-        DashboardState.filters.gpsOfflineOnly = gpsToggle.checked;
-        resetPagination();
-        renderDashboard();
-      });
-      holdToggle.addEventListener('change', () => {
-        DashboardState.filters.onHoldOnly = holdToggle.checked;
-        resetPagination();
-        renderDashboard();
-      });
-      recoveryToggle.addEventListener('change', () => {
-        DashboardState.filters.recoveryPriorityOnly = recoveryToggle.checked;
-        resetPagination();
-        renderDashboard();
-      });
+      startInput.addEventListener('change', () => { DashboardState.filters.dateRange.start = startInput.value; resetPagination(); renderDashboard(); });
+      endInput.addEventListener('change', () => { DashboardState.filters.dateRange.end = endInput.value; resetPagination(); renderDashboard(); });
+      statusContainer.addEventListener('change', () => { updateStatuses(); resetPagination(); renderDashboard(); });
+      yardSelect.addEventListener('change', () => { DashboardState.filters.yard = yardSelect.value; resetPagination(); renderDashboard(); });
+      stateSelect.addEventListener('change', () => { DashboardState.filters.state = stateSelect.value; resetPagination(); renderDashboard(); });
+      unitSelect.addEventListener('change', () => { DashboardState.filters.unitType = unitSelect.value; resetPagination(); renderDashboard(); });
+      brandSelect.addEventListener('change', () => { DashboardState.filters.brand = brandSelect.value; resetPagination(); renderDashboard(); });
+      gpsToggle.addEventListener('change', () => { DashboardState.filters.gpsOfflineOnly = gpsToggle.checked; resetPagination(); renderDashboard(); });
+      holdToggle.addEventListener('change', () => { DashboardState.filters.onHoldOnly = holdToggle.checked; resetPagination(); renderDashboard(); });
+      recoveryToggle.addEventListener('change', () => { DashboardState.filters.recoveryPriorityOnly = recoveryToggle.checked; resetPagination(); renderDashboard(); });
 
       let searchTimeout;
-      const scheduleSearch = () => {
+      searchInput.addEventListener('input', () => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
           DashboardState.filters.search = searchInput.value;
           resetPagination();
           renderDashboard();
-        }, 300);
-      };
-      searchInput.addEventListener('input', scheduleSearch);
+        }, 250);
+      });
 
       document.getElementById('reset-filters').addEventListener('click', () => {
         setupFilters();
@@ -1227,27 +1033,15 @@
         renderDashboard();
       });
 
-      updateStatuses();
-
-      document.getElementById('table-prev').addEventListener('click', () => {
-        DashboardState.table.page = Math.max(1, DashboardState.table.page - 1);
-        renderDashboard();
-      });
-      document.getElementById('table-next').addEventListener('click', () => {
-        DashboardState.table.page += 1;
-        renderDashboard();
-      });
+      document.getElementById('table-prev').addEventListener('click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
+      document.getElementById('table-next').addEventListener('click', () => { DashboardState.table.page += 1; renderDashboard(); });
 
       document.getElementById('inventory-table-head').addEventListener('click', (event) => {
         const button = event.target.closest('[data-sort]');
         if (!button) return;
         const key = button.dataset.sort;
-        if (DashboardState.table.sort.key === key) {
-          DashboardState.table.sort.direction = DashboardState.table.sort.direction === 'asc' ? 'desc' : 'asc';
-        } else {
-          DashboardState.table.sort.key = key;
-          DashboardState.table.sort.direction = 'asc';
-        }
+        if (DashboardState.table.sort.key === key) DashboardState.table.sort.direction = DashboardState.table.sort.direction === 'asc' ? 'desc' : 'asc';
+        else { DashboardState.table.sort.key = key; DashboardState.table.sort.direction = 'asc'; }
         renderDashboard();
       });
 
@@ -1255,8 +1049,7 @@
         const row = event.target.closest('[data-row-key]');
         if (!row) return;
         const record = DashboardState.vehiclesRaw.get(row.dataset.rowKey);
-        if (!record) return;
-        openDrawer(record);
+        if (record) openDrawer(record);
       });
 
       document.getElementById('drawer-close').addEventListener('click', closeDrawer);
@@ -1284,94 +1077,209 @@
       });
 
       document.getElementById('export-csv').addEventListener('click', exportCsv);
+
+      updateStatuses();
     };
 
-    const renderColumnChooser = () => {
-      const container = document.getElementById('column-chooser-options');
-      container.innerHTML = TABLE_COLUMNS.map(
-        (column) => `
-          <label class="flex items-center gap-2 text-xs">
-            <input type="checkbox" value="${column.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${
-          DashboardState.table.columns[column.key] ? 'checked' : ''
-        } />
-            <span>${column.label}</span>
-          </label>
-        `
-      ).join('');
+    const bindChartInteractions = () => {
+      const statusContainer = document.querySelector('[data-bar-chart]');
+      statusContainer.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-status]');
+        if (!button) return;
+        const status = button.dataset.status;
+        const current = new Set(DashboardState.filters.statuses);
+        current.has(status) ? current.delete(status) : current.add(status);
+        DashboardState.filters.statuses = Array.from(current);
+        DashboardState.table.page = 1;
+        renderDashboard();
+      });
+
+      const regionalContainer = document.getElementById('regional-coverage');
+      regionalContainer.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-state]');
+        if (!button) return;
+        DashboardState.filters.state = button.dataset.state;
+        document.getElementById('filter-state').value = DashboardState.filters.state;
+        DashboardState.table.page = 1;
+        renderDashboard();
+      });
+
+      const trendChart = document.getElementById('trend-chart');
+      const brushRect = document.getElementById('trend-brush-rect');
+      let brushing = false;
+      let startX = 0;
+      let startIndex = 0;
+
+      const getIndexFromEvent = (event) => {
+        const rect = trendChart.getBoundingClientRect();
+        const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+        const n = DashboardState.derived.trendPoints.length;
+        if (n <= 1) return 0;
+        const idx = Math.round((x / rect.width) * (n - 1));
+        return Math.min(Math.max(idx, 0), n - 1);
+      };
+
+      const updateBrush = (clientX) => {
+        const rect = trendChart.getBoundingClientRect();
+        const clampedX = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+        const start = Math.min(startX, clampedX);
+        const width = Math.abs(clampedX - startX);
+        const ratio = 260 / rect.width;
+        brushRect.setAttribute('x', String(start * ratio));
+        brushRect.setAttribute('width', String(width * ratio));
+      };
+
+      trendChart.addEventListener('mousedown', (event) => {
+        brushing = true;
+        const rect = trendChart.getBoundingClientRect();
+        startX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+        startIndex = getIndexFromEvent(event);
+        updateBrush(event.clientX);
+      });
+
+      window.addEventListener('mousemove', (event) => { if (brushing) updateBrush(event.clientX); });
+      window.addEventListener('mouseup', (event) => {
+        if (!brushing) return;
+        brushing = false;
+        updateBrush(event.clientX);
+
+        const endIndex = getIndexFromEvent(event);
+        const min = Math.min(startIndex, endIndex);
+        const max = Math.max(startIndex, endIndex);
+        const points = DashboardState.derived.trendPoints;
+
+        if (points.length) {
+          DashboardState.filters.dateRange = { start: points[min].date, end: points[max].date };
+          document.getElementById('filter-start-date').value = points[min].date;
+          document.getElementById('filter-end-date').value = points[max].date;
+          DashboardState.table.page = 1;
+          renderDashboard();
+        }
+        brushRect.setAttribute('width', '0');
+      });
+
+      trendChart.addEventListener('mouseleave', () => { brushing = false; brushRect.setAttribute('width', '0'); });
     };
 
-    const openDrawer = (record) => {
-      document.getElementById('drawer-vin').textContent = record.vin || '--';
-      document.getElementById('drawer-status').textContent = record.status || '--';
-      document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
-      document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
-      const flags = [
-        record.gpsOffline ? 'GPS Offline' : null,
-        record.hold ? 'Hold' : null,
-        record.lien ? 'Lien' : null,
-        record.recoveryPriority ? 'Recovery Priority' : null,
-      ]
-        .filter(Boolean)
-        .join(' • ');
-      document.getElementById('drawer-flags').textContent = flags || 'None';
-      const timeline = [
-        { label: 'Created', value: record.createdAt || record.date },
-        { label: 'Last updated', value: record.updatedAt || record.date },
-      ];
-      document.getElementById('drawer-timeline').innerHTML = timeline
-        .map(
-          (entry) => `
-            <li class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
-              <span>${entry.label}</span>
-              <span class="text-slate-200">${entry.value ? formatDate(entry.value) : '--'}</span>
-            </li>
-          `
-        )
-        .join('');
-      document.getElementById('row-drawer').classList.remove('translate-x-full');
+    // ==========================================================
+    // 3) REALTIME + HYDRATE
+    // ==========================================================
+
+    const handleVehicleChange = (payload) => {
+      const record = payload.new || payload.old;
+      if (!record) return;
+
+      const normalized = normalizeVehicle(record);
+      const eventTimestamp = payload.commit_timestamp ? new Date(payload.commit_timestamp).getTime() : Date.now();
+      normalized.lastEventAt = eventTimestamp;
+
+      const key = getVehicleKey(normalized);
+      if (!key) return;
+
+      if (payload.eventType === 'DELETE') DashboardState.vehiclesRaw.delete(key);
+      else DashboardState.vehiclesRaw.set(key, normalized);
+
+      renderDashboard();
     };
 
-    const closeDrawer = () => {
-      document.getElementById('row-drawer').classList.add('translate-x-full');
+    const initializeSupabaseRealtime = () => {
+      if (!supabaseClient?.channel) return;
+
+      if (DashboardState.realtime.channel) return;
+
+      const channel = supabaseClient
+        .channel('vehicles-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, handleVehicleChange);
+
+      DashboardState.realtime.channel = channel;
+
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') setConnectionStatus('Live');
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setConnectionStatus('Reconnecting…');
+        else if (status === 'CLOSED') setConnectionStatus('Offline');
+      });
+
+      window.addEventListener('beforeunload', () => {
+        if (DashboardState.realtime.channel) {
+          supabaseClient.removeChannel(DashboardState.realtime.channel);
+          DashboardState.realtime.channel = null;
+        }
+      });
     };
 
-    const exportCsv = () => {
-      const visibleColumns = TABLE_COLUMNS.filter((col) => DashboardState.table.columns[col.key]);
-      const rows = DashboardState.derived.filtered.map((item) =>
-        visibleColumns.map((column) => {
-          let value = item[column.key];
-          if (column.type === 'boolean') value = value ? 'Yes' : 'No';
-          if (column.type === 'date') value = value ? formatDate(value) : '';
-          return `"${String(value ?? '').replace(/\"/g, '""')}"`;
-        })
-      );
-      const header = visibleColumns.map((col) => `"${col.label}"`).join(',');
-      const csv = [header, ...rows.map((row) => row.join(','))].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'inventory-export.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+    const hydrateVehiclesFromSupabase = async () => {
+      if (!supabaseClient?.from) {
+        DashboardState.ui.isLoading = false;
+        setConnectionStatus('Offline');
+        renderDashboard();
+        return;
+      }
+
+      setConnectionStatus('Reconnecting…');
+
+      const { data, error } = await supabaseClient
+        .from('vehicles')
+        .select('id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at')
+        .limit(5000);
+
+      if (error) {
+        setConnectionStatus('Offline');
+        DashboardState.ui.isLoading = false;
+        renderDashboard();
+
+        showDebug(
+          'Supabase SELECT failed',
+          'Esto suele ser RLS (no tienes SELECT permitido), credenciales, o tabla/columnas distintas.',
+          { code: error.code, message: error.message, details: error.details, hint: error.hint }
+        );
+        return;
+      }
+
+      setVehiclesFromArray((data || []).map((v) => ({
+        ...v,
+        lastEventAt: v.updated_at ? new Date(v.updated_at).getTime() : null,
+      })));
+
+      DashboardState.ui.isLoading = false;
+      setupFilters({ preserveSelections: true });
+      renderDashboard();
+      setConnectionStatus('Live');
     };
+
+    // ==========================================================
+    // 4) BOOT
+    // ==========================================================
 
     initializeTablePreferences();
     setupFilters();
     bindFilterEvents();
     bindChartInteractions();
     renderDashboard();
-    initializeSupabaseRealtime();
-    hydrateVehiclesFromSupabase();
 
+    // Mobile nav
     const mobileToggle = document.getElementById('mobile-menu-toggle');
     const primaryNav = document.getElementById('primary-nav');
     mobileToggle?.addEventListener('click', () => {
       const isOpen = primaryNav.classList.toggle('hidden');
       mobileToggle.setAttribute('aria-expanded', String(!isOpen));
     });
+
+    // Start Supabase
+    (async () => {
+      setConnectionStatus('Booting…');
+      supabaseClient = await getSupabaseClient();
+
+      if (!supabaseClient) {
+        setConnectionStatus('Offline');
+        DashboardState.ui.isLoading = false;
+        renderDashboard();
+        return;
+      }
+
+      // If RLS blocks, debug banner will show exact error
+      await hydrateVehiclesFromSupabase();
+      initializeSupabaseRealtime();
+    })();
   </script>
 </body>
 </html>
