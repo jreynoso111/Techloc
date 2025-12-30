@@ -11,6 +11,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="assets/scripts/supabaseClient.js"></script>
   <script type="module" src="assets/scripts/authManager.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -31,7 +32,11 @@
   <link rel="stylesheet" href="assets/visuals/theme.css" />
 </head>
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50">
-  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+  <div class="pointer-events-none fixed inset-0 z-10 opacity-60 mix-blend-screen">
+    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
+  </div>
+
+  <header class="relative z-20 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
     <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:gap-6">
       <div class="flex items-center justify-between gap-4 md:flex-none">
         <a href="index.html" class="flex items-center gap-3">
@@ -81,7 +86,7 @@
     </div>
   </header>
 
-  <main class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-8">
+  <main class="relative z-20 mx-auto flex w-full max-w-none flex-1 flex-col gap-6 px-6 py-8">
     <section class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard backdrop-blur">
       <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
@@ -99,22 +104,22 @@
         </div>
       </div>
         <div class="mt-6 grid gap-4 md:grid-cols-4" aria-live="polite">
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
             <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
             <p class="mt-2 text-3xl font-black text-white" data-metric="active">--</p>
             <p class="text-xs text-emerald-300">+4.1% vs last period</p>
           </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
             <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
             <p class="mt-2 text-3xl font-black text-white" data-metric="hold">--</p>
             <p class="text-xs text-amber-300">-3.5% hold rate</p>
           </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
             <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Recovery Queue</p>
             <p class="mt-2 text-3xl font-black text-white" data-metric="recovery">--</p>
             <p class="text-xs text-rose-300">Priority alerts: 12</p>
           </div>
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div class="rounded-2xl border border-slate-800 bg-transparent p-4">
             <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Utilization</p>
             <p class="mt-2 text-3xl font-black text-white" data-metric="utilization">--</p>
             <p class="text-xs text-blue-300">Healthy threshold 70%</p>
@@ -212,7 +217,7 @@
           <span id="trend-caption" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">7-day utilization</span>
         </div>
 
-        <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+        <div class="mt-6 rounded-2xl border border-slate-800 bg-transparent p-4">
           <div class="flex items-center justify-between text-xs text-slate-400">
             <span>Low</span>
             <span>High</span>
@@ -265,15 +270,15 @@
           <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">12 urgent</span>
         </div>
         <ul class="mt-6 space-y-3 text-sm text-slate-200">
-          <li class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+          <li class="rounded-2xl border border-slate-800 bg-transparent p-3">
             <p class="font-semibold text-white">GPS Offline Cluster</p>
             <p class="text-xs text-slate-400">18 units in South TX flagged 6 hours ago.</p>
           </li>
-          <li class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+          <li class="rounded-2xl border border-slate-800 bg-transparent p-3">
             <p class="font-semibold text-white">Recovery Dispatch</p>
             <p class="text-xs text-slate-400">12 assets require on-site verification.</p>
           </li>
-          <li class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+          <li class="rounded-2xl border border-slate-800 bg-transparent p-3">
             <p class="font-semibold text-white">Utilization Dip</p>
             <p class="text-xs text-slate-400">Northeast reserve dropped below 70%.</p>
           </li>
@@ -347,6 +352,12 @@
     </div>
   </aside>
 
+  <script type="module">
+    import { createConstellationBackground } from './assets/scripts/constellation.js';
+
+    createConstellationBackground();
+  </script>
+
   <script>
     lucide.createIcons();
 
@@ -386,39 +397,6 @@
         isLoading: true,
       },
     };
-
-    const inventoryData = [
-      { vin: '1HGCM82633A004352', shortVin: '04352', plate: 'TX-4218', status: 'Active', yard: 'Houston Central', state: 'TX', unitType: 'SUV', brand: 'Honda', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-19', updated_at: '2024-09-18' },
-      { vin: '1J4FA49S94P708101', shortVin: '08101', plate: 'TX-2290', status: 'On Hold', yard: 'Houston Central', state: 'TX', unitType: 'Sedan', brand: 'Jeep', lien: false, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-17', updated_at: '2024-09-17' },
-      { vin: '5N1AR2MM0FC679214', shortVin: '79214', plate: 'CA-3389', status: 'Active', yard: 'Los Angeles South', state: 'CA', unitType: 'SUV', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-20', updated_at: '2024-09-20' },
-      { vin: '2T1BURHE6FC291334', shortVin: '91334', plate: 'CA-1044', status: 'In Transit', yard: 'Los Angeles South', state: 'CA', unitType: 'Sedan', brand: 'Toyota', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-22', updated_at: '2024-09-21' },
-      { vin: '1FTFW1ET5EFA03977', shortVin: '03977', plate: 'NV-8721', status: 'Recovery', yard: 'Las Vegas Hub', state: 'NV', unitType: 'Truck', brand: 'Ford', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-16', updated_at: '2024-09-16' },
-      { vin: '1G1BE5SM2H7249911', shortVin: '9911', plate: 'AZ-5501', status: 'Ready', yard: 'Phoenix East', state: 'AZ', unitType: 'Sedan', brand: 'Chevrolet', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-19', updated_at: '2024-09-19' },
-      { vin: '3FA6P0HD9ER355120', shortVin: '55120', plate: 'CO-6609', status: 'Active', yard: 'Denver Metro', state: 'CO', unitType: 'Sedan', brand: 'Ford', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-14', updated_at: '2024-09-14' },
-      { vin: '1C4RJFBG5FC625019', shortVin: '25019', plate: 'WA-7134', status: 'On Hold', yard: 'Seattle Harbor', state: 'WA', unitType: 'SUV', brand: 'Jeep', lien: true, hold: true, gps_offline: true, recovery_priority: false, created_at: '2024-08-13', updated_at: '2024-09-13' },
-      { vin: '2HGFB2F59FH574223', shortVin: '74223', plate: 'OR-2207', status: 'Active', yard: 'Portland Yard', state: 'OR', unitType: 'Sedan', brand: 'Honda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-20', updated_at: '2024-09-20' },
-      { vin: '5XXGM4A76CG095833', shortVin: '95833', plate: 'UT-1093', status: 'Write-Off', yard: 'Salt Lake East', state: 'UT', unitType: 'Sedan', brand: 'Kia', lien: true, hold: false, gps_offline: true, recovery_priority: false, created_at: '2024-08-12', updated_at: '2024-09-12' },
-      { vin: '1N4AL3AP6GN394812', shortVin: '94812', plate: 'OK-7308', status: 'Active', yard: 'Oklahoma City', state: 'OK', unitType: 'Sedan', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-21', updated_at: '2024-09-21' },
-      { vin: '2C3CDXHG7JH152310', shortVin: '52310', plate: 'LA-4702', status: 'In Transit', yard: 'New Orleans Port', state: 'LA', unitType: 'Sedan', brand: 'Dodge', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-18', updated_at: '2024-09-18' },
-      { vin: '1GCUKREC7GF152618', shortVin: '52618', plate: 'NM-8851', status: 'Recovery', yard: 'Albuquerque Yard', state: 'NM', unitType: 'Truck', brand: 'Chevrolet', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-15', updated_at: '2024-09-15' },
-      { vin: '5YJ3E1EA7KF317442', shortVin: '17442', plate: 'CA-3004', status: 'Active', yard: 'Los Angeles South', state: 'CA', unitType: 'EV', brand: 'Tesla', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-22', updated_at: '2024-09-22' },
-      { vin: '1HGCV1F13JA101004', shortVin: '01004', plate: 'TX-9402', status: 'Ready', yard: 'Dallas North', state: 'TX', unitType: 'Sedan', brand: 'Honda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-20', updated_at: '2024-09-20' },
-      { vin: '5NPE24AF6FH110820', shortVin: '10820', plate: 'GA-6622', status: 'Active', yard: 'Atlanta Core', state: 'GA', unitType: 'Sedan', brand: 'Hyundai', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-11', updated_at: '2024-09-11' },
-      { vin: '1FT7W2BT0JEC34117', shortVin: '34117', plate: 'KS-2203', status: 'On Hold', yard: 'Kansas City', state: 'KS', unitType: 'Truck', brand: 'Ford', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-10', updated_at: '2024-09-10' },
-      { vin: 'JM1GL1UM3H1119051', shortVin: '19051', plate: 'NC-5514', status: 'Active', yard: 'Charlotte Hub', state: 'NC', unitType: 'Sedan', brand: 'Mazda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-09', updated_at: '2024-09-09' },
-      { vin: '3N1AB7AP4HY222930', shortVin: '22930', plate: 'FL-1027', status: 'Ready', yard: 'Orlando West', state: 'FL', unitType: 'Sedan', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-08', updated_at: '2024-09-08' },
-      { vin: '1C6RR7LT6HS730120', shortVin: '30120', plate: 'AZ-8842', status: 'In Transit', yard: 'Phoenix East', state: 'AZ', unitType: 'Truck', brand: 'Ram', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-22', updated_at: '2024-09-22' },
-      { vin: '1FADP3F28EL282811', shortVin: '82811', plate: 'TN-7731', status: 'Active', yard: 'Nashville Lane', state: 'TN', unitType: 'Sedan', brand: 'Ford', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-07', updated_at: '2024-09-07' },
-      { vin: '2GNFLFEK6F6349220', shortVin: '49220', plate: 'IL-3904', status: 'Recovery', yard: 'Chicago Central', state: 'IL', unitType: 'SUV', brand: 'Chevrolet', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-06', updated_at: '2024-09-06' },
-      { vin: '1G1ZT54845F148928', shortVin: '48928', plate: 'MI-5005', status: 'Active', yard: 'Detroit Yard', state: 'MI', unitType: 'Sedan', brand: 'Chevrolet', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-05', updated_at: '2024-09-05' },
-      { vin: '5TDZZRFH3FS112390', shortVin: '12390', plate: 'WA-4221', status: 'Ready', yard: 'Seattle Harbor', state: 'WA', unitType: 'SUV', brand: 'Toyota', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-19', updated_at: '2024-09-19' },
-      { vin: '1C4PJMBS1EW315908', shortVin: '15908', plate: 'NY-9308', status: 'On Hold', yard: 'Albany Secure', state: 'NY', unitType: 'SUV', brand: 'Jeep', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-16', updated_at: '2024-09-16' },
-      { vin: '1HGFA16526L081230', shortVin: '81230', plate: 'PA-6620', status: 'Active', yard: 'Philadelphia Yard', state: 'PA', unitType: 'Sedan', brand: 'Honda', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-14', updated_at: '2024-09-14' },
-      { vin: '1FTEX1EP8JKE91022', shortVin: '91022', plate: 'MN-3412', status: 'In Transit', yard: 'Minneapolis Hub', state: 'MN', unitType: 'Truck', brand: 'Ford', lien: true, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-15', updated_at: '2024-09-15' },
-      { vin: 'JN1BJ1CP7KW604332', shortVin: '04332', plate: 'CO-9951', status: 'Active', yard: 'Denver Metro', state: 'CO', unitType: 'SUV', brand: 'Nissan', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-21', updated_at: '2024-09-21' },
-      { vin: '2T3WFREV5JW456701', shortVin: '56701', plate: 'MA-8210', status: 'Ready', yard: 'Boston Harbor', state: 'MA', unitType: 'SUV', brand: 'Toyota', lien: false, hold: false, gps_offline: false, recovery_priority: false, created_at: '2024-08-12', updated_at: '2024-09-12' },
-      { vin: '3CZRU6H59HM734112', shortVin: '34112', plate: 'VA-4920', status: 'Write-Off', yard: 'Richmond Yard', state: 'VA', unitType: 'SUV', brand: 'Honda', lien: true, hold: true, gps_offline: true, recovery_priority: true, created_at: '2024-08-09', updated_at: '2024-09-09' },
-    ];
 
     const STATUS_COLORS = {
       Active: 'from-emerald-400 to-blue-500',
@@ -1117,7 +1095,12 @@
 
     const hydrateVehiclesFromSupabase = async () => {
       const supabaseClient = window.supabaseClient;
-      if (!supabaseClient) return;
+      if (!supabaseClient) {
+        DashboardState.ui.isLoading = false;
+        setConnectionStatus('Offline');
+        renderDashboard();
+        return;
+      }
       setConnectionStatus('Reconnecting…');
 
       const { data, error } = await supabaseClient
@@ -1128,6 +1111,8 @@
       if (error || !data) {
         console.error('Failed to load vehicles from Supabase', error);
         setConnectionStatus('Offline');
+        DashboardState.ui.isLoading = false;
+        renderDashboard();
         return;
       }
 
@@ -1373,7 +1358,6 @@
       URL.revokeObjectURL(url);
     };
 
-    setVehiclesFromArray(inventoryData);
     initializeTablePreferences();
     setupFilters();
     bindFilterEvents();
