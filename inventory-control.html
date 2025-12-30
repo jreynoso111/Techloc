@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechLoc • Inventory Control</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="assets/scripts/authManager.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: { slate: { 950: '#020617' } },
+          boxShadow: {
+            dashboard: '0 20px 60px rgba(15, 23, 42, 0.45)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <link rel="stylesheet" href="assets/visuals/theme.css" />
+</head>
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50">
+  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:gap-6">
+      <div class="flex items-center justify-between gap-4 md:flex-none">
+        <a href="index.html" class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
+          </div>
+          <div>
+            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Network</p>
+            <h1 class="text-base font-black leading-tight text-white">Inventory Control</h1>
+          </div>
+        </a>
+
+        <button id="mobile-menu-toggle" class="inline-flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 p-2 text-slate-200 transition hover:border-blue-500 hover:text-white md:hidden" aria-label="Toggle navigation" aria-expanded="false">
+          <i data-lucide="menu" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <div id="primary-nav" class="hidden flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 text-sm font-semibold text-slate-200 shadow-lg shadow-blue-900/20 md:flex md:flex-1 md:flex-row md:items-center md:gap-6 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+        <nav class="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:flex-1 md:gap-2">
+          <a id="nav-home" href="index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+          <a id="nav-control-view" href="vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control Map</a>
+          <div class="relative group">
+            <a id="nav-inventory-control" href="inventory-control.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Inventory Control</a>
+            <div class="absolute left-0 top-full z-20 mt-2 w-48 rounded-2xl border border-slate-800 bg-slate-950/95 p-2 text-xs font-semibold text-slate-200 shadow-lg shadow-blue-900/20 opacity-0 pointer-events-none transition group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
+              <a id="nav-services" href="services-request.html" class="block rounded-xl px-3 py-2 transition hover:bg-slate-800 hover:text-white">Service Requests</a>
+            </div>
+          </div>
+          <a
+            id="nav-dashboard"
+            href="Admin/index.html"
+            data-dashboard-link
+            aria-hidden="true"
+            tabindex="-1"
+            class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex"
+          >
+            Dashboard
+          </a>
+          <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About Us</a>
+          <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
+        </nav>
+
+        <div class="flex flex-col gap-3 border-t border-slate-800 pt-3 md:flex-row md:items-center md:gap-3 md:border-0 md:pt-0 md:flex-none md:justify-end" data-admin-actions>
+          <a id="nav-login" href="login.html" class="rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+          <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-6 py-8">
+    <section class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard backdrop-blur">
+      <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-blue-300">Inventory Intelligence</p>
+          <h2 class="text-2xl font-black text-white md:text-3xl">Fleet Asset Visibility</h2>
+          <p class="mt-2 text-sm text-slate-300">
+            Power BI-style monitoring for inventory health, utilization, and recovery signals.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <div class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200">
+            <i data-lucide="sparkles" class="h-4 w-4 text-blue-400"></i>
+            <span>Auto-sync every 15 min</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-4">
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="active">1,284</p>
+          <p class="text-xs text-emerald-300">+4.1% vs last period</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="hold">92</p>
+          <p class="text-xs text-amber-300">-3.5% hold rate</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Recovery Queue</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="recovery">58</p>
+          <p class="text-xs text-rose-300">Priority alerts: 12</p>
+        </div>
+        <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Utilization</p>
+          <p class="mt-2 text-3xl font-black text-white" data-metric="utilization">78%</p>
+          <p class="text-xs text-blue-300">Healthy threshold 70%</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+      <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Inventory Movement</p>
+            <h3 class="text-lg font-bold text-white">Units by Status</h3>
+          </div>
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Inventory movement range">
+            <button data-range="week" class="rounded-full border border-blue-500 bg-blue-600 px-3 py-1 text-xs font-semibold text-white">Week</button>
+            <button data-range="month" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-blue-500">Month</button>
+            <button data-range="quarter" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-blue-500">Quarter</button>
+          </div>
+        </div>
+
+        <div class="mt-6 grid grid-cols-6 gap-3" data-bar-chart>
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70">
+              <div class="bar-fill h-14 w-full rounded-full bg-gradient-to-t from-emerald-400 to-blue-500"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Active</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70">
+              <div class="bar-fill h-8 w-full rounded-full bg-gradient-to-t from-amber-400 to-orange-500"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">On Hold</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70">
+              <div class="bar-fill h-16 w-full rounded-full bg-gradient-to-t from-blue-400 to-indigo-500"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">In Transit</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70">
+              <div class="bar-fill h-10 w-full rounded-full bg-gradient-to-t from-rose-400 to-red-500"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Recovery</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70">
+              <div class="bar-fill h-20 w-full rounded-full bg-gradient-to-t from-teal-400 to-cyan-500"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Ready</span>
+          </div>
+          <div class="flex flex-col items-center gap-2">
+            <div class="h-28 w-8 rounded-full bg-slate-800/70">
+              <div class="bar-fill h-6 w-full rounded-full bg-gradient-to-t from-slate-500 to-slate-400"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">Write-Off</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Utilization Trend</p>
+            <h3 class="text-lg font-bold text-white">Dynamic Load Curve</h3>
+          </div>
+          <button id="trend-toggle" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 hover:border-blue-500">Refresh</button>
+        </div>
+
+        <div class="mt-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>Low</span>
+            <span>High</span>
+          </div>
+          <svg viewBox="0 0 260 120" class="mt-3 h-32 w-full">
+            <defs>
+              <linearGradient id="trend-gradient" x1="0" x2="1" y1="0" y2="0">
+                <stop offset="0%" stop-color="#38bdf8" />
+                <stop offset="50%" stop-color="#818cf8" />
+                <stop offset="100%" stop-color="#22c55e" />
+              </linearGradient>
+            </defs>
+            <polyline
+              id="trend-line"
+              points="0,90 40,70 80,80 120,60 160,65 200,45 260,35"
+              fill="none"
+              stroke="url(#trend-gradient)"
+              stroke-width="6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <circle class="trend-dot" cx="0" cy="90" r="4" fill="#38bdf8" />
+            <circle class="trend-dot" cx="40" cy="70" r="4" fill="#38bdf8" />
+            <circle class="trend-dot" cx="80" cy="80" r="4" fill="#38bdf8" />
+            <circle class="trend-dot" cx="120" cy="60" r="4" fill="#818cf8" />
+            <circle class="trend-dot" cx="160" cy="65" r="4" fill="#818cf8" />
+            <circle class="trend-dot" cx="200" cy="45" r="4" fill="#22c55e" />
+            <circle class="trend-dot" cx="260" cy="35" r="4" fill="#22c55e" />
+          </svg>
+          <p class="mt-3 text-xs text-slate-400">
+            Hover insight: active units are trending <span class="text-emerald-300 font-semibold">upward</span> over the last
+            cycle.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid gap-6 lg:grid-cols-3">
+      <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard lg:col-span-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Regional Coverage</p>
+            <h3 class="text-lg font-bold text-white">Top Performance Zones</h3>
+          </div>
+          <span class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Updated 3m ago</span>
+        </div>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <p class="text-xs text-slate-400">Pacific Corridor</p>
+            <p class="mt-2 text-2xl font-black text-white">96%</p>
+            <div class="mt-3 h-2 rounded-full bg-slate-800">
+              <div class="h-2 w-[96%] rounded-full bg-gradient-to-r from-blue-500 to-emerald-400"></div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <p class="text-xs text-slate-400">Midwest Recovery</p>
+            <p class="mt-2 text-2xl font-black text-white">82%</p>
+            <div class="mt-3 h-2 rounded-full bg-slate-800">
+              <div class="h-2 w-[82%] rounded-full bg-gradient-to-r from-indigo-500 to-sky-400"></div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <p class="text-xs text-slate-400">Southwest Utilization</p>
+            <p class="mt-2 text-2xl font-black text-white">74%</p>
+            <div class="mt-3 h-2 rounded-full bg-slate-800">
+              <div class="h-2 w-[74%] rounded-full bg-gradient-to-r from-amber-400 to-orange-500"></div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+            <p class="text-xs text-slate-400">Northeast Reserve</p>
+            <p class="mt-2 text-2xl font-black text-white">69%</p>
+            <div class="mt-3 h-2 rounded-full bg-slate-800">
+              <div class="h-2 w-[69%] rounded-full bg-gradient-to-r from-rose-400 to-pink-500"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-dashboard">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Alerts</p>
+            <h3 class="text-lg font-bold text-white">Priority Actions</h3>
+          </div>
+          <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">12 urgent</span>
+        </div>
+        <ul class="mt-6 space-y-3 text-sm text-slate-200">
+          <li class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+            <p class="font-semibold text-white">GPS Offline Cluster</p>
+            <p class="text-xs text-slate-400">18 units in South TX flagged 6 hours ago.</p>
+          </li>
+          <li class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+            <p class="font-semibold text-white">Recovery Dispatch</p>
+            <p class="text-xs text-slate-400">12 assets require on-site verification.</p>
+          </li>
+          <li class="rounded-2xl border border-slate-800 bg-slate-950/70 p-3">
+            <p class="font-semibold text-white">Utilization Dip</p>
+            <p class="text-xs text-slate-400">Northeast reserve dropped below 70%.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    lucide.createIcons();
+
+    const rangeButtons = document.querySelectorAll('[data-range]');
+    const metrics = {
+      week: { active: '1,284', hold: '92', recovery: '58', utilization: '78%' },
+      month: { active: '4,965', hold: '311', recovery: '142', utilization: '75%' },
+      quarter: { active: '14,228', hold: '882', recovery: '401', utilization: '81%' },
+    };
+    const barSets = {
+      week: [50, 30, 60, 40, 70, 20],
+      month: [60, 45, 55, 50, 65, 25],
+      quarter: [72, 38, 68, 44, 80, 30],
+    };
+    const trendSets = [
+      '0,90 40,70 80,80 120,60 160,65 200,45 260,35',
+      '0,85 40,60 80,75 120,55 160,50 200,40 260,30',
+      '0,95 40,82 80,78 120,68 160,60 200,52 260,44',
+    ];
+    let trendIndex = 0;
+
+    const updateMetrics = (range) => {
+      const set = metrics[range];
+      document.querySelector('[data-metric="active"]').textContent = set.active;
+      document.querySelector('[data-metric="hold"]').textContent = set.hold;
+      document.querySelector('[data-metric="recovery"]').textContent = set.recovery;
+      document.querySelector('[data-metric="utilization"]').textContent = set.utilization;
+
+      const bars = document.querySelectorAll('[data-bar-chart] .bar-fill');
+      bars.forEach((bar, index) => {
+        bar.style.height = `${barSets[range][index]}%`;
+      });
+    };
+
+    rangeButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        rangeButtons.forEach((btn) => {
+          btn.classList.remove('bg-blue-600', 'border-blue-500', 'text-white');
+          btn.classList.add('bg-slate-950/60', 'border-slate-700', 'text-slate-200');
+        });
+        button.classList.add('bg-blue-600', 'border-blue-500', 'text-white');
+        button.classList.remove('bg-slate-950/60', 'border-slate-700', 'text-slate-200');
+        updateMetrics(button.dataset.range);
+      });
+    });
+
+    document.getElementById('trend-toggle').addEventListener('click', () => {
+      trendIndex = (trendIndex + 1) % trendSets.length;
+      document.getElementById('trend-line').setAttribute('points', trendSets[trendIndex]);
+    });
+
+    updateMetrics('week');
+
+    const mobileToggle = document.getElementById('mobile-menu-toggle');
+    const primaryNav = document.getElementById('primary-nav');
+    mobileToggle?.addEventListener('click', () => {
+      const isOpen = primaryNav.classList.toggle('hidden');
+      mobileToggle.setAttribute('aria-expanded', String(!isOpen));
+    });
+  </script>
+</body>
+</html>
