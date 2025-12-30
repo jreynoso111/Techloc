@@ -289,6 +289,14 @@
           <p class="mt-1 text-xs text-slate-400">Each row responds to the active filter set.</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
+          <div class="relative">
+            <button id="column-chooser-toggle" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Columns</button>
+            <div id="column-chooser" class="absolute right-0 z-20 mt-2 hidden w-48 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
+              <div id="column-chooser-options" class="mt-2 grid gap-2"></div>
+            </div>
+          </div>
+          <button id="export-csv" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Export CSV</button>
           <span id="table-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">0 assets</span>
           <div class="flex items-center gap-2 text-xs font-semibold text-slate-200">
             <button id="table-prev" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Prev</button>
@@ -299,25 +307,45 @@
       </div>
       <div class="mt-6 overflow-x-auto">
         <table class="min-w-full text-left text-sm text-slate-200">
-          <thead class="text-[10px] uppercase tracking-[0.3em] text-slate-400">
-            <tr>
-              <th class="px-3 py-2">VIN</th>
-              <th class="px-3 py-2">Plate</th>
-              <th class="px-3 py-2">Status</th>
-              <th class="px-3 py-2">Yard</th>
-              <th class="px-3 py-2">State</th>
-              <th class="px-3 py-2">Unit Type</th>
-              <th class="px-3 py-2">Brand</th>
-              <th class="px-3 py-2">Lien</th>
-              <th class="px-3 py-2">Hold</th>
-              <th class="px-3 py-2">Updated</th>
-            </tr>
-          </thead>
+          <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
           <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
         </table>
       </div>
     </section>
   </main>
+
+  <aside id="row-drawer" class="fixed right-0 top-0 z-40 flex h-full w-80 translate-x-full flex-col gap-4 border-l border-slate-800 bg-slate-950/95 p-6 shadow-2xl transition-transform">
+    <div class="flex items-center justify-between">
+      <h4 class="text-lg font-bold text-white">Vehicle Details</h4>
+      <button id="drawer-close" type="button" class="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs font-semibold text-slate-200">Close</button>
+    </div>
+    <div class="space-y-3 text-sm text-slate-200">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">VIN</p>
+        <p id="drawer-vin" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Status</p>
+        <p id="drawer-status" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Location</p>
+        <p id="drawer-location" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Unit</p>
+        <p id="drawer-unit" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Flags</p>
+        <p id="drawer-flags" class="font-semibold text-white">-</p>
+      </div>
+    </div>
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Timeline</p>
+      <ul id="drawer-timeline" class="mt-2 space-y-2 text-xs text-slate-300"></ul>
+    </div>
+  </aside>
 
   <script>
     lucide.createIcons();
@@ -341,6 +369,8 @@
       table: {
         page: 1,
         perPage: 8,
+        sort: { key: 'updatedAt', direction: 'desc' },
+        columns: {},
       },
       derived: {
         filtered: [],
@@ -395,6 +425,22 @@
       Ready: 'from-teal-400 to-cyan-500',
       'Write-Off': 'from-slate-500 to-slate-400',
     };
+
+    const COLUMN_STORAGE_KEY = 'inventoryControlTableColumns';
+    const TABLE_COLUMNS = [
+      { key: 'vin', label: 'VIN', type: 'string' },
+      { key: 'plate', label: 'Plate', type: 'string' },
+      { key: 'status', label: 'Status', type: 'string' },
+      { key: 'yard', label: 'Yard', type: 'string' },
+      { key: 'state', label: 'State', type: 'string' },
+      { key: 'unitType', label: 'Unit Type', type: 'string' },
+      { key: 'brand', label: 'Brand', type: 'string' },
+      { key: 'lien', label: 'Lien', type: 'boolean' },
+      { key: 'hold', label: 'Hold', type: 'boolean' },
+      { key: 'gpsOffline', label: 'GPS Offline', type: 'boolean' },
+      { key: 'recoveryPriority', label: 'Recovery Priority', type: 'boolean' },
+      { key: 'updatedAt', label: 'Updated', type: 'date' },
+    ];
 
     const formatDate = (value) => {
       if (!value) return '--';
@@ -680,34 +726,74 @@
         .join('');
     };
 
+    const renderTableHead = () => {
+      const head = document.getElementById('inventory-table-head');
+      const visibleColumns = TABLE_COLUMNS.filter((col) => DashboardState.table.columns[col.key]);
+      const sortState = DashboardState.table.sort;
+      const headerCells = visibleColumns
+        .map((column) => {
+          const isSorted = sortState.key === column.key;
+          const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
+          return `
+            <th class="px-3 py-2">
+              <button type="button" data-sort="${column.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400">
+                <span>${column.label}</span>
+                <span class="text-[10px] text-blue-300">${indicator}</span>
+              </button>
+            </th>
+          `;
+        })
+        .join('');
+      head.innerHTML = `<tr>${headerCells}</tr>`;
+    };
+
     const renderTable = () => {
       const tableBody = document.getElementById('inventory-table');
-      const totalRows = DashboardState.derived.filtered.length;
+      const sortedRows = [...DashboardState.derived.filtered].sort((a, b) => {
+        const { key, direction } = DashboardState.table.sort;
+        const column = TABLE_COLUMNS.find((col) => col.key === key);
+        if (!column) return 0;
+        const getValue = (item) => {
+          const value = item[key];
+          if (column.type === 'date') return value ? new Date(value).getTime() : 0;
+          if (column.type === 'boolean') return value ? 1 : 0;
+          return String(value || '').toLowerCase();
+        };
+        const valueA = getValue(a);
+        const valueB = getValue(b);
+        if (valueA < valueB) return direction === 'asc' ? -1 : 1;
+        if (valueA > valueB) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      const totalRows = sortedRows.length;
       const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
       const currentPage = Math.min(DashboardState.table.page, totalPages);
       DashboardState.table.page = currentPage;
       const startIndex = (currentPage - 1) * DashboardState.table.perPage;
-      const pageItems = DashboardState.derived.filtered.slice(startIndex, startIndex + DashboardState.table.perPage);
+      const pageItems = sortedRows.slice(startIndex, startIndex + DashboardState.table.perPage);
+      DashboardState.table.pageItems = pageItems;
 
+      const visibleColumns = TABLE_COLUMNS.filter((col) => DashboardState.table.columns[col.key]);
       const rows = pageItems
-        .map(
-          (item) => `
-            <tr class="text-xs">
-              <td class="px-3 py-2 font-semibold text-white">${item.vin}</td>
-              <td class="px-3 py-2">${item.plate}</td>
-              <td class="px-3 py-2">${item.status}</td>
-              <td class="px-3 py-2">${item.yard}</td>
-              <td class="px-3 py-2">${item.state}</td>
-              <td class="px-3 py-2">${item.unitType}</td>
-              <td class="px-3 py-2">${item.brand}</td>
-              <td class="px-3 py-2">${item.lien ? 'Yes' : 'No'}</td>
-              <td class="px-3 py-2">${item.hold ? 'Yes' : 'No'}</td>
-              <td class="px-3 py-2">${formatDate(item.date)}</td>
-            </tr>
-          `
-        )
+        .map((item) => {
+          const cells = visibleColumns
+            .map((column) => {
+              let value = item[column.key];
+              if (column.type === 'boolean') {
+                value = value ? 'Yes' : 'No';
+              } else if (column.type === 'date') {
+                value = value ? formatDate(value) : '--';
+              }
+              return `<td class="px-3 py-2">${value || '--'}</td>`;
+            })
+            .join('');
+          return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
+        })
         .join('');
-      tableBody.innerHTML = rows || '<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="10">No assets match the current filters.</td></tr>';
+      tableBody.innerHTML =
+        rows ||
+        `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${visibleColumns.length}">No assets match the current filters.</td></tr>`;
       document.getElementById('table-summary').textContent = `${totalRows} assets`;
       document.getElementById('table-page').textContent = `Page ${currentPage} of ${totalPages}`;
       document.getElementById('table-prev').disabled = currentPage <= 1;
@@ -720,6 +806,7 @@
       renderStatusBars();
       renderTrend();
       renderRegionalCoverage();
+      renderTableHead();
       renderTable();
       renderActiveFilters();
       document.getElementById('status-summary').textContent = `${DashboardState.derived.filtered.length} units in view`;
@@ -860,6 +947,16 @@
         brushing = false;
         brushRect.setAttribute('width', '0');
       });
+    };
+
+    const initializeTablePreferences = () => {
+      const stored = localStorage.getItem(COLUMN_STORAGE_KEY);
+      const defaults = TABLE_COLUMNS.reduce((acc, column) => {
+        acc[column.key] = true;
+        return acc;
+      }, {});
+      DashboardState.table.columns = stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+      renderColumnChooser();
     };
 
     const setConnectionStatus = (status) => {
@@ -1060,9 +1157,127 @@
         DashboardState.table.page += 1;
         renderDashboard();
       });
+
+      document.getElementById('inventory-table-head').addEventListener('click', (event) => {
+        const button = event.target.closest('[data-sort]');
+        if (!button) return;
+        const key = button.dataset.sort;
+        if (DashboardState.table.sort.key === key) {
+          DashboardState.table.sort.direction = DashboardState.table.sort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          DashboardState.table.sort.key = key;
+          DashboardState.table.sort.direction = 'asc';
+        }
+        renderDashboard();
+      });
+
+      document.getElementById('inventory-table').addEventListener('click', (event) => {
+        const row = event.target.closest('[data-row-key]');
+        if (!row) return;
+        const record = DashboardState.vehiclesRaw.get(row.dataset.rowKey);
+        if (!record) return;
+        openDrawer(record);
+      });
+
+      document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+
+      document.getElementById('column-chooser-toggle').addEventListener('click', () => {
+        document.getElementById('column-chooser').classList.toggle('hidden');
+      });
+
+      document.addEventListener('click', (event) => {
+        const chooser = document.getElementById('column-chooser');
+        const toggle = document.getElementById('column-chooser-toggle');
+        if (chooser.classList.contains('hidden')) return;
+        if (chooser.contains(event.target) || toggle.contains(event.target)) return;
+        chooser.classList.add('hidden');
+      });
+
+      document.getElementById('column-chooser-options').addEventListener('change', (event) => {
+        const input = event.target;
+        if (!input.matches('input[type="checkbox"]')) return;
+        DashboardState.table.columns[input.value] = input.checked;
+        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(DashboardState.table.columns));
+        renderDashboard();
+      });
+
+      document.getElementById('export-csv').addEventListener('click', exportCsv);
+    };
+
+    const renderColumnChooser = () => {
+      const container = document.getElementById('column-chooser-options');
+      container.innerHTML = TABLE_COLUMNS.map(
+        (column) => `
+          <label class="flex items-center gap-2 text-xs">
+            <input type="checkbox" value="${column.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${
+          DashboardState.table.columns[column.key] ? 'checked' : ''
+        } />
+            <span>${column.label}</span>
+          </label>
+        `
+      ).join('');
+    };
+
+    const openDrawer = (record) => {
+      document.getElementById('drawer-vin').textContent = record.vin || '--';
+      document.getElementById('drawer-status').textContent = record.status || '--';
+      document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
+      document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
+      const flags = [
+        record.gpsOffline ? 'GPS Offline' : null,
+        record.hold ? 'Hold' : null,
+        record.lien ? 'Lien' : null,
+        record.recoveryPriority ? 'Recovery Priority' : null,
+      ]
+        .filter(Boolean)
+        .join(' • ');
+      document.getElementById('drawer-flags').textContent = flags || 'None';
+      const timeline = [
+        { label: 'Created', value: record.createdAt || record.date },
+        { label: 'Last updated', value: record.updatedAt || record.date },
+      ];
+      document.getElementById('drawer-timeline').innerHTML = timeline
+        .map(
+          (entry) => `
+            <li class="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+              <span>${entry.label}</span>
+              <span class="text-slate-200">${entry.value ? formatDate(entry.value) : '--'}</span>
+            </li>
+          `
+        )
+        .join('');
+      document.getElementById('row-drawer').classList.remove('translate-x-full');
+    };
+
+    const closeDrawer = () => {
+      document.getElementById('row-drawer').classList.add('translate-x-full');
+    };
+
+    const exportCsv = () => {
+      const visibleColumns = TABLE_COLUMNS.filter((col) => DashboardState.table.columns[col.key]);
+      const rows = DashboardState.derived.filtered.map((item) =>
+        visibleColumns.map((column) => {
+          let value = item[column.key];
+          if (column.type === 'boolean') value = value ? 'Yes' : 'No';
+          if (column.type === 'date') value = value ? formatDate(value) : '';
+          return `"${String(value ?? '').replace(/\"/g, '""')}"`;
+        })
+      );
+      const header = visibleColumns.map((col) => `"${col.label}"`).join(',');
+      const csv = [header, ...rows.map((row) => row.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'inventory-export.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     };
 
     setVehiclesFromArray(inventoryData);
+    initializeTablePreferences();
     setupFilters();
     bindFilterEvents();
     bindChartInteractions();
