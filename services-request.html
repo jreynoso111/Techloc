@@ -337,9 +337,28 @@
 
     <!-- Calendar -->
     <section id="calendarView" class="hidden rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-xl shadow-blue-900/30">
-      <div class="space-y-2">
-        <p class="text-sm font-bold text-white">Calendar</p>
-        <p class="text-sm text-slate-300">Request, work, or shipping dates summarized for quick planning.</p>
+      <div class="space-y-3">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div class="space-y-1">
+            <p class="text-sm font-bold text-white">Calendar</p>
+            <p class="text-sm text-slate-300">Request, work, or shipping dates summarized for quick planning.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="calendarPrevBtn" type="button" class="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800/60" title="Previous month">
+              ←
+            </button>
+            <button id="calendarTodayBtn" type="button" class="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800/60">
+              Today
+            </button>
+            <button id="calendarNextBtn" type="button" class="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800/60" title="Next month">
+              →
+            </button>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <p id="calendarMonthLabel" class="text-sm font-semibold text-slate-200">—</p>
+          <p id="calendarMeta" class="text-xs text-slate-400">—</p>
+        </div>
         <div id="calendarList" class="space-y-3"></div>
       </div>
     </section>
@@ -623,6 +642,8 @@
     function endOfDay(ts) { const d = new Date(ts); d.setHours(23,59,59,999); return d.getTime(); }
     function startOfMonth(ts) { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0).getTime(); }
     function endOfMonth(ts) { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999).getTime(); }
+    function getMonthStartDate(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+    function shiftMonth(d, offset) { return new Date(d.getFullYear(), d.getMonth() + offset, 1); }
 
     function getRowDateTs(row, mode) {
       const req = row['request date'] || row.request_date;
@@ -668,6 +689,7 @@
       kbRange: 'all',
       kbFrom: null,
       kbTo: null,
+      calendarMonth: null,
 
       client: null,
       loading: false,
@@ -702,6 +724,11 @@
 
     const kanbanColumns = document.getElementById('kanbanColumns');
     const calendarList = document.getElementById('calendarList');
+    const calendarPrevBtn = document.getElementById('calendarPrevBtn');
+    const calendarNextBtn = document.getElementById('calendarNextBtn');
+    const calendarTodayBtn = document.getElementById('calendarTodayBtn');
+    const calendarMonthLabel = document.getElementById('calendarMonthLabel');
+    const calendarMeta = document.getElementById('calendarMeta');
 
     const tableScrollWrap = document.getElementById('tableScrollWrap');
     const dataTable = document.getElementById('dataTable');
@@ -1580,6 +1607,10 @@
     }
 
     function renderCalendarView() {
+      const monthAnchor = state.calendarMonth ? new Date(state.calendarMonth) : new Date();
+      const monthStart = getMonthStartDate(monthAnchor);
+      const monthEnd = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
+
       const events = state.filteredRows
         .map(r => {
           const rawDate = r.workdate || r['work date'];
@@ -1587,16 +1618,8 @@
           return { row: r, ts, key: rawDate ? new Date(rawDate).toISOString().slice(0, 10) : null };
         })
         .filter(e => e.ts !== null && e.key)
+        .filter(e => e.ts >= monthStart.getTime() && e.ts <= monthEnd.getTime())
         .sort((a, b) => a.ts - b.ts);
-
-      if (!events.length) {
-        calendarList.innerHTML = '<p class="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-400">No dated requests match the current filters.</p>';
-        return;
-      }
-
-      const monthAnchor = new Date(events[0].ts);
-      const monthStart = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth(), 1);
-      const monthEnd = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0);
 
       const start = new Date(monthStart);
       start.setDate(start.getDate() - start.getDay());
@@ -1644,17 +1667,10 @@
         `);
       }
 
-      const header = `
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p class="text-sm text-slate-200 font-bold">
-            Work dates for ${monthAnchor.toLocaleString('default', { month: 'long' })} ${monthAnchor.getFullYear()}
-          </p>
-          <p class="text-xs text-slate-400">Grouped by work date (Sun–Sat)</p>
-        </div>
-      `;
+      calendarMonthLabel.textContent = `${monthAnchor.toLocaleString('default', { month: 'long' })} ${monthAnchor.getFullYear()}`;
+      calendarMeta.textContent = events.length ? `${events.length} items in month` : 'No dated requests in this month.';
 
       calendarList.innerHTML = `
-        ${header}
         <div class="overflow-x-auto">
           <div class="min-w-[980px] grid grid-cols-7 gap-2">
             ${cells.join('')}
@@ -2425,6 +2441,20 @@
 
     document.addEventListener('click', () => closeHeaderMenus());
 
+    // Calendar navigation
+    calendarPrevBtn.addEventListener('click', () => {
+      state.calendarMonth = shiftMonth(state.calendarMonth || new Date(), -1);
+      renderCalendarView();
+    });
+    calendarNextBtn.addEventListener('click', () => {
+      state.calendarMonth = shiftMonth(state.calendarMonth || new Date(), 1);
+      renderCalendarView();
+    });
+    calendarTodayBtn.addEventListener('click', () => {
+      state.calendarMonth = getMonthStartDate(new Date());
+      renderCalendarView();
+    });
+
     // Table inline editing
     tableBody.addEventListener('dblclick', (e) => {
       const cell = e.target.closest('td[data-row-id][data-col-key]');
@@ -2536,6 +2566,8 @@
     document.addEventListener('DOMContentLoaded', async () => {
       createConstellationBackground();
       lucide.createIcons();
+
+      state.calendarMonth = getMonthStartDate(new Date());
 
       state.client = supabaseClient;
       loadPrefs();
