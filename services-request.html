@@ -465,7 +465,7 @@
           </label>
 
           <label class="col-span-12 md:col-span-4 space-y-1">
-            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Category</span>
+            <span class="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">Service Category</span>
             <select id="categoryInput"
               class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
               <option value="">Loading…</option>
@@ -518,8 +518,8 @@
             <select id="confirmedInput"
               class="w-full rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600">
               <option value="">Pending</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
+              <option value="true">Yes</option>
+              <option value="false">No</option>
             </select>
           </label>
 
@@ -636,7 +636,7 @@
 
     const BASE_COLUMN_DEFS = [
       { key: 'company_name', label: 'Company Name', filter: 'text', defaultWidth: 180 },
-      { key: 'phones', label: 'Phones', filter: 'text', defaultWidth: 150, virtual: true },
+      { key: 'company phone', label: 'Company Phone', filter: 'text', defaultWidth: 150 },
       { key: 'doc', label: 'Doc', filter: 'text', defaultWidth: 120 },
       { key: 'unittype', label: 'Unit Type', filter: 'text', defaultWidth: 120 },
       { key: 'brand', label: 'Brand', filter: 'text', defaultWidth: 120 },
@@ -644,18 +644,20 @@
       { key: 'model year', label: 'Model Year', filter: 'text', defaultWidth: 100 },
       { key: 'shortvin', label: 'Short VIN', filter: 'text', defaultWidth: 100 },
       { key: 'status', label: 'Status', filter: 'select', options: ['', 'Open', 'In Progress', 'Waiting', 'Closed'], defaultWidth: 120 },
-      { key: 'category', label: 'Category', filter: 'text', defaultWidth: 140 },
-      { key: 'servicecategory', label: 'Category', filter: 'text', defaultWidth: 140 }, /* in case you use servicecategory column */
       { key: 'request date', label: 'Request Date', filter: 'text', isDate: true, defaultWidth: 120 },
       { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true, defaultWidth: 120 },
       { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true, defaultWidth: 130 },
       { key: 'quote', label: 'Quote', filter: 'text', isMoney: true, defaultWidth: 120 },
       { key: 'poc name', label: 'POC Name', filter: 'text', defaultWidth: 140 },
-      { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'Yes', 'No'], defaultWidth: 110 },
+      { key: 'poc phone', label: 'POC Phone', filter: 'text', defaultWidth: 140 },
+      { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'true', 'false'], isBoolean: true, defaultWidth: 110 },
       { key: 'state', label: 'State', filter: 'text', defaultWidth: 70 },
       { key: 'city', label: 'City', filter: 'text', defaultWidth: 120 },
       { key: 'zip', label: 'ZIP', filter: 'text', defaultWidth: 80 },
       { key: 'address', label: 'Address', filter: 'text', defaultWidth: 320, wide: true },
+      { key: 'Service_category', label: 'Service Category', filter: 'text', defaultWidth: 150 },
+      { key: 'Notes', label: 'Notes', filter: 'text', defaultWidth: 220, wide: true },
+      { key: 'POC email', label: 'POC Email', filter: 'text', defaultWidth: 170 },
     ];
 
     const state = {
@@ -801,13 +803,10 @@
 
       const shortvin = raw?.shortvin ?? raw?.short_vin ?? null;
 
-      const category = raw?.category ?? raw?.servicecategory ?? raw?.service_category ?? null;
-
       return {
         ...raw,
         status,
-        category,
-
+        Service_category: raw?.Service_category ?? raw?.service_category ?? raw?.servicecategory ?? null,
         'company phone': companyPhone,
         unittype: raw?.unittype ?? raw?.unit_type ?? null,
         'model year': raw?.['model year'] ?? raw?.model_year ?? null,
@@ -817,7 +816,6 @@
         'shipping date': raw?.['shipping date'] ?? raw?.shipping_date ?? null,
         'poc name': raw?.['poc name'] ?? raw?.poc_name ?? null,
         'poc phone': pocPhone,
-        phones: companyPhone || null,
       };
     }
 
@@ -915,7 +913,6 @@
       for (const k of state.dbColumns) {
         if (!byKey.has(k)) byKey.set(k, { key: k, label: k, filter: 'text', defaultWidth: 160, extra: true });
       }
-      // If both category & servicecategory exist, show only one label in list (avoid duplicates)
       return Array.from(byKey.values());
     }
 
@@ -1367,23 +1364,16 @@
     }
 
     function getPayloadKeyFor(defKey) {
-      const map = {
-        shortvin: 'short_vin',
-        unittype: 'unit_type',
-        'model year': 'model_year',
-        'company phone': 'company_phone',
-        'request date': 'request_date',
-        workdate: 'work_date',
-        'work date': 'work_date',
-        'shipping date': 'shipping_date',
-        'poc name': 'poc_name',
-        'poc phone': 'poc_phone'
-      };
-      return map[defKey] || defKey.replace(/\s+/g, '_');
+      if (state.dbColumns?.includes(defKey)) return defKey;
+      return defKey;
     }
 
     function getInputValueForDef(def, value) {
       if (def.isDate) return value ? String(value).slice(0, 10) : '';
+      if (def.isBoolean) {
+        if (value === null || value === undefined || value === '') return '';
+        return value ? 'true' : 'false';
+      }
       if (value === null || value === undefined) return '';
       return String(value);
     }
@@ -1396,6 +1386,10 @@
         const n = Number(v);
         return isNaN(n) ? v : n;
       }
+      if (def.isBoolean) {
+        if (v === '') return null;
+        return v === true || v === 'true';
+      }
       if (def.filter === 'select') return v || null;
       if (v === '') return null;
       return v;
@@ -1404,10 +1398,6 @@
     async function updateCellValue(rowId, defKey, value) {
       const payloadKey = getPayloadKeyFor(defKey);
       const payloadRaw = { id: rowId, [payloadKey]: value };
-      if (defKey === 'category' || defKey === 'servicecategory') {
-        payloadRaw.category = value;
-        payloadRaw.servicecategory = value;
-      }
       const payload = filterPayloadByKnownColumns(payloadRaw);
       if (Object.keys(payload).length <= 1) return;
       const updated = await upsertRequest(payload);
@@ -1555,7 +1545,7 @@
 
               <p class="mt-2 text-sm font-black text-white">${escapeHtml(r.company_name || '—')}</p>
               <p class="text-sm text-slate-300">${escapeHtml(r.unittype || '')} ${escapeHtml(r.brand || '')} ${escapeHtml(r.model || '')}</p>
-              <p class="text-xs text-slate-400">VIN: ${escapeHtml(r.shortvin || '—')} • Cat: ${escapeHtml(r.category || '—')}</p>
+              <p class="text-xs text-slate-400">VIN: ${escapeHtml(r.shortvin || '—')} • Cat: ${escapeHtml(r['Service_category'] || '—')}</p>
               <p class="mt-1 text-xs text-slate-400">POC: ${escapeHtml(r['poc name'] || '—')}</p>
               ${status === 'Other' && unknownKeys.length ? `<p class="mt-2 text-[11px] text-slate-500">Other includes: ${escapeHtml(unknownKeys.join(', '))}</p>` : ''}
             </div>
@@ -1636,7 +1626,7 @@
                 ${statusPill(row.status)}
               </div>
               <p class="text-xs text-slate-300 truncate">${escapeHtml(row.unittype || '')} ${escapeHtml(row.brand || '')} ${escapeHtml(row.model || '')}</p>
-              <p class="text-[11px] text-slate-400 truncate">VIN: ${escapeHtml(row.shortvin || '—')} • Cat: ${escapeHtml(row.category || '—')}</p>
+              <p class="text-[11px] text-slate-400 truncate">VIN: ${escapeHtml(row.shortvin || '—')} • Cat: ${escapeHtml(row['Service_category'] || '—')}</p>
             </div>
           `;
         }).join('');
@@ -1782,7 +1772,7 @@
             <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
               <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Doc: ${escapeHtml(r.doc || '—')}</span>
               <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">VIN: ${escapeHtml(r.shortvin || '—')}</span>
-              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Cat: ${escapeHtml(r.category || '—')}</span>
+              <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">Cat: ${escapeHtml(r['Service_category'] || '—')}</span>
               <span class="rounded-full border border-slate-800 bg-slate-950/40 px-3 py-1">POC: ${escapeHtml(r['poc name'] || '—')}</span>
             </div>
           </div>
@@ -1926,7 +1916,7 @@
 
     function buildEmptyRequestPayload() {
       const payload = {};
-      const preferred = ['status', 'request_date', 'work_date', 'shipping_date', 'company_name'];
+      const preferred = ['status', 'request date', 'workdate', 'shipping date', 'company_name'];
       const cols = state.dbColumns || [];
       if (!cols.length) {
         payload.status = null;
@@ -2070,7 +2060,7 @@
     function renderCategoriesSelect(selected = '') {
       const opts = [''].concat(state.categories || []);
       categoryInput.innerHTML = opts.map(v => {
-        const label = v === '' ? '— Select category —' : v;
+        const label = v === '' ? '— Select service category —' : v;
         const sel = String(v) === String(selected) ? 'selected' : '';
         return `<option value="${escapeAttr(v)}" ${sel}>${escapeHtml(label)}</option>`;
       }).join('');
@@ -2175,7 +2165,7 @@
       // Status + request details
       statusInput.value = canonicalizeStatus(item?.status) || 'Open';
       quoteInput.value = item?.quote ?? '';
-      categoryInput.value = item?.category ?? item?.servicecategory ?? '';
+      categoryInput.value = item?.['Service_category'] ?? item?.service_category ?? item?.servicecategory ?? '';
 
       requestDateInput.value = item?.['request date'] ? String(item['request date']).slice(0, 10) : (item?.request_date ? String(item.request_date).slice(0,10) : '');
       workDateInput.value = item?.workdate ? String(item.workdate).slice(0, 10) : (item?.work_date ? String(item.work_date).slice(0,10) : '');
@@ -2184,7 +2174,7 @@
       // Client contact (POC)
       pocNameInput.value = item?.['poc name'] || item?.poc_name || '';
       pocPhoneInput.value = item?.['poc phone'] || item?.poc_phone || '';
-      confirmedInput.value = item?.confirmed ?? '';
+      confirmedInput.value = item?.confirmed === true ? 'true' : (item?.confirmed === false ? 'false' : '');
 
       // Destination
       stateInput.value = item?.state || '';
@@ -2234,12 +2224,12 @@
     function filterPayloadByKnownColumns(payload) {
       const cols = state.dbColumns || [];
       if (!cols.length) {
-        // When table is empty and we don't know columns, use safer snake_case keys only.
+        // When table is empty and we don't know columns, use safer known keys only.
         const safe = {};
         const allow = new Set([
-          'id','company_name','company_phone','doc','unit_type','brand','model','model_year','short_vin',
-          'status','quote','request_date','work_date','shipping_date','poc_name','poc_phone','confirmed',
-          'state','city','zip','address','category','servicecategory'
+          'id','company_name','company phone','doc','unittype','brand','model','model year','shortvin',
+          'status','quote','request date','workdate','shipping date','poc name','poc phone','confirmed',
+          'state','city','zip','address','Service_category','Notes','POC email'
         ]);
         for (const [k,v] of Object.entries(payload)) if (allow.has(k)) safe[k] = v;
         return safe;
@@ -2495,32 +2485,33 @@
         const quoteVal = quoteRaw === '' ? null : (isNaN(Number(quoteRaw)) ? quoteRaw : Number(quoteRaw));
 
         const catVal = categoryInput.value.trim() || null;
+        const confirmedVal = confirmedInput.value === '' ? null : confirmedInput.value === 'true';
 
-        // Always store in snake_case keys (then filter by known columns)
+        // Always store in known column keys (then filter by known columns)
         const payloadRaw = {
           id: requestId.value || undefined,
 
           company_name: companyNameInput.value.trim() || null,
-          company_phone: companyPhoneInput.value.trim() || null,
+          'company phone': companyPhoneInput.value.trim() || null,
           doc: docInput.value.trim() || null,
 
-          short_vin: shortVinInput.value.trim() || null,
-          unit_type: unitTypeInput.value.trim() || null,
+          shortvin: shortVinInput.value.trim() || null,
+          unittype: unitTypeInput.value.trim() || null,
           brand: brandInput.value.trim() || null,
           model: modelInput.value.trim() || null,
-          model_year: modelYearInput.value ? Number(modelYearInput.value) : null,
+          'model year': modelYearInput.value ? Number(modelYearInput.value) : null,
 
           status: statusInput.value,
           quote: quoteVal,
 
-          request_date: requestDateInput.value || null,
-          work_date: workDateInput.value || null,
-          shipping_date: shippingDateInput.value || null,
+          'request date': requestDateInput.value || null,
+          workdate: workDateInput.value || null,
+          'shipping date': shippingDateInput.value || null,
 
           // Client contact
-          poc_name: pocNameInput.value.trim() || null,
-          poc_phone: pocPhoneInput.value.trim() || null,
-          confirmed: confirmedInput.value || null,
+          'poc name': pocNameInput.value.trim() || null,
+          'poc phone': pocPhoneInput.value.trim() || null,
+          confirmed: confirmedVal,
 
           // Destination
           state: stateInput.value.trim() || null,
@@ -2528,9 +2519,7 @@
           zip: zipInput.value.trim() || null,
           address: addressInput.value.trim() || null,
 
-          // Category (support both possible column names)
-          category: catVal,
-          servicecategory: catVal,
+          Service_category: catVal,
         };
 
         const payload = filterPayloadByKnownColumns(payloadRaw);
