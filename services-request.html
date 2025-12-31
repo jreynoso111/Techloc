@@ -558,6 +558,8 @@
     import { supabase as supabaseClient } from './assets/scripts/supabaseClient.js';
 
     const TABLE_NAME = "services_request";
+    const CONFIG_TABLE = "user_table_configs";
+    const CONFIG_KEY = "services_request";
     const VEHICLES_TABLE = "vehicles";
     const CATEGORIES_TABLE = "services_categories";
     const SERVICES_TABLE = "services";
@@ -805,29 +807,73 @@
       };
     }
 
+    let savePrefsTimer = null;
+
+    function applyPrefs(prefs) {
+      if (prefs && typeof prefs === 'object') {
+        state.colOrder = Array.isArray(prefs.colOrder) ? prefs.colOrder : state.colOrder;
+        state.colVisible = prefs.colVisible && typeof prefs.colVisible === 'object' ? prefs.colVisible : state.colVisible;
+        state.colWidths = prefs.colWidths && typeof prefs.colWidths === 'object' ? prefs.colWidths : state.colWidths;
+        state.sortKey = prefs.sortKey ?? state.sortKey;
+        state.sortDir = prefs.sortDir ?? state.sortDir;
+        state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : state.colFilters;
+
+        state.kbDateField = prefs.kbDateField ?? state.kbDateField;
+        state.kbRange = prefs.kbRange ?? state.kbRange;
+        state.kbFrom = prefs.kbFrom ?? state.kbFrom;
+        state.kbTo = prefs.kbTo ?? state.kbTo;
+
+        if (prefs.ganttScale) {
+          try { ganttScale.value = prefs.ganttScale; } catch {}
+        }
+      }
+    }
+
     function loadPrefs() {
       try {
         const raw = localStorage.getItem(LS_KEY);
         if (!raw) return;
         const prefs = JSON.parse(raw);
-        if (prefs && typeof prefs === 'object') {
-          state.colOrder = Array.isArray(prefs.colOrder) ? prefs.colOrder : [];
-          state.colVisible = prefs.colVisible && typeof prefs.colVisible === 'object' ? prefs.colVisible : {};
-          state.colWidths = prefs.colWidths && typeof prefs.colWidths === 'object' ? prefs.colWidths : {};
-          state.sortKey = prefs.sortKey ?? null;
-          state.sortDir = prefs.sortDir ?? 'asc';
-          state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : {};
-
-          state.kbDateField = prefs.kbDateField ?? 'auto';
-          state.kbRange = prefs.kbRange ?? 'all';
-          state.kbFrom = prefs.kbFrom ?? null;
-          state.kbTo = prefs.kbTo ?? null;
-
-          if (prefs.ganttScale) {
-            try { ganttScale.value = prefs.ganttScale; } catch {}
-          }
-        }
+        applyPrefs(prefs);
       } catch {}
+    }
+
+    async function loadPrefsFromDb() {
+      try {
+        const { data } = await state.client.auth.getSession();
+        const session = data?.session;
+        if (!session?.user?.id) return;
+        const { data: prefsRow, error } = await state.client
+          .from(CONFIG_TABLE)
+          .select('config')
+          .eq('user_id', session.user.id)
+          .eq('table_key', CONFIG_KEY)
+          .maybeSingle();
+        if (error || !prefsRow?.config) return;
+        applyPrefs(prefsRow.config);
+      } catch (err) {
+        console.warn('Prefs load error:', err);
+      }
+    }
+
+    function scheduleSavePrefsToDb(prefs) {
+      if (savePrefsTimer) window.clearTimeout(savePrefsTimer);
+      savePrefsTimer = window.setTimeout(async () => {
+        try {
+          const { data } = await state.client.auth.getSession();
+          const session = data?.session;
+          if (!session?.user?.id) return;
+          await state.client
+            .from(CONFIG_TABLE)
+            .upsert({
+              user_id: session.user.id,
+              table_key: CONFIG_KEY,
+              config: prefs
+            }, { onConflict: 'user_id,table_key' });
+        } catch (err) {
+          console.warn('Prefs save error:', err);
+        }
+      }, 500);
     }
 
     function savePrefs() {
@@ -847,6 +893,7 @@
         ganttScale: ganttScale?.value || 'week'
       };
       try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch {}
+      scheduleSavePrefsToDb(prefs);
     }
 
     function getAllColumnDefs() {
@@ -1122,6 +1169,24 @@
       const willOpen = menu.classList.contains('hidden');
       menu.classList.toggle('hidden', !willOpen);
       openHeaderMenuKey = willOpen ? key : null;
+      if (willOpen) positionHeaderMenu(menu);
+    }
+
+    function positionHeaderMenu(menu) {
+      menu.style.transform = '';
+      menu.style.left = '';
+      menu.style.right = '8px';
+      requestAnimationFrame(() => {
+        const menuRect = menu.getBoundingClientRect();
+        const wrapRect = tableScrollWrap.getBoundingClientRect();
+        let shift = 0;
+        if (menuRect.left < wrapRect.left + 8) {
+          shift = (wrapRect.left + 8) - menuRect.left;
+        } else if (menuRect.right > wrapRect.right - 8) {
+          shift = (wrapRect.right - 8) - menuRect.right;
+        }
+        if (shift !== 0) menu.style.transform = `translateX(${shift}px)`;
+      });
     }
 
     function enableHeaderDrag() {
@@ -1130,6 +1195,10 @@
 
       ths.forEach(th => {
         th.addEventListener('dragstart', (e) => {
+          if (e.target.closest('.no-drag')) {
+            e.preventDefault();
+            return;
+          }
           dragKey = th.dataset.colKey;
           th.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
@@ -1183,7 +1252,7 @@
         state.colWidths[activeKey] = newW;
 
         const idx = visibleDefs.findIndex(d => d.key === activeKey);
-        const colIdx = idx + 1;
+        const colIdx = idx;
         if (idx >= 0 && colGroup.children[colIdx]) {
           colGroup.children[colIdx].style.width = `${newW}px`;
           syncTopScrollbarWidth();
@@ -2358,6 +2427,7 @@
 
       state.client = supabaseClient;
       loadPrefs();
+      await loadPrefsFromDb();
       wireScrollSync();
 
       renderKanbanFilterUI();
