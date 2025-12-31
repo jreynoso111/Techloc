@@ -83,10 +83,19 @@
     .header-menu button { text-align: left; }
     .editable-cell { cursor: cell; }
     .cell-editing { background: rgba(30,41,59,.35); }
-    th.header-compact .header-controls {
+    .header-controls {
+      display: flex;
       flex-direction: column;
+      gap: 4px;
       align-items: flex-start;
     }
+    .header-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    th.header-compact .header-actions { gap: 4px; }
 
     /* --- Gantt --- */
     .gantt-track {
@@ -1131,18 +1140,25 @@
           <th class="relative px-3 py-2 align-top"
               draggable="true"
               data-col-key="${escapeAttr(d.key)}">
-            <div class="header-controls flex items-start justify-between gap-2">
-              <div class="flex items-start gap-1">
-                <span class="table-header-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">${escapeHtml(d.label || d.key)}</span>
-                <i data-lucide="${icon}" class="mt-0.5 h-3 w-3 ${isActive ? 'text-blue-300' : 'text-slate-600'}"></i>
+            <div class="header-controls">
+              <span class="table-header-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">${escapeHtml(d.label || d.key)}</span>
+              <div class="header-actions">
+                <button
+                  type="button"
+                  class="header-sort-btn no-drag inline-flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-300 hover:text-white hover:bg-slate-900"
+                  data-sort-toggle="${escapeAttr(d.key)}"
+                  title="Toggle sort">
+                  <i data-lucide="${icon}" class="h-3 w-3 ${isActive ? 'text-blue-300' : 'text-slate-600'}"></i>
+                  Sort
+                </button>
+                <button
+                  type="button"
+                  class="header-menu-btn no-drag rounded-lg border border-slate-800 bg-slate-950/60 p-1 text-slate-300 hover:text-white hover:bg-slate-900"
+                  data-header-menu-btn="${escapeAttr(d.key)}"
+                  title="Filter & sort">
+                  <i data-lucide="sliders-horizontal" class="h-3 w-3"></i>
+                </button>
               </div>
-              <button
-                type="button"
-                class="header-menu-btn no-drag rounded-lg border border-slate-800 bg-slate-950/60 p-1 text-slate-300 hover:text-white hover:bg-slate-900"
-                data-header-menu-btn="${escapeAttr(d.key)}"
-                title="Filter & sort">
-                <i data-lucide="sliders-horizontal" class="h-3 w-3"></i>
-              </button>
             </div>
             <div class="header-menu hidden" data-menu-for="${escapeAttr(d.key)}">
               <div class="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Filter</div>
@@ -2343,6 +2359,24 @@
       if (menuBtn) {
         e.stopPropagation();
         toggleHeaderMenu(menuBtn.dataset.headerMenuBtn);
+        return;
+      }
+
+      const sortToggle = e.target.closest('[data-sort-toggle]');
+      if (sortToggle) {
+        e.stopPropagation();
+        const key = sortToggle.dataset.sortToggle;
+        if (state.sortKey !== key) {
+          state.sortKey = key;
+          state.sortDir = 'asc';
+        } else if (state.sortDir === 'asc') {
+          state.sortDir = 'desc';
+        } else {
+          state.sortKey = null;
+          state.sortDir = 'asc';
+        }
+        savePrefs();
+        render();
         return;
       }
 
