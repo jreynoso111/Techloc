@@ -60,6 +60,33 @@
     }
 
     .no-drag { -webkit-user-drag: none; user-drag: none; }
+    .table-header-label {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: normal;
+      line-height: 1.1;
+    }
+    .header-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 8px;
+      width: 220px;
+      background: rgba(2,6,23,.95);
+      border: 1px solid rgba(30,41,59,.8);
+      border-radius: 14px;
+      padding: 10px;
+      z-index: 40;
+      box-shadow: 0 18px 40px rgba(2,6,23,.6);
+    }
+    .header-menu button { text-align: left; }
+    .editable-cell { cursor: cell; }
+    .cell-editing { background: rgba(30,41,59,.35); }
+    th.header-compact .header-controls {
+      flex-direction: column;
+      align-items: flex-start;
+    }
 
     /* --- Gantt --- */
     .gantt-track {
@@ -231,11 +258,10 @@
       </div>
 
       <div id="tableScrollWrap" class="overflow-auto px-4 pb-4">
-        <table id="dataTable" class="min-w-[1400px] w-full text-left text-sm" style="table-layout: fixed;">
+        <table id="dataTable" class="min-w-[1200px] w-full text-left text-[11px]" style="table-layout: fixed;">
           <colgroup id="colGroup"></colgroup>
           <thead class="sticky top-0 bg-slate-950/80 backdrop-blur">
-            <tr id="tableHeaderRow" class="text-xs uppercase tracking-[0.14em] text-slate-400"></tr>
-            <tr id="tableFilterRow" class="text-[11px] text-slate-300"></tr>
+            <tr id="tableHeaderRow" class="text-[10px] uppercase tracking-[0.14em] text-slate-400"></tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-800"></tbody>
         </table>
@@ -536,6 +562,8 @@
     import { supabase as supabaseClient } from './assets/scripts/supabaseClient.js';
 
     const TABLE_NAME = "services_request";
+    const CONFIG_TABLE = "user_table_configs";
+    const CONFIG_KEY = "services_request";
     const VEHICLES_TABLE = "vehicles";
     const CATEGORIES_TABLE = "services_categories";
     const SERVICES_TABLE = "services";
@@ -598,27 +626,27 @@
     }
 
     const BASE_COLUMN_DEFS = [
-      { key: 'company_name', label: 'Company Name', filter: 'text', defaultWidth: 220 },
-      { key: 'phones', label: 'Phones', filter: 'text', defaultWidth: 200, virtual: true },
-      { key: 'doc', label: 'Doc', filter: 'text', defaultWidth: 160 },
-      { key: 'unittype', label: 'Unit Type', filter: 'text', defaultWidth: 140 },
-      { key: 'brand', label: 'Brand', filter: 'text', defaultWidth: 140 },
-      { key: 'model', label: 'Model', filter: 'text', defaultWidth: 140 },
-      { key: 'model year', label: 'Model Year', filter: 'text', defaultWidth: 120 },
-      { key: 'shortvin', label: 'Short VIN', filter: 'text', defaultWidth: 120 },
-      { key: 'status', label: 'Status', filter: 'select', options: ['', 'Open', 'In Progress', 'Waiting', 'Closed'], defaultWidth: 150 },
-      { key: 'category', label: 'Category', filter: 'text', defaultWidth: 160 },
-      { key: 'servicecategory', label: 'Category', filter: 'text', defaultWidth: 160 }, /* in case you use servicecategory column */
-      { key: 'request date', label: 'Request Date', filter: 'text', isDate: true, defaultWidth: 140 },
-      { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true, defaultWidth: 140 },
-      { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true, defaultWidth: 150 },
-      { key: 'quote', label: 'Quote', filter: 'text', isMoney: true, defaultWidth: 140 },
-      { key: 'poc name', label: 'POC Name', filter: 'text', defaultWidth: 170 },
-      { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'Yes', 'No'], defaultWidth: 140 },
-      { key: 'state', label: 'State', filter: 'text', defaultWidth: 90 },
-      { key: 'city', label: 'City', filter: 'text', defaultWidth: 140 },
-      { key: 'zip', label: 'ZIP', filter: 'text', defaultWidth: 100 },
-      { key: 'address', label: 'Address', filter: 'text', defaultWidth: 420, wide: true },
+      { key: 'company_name', label: 'Company Name', filter: 'text', defaultWidth: 180 },
+      { key: 'phones', label: 'Phones', filter: 'text', defaultWidth: 150, virtual: true },
+      { key: 'doc', label: 'Doc', filter: 'text', defaultWidth: 120 },
+      { key: 'unittype', label: 'Unit Type', filter: 'text', defaultWidth: 120 },
+      { key: 'brand', label: 'Brand', filter: 'text', defaultWidth: 120 },
+      { key: 'model', label: 'Model', filter: 'text', defaultWidth: 120 },
+      { key: 'model year', label: 'Model Year', filter: 'text', defaultWidth: 100 },
+      { key: 'shortvin', label: 'Short VIN', filter: 'text', defaultWidth: 100 },
+      { key: 'status', label: 'Status', filter: 'select', options: ['', 'Open', 'In Progress', 'Waiting', 'Closed'], defaultWidth: 120 },
+      { key: 'category', label: 'Category', filter: 'text', defaultWidth: 140 },
+      { key: 'servicecategory', label: 'Category', filter: 'text', defaultWidth: 140 }, /* in case you use servicecategory column */
+      { key: 'request date', label: 'Request Date', filter: 'text', isDate: true, defaultWidth: 120 },
+      { key: 'workdate', label: 'Work Date', filter: 'text', isDate: true, defaultWidth: 120 },
+      { key: 'shipping date', label: 'Shipping Date', filter: 'text', isDate: true, defaultWidth: 130 },
+      { key: 'quote', label: 'Quote', filter: 'text', isMoney: true, defaultWidth: 120 },
+      { key: 'poc name', label: 'POC Name', filter: 'text', defaultWidth: 140 },
+      { key: 'confirmed', label: 'Confirmed', filter: 'select', options: ['', 'Yes', 'No'], defaultWidth: 110 },
+      { key: 'state', label: 'State', filter: 'text', defaultWidth: 70 },
+      { key: 'city', label: 'City', filter: 'text', defaultWidth: 120 },
+      { key: 'zip', label: 'ZIP', filter: 'text', defaultWidth: 80 },
+      { key: 'address', label: 'Address', filter: 'text', defaultWidth: 320, wide: true },
     ];
 
     const state = {
@@ -667,7 +695,6 @@
     const dataTable = document.getElementById('dataTable');
     const colGroup = document.getElementById('colGroup');
     const headerRow = document.getElementById('tableHeaderRow');
-    const filterRow = document.getElementById('tableFilterRow');
     const tableBody = document.getElementById('tableBody');
 
     const topScrollWrap = document.getElementById('topScrollWrap');
@@ -752,7 +779,7 @@
       };
       const canonical = canonicalizeStatus(status);
       const cls = map[canonical] || 'bg-slate-800 text-slate-100 border-slate-700';
-      return `<span class="inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold ${cls}">${escapeHtml(canonical || '—')}</span>`;
+      return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${cls}">${escapeHtml(canonical || '—')}</span>`;
     };
 
     function normalizeRow(raw) {
@@ -784,29 +811,73 @@
       };
     }
 
+    let savePrefsTimer = null;
+
+    function applyPrefs(prefs) {
+      if (prefs && typeof prefs === 'object') {
+        state.colOrder = Array.isArray(prefs.colOrder) ? prefs.colOrder : state.colOrder;
+        state.colVisible = prefs.colVisible && typeof prefs.colVisible === 'object' ? prefs.colVisible : state.colVisible;
+        state.colWidths = prefs.colWidths && typeof prefs.colWidths === 'object' ? prefs.colWidths : state.colWidths;
+        state.sortKey = prefs.sortKey ?? state.sortKey;
+        state.sortDir = prefs.sortDir ?? state.sortDir;
+        state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : state.colFilters;
+
+        state.kbDateField = prefs.kbDateField ?? state.kbDateField;
+        state.kbRange = prefs.kbRange ?? state.kbRange;
+        state.kbFrom = prefs.kbFrom ?? state.kbFrom;
+        state.kbTo = prefs.kbTo ?? state.kbTo;
+
+        if (prefs.ganttScale) {
+          try { ganttScale.value = prefs.ganttScale; } catch {}
+        }
+      }
+    }
+
     function loadPrefs() {
       try {
         const raw = localStorage.getItem(LS_KEY);
         if (!raw) return;
         const prefs = JSON.parse(raw);
-        if (prefs && typeof prefs === 'object') {
-          state.colOrder = Array.isArray(prefs.colOrder) ? prefs.colOrder : [];
-          state.colVisible = prefs.colVisible && typeof prefs.colVisible === 'object' ? prefs.colVisible : {};
-          state.colWidths = prefs.colWidths && typeof prefs.colWidths === 'object' ? prefs.colWidths : {};
-          state.sortKey = prefs.sortKey ?? null;
-          state.sortDir = prefs.sortDir ?? 'asc';
-          state.colFilters = prefs.colFilters && typeof prefs.colFilters === 'object' ? prefs.colFilters : {};
-
-          state.kbDateField = prefs.kbDateField ?? 'auto';
-          state.kbRange = prefs.kbRange ?? 'all';
-          state.kbFrom = prefs.kbFrom ?? null;
-          state.kbTo = prefs.kbTo ?? null;
-
-          if (prefs.ganttScale) {
-            try { ganttScale.value = prefs.ganttScale; } catch {}
-          }
-        }
+        applyPrefs(prefs);
       } catch {}
+    }
+
+    async function loadPrefsFromDb() {
+      try {
+        const { data } = await state.client.auth.getSession();
+        const session = data?.session;
+        if (!session?.user?.id) return;
+        const { data: prefsRow, error } = await state.client
+          .from(CONFIG_TABLE)
+          .select('config')
+          .eq('user_id', session.user.id)
+          .eq('table_key', CONFIG_KEY)
+          .maybeSingle();
+        if (error || !prefsRow?.config) return;
+        applyPrefs(prefsRow.config);
+      } catch (err) {
+        console.warn('Prefs load error:', err);
+      }
+    }
+
+    function scheduleSavePrefsToDb(prefs) {
+      if (savePrefsTimer) window.clearTimeout(savePrefsTimer);
+      savePrefsTimer = window.setTimeout(async () => {
+        try {
+          const { data } = await state.client.auth.getSession();
+          const session = data?.session;
+          if (!session?.user?.id) return;
+          await state.client
+            .from(CONFIG_TABLE)
+            .upsert({
+              user_id: session.user.id,
+              table_key: CONFIG_KEY,
+              config: prefs
+            }, { onConflict: 'user_id,table_key' });
+        } catch (err) {
+          console.warn('Prefs save error:', err);
+        }
+      }, 500);
     }
 
     function savePrefs() {
@@ -826,6 +897,7 @@
         ganttScale: ganttScale?.value || 'week'
       };
       try { localStorage.setItem(LS_KEY, JSON.stringify(prefs)); } catch {}
+      scheduleSavePrefsToDb(prefs);
     }
 
     function getAllColumnDefs() {
@@ -1018,10 +1090,6 @@
     function buildColGroup(visibleDefs) {
       colGroup.innerHTML = '';
 
-      const colActions = document.createElement('col');
-      colActions.style.width = `140px`;
-      colGroup.appendChild(colActions);
-
       for (const d of visibleDefs) {
         const w = Math.max(80, Number(state.colWidths[d.key] || d.defaultWidth || 160));
         const col = document.createElement('col');
@@ -1034,76 +1102,104 @@
       const visibleDefs = getVisibleOrderedDefs();
       buildColGroup(visibleDefs);
 
-      headerRow.innerHTML = `
-        <th class="px-6 py-3 whitespace-nowrap text-left">Actions</th>
-      ` + visibleDefs.map(d => {
+      headerRow.innerHTML = visibleDefs.map(d => {
         const isActive = state.sortKey === d.key;
-        const icon = isActive ? (state.sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down';
+        const icon = isActive ? (state.sortDir === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down';
+        const v = String(state.colFilters[d.key] ?? '');
+        const commonCls = `no-drag w-full rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600`;
+
+        const filterControl = d.filter === 'select'
+          ? `<select data-filter-key="${escapeAttr(d.key)}" class="${commonCls}">
+              ${(d.options || ['']).map(opt => {
+                const selected = String(opt) === String(v) ? 'selected' : '';
+                const label = opt === '' ? 'All' : opt;
+                return `<option value="${escapeAttr(opt)}" ${selected}>${escapeHtml(label)}</option>`;
+              }).join('')}
+            </select>`
+          : `<input data-filter-key="${escapeAttr(d.key)}" class="${commonCls}" placeholder="Search..." value="${escapeAttr(v)}" />`;
 
         return `
-          <th class="relative px-6 py-3 whitespace-nowrap"
+          <th class="relative px-3 py-2 align-top"
               draggable="true"
               data-col-key="${escapeAttr(d.key)}">
-            <button type="button"
-                    class="inline-flex items-center gap-2 font-bold hover:text-white transition"
-                    data-sort-key="${escapeAttr(d.key)}"
-                    title="Sort">
-              <span>${escapeHtml(d.label || d.key)}</span>
-              <i data-lucide="${icon}" class="h-4 w-4 ${isActive ? 'text-blue-300' : 'text-slate-500'}"></i>
-            </button>
+            <div class="header-controls flex items-start justify-between gap-2">
+              <div class="flex items-start gap-1">
+                <span class="table-header-label text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">${escapeHtml(d.label || d.key)}</span>
+                <i data-lucide="${icon}" class="mt-0.5 h-3 w-3 ${isActive ? 'text-blue-300' : 'text-slate-600'}"></i>
+              </div>
+              <button
+                type="button"
+                class="header-menu-btn no-drag rounded-lg border border-slate-800 bg-slate-950/60 p-1 text-slate-300 hover:text-white hover:bg-slate-900"
+                data-header-menu-btn="${escapeAttr(d.key)}"
+                title="Filter & sort">
+                <i data-lucide="sliders-horizontal" class="h-3 w-3"></i>
+              </button>
+            </div>
+            <div class="header-menu hidden" data-menu-for="${escapeAttr(d.key)}">
+              <div class="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400 mb-1">Filter</div>
+              ${filterControl}
+              <div class="mt-2 grid grid-cols-2 gap-2">
+                <button type="button" class="no-drag rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-900" data-sort-key="${escapeAttr(d.key)}" data-sort-dir="asc">Sort A → Z</button>
+                <button type="button" class="no-drag rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-900" data-sort-key="${escapeAttr(d.key)}" data-sort-dir="desc">Sort Z → A</button>
+                <button type="button" class="no-drag col-span-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-900" data-sort-key="${escapeAttr(d.key)}" data-sort-dir="clear">Clear sort</button>
+              </div>
+              <button type="button" class="no-drag mt-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400 hover:text-white" data-clear-filter="${escapeAttr(d.key)}">Clear filter</button>
+            </div>
             <div class="col-resizer" data-resize-key="${escapeAttr(d.key)}"></div>
           </th>
         `;
       }).join('');
-
-      filterRow.innerHTML = `
-        <th class="px-6 py-2"></th>
-      ` + visibleDefs.map(d => {
-        const v = String(state.colFilters[d.key] ?? '');
-        const commonCls = `no-drag w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600`;
-
-        if (d.filter === 'select') {
-          const opts = (d.options || ['']).map(opt => {
-            const selected = String(opt) === String(v) ? 'selected' : '';
-            const label = opt === '' ? 'All' : opt;
-            return `<option value="${escapeAttr(opt)}" ${selected}>${escapeHtml(label)}</option>`;
-          }).join('');
-          return `<th class="px-6 py-2"><select data-filter-key="${escapeAttr(d.key)}" class="${commonCls}">${opts}</select></th>`;
-        }
-
-        return `
-          <th class="px-6 py-2">
-            <input data-filter-key="${escapeAttr(d.key)}" class="${commonCls}" placeholder="Filter..." value="${escapeAttr(v)}" />
-          </th>
-        `;
-      }).join('');
-
-      document.querySelectorAll('[data-sort-key]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const key = btn.getAttribute('data-sort-key');
-          if (state.sortKey === key) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
-          else { state.sortKey = key; state.sortDir = 'asc'; }
-          savePrefs();
-          render();
-        });
-      });
-
-      document.querySelectorAll('[data-filter-key]').forEach(el => {
-        const key = el.getAttribute('data-filter-key');
-        const onChange = () => {
-          state.colFilters[key] = el.value;
-          state.page = 1;
-          savePrefs();
-          render();
-        };
-        el.addEventListener('input', onChange);
-        el.addEventListener('change', onChange);
-      });
+      openHeaderMenuKey = null;
 
       enableHeaderDrag();
       enableHeaderResize(visibleDefs);
+      updateHeaderControlLayout();
 
       lucide.createIcons();
+    }
+
+    let openHeaderMenuKey = null;
+    function getHeaderMenuEl(key) {
+      const safe = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(key) : key.replace(/"/g, '\\"');
+      return headerRow.querySelector(`[data-menu-for="${safe}"]`);
+    }
+    function closeHeaderMenus() {
+      headerRow.querySelectorAll('.header-menu').forEach(menu => menu.classList.add('hidden'));
+      openHeaderMenuKey = null;
+    }
+    function toggleHeaderMenu(key) {
+      if (openHeaderMenuKey && openHeaderMenuKey !== key) closeHeaderMenus();
+      const menu = getHeaderMenuEl(key);
+      if (!menu) return;
+      const willOpen = menu.classList.contains('hidden');
+      menu.classList.toggle('hidden', !willOpen);
+      openHeaderMenuKey = willOpen ? key : null;
+      if (willOpen) positionHeaderMenu(menu);
+    }
+
+    function updateHeaderControlLayout() {
+      const threshold = 140;
+      headerRow.querySelectorAll('th[data-col-key]').forEach(th => {
+        const width = th.getBoundingClientRect().width;
+        th.classList.toggle('header-compact', width < threshold);
+      });
+    }
+
+    function positionHeaderMenu(menu) {
+      menu.style.transform = '';
+      menu.style.left = '';
+      menu.style.right = '8px';
+      requestAnimationFrame(() => {
+        const menuRect = menu.getBoundingClientRect();
+        const wrapRect = tableScrollWrap.getBoundingClientRect();
+        let shift = 0;
+        if (menuRect.left < wrapRect.left + 8) {
+          shift = (wrapRect.left + 8) - menuRect.left;
+        } else if (menuRect.right > wrapRect.right - 8) {
+          shift = (wrapRect.right - 8) - menuRect.right;
+        }
+        if (shift !== 0) menu.style.transform = `translateX(${shift}px)`;
+      });
     }
 
     function enableHeaderDrag() {
@@ -1112,6 +1208,10 @@
 
       ths.forEach(th => {
         th.addEventListener('dragstart', (e) => {
+          if (e.target.closest('.no-drag')) {
+            e.preventDefault();
+            return;
+          }
           dragKey = th.dataset.colKey;
           th.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
@@ -1165,7 +1265,7 @@
         state.colWidths[activeKey] = newW;
 
         const idx = visibleDefs.findIndex(d => d.key === activeKey);
-        const colIdx = idx + 1;
+        const colIdx = idx;
         if (idx >= 0 && colGroup.children[colIdx]) {
           colGroup.children[colIdx].style.width = `${newW}px`;
           syncTopScrollbarWidth();
@@ -1180,6 +1280,7 @@
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
         syncTopScrollbarWidth();
+        updateHeaderControlLayout();
       };
 
       handles.forEach(h => {
@@ -1214,41 +1315,161 @@
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-950/30';
 
-        const actionCell = `
-          <td class="px-6 py-3 whitespace-nowrap">
-            <button class="editBtn inline-flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-slate-800"
-                    data-id="${escapeAttr(r.id)}">
-              <i data-lucide="pencil" class="h-4 w-4"></i>
-              Edit
-            </button>
-          </td>
-        `;
-
         const cells = visibleDefs.map(d => {
           const value = r[d.key];
+          const baseAttrs = `data-row-id="${escapeAttr(r.id)}" data-col-key="${escapeAttr(d.key)}"`;
 
-          if (d.key === 'status') return `<td class="px-6 py-3">${statusPill(value)}</td>`;
-          if (d.isDate) return `<td class="px-6 py-3 text-slate-300 whitespace-nowrap">${escapeHtml(fmtDate(value))}</td>`;
-          if (d.isMoney) return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap font-semibold text-right">${escapeHtml(fmtUSD(value))}</td>`;
-          if (d.key === 'phones') return `<td class="px-6 py-3 text-slate-200 whitespace-nowrap">${escapeHtml(value || '—')}</td>`;
-          if (d.key === 'address') return `<td class="px-6 py-3 text-slate-200 whitespace-normal">${escapeHtml(value ?? '—')}</td>`;
-          if (d.key === 'company_name' || d.key === 'brand' || d.key === 'model') return `<td class="px-6 py-3 font-bold text-white">${escapeHtml(value || '—')}</td>`;
-          return `<td class="px-6 py-3 text-slate-200">${escapeHtml(value ?? '—')}</td>`;
+          if (d.key === 'status') return `<td ${baseAttrs} class="px-3 py-2 text-slate-200 editable-cell">${statusPill(value)}</td>`;
+          if (d.isDate) return `<td ${baseAttrs} class="px-3 py-2 text-slate-300 whitespace-nowrap editable-cell">${escapeHtml(fmtDate(value))}</td>`;
+          if (d.isMoney) return `<td ${baseAttrs} class="px-3 py-2 text-slate-200 whitespace-nowrap font-semibold text-right editable-cell">${escapeHtml(fmtUSD(value))}</td>`;
+          if (d.key === 'phones') return `<td ${baseAttrs} class="px-3 py-2 text-slate-200 whitespace-nowrap">${escapeHtml(value || '—')}</td>`;
+          if (d.key === 'address') return `<td ${baseAttrs} class="px-3 py-2 text-slate-200 whitespace-normal editable-cell">${escapeHtml(value ?? '—')}</td>`;
+          if (d.key === 'company_name' || d.key === 'brand' || d.key === 'model') return `<td ${baseAttrs} class="px-3 py-2 font-semibold text-white editable-cell">${escapeHtml(value || '—')}</td>`;
+          return `<td ${baseAttrs} class="px-3 py-2 text-slate-200 editable-cell">${escapeHtml(value ?? '—')}</td>`;
         }).join('');
 
-        tr.innerHTML = actionCell + cells;
+        tr.innerHTML = cells;
         tableBody.appendChild(tr);
       }
 
-      document.querySelectorAll('.editBtn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.id;
-          const item = state.allRows.find(x => String(x.id) === String(id));
-          if (item) openModal(item);
-        });
+      lucide.createIcons();
+    }
+
+    function isEditableDef(def) {
+      if (!def || def.virtual) return false;
+      const blocked = new Set(['phones', 'id']);
+      return !blocked.has(def.key);
+    }
+
+    function getPayloadKeyFor(defKey) {
+      const map = {
+        shortvin: 'short_vin',
+        unittype: 'unit_type',
+        'model year': 'model_year',
+        'company phone': 'company_phone',
+        'request date': 'request_date',
+        workdate: 'work_date',
+        'work date': 'work_date',
+        'shipping date': 'shipping_date',
+        'poc name': 'poc_name',
+        'poc phone': 'poc_phone'
+      };
+      return map[defKey] || defKey.replace(/\s+/g, '_');
+    }
+
+    function getInputValueForDef(def, value) {
+      if (def.isDate) return value ? String(value).slice(0, 10) : '';
+      if (value === null || value === undefined) return '';
+      return String(value);
+    }
+
+    function parseInputValue(def, raw) {
+      const v = typeof raw === 'string' ? raw.trim() : raw;
+      if (def.isDate) return v || null;
+      if (def.isMoney) {
+        if (v === '') return null;
+        const n = Number(v);
+        return isNaN(n) ? v : n;
+      }
+      if (def.filter === 'select') return v || null;
+      if (v === '') return null;
+      return v;
+    }
+
+    async function updateCellValue(rowId, defKey, value) {
+      const payloadKey = getPayloadKeyFor(defKey);
+      const payloadRaw = { id: rowId, [payloadKey]: value };
+      if (defKey === 'category' || defKey === 'servicecategory') {
+        payloadRaw.category = value;
+        payloadRaw.servicecategory = value;
+      }
+      const payload = filterPayloadByKnownColumns(payloadRaw);
+      if (Object.keys(payload).length <= 1) return;
+      const updated = await upsertRequest(payload);
+      const idx = state.allRows.findIndex(x => String(x.id) === String(updated.id));
+      if (idx >= 0) state.allRows[idx] = updated;
+      render();
+    }
+
+    function startCellEdit(cell, row, def) {
+      if (cell.classList.contains('cell-editing')) return;
+      if (!isEditableDef(def)) return;
+
+      const originalDisplay = cell.innerHTML;
+      const originalValue = row?.[def.key];
+      const originalInputValue = getInputValueForDef(def, originalValue);
+
+      const input = document.createElement(def.filter === 'select' ? 'select' : 'input');
+      input.className = 'no-drag w-full rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-[11px] text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600';
+
+      if (input.tagName === 'INPUT') {
+        if (def.isDate) input.type = 'date';
+        if (def.isMoney) {
+          input.type = 'number';
+          input.step = '0.01';
+        }
+        input.value = originalInputValue;
+      } else {
+        const opts = (def.options || ['']).map(opt => {
+          const label = opt === '' ? '—' : opt;
+          return `<option value="${escapeAttr(opt)}">${escapeHtml(label)}</option>`;
+        }).join('');
+        input.innerHTML = opts;
+        input.value = originalInputValue;
+      }
+
+      cell.classList.add('cell-editing');
+      cell.innerHTML = '';
+      cell.appendChild(input);
+
+      const cancel = () => {
+        cell.classList.remove('cell-editing');
+        cell.innerHTML = originalDisplay;
+        lucide.createIcons();
+      };
+
+      const commit = async () => {
+        if (!cell.classList.contains('cell-editing')) return;
+        const rawValue = input.value;
+        const newValue = parseInputValue(def, rawValue);
+        const originalComparable = String(originalInputValue ?? '');
+        const newComparable = String(rawValue ?? '');
+        if (originalComparable === newComparable) {
+          cancel();
+          return;
+        }
+
+        try {
+          const ok = await requireLogin();
+          if (!ok) { cancel(); return; }
+
+          let finalValue = newValue;
+          if (def.key === 'status') finalValue = canonicalizeStatus(newValue) || null;
+
+          await updateCellValue(row.id, def.key, finalValue);
+        } catch (err) {
+          console.error(err);
+          state.lastError = err?.message || String(err);
+          cancel();
+          render();
+        }
+      };
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          cancel();
+        }
+        if (e.key === 'Enter' && input.tagName === 'INPUT') {
+          e.preventDefault();
+          commit();
+        }
       });
 
-      lucide.createIcons();
+      input.addEventListener('blur', () => commit());
+
+      input.focus();
+      if (input.tagName === 'INPUT') input.select();
     }
 
     function renderKanbanMeta() {
@@ -1572,7 +1793,10 @@
         topScrollWrap.scrollLeft = tableScrollWrap.scrollLeft;
         syncing = false;
       });
-      window.addEventListener('resize', () => syncTopScrollbarWidth());
+      window.addEventListener('resize', () => {
+        syncTopScrollbarWidth();
+        updateHeaderControlLayout();
+      });
     }
 
     function renderMeta() {
@@ -2040,6 +2264,84 @@
     document.addEventListener('click', () => toggleColumnsMenu(false));
     columnsMenu.addEventListener('click', (e) => e.stopPropagation());
 
+    // Header filter/sort menus
+    headerRow.addEventListener('click', (e) => {
+      const menuBtn = e.target.closest('[data-header-menu-btn]');
+      if (menuBtn) {
+        e.stopPropagation();
+        toggleHeaderMenu(menuBtn.dataset.headerMenuBtn);
+        return;
+      }
+
+      if (e.target.closest('.header-menu')) {
+        e.stopPropagation();
+      }
+
+      const clearBtn = e.target.closest('[data-clear-filter]');
+      if (clearBtn) {
+        e.stopPropagation();
+        const key = clearBtn.dataset.clearFilter;
+        state.colFilters[key] = '';
+        state.page = 1;
+        savePrefs();
+        render();
+        closeHeaderMenus();
+        return;
+      }
+
+      const sortBtn = e.target.closest('[data-sort-key][data-sort-dir]');
+      if (sortBtn) {
+        e.stopPropagation();
+        const key = sortBtn.dataset.sortKey;
+        const dir = sortBtn.dataset.sortDir;
+        if (dir === 'clear') {
+          state.sortKey = null;
+          state.sortDir = 'asc';
+        } else {
+          state.sortKey = key;
+          state.sortDir = dir;
+        }
+        savePrefs();
+        render();
+        closeHeaderMenus();
+      }
+    });
+
+    headerRow.addEventListener('input', (e) => {
+      const el = e.target.closest('[data-filter-key]');
+      if (!el) return;
+      const key = el.getAttribute('data-filter-key');
+      state.colFilters[key] = el.value;
+      state.page = 1;
+      savePrefs();
+      render();
+    });
+
+    headerRow.addEventListener('change', (e) => {
+      const el = e.target.closest('[data-filter-key]');
+      if (!el) return;
+      const key = el.getAttribute('data-filter-key');
+      state.colFilters[key] = el.value;
+      state.page = 1;
+      savePrefs();
+      render();
+    });
+
+    document.addEventListener('click', () => closeHeaderMenus());
+
+    // Table inline editing
+    tableBody.addEventListener('dblclick', (e) => {
+      const cell = e.target.closest('td[data-row-id][data-col-key]');
+      if (!cell) return;
+      const rowId = cell.dataset.rowId;
+      const colKey = cell.dataset.colKey;
+      const def = getAllColumnDefs().find(d => d.key === colKey);
+      if (!def || !isEditableDef(def)) return;
+      const row = state.allRows.find(x => String(x.id) === String(rowId));
+      if (!row) return;
+      startCellEdit(cell, row, def);
+    });
+
     // Modal open/close
     newRequestBtn.addEventListener('click', () => openModal(null));
     modalClose.addEventListener('click', closeModal);
@@ -2142,6 +2444,7 @@
 
       state.client = supabaseClient;
       loadPrefs();
+      await loadPrefsFromDb();
       wireScrollSync();
 
       renderKanbanFilterUI();
