@@ -680,7 +680,8 @@
       vehicles: [],           // cached vehicles list
       vehiclesByVin: new Map(),
       categories: [],         // cached categories
-      modalVinSelected: false // for UI hints
+      modalVinSelected: false, // for UI hints
+      pinnedRowId: null
     };
 
     const tableView = document.getElementById('tableView');
@@ -1047,6 +1048,14 @@
         });
       }
 
+      if (state.pinnedRowId) {
+        const pinnedIndex = out.findIndex(r => String(r.id) === String(state.pinnedRowId));
+        if (pinnedIndex > -1) {
+          const [pinned] = out.splice(pinnedIndex, 1);
+          out.unshift(pinned);
+        }
+      }
+
       state.filteredRows = out;
       state.total = out.length;
 
@@ -1202,42 +1211,6 @@
       });
     }
 
-    let openHeaderMenuKey = null;
-    function getHeaderMenuEl(key) {
-      const safe = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(key) : key.replace(/"/g, '\\"');
-      return headerRow.querySelector(`[data-menu-for="${safe}"]`);
-    }
-    function closeHeaderMenus() {
-      headerRow.querySelectorAll('.header-menu').forEach(menu => menu.classList.add('hidden'));
-      openHeaderMenuKey = null;
-    }
-    function toggleHeaderMenu(key) {
-      if (openHeaderMenuKey && openHeaderMenuKey !== key) closeHeaderMenus();
-      const menu = getHeaderMenuEl(key);
-      if (!menu) return;
-      const willOpen = menu.classList.contains('hidden');
-      menu.classList.toggle('hidden', !willOpen);
-      openHeaderMenuKey = willOpen ? key : null;
-      if (willOpen) positionHeaderMenu(menu);
-    }
-
-    function positionHeaderMenu(menu) {
-      menu.style.transform = '';
-      menu.style.left = '';
-      menu.style.right = '8px';
-      requestAnimationFrame(() => {
-        const menuRect = menu.getBoundingClientRect();
-        const wrapRect = tableScrollWrap.getBoundingClientRect();
-        let shift = 0;
-        if (menuRect.left < wrapRect.left + 8) {
-          shift = (wrapRect.left + 8) - menuRect.left;
-        } else if (menuRect.right > wrapRect.right - 8) {
-          shift = (wrapRect.right - 8) - menuRect.right;
-        }
-        if (shift !== 0) menu.style.transform = `translateX(${shift}px)`;
-      });
-    }
-
     function enableHeaderDrag() {
       const ths = headerRow.querySelectorAll('th[data-col-key]');
       let dragKey = null;
@@ -1350,6 +1323,7 @@
       for (const r of rows) {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-950/30';
+        tr.dataset.rowId = r.id;
 
         const cells = visibleDefs.map(d => {
           const value = r[d.key];
@@ -1935,6 +1909,69 @@
       return normalizeRow(data);
     }
 
+    function buildEmptyRequestPayload() {
+      const payload = {};
+      const preferred = ['status', 'request_date', 'work_date', 'shipping_date', 'company_name'];
+      const cols = state.dbColumns || [];
+      if (!cols.length) {
+        payload.status = null;
+        return filterPayloadByKnownColumns(payload);
+      }
+
+      const colSet = new Set(cols);
+      const key = preferred.find(k => colSet.has(k)) || cols[0];
+      if (key) payload[key] = null;
+      return filterPayloadByKnownColumns(payload);
+    }
+
+    async function createEmptyRequestRow() {
+      try {
+        const ok = await requireLogin();
+        if (!ok) return;
+
+        newRequestBtn.disabled = true;
+        newRequestBtn.classList.add('opacity-60');
+
+        const payload = buildEmptyRequestPayload();
+        if (!Object.keys(payload).length) {
+          throw new Error('No writable columns found for a blank request.');
+        }
+
+        const created = await upsertRequest(payload);
+        state.allRows = [created, ...state.allRows.filter(x => String(x.id) !== String(created.id))];
+        state.page = 1;
+        state.pinnedRowId = created.id;
+
+        render();
+
+        requestAnimationFrame(() => {
+          if (state.view !== 'table') {
+            state.pinnedRowId = null;
+            return;
+          }
+          tableScrollWrap.scrollTop = 0;
+          const rowId = String(created.id);
+          const row = state.allRows.find(x => String(x.id) === rowId) || created;
+          const cells = tableBody.querySelectorAll('td[data-row-id][data-col-key]');
+          for (const cell of cells) {
+            if (cell.dataset.rowId !== rowId) continue;
+            const def = getAllColumnDefs().find(d => d.key === cell.dataset.colKey);
+            if (!def || !isEditableDef(def)) continue;
+            startCellEdit(cell, row, def);
+            break;
+          }
+          state.pinnedRowId = null;
+        });
+      } catch (err) {
+        console.error(err);
+        state.lastError = err?.message || String(err);
+        render();
+      } finally {
+        newRequestBtn.disabled = false;
+        newRequestBtn.classList.remove('opacity-60');
+      }
+    }
+
     async function deleteRequestRow(id) {
       const { error } = await state.client.from(TABLE_NAME).delete().eq('id', id);
       if (error) throw error;
@@ -2379,7 +2416,7 @@
     });
 
     // Modal open/close
-    newRequestBtn.addEventListener('click', () => openModal(null));
+    newRequestBtn.addEventListener('click', () => createEmptyRequestRow());
     modalClose.addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
 
