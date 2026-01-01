@@ -517,6 +517,18 @@
       }
       return Boolean(value);
     };
+    const normalizeStatus = (value) => {
+      const raw = String(value ?? '').trim();
+      if (!raw) return 'Active';
+      const normalized = raw.toLowerCase();
+      if (normalized.includes('hold')) return 'On Hold';
+      if (normalized.includes('transit')) return 'In Transit';
+      if (normalized.includes('recover')) return 'Recovery';
+      if (normalized.includes('ready')) return 'Ready';
+      if (normalized.includes('write')) return 'Write-Off';
+      if (normalized.includes('active')) return 'Active';
+      return 'Active';
+    };
     const getField = (row, ...keys) => {
       for (const key of keys) {
         const value = row?.[key];
@@ -532,7 +544,7 @@
         id: vehicle.id ?? null,
         stockNo: getField(vehicle, 'Current Stock No'),
         vin: getField(vehicle, 'VIN'),
-        status: getField(vehicle, 'Vehicle Status') || 'Active',
+        status: normalizeStatus(getField(vehicle, 'Vehicle Status')),
         hold: normalizeBoolean(getField(vehicle, 'HOLD')),
         brand: getField(vehicle, 'Brand'),
         model: getField(vehicle, 'Model'),
