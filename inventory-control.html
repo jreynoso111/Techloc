@@ -508,24 +508,40 @@
     };
 
     const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.shortVin ?? vehicle.vin ?? '';
+    const normalizeBoolean = (value) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return ['true', 'yes', 'y', '1'].includes(normalized);
+      }
+      return Boolean(value);
+    };
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row?.[key];
+        if (value !== undefined && value !== null && value !== '') return value;
+      }
+      return '';
+    };
     const normalizeVehicle = (vehicle) => {
-      const updatedAt = vehicle.updated_at || vehicle.updatedAt || '';
-      const createdAt = vehicle.created_at || vehicle.createdAt || '';
-      const dateValue = updatedAt || createdAt || vehicle.date || '';
+      const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'updated_at', 'updatedAt', 'Last Updated');
+      const createdAt = getField(vehicle, 'Created At', 'created_at', 'createdAt');
+      const dateValue = getField(vehicle, 'Date', 'date') || updatedAt || createdAt;
       return {
-        id: vehicle.id ?? null,
-        vin: vehicle.vin || '',
-        shortVin: vehicle.short_vin || vehicle.shortVin || '',
-        plate: vehicle.plate || '',
-        status: vehicle.status || 'Active',
-        yard: vehicle.yard || vehicle.location || '',
-        state: vehicle.state || '',
-        unitType: vehicle.unit_type || vehicle.unitType || '',
-        brand: vehicle.brand || '',
-        lien: Boolean(vehicle.lien),
-        hold: Boolean(vehicle.hold),
-        gpsOffline: Boolean(vehicle.gps_offline ?? vehicle.gpsOffline),
-        recoveryPriority: Boolean(vehicle.recovery_priority ?? vehicle.recoveryPriority),
+        id: getField(vehicle, 'ID', 'id') || null,
+        vin: getField(vehicle, 'VIN', 'vin', 'Vin'),
+        shortVin: getField(vehicle, 'Short VIN', 'short_vin', 'shortVin'),
+        plate: getField(vehicle, 'Plate', 'plate'),
+        status: getField(vehicle, 'Status', 'status') || 'Active',
+        yard: getField(vehicle, 'Yard', 'City / Yard', 'yard', 'location', 'City', 'city'),
+        state: getField(vehicle, 'State', 'state'),
+        unitType: getField(vehicle, 'Unit Type', 'UnitType', 'unit_type', 'unitType'),
+        brand: getField(vehicle, 'Brand', 'brand', 'Make', 'make'),
+        lien: normalizeBoolean(getField(vehicle, 'Lien', 'lien')),
+        hold: normalizeBoolean(getField(vehicle, 'Hold', 'hold', 'On Hold', 'on_hold')),
+        gpsOffline: normalizeBoolean(getField(vehicle, 'GPS Offline', 'gps_offline', 'gpsOffline', 'GPS Offline?')),
+        recoveryPriority: normalizeBoolean(getField(vehicle, 'Recovery Priority', 'recovery_priority', 'recoveryPriority')),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
         date: dateValue ? String(dateValue).slice(0, 10) : '',
@@ -1188,8 +1204,8 @@
       if (DashboardState.realtime.channel) return;
 
       const channel = supabaseClient
-        .channel('vehicles-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, handleVehicleChange);
+        .channel('inventory-control-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Inventory Control' }, handleVehicleChange);
 
       DashboardState.realtime.channel = channel;
 
@@ -1218,8 +1234,8 @@
       setConnectionStatus('Reconnecting…');
 
       const { data, error } = await supabaseClient
-        .from('vehicles')
-        .select('id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at')
+        .from('Inventory Control')
+        .select('ID, "VIN", "Short VIN", "Plate", "Status", "Yard", "City / Yard", "State", "Unit Type", "Brand", "Lien", "Hold", "On Hold", "GPS Offline", "Recovery Priority", "Created At", "Updated At", "Date", id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at, date')
         .limit(5000);
 
       if (error) {
