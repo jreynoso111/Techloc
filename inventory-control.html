@@ -507,7 +507,7 @@
       return `Updated ${days}d ago`;
     };
 
-    const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.shortVin ?? vehicle.vin ?? '';
+    const getVehicleKey = (vehicle) => vehicle.currentStockNo ?? vehicle.shortVin ?? vehicle.vin ?? '';
     const normalizeBoolean = (value) => {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'number') return value !== 0;
@@ -525,23 +525,23 @@
       return '';
     };
     const normalizeVehicle = (vehicle) => {
-      const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'updated_at', 'updatedAt', 'Last Updated');
-      const createdAt = getField(vehicle, 'Created At', 'created_at', 'createdAt');
-      const dateValue = getField(vehicle, 'Date', 'date') || updatedAt || createdAt;
+      const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'Last Updated');
+      const createdAt = getField(vehicle, 'Created At');
+      const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
       return {
-        id: getField(vehicle, 'ID', 'id') || null,
-        vin: getField(vehicle, 'VIN', 'vin', 'Vin'),
-        shortVin: getField(vehicle, 'Short VIN', 'short_vin', 'shortVin'),
-        plate: getField(vehicle, 'Plate', 'plate'),
-        status: getField(vehicle, 'Status', 'status') || 'Active',
-        yard: getField(vehicle, 'Yard', 'City / Yard', 'yard', 'location', 'City', 'city'),
-        state: getField(vehicle, 'State', 'state'),
-        unitType: getField(vehicle, 'Unit Type', 'UnitType', 'unit_type', 'unitType'),
-        brand: getField(vehicle, 'Brand', 'brand', 'Make', 'make'),
-        lien: normalizeBoolean(getField(vehicle, 'Lien', 'lien')),
-        hold: normalizeBoolean(getField(vehicle, 'Hold', 'hold', 'On Hold', 'on_hold')),
-        gpsOffline: normalizeBoolean(getField(vehicle, 'GPS Offline', 'gps_offline', 'gpsOffline', 'GPS Offline?')),
-        recoveryPriority: normalizeBoolean(getField(vehicle, 'Recovery Priority', 'recovery_priority', 'recoveryPriority')),
+        currentStockNo: getField(vehicle, 'Current Stock No'),
+        vin: getField(vehicle, 'VIN'),
+        shortVin: getField(vehicle, 'Short VIN'),
+        plate: getField(vehicle, 'Plate'),
+        status: getField(vehicle, 'Status') || 'Active',
+        yard: getField(vehicle, 'City / Yard', 'Yard'),
+        state: getField(vehicle, 'State'),
+        unitType: getField(vehicle, 'Unit Type'),
+        brand: getField(vehicle, 'Brand'),
+        lien: normalizeBoolean(getField(vehicle, 'Lien')),
+        hold: normalizeBoolean(getField(vehicle, 'Hold', 'On Hold')),
+        gpsOffline: normalizeBoolean(getField(vehicle, 'GPS Offline')),
+        recoveryPriority: normalizeBoolean(getField(vehicle, 'Recovery Priority')),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
         date: dateValue ? String(dateValue).slice(0, 10) : '',
@@ -1235,7 +1235,7 @@
 
       const { data, error } = await supabaseClient
         .from('Inventory Control')
-        .select('ID, "VIN", "Short VIN", "Plate", "Status", "Yard", "City / Yard", "State", "Unit Type", "Brand", "Lien", "Hold", "On Hold", "GPS Offline", "Recovery Priority", "Created At", "Updated At", "Date", id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at, date')
+        .select('*')
         .limit(5000);
 
       if (error) {
