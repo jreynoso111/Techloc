@@ -507,7 +507,7 @@
       return `Updated ${days}d ago`;
     };
 
-    const getVehicleKey = (vehicle) => vehicle.currentStockNo ?? vehicle.shortVin ?? vehicle.vin ?? '';
+    const getVehicleKey = (vehicle) => vehicle.id ?? '';
     const normalizeBoolean = (value) => {
       if (typeof value === 'boolean') return value;
       if (typeof value === 'number') return value !== 0;
@@ -529,19 +529,16 @@
       const createdAt = getField(vehicle, 'Created At');
       const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
       return {
-        currentStockNo: getField(vehicle, 'Current Stock No'),
+        id: vehicle.id ?? null,
+        stockNo: getField(vehicle, 'Current Stock No'),
         vin: getField(vehicle, 'VIN'),
-        shortVin: getField(vehicle, 'Short VIN'),
-        plate: getField(vehicle, 'Plate'),
-        status: getField(vehicle, 'Status') || 'Active',
-        yard: getField(vehicle, 'City / Yard', 'Yard'),
-        state: getField(vehicle, 'State'),
-        unitType: getField(vehicle, 'Unit Type'),
+        status: getField(vehicle, 'Vehicle Status') || 'Active',
+        hold: normalizeBoolean(getField(vehicle, 'HOLD')),
         brand: getField(vehicle, 'Brand'),
-        lien: normalizeBoolean(getField(vehicle, 'Lien')),
-        hold: normalizeBoolean(getField(vehicle, 'Hold', 'On Hold')),
-        gpsOffline: normalizeBoolean(getField(vehicle, 'GPS Offline')),
-        recoveryPriority: normalizeBoolean(getField(vehicle, 'Recovery Priority')),
+        model: getField(vehicle, 'Model'),
+        modelYear: getField(vehicle, 'Model Year'),
+        dealStatus: getField(vehicle, 'Deal Status'),
+        prepStatus: getField(vehicle, 'Inventory Preparation Status'),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
         date: dateValue ? String(dateValue).slice(0, 10) : '',
