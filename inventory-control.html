@@ -536,8 +536,11 @@
     const detectStatusKey = (schema) =>
       schema.find((col) => col.type === 'string' && /status/i.test(col.key))?.key || '';
 
-    const detectDateKey = (schema) =>
-      schema.find((col) => col.type === 'date')?.key || '';
+    const detectDateKey = (schema) => {
+      const preferred = schema.find((col) => col.type === 'date' && /created_at|created|updated_at|updated/i.test(col.key));
+      if (preferred) return preferred.key;
+      return schema.find((col) => col.type === 'date')?.key || '';
+    };
 
     const detectCategoryKeys = (schema, rows, excludeKeys) => {
       const candidates = schema
@@ -661,19 +664,21 @@
         `;
       }
 
-      categoryKeys.forEach((entry) => {
-        const currentValue = preserveSelections ? (DashboardState.filters.categoryFilters[entry.key] || 'all') : 'all';
-        DashboardState.filters.categoryFilters[entry.key] = currentValue;
-        categoryBlock.insertAdjacentHTML('beforeend', `
-          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            ${entry.label}
-            <select data-filter-category="${entry.key}" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white">
-              <option value="all">All ${entry.label}</option>
-              ${entry.values.map((value) => `<option value="${value}" ${value === currentValue ? 'selected' : ''}>${value}</option>`).join('')}
-            </select>
-          </label>
-        `);
-      });
+      if (categoryKeys.length) {
+        categoryKeys.forEach((entry) => {
+          const currentValue = preserveSelections ? (DashboardState.filters.categoryFilters[entry.key] || 'all') : 'all';
+          DashboardState.filters.categoryFilters[entry.key] = currentValue;
+          categoryBlock.insertAdjacentHTML('beforeend', `
+            <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              ${entry.label}
+              <select data-filter-category="${entry.key}" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white">
+                <option value="all">All ${entry.label}</option>
+                ${entry.values.map((value) => `<option value="${value}" ${value === currentValue ? 'selected' : ''}>${value}</option>`).join('')}
+              </select>
+            </label>
+          `);
+        });
+      }
 
       if (dateKey) {
         const dateValues = getColumnValues(dataset, dateKey)
@@ -705,6 +710,9 @@
         `;
       }
 
+      statusBlock.classList.toggle('hidden', !statusKey);
+      categoryBlock.classList.toggle('hidden', categoryKeys.length === 0);
+      dateRangeBlock.classList.toggle('hidden', !dateKey);
       builder.classList.toggle('opacity-50', DashboardState.ui.isLoading);
     };
 
