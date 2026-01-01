@@ -149,59 +149,18 @@
 
       <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-slate-200" id="active-filters"></div>
 
-      <div class="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <div id="filter-builder" class="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Start date
-            <input id="filter-start-date" type="date" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
+            Search
+            <input id="filter-search" type="search" placeholder="Search across all fields" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
           </label>
-          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            End date
-            <input id="filter-end-date" type="date" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
-          </label>
-          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            State
-            <select id="filter-state" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
-          </label>
-          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            City / Yard
-            <select id="filter-yard" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
-          </label>
-          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Unit type
-            <select id="filter-unit-type" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
-          </label>
-          <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Brand
-            <select id="filter-brand" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white"></select>
-          </label>
+          <div id="filter-date-range"></div>
         </div>
 
         <div class="flex flex-col gap-4">
-          <fieldset class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-            <legend class="px-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Status</legend>
-            <div id="filter-status" class="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-200"></div>
-          </fieldset>
-          <div class="grid gap-3">
-            <div class="flex flex-wrap gap-2">
-              <label class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
-                <input id="toggle-gps" type="checkbox" class="h-4 w-4 rounded border-slate-700 bg-slate-950" />
-                Only GPS Offline
-              </label>
-              <label class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
-                <input id="toggle-hold" type="checkbox" class="h-4 w-4 rounded border-slate-700 bg-slate-950" />
-                Only On Hold
-              </label>
-              <label class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-semibold text-slate-200">
-                <input id="toggle-recovery" type="checkbox" class="h-4 w-4 rounded border-slate-700 bg-slate-950" />
-                Only Recovery Priority
-              </label>
-            </div>
-            <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              VIN / short VIN / plate
-              <input id="filter-search" type="search" placeholder="Search VIN, short VIN, or plate" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
-            </label>
-          </div>
+          <div id="filter-status-block"></div>
+          <div id="filter-category-block" class="grid gap-3"></div>
         </div>
       </div>
     </section>
@@ -308,11 +267,24 @@
           <button id="export-csv" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">
             Export CSV
           </button>
+          <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-200">
+            <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Per page</span>
+            <select id="table-per-page" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">
+              <option value="8">8</option>
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </label>
           <span id="table-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">0 assets</span>
           <div class="flex items-center gap-2 text-xs font-semibold text-slate-200">
             <button id="table-prev" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Prev</button>
             <span id="table-page">Page 1</span>
             <button id="table-next" type="button" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-blue-500 hover:text-white">Next</button>
+            <label class="inline-flex items-center gap-2">
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Go to</span>
+              <input id="table-go-to" type="number" min="1" class="w-16 rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200" />
+            </label>
           </div>
         </div>
       </div>
@@ -434,23 +406,18 @@
     const DashboardState = {
       filters: {
         dateRange: { start: '', end: '' },
-        statuses: [],
-        yard: 'all',
-        state: 'all',
-        unitType: 'all',
-        brand: 'all',
-        lien: 'all',
-        hold: 'all',
-        gpsOfflineOnly: false,
-        onHoldOnly: false,
-        recoveryPriorityOnly: false,
         search: '',
+        statuses: [],
+        statusKey: '',
+        dateKey: '',
+        categoryFilters: {},
       },
       vehiclesRaw: new Map(),
+      schema: [],
       table: {
         page: 1,
         perPage: 8,
-        sort: { key: 'updatedAt', direction: 'desc' },
+        sort: { key: '', direction: 'asc' },
         columns: {},
       },
       derived: {
@@ -474,20 +441,6 @@
     };
 
     const COLUMN_STORAGE_KEY = 'inventoryControlTableColumns';
-    const TABLE_COLUMNS = [
-      { key: 'vin', label: 'VIN', type: 'string' },
-      { key: 'plate', label: 'Plate', type: 'string' },
-      { key: 'status', label: 'Status', type: 'string' },
-      { key: 'yard', label: 'Yard', type: 'string' },
-      { key: 'state', label: 'State', type: 'string' },
-      { key: 'unitType', label: 'Unit Type', type: 'string' },
-      { key: 'brand', label: 'Brand', type: 'string' },
-      { key: 'lien', label: 'Lien', type: 'boolean' },
-      { key: 'hold', label: 'Hold', type: 'boolean' },
-      { key: 'gpsOffline', label: 'GPS Offline', type: 'boolean' },
-      { key: 'recoveryPriority', label: 'Recovery Priority', type: 'boolean' },
-      { key: 'updatedAt', label: 'Updated', type: 'date' },
-    ];
 
     const formatDate = (value) => {
       if (!value) return '--';
@@ -507,25 +460,148 @@
       return `Updated ${days}d ago`;
     };
 
-    const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.shortVin ?? vehicle.vin ?? '';
+    const formatColumnLabel = (key) => key.replace(/_/g, ' ');
+
+    const inferColumnType = (values) => {
+      let sawString = false;
+      let sawNumber = false;
+      let sawBoolean = false;
+      let sawDate = false;
+
+      values.forEach((value) => {
+        if (value === null || value === undefined || value === '') return;
+        if (typeof value === 'boolean') {
+          sawBoolean = true;
+          return;
+        }
+        if (typeof value === 'number' && !Number.isNaN(value)) {
+          sawNumber = true;
+          return;
+        }
+        if (value instanceof Date) {
+          sawDate = true;
+          return;
+        }
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          const parsed = Date.parse(trimmed);
+          if (!Number.isNaN(parsed) && /[-/T:]/.test(trimmed)) {
+            sawDate = true;
+            return;
+          }
+          if (trimmed && !Number.isNaN(Number(trimmed))) {
+            sawNumber = true;
+            return;
+          }
+          sawString = true;
+          return;
+        }
+        sawString = true;
+      });
+
+      if (sawString) return 'string';
+      if (sawDate && !sawNumber && !sawBoolean) return 'date';
+      if (sawNumber && !sawBoolean) return 'number';
+      if (sawBoolean && !sawNumber) return 'boolean';
+      if (sawDate) return 'date';
+      if (sawNumber) return 'number';
+      if (sawBoolean) return 'boolean';
+      return 'string';
+    };
+
+    const buildSchemaFromData = (rows) => {
+      if (!rows?.length) return [];
+      const sample = rows.slice(0, 50);
+      return Object.keys(rows[0]).map((key) => {
+        const values = sample.map((row) => row?.[key]);
+        return {
+          key,
+          label: formatColumnLabel(key),
+          type: inferColumnType(values),
+        };
+      });
+    };
+
+    const getColumnValues = (rows, key) => rows.map((row) => row?.[key]).filter((v) => v !== null && v !== undefined && v !== '');
+
+    const getUniqueValues = (rows, key) => {
+      const values = new Set();
+      rows.forEach((row) => {
+        const value = row?.[key];
+        if (value !== null && value !== undefined && value !== '') values.add(String(value));
+      });
+      return Array.from(values).sort((a, b) => a.localeCompare(b));
+    };
+
+    const detectStatusKey = (schema) =>
+      schema.find((col) => col.type === 'string' && /status/i.test(col.key))?.key || '';
+
+    const detectDateKey = (schema) => {
+      const preferred = schema.find((col) => col.type === 'date' && /created_at|created|updated_at|updated/i.test(col.key));
+      if (preferred) return preferred.key;
+      return schema.find((col) => col.type === 'date')?.key || '';
+    };
+
+    const detectCategoryKeys = (schema, rows, excludeKeys) => {
+      const candidates = schema
+        .filter((col) => !excludeKeys.includes(col.key))
+        .filter((col) => ['string', 'number', 'boolean'].includes(col.type))
+        .map((col) => ({
+          key: col.key,
+          label: col.label,
+          values: getUniqueValues(rows, col.key),
+        }))
+        .filter((entry) => entry.values.length > 0 && entry.values.length <= 50)
+        .sort((a, b) => b.values.length - a.values.length);
+
+      return candidates.slice(0, 4);
+    };
+
+    const getVehicleKey = (vehicle) => vehicle.id ?? '';
+    const normalizeBoolean = (value) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return ['true', 'yes', 'y', '1'].includes(normalized);
+      }
+      return Boolean(value);
+    };
+    const normalizeStatus = (value) => {
+      const raw = String(value ?? '').trim();
+      if (!raw) return 'Active';
+      const normalized = raw.toLowerCase();
+      if (normalized.includes('hold')) return 'On Hold';
+      if (normalized.includes('transit')) return 'In Transit';
+      if (normalized.includes('recover')) return 'Recovery';
+      if (normalized.includes('ready')) return 'Ready';
+      if (normalized.includes('write')) return 'Write-Off';
+      if (normalized.includes('active')) return 'Active';
+      return 'Active';
+    };
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row?.[key];
+        if (value !== undefined && value !== null && value !== '') return value;
+      }
+      return '';
+    };
     const normalizeVehicle = (vehicle) => {
-      const updatedAt = vehicle.updated_at || vehicle.updatedAt || '';
-      const createdAt = vehicle.created_at || vehicle.createdAt || '';
-      const dateValue = updatedAt || createdAt || vehicle.date || '';
+      const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'Last Updated');
+      const createdAt = getField(vehicle, 'Created At');
+      const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
       return {
+        ...vehicle,
         id: vehicle.id ?? null,
-        vin: vehicle.vin || '',
-        shortVin: vehicle.short_vin || vehicle.shortVin || '',
-        plate: vehicle.plate || '',
-        status: vehicle.status || 'Active',
-        yard: vehicle.yard || vehicle.location || '',
-        state: vehicle.state || '',
-        unitType: vehicle.unit_type || vehicle.unitType || '',
-        brand: vehicle.brand || '',
-        lien: Boolean(vehicle.lien),
-        hold: Boolean(vehicle.hold),
-        gpsOffline: Boolean(vehicle.gps_offline ?? vehicle.gpsOffline),
-        recoveryPriority: Boolean(vehicle.recovery_priority ?? vehicle.recoveryPriority),
+        stockNo: getField(vehicle, 'Current Stock No'),
+        vin: getField(vehicle, 'VIN'),
+        status: normalizeStatus(getField(vehicle, 'Vehicle Status')),
+        hold: normalizeBoolean(getField(vehicle, 'HOLD')),
+        brand: getField(vehicle, 'Brand'),
+        model: getField(vehicle, 'Model'),
+        modelYear: getField(vehicle, 'Model Year'),
+        dealStatus: getField(vehicle, 'Deal Status'),
+        prepStatus: getField(vehicle, 'Inventory Preparation Status'),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
         date: dateValue ? String(dateValue).slice(0, 10) : '',
@@ -545,56 +621,99 @@
 
     const setupFilters = ({ preserveSelections = false } = {}) => {
       const dataset = getCurrentDataset();
-      const currentFilters = DashboardState.filters;
-      const uniqueValues = (key) => ['all', ...new Set(dataset.map((item) => item[key]).filter(Boolean).sort())];
+      const schema = DashboardState.schema;
+      if (!schema.length) return;
 
-      const fillSelect = (id, values, label) => {
-        const select = document.getElementById(id);
-        const currentValue = preserveSelections ? (select.value || 'all') : 'all';
-        select.innerHTML = values.map((v) => (v === 'all' ? `<option value="all">${label}</option>` : `<option value="${v}">${v}</option>`)).join('');
-        select.value = values.includes(currentValue) ? currentValue : 'all';
-      };
+      const statusKey = detectStatusKey(schema);
+      const dateKey = detectDateKey(schema);
+      const categoryKeys = detectCategoryKeys(schema, dataset, [statusKey, dateKey].filter(Boolean));
 
-      fillSelect('filter-yard', uniqueValues('yard'), 'All yards');
-      fillSelect('filter-state', uniqueValues('state'), 'All states');
-      fillSelect('filter-unit-type', uniqueValues('unitType'), 'All unit types');
-      fillSelect('filter-brand', uniqueValues('brand'), 'All brands');
-
-      const statusContainer = document.getElementById('filter-status');
-      const selectedStatuses = preserveSelections ? currentFilters.statuses : [];
-      statusContainer.innerHTML = Object.keys(STATUS_COLORS).map((status) => {
-        const checked = selectedStatuses.length ? selectedStatuses.includes(status) : true;
-        return `
-          <label class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-            <input type="checkbox" value="${status}" class="h-4 w-4 rounded border-slate-700 bg-slate-950" ${checked ? 'checked' : ''} />
-            <span>${status}</span>
-          </label>
-        `;
-      }).join('');
-
-      const dates = dataset.map((i) => i.date).filter(Boolean).sort();
-      const startInput = document.getElementById('filter-start-date');
-      const endInput = document.getElementById('filter-end-date');
-
-      if (dates.length && !preserveSelections) {
-        const latestDate = dates[dates.length - 1];
-        const latest = new Date(latestDate);
-        const startDate = new Date(latest);
-        startDate.setDate(startDate.getDate() - 29);
-        startInput.value = startDate.toISOString().slice(0, 10);
-        endInput.value = latestDate;
-        DashboardState.filters.dateRange = { start: startInput.value, end: endInput.value };
-      } else if (!dates.length) {
-        startInput.value = '';
-        endInput.value = '';
-        DashboardState.filters.dateRange = { start: '', end: '' };
+      if (!preserveSelections) {
+        DashboardState.filters.statuses = [];
+        DashboardState.filters.categoryFilters = {};
       }
 
-      DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map((i) => i.value);
-      DashboardState.filters.yard = document.getElementById('filter-yard').value;
-      DashboardState.filters.state = document.getElementById('filter-state').value;
-      DashboardState.filters.unitType = document.getElementById('filter-unit-type').value;
-      DashboardState.filters.brand = document.getElementById('filter-brand').value;
+      DashboardState.filters.statusKey = statusKey;
+      DashboardState.filters.dateKey = dateKey;
+
+      const builder = document.getElementById('filter-builder');
+      const statusBlock = document.getElementById('filter-status-block');
+      const categoryBlock = document.getElementById('filter-category-block');
+      const dateRangeBlock = document.getElementById('filter-date-range');
+
+      statusBlock.innerHTML = '';
+      categoryBlock.innerHTML = '';
+      dateRangeBlock.innerHTML = '';
+
+      if (statusKey) {
+        const statusValues = getUniqueValues(dataset, statusKey);
+        const selectedStatuses = preserveSelections ? DashboardState.filters.statuses : statusValues;
+        DashboardState.filters.statuses = selectedStatuses;
+        statusBlock.innerHTML = `
+          <fieldset class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
+            <legend class="px-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">${formatColumnLabel(statusKey)}</legend>
+            <div class="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-200">
+              ${statusValues.map((value) => `
+                <label class="flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
+                  <input type="checkbox" value="${value}" data-filter-status class="h-4 w-4 rounded border-slate-700 bg-slate-950" ${selectedStatuses.includes(value) ? 'checked' : ''} />
+                  <span>${value}</span>
+                </label>
+              `).join('')}
+            </div>
+          </fieldset>
+        `;
+      }
+
+      if (categoryKeys.length) {
+        categoryKeys.forEach((entry) => {
+          const currentValue = preserveSelections ? (DashboardState.filters.categoryFilters[entry.key] || 'all') : 'all';
+          DashboardState.filters.categoryFilters[entry.key] = currentValue;
+          categoryBlock.insertAdjacentHTML('beforeend', `
+            <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              ${entry.label}
+              <select data-filter-category="${entry.key}" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white">
+                <option value="all">All ${entry.label}</option>
+                ${entry.values.map((value) => `<option value="${value}" ${value === currentValue ? 'selected' : ''}>${value}</option>`).join('')}
+              </select>
+            </label>
+          `);
+        });
+      }
+
+      if (dateKey) {
+        const dateValues = getColumnValues(dataset, dateKey)
+          .map((value) => new Date(value))
+          .filter((value) => !Number.isNaN(value.getTime()))
+          .map((value) => value.toISOString().slice(0, 10))
+          .sort();
+
+        if (dateValues.length && !preserveSelections) {
+          const latest = new Date(dateValues[dateValues.length - 1]);
+          const startDate = new Date(latest);
+          startDate.setDate(startDate.getDate() - 29);
+          DashboardState.filters.dateRange = { start: startDate.toISOString().slice(0, 10), end: latest.toISOString().slice(0, 10) };
+        } else if (!dateValues.length) {
+          DashboardState.filters.dateRange = { start: '', end: '' };
+        }
+
+        dateRangeBlock.innerHTML = `
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              Start date
+              <input id="filter-start-date" type="date" value="${DashboardState.filters.dateRange.start || ''}" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
+            </label>
+            <label class="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+              End date
+              <input id="filter-end-date" type="date" value="${DashboardState.filters.dateRange.end || ''}" class="rounded-2xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm font-semibold text-white" />
+            </label>
+          </div>
+        `;
+      }
+
+      statusBlock.classList.toggle('hidden', !statusKey);
+      categoryBlock.classList.toggle('hidden', categoryKeys.length === 0);
+      dateRangeBlock.classList.toggle('hidden', !dateKey);
+      builder.classList.toggle('opacity-50', DashboardState.ui.isLoading);
     };
 
     const applyFilters = () => {
@@ -602,27 +721,33 @@
       const searchText = filters.search.trim().toLowerCase();
 
       return getCurrentDataset().filter((item) => {
-        const inDateRange =
-          (!filters.dateRange.start || item.date >= filters.dateRange.start) &&
-          (!filters.dateRange.end || item.date <= filters.dateRange.end);
+        const dateValue = filters.dateKey ? item[filters.dateKey] : null;
+        const parsedDate = dateValue ? new Date(dateValue) : null;
+        const dateString = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : '';
+        const inDateRange = !filters.dateKey || (
+          (!filters.dateRange.start || dateString >= filters.dateRange.start) &&
+          (!filters.dateRange.end || dateString <= filters.dateRange.end)
+        );
 
-        const statusMatch = filters.statuses.length ? filters.statuses.includes(item.status) : true;
-        const yardMatch = filters.yard === 'all' || item.yard === filters.yard;
-        const stateMatch = filters.state === 'all' || item.state === filters.state;
-        const unitMatch = filters.unitType === 'all' || item.unitType === filters.unitType;
-        const brandMatch = filters.brand === 'all' || item.brand === filters.brand;
-
-        const gpsMatch = !filters.gpsOfflineOnly || item.gpsOffline;
-        const onHoldMatch = !filters.onHoldOnly || item.status === 'On Hold' || item.hold;
-        const recoveryMatch = !filters.recoveryPriorityOnly || item.recoveryPriority;
+        if ((filters.dateRange.start || filters.dateRange.end) && !dateString) return false;
 
         const searchMatch =
           !searchText ||
-          item.vin.toLowerCase().includes(searchText) ||
-          item.shortVin.toLowerCase().includes(searchText) ||
-          item.plate.toLowerCase().includes(searchText);
+          DashboardState.schema.some((column) => {
+            const value = item[column.key];
+            if (value === null || value === undefined) return false;
+            return String(value).toLowerCase().includes(searchText);
+          });
 
-        return inDateRange && statusMatch && yardMatch && stateMatch && unitMatch && brandMatch && gpsMatch && onHoldMatch && recoveryMatch && searchMatch;
+        const statusMatch = !filters.statusKey || !filters.statuses.length
+          || filters.statuses.includes(String(item[filters.statusKey] ?? ''));
+
+        const categoryMatch = Object.entries(filters.categoryFilters || {}).every(([key, value]) => {
+          if (value === 'all') return true;
+          return String(item[key] ?? '') === value;
+        });
+
+        return inDateRange && searchMatch && statusMatch && categoryMatch;
       });
     };
 
@@ -797,14 +922,10 @@
       const chips = [];
 
       if (filters.dateRange.start || filters.dateRange.end) chips.push(`Date: ${filters.dateRange.start || 'Any'} → ${filters.dateRange.end || 'Any'}`);
-      if (filters.statuses.length) chips.push(`Status: ${filters.statuses.join(', ')}`);
-      if (filters.state !== 'all') chips.push(`State: ${filters.state}`);
-      if (filters.yard !== 'all') chips.push(`Yard: ${filters.yard}`);
-      if (filters.unitType !== 'all') chips.push(`Unit: ${filters.unitType}`);
-      if (filters.brand !== 'all') chips.push(`Brand: ${filters.brand}`);
-      if (filters.gpsOfflineOnly) chips.push('Only GPS Offline');
-      if (filters.onHoldOnly) chips.push('Only On Hold');
-      if (filters.recoveryPriorityOnly) chips.push('Only Recovery Priority');
+      if (filters.statusKey && filters.statuses.length) chips.push(`${formatColumnLabel(filters.statusKey)}: ${filters.statuses.join(', ')}`);
+      Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
+        if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
+      });
       if (filters.search) chips.push(`Search: ${filters.search}`);
 
       chipsContainer.innerHTML = chips.length
@@ -814,8 +935,13 @@
 
     const renderTableHead = () => {
       const head = document.getElementById('inventory-table-head');
-      const visibleColumns = TABLE_COLUMNS.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
       const sortState = DashboardState.table.sort;
+
+      if (!visibleColumns.length) {
+        head.innerHTML = '<tr><th class="px-3 py-2 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400">No columns</th></tr>';
+        return;
+      }
 
       head.innerHTML = `<tr>${
         visibleColumns.map((c) => {
@@ -835,12 +961,13 @@
 
     const renderTable = () => {
       const tableBody = document.getElementById('inventory-table');
-      const visibleColumns = TABLE_COLUMNS.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
+      const columnCount = Math.max(1, visibleColumns.length);
 
       if (DashboardState.ui.isLoading) {
         tableBody.innerHTML = Array.from({ length: DashboardState.table.perPage }).map(() => `
           <tr class="text-xs">
-            <td class="px-3 py-3" colspan="${visibleColumns.length}">
+            <td class="px-3 py-3" colspan="${columnCount}">
               <div class="h-3 w-full rounded-full bg-slate-800/70 animate-pulse"></div>
             </td>
           </tr>
@@ -848,22 +975,36 @@
         return;
       }
 
+      if (!visibleColumns.length) {
+        tableBody.innerHTML = `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${columnCount}">No columns available.</td></tr>`;
+        return;
+      }
+
       const sortedRows = [...DashboardState.derived.filtered].sort((a, b) => {
         const { key, direction } = DashboardState.table.sort;
-        const column = TABLE_COLUMNS.find((c) => c.key === key);
+        const column = DashboardState.schema.find((c) => c.key === key);
         if (!column) return 0;
 
-        const getValue = (item) => {
-          const v = item[key];
-          if (column.type === 'date') return v ? new Date(v).getTime() : 0;
-          if (column.type === 'boolean') return v ? 1 : 0;
-          return String(v || '').toLowerCase();
-        };
+        const getValue = (item) => item[key];
 
-        const va = getValue(a), vb = getValue(b);
-        if (va < vb) return direction === 'asc' ? -1 : 1;
-        if (va > vb) return direction === 'asc' ? 1 : -1;
-        return 0;
+        const va = getValue(a);
+        const vb = getValue(b);
+
+        let comparison = 0;
+        if (column.type === 'date') {
+          const da = va ? Date.parse(va) : 0;
+          const db = vb ? Date.parse(vb) : 0;
+          comparison = da - db;
+        } else if (column.type === 'number') {
+          comparison = (Number(va) || 0) - (Number(vb) || 0);
+        } else if (column.type === 'boolean') {
+          comparison = (va ? 1 : 0) - (vb ? 1 : 0);
+        } else {
+          comparison = String(va ?? '').localeCompare(String(vb ?? ''), undefined, { sensitivity: 'base' });
+        }
+
+        if (comparison === 0) return 0;
+        return direction === 'asc' ? comparison : -comparison;
       });
 
       const totalRows = sortedRows.length;
@@ -873,27 +1014,39 @@
 
       const startIndex = (currentPage - 1) * DashboardState.table.perPage;
       const pageItems = sortedRows.slice(startIndex, startIndex + DashboardState.table.perPage);
+      const rangeStart = totalRows ? startIndex + 1 : 0;
+      const rangeEnd = totalRows ? startIndex + pageItems.length : 0;
 
       const rowsHtml = pageItems.map((item) => {
         const cells = visibleColumns.map((col) => {
           let value = item[col.key];
 
-          if (col.key === 'updatedAt') value = formatRelativeTime(item.lastEventAt);
-          else if (col.type === 'boolean') value = value ? 'Yes' : 'No';
+          if (col.type === 'boolean') value = value ? 'Yes' : 'No';
           else if (col.type === 'date') value = value ? formatDate(value) : '--';
 
-          return `<td class="px-3 py-2">${value || '--'}</td>`;
+          if (value === null || value === undefined || value === '') value = '--';
+
+          return `<td class="px-3 py-2">${value}</td>`;
         }).join('');
 
         return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
       }).join('');
 
-      tableBody.innerHTML = rowsHtml || `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${visibleColumns.length}">No vehicles match current filters.</td></tr>`;
+      tableBody.innerHTML = rowsHtml || `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${columnCount}">No vehicles match current filters.</td></tr>`;
 
-      document.getElementById('table-summary').textContent = `${formatNumber(totalRows)} assets`;
+      document.getElementById('table-summary').textContent = `${formatNumber(rangeStart)}–${formatNumber(rangeEnd)} of ${formatNumber(totalRows)}`;
       document.getElementById('table-page').textContent = `Page ${currentPage} of ${totalPages}`;
       document.getElementById('table-prev').disabled = currentPage <= 1;
       document.getElementById('table-next').disabled = currentPage >= totalPages;
+      const goToInput = document.getElementById('table-go-to');
+      if (goToInput) {
+        goToInput.max = String(totalPages);
+        goToInput.value = String(currentPage);
+      }
+      const perPageSelect = document.getElementById('table-per-page');
+      if (perPageSelect) {
+        perPageSelect.value = String(DashboardState.table.perPage);
+      }
     };
 
     const renderDashboard = () => {
@@ -910,14 +1063,25 @@
 
     const initializeTablePreferences = () => {
       const stored = localStorage.getItem(COLUMN_STORAGE_KEY);
-      const defaults = TABLE_COLUMNS.reduce((acc, c) => ((acc[c.key] = true), acc), {});
-      DashboardState.table.columns = stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+      const saved = stored ? JSON.parse(stored) : {};
+      const defaults = DashboardState.schema.reduce((acc, c) => ((acc[c.key] = true), acc), {});
+      DashboardState.table.columns = DashboardState.schema.reduce((acc, column) => {
+        acc[column.key] = saved[column.key] ?? defaults[column.key] ?? true;
+        return acc;
+      }, {});
+      if (!DashboardState.schema.some((c) => c.key === DashboardState.table.sort.key)) {
+        DashboardState.table.sort = { key: DashboardState.schema[0]?.key || '', direction: 'asc' };
+      }
       renderColumnChooser();
     };
 
     const renderColumnChooser = () => {
       const container = document.getElementById('column-chooser-options');
-      container.innerHTML = TABLE_COLUMNS.map((c) => `
+      if (!DashboardState.schema.length) {
+        container.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
+        return;
+      }
+      container.innerHTML = DashboardState.schema.map((c) => `
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
           <span>${c.label}</span>
@@ -958,7 +1122,8 @@
     const closeDrawer = () => document.getElementById('row-drawer').classList.add('translate-x-full');
 
     const exportCsv = () => {
-      const visibleColumns = TABLE_COLUMNS.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
+      if (!visibleColumns.length) return;
       const rows = DashboardState.derived.filtered.map((item) =>
         visibleColumns.map((c) => {
           let value = item[c.key];
@@ -981,33 +1146,12 @@
     };
 
     const bindFilterEvents = () => {
-      const startInput = document.getElementById('filter-start-date');
-      const endInput = document.getElementById('filter-end-date');
-      const statusContainer = document.getElementById('filter-status');
-      const yardSelect = document.getElementById('filter-yard');
-      const stateSelect = document.getElementById('filter-state');
-      const unitSelect = document.getElementById('filter-unit-type');
-      const brandSelect = document.getElementById('filter-brand');
-      const gpsToggle = document.getElementById('toggle-gps');
-      const holdToggle = document.getElementById('toggle-hold');
-      const recoveryToggle = document.getElementById('toggle-recovery');
       const searchInput = document.getElementById('filter-search');
+      const builder = document.getElementById('filter-builder');
+      const perPageSelect = document.getElementById('table-per-page');
+      const goToInput = document.getElementById('table-go-to');
 
-      const updateStatuses = () => {
-        DashboardState.filters.statuses = Array.from(statusContainer.querySelectorAll('input[type="checkbox"]:checked')).map((i) => i.value);
-      };
       const resetPagination = () => (DashboardState.table.page = 1);
-
-      startInput.addEventListener('change', () => { DashboardState.filters.dateRange.start = startInput.value; resetPagination(); renderDashboard(); });
-      endInput.addEventListener('change', () => { DashboardState.filters.dateRange.end = endInput.value; resetPagination(); renderDashboard(); });
-      statusContainer.addEventListener('change', () => { updateStatuses(); resetPagination(); renderDashboard(); });
-      yardSelect.addEventListener('change', () => { DashboardState.filters.yard = yardSelect.value; resetPagination(); renderDashboard(); });
-      stateSelect.addEventListener('change', () => { DashboardState.filters.state = stateSelect.value; resetPagination(); renderDashboard(); });
-      unitSelect.addEventListener('change', () => { DashboardState.filters.unitType = unitSelect.value; resetPagination(); renderDashboard(); });
-      brandSelect.addEventListener('change', () => { DashboardState.filters.brand = brandSelect.value; resetPagination(); renderDashboard(); });
-      gpsToggle.addEventListener('change', () => { DashboardState.filters.gpsOfflineOnly = gpsToggle.checked; resetPagination(); renderDashboard(); });
-      holdToggle.addEventListener('change', () => { DashboardState.filters.onHoldOnly = holdToggle.checked; resetPagination(); renderDashboard(); });
-      recoveryToggle.addEventListener('change', () => { DashboardState.filters.recoveryPriorityOnly = recoveryToggle.checked; resetPagination(); renderDashboard(); });
 
       let searchTimeout;
       searchInput.addEventListener('input', () => {
@@ -1019,15 +1163,33 @@
         }, 250);
       });
 
+      builder.addEventListener('change', (event) => {
+        const target = event.target;
+        if (target.matches('[data-filter-status]')) {
+          const checkboxes = builder.querySelectorAll('[data-filter-status]');
+          DashboardState.filters.statuses = Array.from(checkboxes)
+            .filter((input) => input.checked)
+            .map((input) => input.value);
+          resetPagination();
+          renderDashboard();
+        }
+        if (target.matches('[data-filter-category]')) {
+          const key = target.dataset.filterCategory;
+          DashboardState.filters.categoryFilters[key] = target.value;
+          resetPagination();
+          renderDashboard();
+        }
+        if (target.matches('#filter-start-date, #filter-end-date')) {
+          DashboardState.filters.dateRange.start = document.getElementById('filter-start-date')?.value || '';
+          DashboardState.filters.dateRange.end = document.getElementById('filter-end-date')?.value || '';
+          resetPagination();
+          renderDashboard();
+        }
+      });
+
       document.getElementById('reset-filters').addEventListener('click', () => {
         setupFilters();
         DashboardState.filters.search = '';
-        DashboardState.filters.gpsOfflineOnly = false;
-        DashboardState.filters.onHoldOnly = false;
-        DashboardState.filters.recoveryPriorityOnly = false;
-        gpsToggle.checked = false;
-        holdToggle.checked = false;
-        recoveryToggle.checked = false;
         searchInput.value = '';
         resetPagination();
         renderDashboard();
@@ -1035,6 +1197,20 @@
 
       document.getElementById('table-prev').addEventListener('click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
       document.getElementById('table-next').addEventListener('click', () => { DashboardState.table.page += 1; renderDashboard(); });
+
+      perPageSelect.addEventListener('change', () => {
+        DashboardState.table.perPage = Number(perPageSelect.value);
+        DashboardState.table.page = 1;
+        renderDashboard();
+      });
+
+      goToInput.addEventListener('change', () => {
+        const totalRows = DashboardState.derived.filtered.length;
+        const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
+        const desired = Math.min(Math.max(1, Number(goToInput.value) || 1), totalPages);
+        DashboardState.table.page = desired;
+        renderDashboard();
+      });
 
       document.getElementById('inventory-table-head').addEventListener('click', (event) => {
         const button = event.target.closest('[data-sort]');
@@ -1077,33 +1253,9 @@
       });
 
       document.getElementById('export-csv').addEventListener('click', exportCsv);
-
-      updateStatuses();
     };
 
     const bindChartInteractions = () => {
-      const statusContainer = document.querySelector('[data-bar-chart]');
-      statusContainer.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-status]');
-        if (!button) return;
-        const status = button.dataset.status;
-        const current = new Set(DashboardState.filters.statuses);
-        current.has(status) ? current.delete(status) : current.add(status);
-        DashboardState.filters.statuses = Array.from(current);
-        DashboardState.table.page = 1;
-        renderDashboard();
-      });
-
-      const regionalContainer = document.getElementById('regional-coverage');
-      regionalContainer.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-state]');
-        if (!button) return;
-        DashboardState.filters.state = button.dataset.state;
-        document.getElementById('filter-state').value = DashboardState.filters.state;
-        DashboardState.table.page = 1;
-        renderDashboard();
-      });
-
       const trendChart = document.getElementById('trend-chart');
       const brushRect = document.getElementById('trend-brush-rect');
       let brushing = false;
@@ -1150,8 +1302,10 @@
 
         if (points.length) {
           DashboardState.filters.dateRange = { start: points[min].date, end: points[max].date };
-          document.getElementById('filter-start-date').value = points[min].date;
-          document.getElementById('filter-end-date').value = points[max].date;
+          const startInput = document.getElementById('filter-start-date');
+          const endInput = document.getElementById('filter-end-date');
+          if (startInput) startInput.value = points[min].date;
+          if (endInput) endInput.value = points[max].date;
           DashboardState.table.page = 1;
           renderDashboard();
         }
@@ -1168,6 +1322,11 @@
     const handleVehicleChange = (payload) => {
       const record = payload.new || payload.old;
       if (!record) return;
+
+      if (!DashboardState.schema.length) {
+        DashboardState.schema = buildSchemaFromData([record]);
+        initializeTablePreferences();
+      }
 
       const normalized = normalizeVehicle(record);
       const eventTimestamp = payload.commit_timestamp ? new Date(payload.commit_timestamp).getTime() : Date.now();
@@ -1188,8 +1347,8 @@
       if (DashboardState.realtime.channel) return;
 
       const channel = supabaseClient
-        .channel('vehicles-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, handleVehicleChange);
+        .channel('inventory-control-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Inventory Control' }, handleVehicleChange);
 
       DashboardState.realtime.channel = channel;
 
@@ -1218,8 +1377,8 @@
       setConnectionStatus('Reconnecting…');
 
       const { data, error } = await supabaseClient
-        .from('vehicles')
-        .select('id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at')
+        .from('Inventory Control')
+        .select('*')
         .limit(5000);
 
       if (error) {
@@ -1235,12 +1394,18 @@
         return;
       }
 
-      setVehiclesFromArray((data || []).map((v) => ({
-        ...v,
-        lastEventAt: v.updated_at ? new Date(v.updated_at).getTime() : null,
-      })));
+      DashboardState.schema = buildSchemaFromData(data || []);
+
+      setVehiclesFromArray((data || []).map((v) => {
+        const updatedAt = getField(v, 'Updated At', 'Updated', 'Last Updated');
+        return {
+          ...v,
+          lastEventAt: updatedAt ? new Date(updatedAt).getTime() : null,
+        };
+      }));
 
       DashboardState.ui.isLoading = false;
+      initializeTablePreferences();
       setupFilters({ preserveSelections: true });
       renderDashboard();
       setConnectionStatus('Live');
@@ -1250,7 +1415,6 @@
     // 4) BOOT
     // ==========================================================
 
-    initializeTablePreferences();
     setupFilters();
     bindFilterEvents();
     bindChartInteractions();
