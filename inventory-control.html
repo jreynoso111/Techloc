@@ -507,25 +507,38 @@
       return `Updated ${days}d ago`;
     };
 
-    const getVehicleKey = (vehicle) => vehicle.id ?? vehicle.shortVin ?? vehicle.vin ?? '';
+    const getVehicleKey = (vehicle) => vehicle.id ?? '';
+    const normalizeBoolean = (value) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value !== 0;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return ['true', 'yes', 'y', '1'].includes(normalized);
+      }
+      return Boolean(value);
+    };
+    const getField = (row, ...keys) => {
+      for (const key of keys) {
+        const value = row?.[key];
+        if (value !== undefined && value !== null && value !== '') return value;
+      }
+      return '';
+    };
     const normalizeVehicle = (vehicle) => {
-      const updatedAt = vehicle.updated_at || vehicle.updatedAt || '';
-      const createdAt = vehicle.created_at || vehicle.createdAt || '';
-      const dateValue = updatedAt || createdAt || vehicle.date || '';
+      const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'Last Updated');
+      const createdAt = getField(vehicle, 'Created At');
+      const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
       return {
         id: vehicle.id ?? null,
-        vin: vehicle.vin || '',
-        shortVin: vehicle.short_vin || vehicle.shortVin || '',
-        plate: vehicle.plate || '',
-        status: vehicle.status || 'Active',
-        yard: vehicle.yard || vehicle.location || '',
-        state: vehicle.state || '',
-        unitType: vehicle.unit_type || vehicle.unitType || '',
-        brand: vehicle.brand || '',
-        lien: Boolean(vehicle.lien),
-        hold: Boolean(vehicle.hold),
-        gpsOffline: Boolean(vehicle.gps_offline ?? vehicle.gpsOffline),
-        recoveryPriority: Boolean(vehicle.recovery_priority ?? vehicle.recoveryPriority),
+        stockNo: getField(vehicle, 'Current Stock No'),
+        vin: getField(vehicle, 'VIN'),
+        status: getField(vehicle, 'Vehicle Status') || 'Active',
+        hold: normalizeBoolean(getField(vehicle, 'HOLD')),
+        brand: getField(vehicle, 'Brand'),
+        model: getField(vehicle, 'Model'),
+        modelYear: getField(vehicle, 'Model Year'),
+        dealStatus: getField(vehicle, 'Deal Status'),
+        prepStatus: getField(vehicle, 'Inventory Preparation Status'),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
         date: dateValue ? String(dateValue).slice(0, 10) : '',
@@ -1188,8 +1201,8 @@
       if (DashboardState.realtime.channel) return;
 
       const channel = supabaseClient
-        .channel('vehicles-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, handleVehicleChange);
+        .channel('inventory-control-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'Inventory Control' }, handleVehicleChange);
 
       DashboardState.realtime.channel = channel;
 
@@ -1218,8 +1231,8 @@
       setConnectionStatus('Reconnecting…');
 
       const { data, error } = await supabaseClient
-        .from('vehicles')
-        .select('id, vin, short_vin, plate, status, yard, location, state, unit_type, brand, lien, hold, gps_offline, recovery_priority, created_at, updated_at')
+        .from('Inventory Control')
+        .select('*')
         .limit(5000);
 
       if (error) {
