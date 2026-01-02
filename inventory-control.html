@@ -51,6 +51,10 @@
     body[data-density="compact"] .text-lg { font-size: var(--text-base) !important; line-height: 1.4 !important; }
     body[data-density="compact"] .text-base { font-size: var(--text-sm) !important; }
     body[data-density="compact"] .text-sm { font-size: var(--text-xs) !important; }
+
+    .resize-handle {
+      cursor: col-resize;
+    }
   </style>
 
   <link rel="stylesheet" href="assets/visuals/theme.css" />
@@ -137,60 +141,103 @@
             <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
             <span id="connection-status">Booting…</span>
           </div>
+          <div class="relative">
+            <button id="sales-channel-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" aria-expanded="false">
+              <span>Sales Channel</span>
+              <span id="sales-channel-summary" class="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300">0</span>
+            </button>
+            <div id="sales-channel-panel" class="absolute right-0 z-30 mt-2 hidden w-56 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Choose channels</p>
+              <div id="sales-channel-options" class="mt-2 grid gap-2"></div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="mt-2 grid max-h-12 grid-cols-4 gap-2" aria-live="polite">
-        <div class="flex h-10 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1.5 shadow-none">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
-          <p class="text-[16px] font-black leading-none text-white" data-metric="active">--</p>
-          <span class="h-1 w-10 rounded-full bg-emerald-400/80"></span>
+      <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
+        <div id="deal-status-panel" class="flex-1">
+          <div class="grid gap-3 lg:grid-cols-[220px_1fr]">
+          <div class="grid gap-2">
+            <div class="flex h-7 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1 shadow-none">
+              <p class="text-[9px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
+              <p class="text-[13px] font-black leading-none text-white" data-metric="active">--</p>
+              <span class="h-0.5 w-8 rounded-full bg-emerald-400/80"></span>
+            </div>
+            <div class="flex h-7 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1 shadow-none">
+              <p class="text-[9px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
+              <p class="text-[13px] font-black leading-none text-white" data-metric="hold">--</p>
+              <span class="h-0.5 w-8 rounded-full bg-amber-400/80"></span>
+            </div>
+          </div>
+            <div class="h-full rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 class="text-lg font-bold text-white">Units by Deal Status</h3>
+              </div>
+              <span id="status-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Loading…</span>
+            </div>
+            <div class="mt-1 grid grid-cols-6 gap-2" data-bar-chart aria-label="Units by deal status chart"></div>
+          </div>
         </div>
-        <div class="flex h-10 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1.5 shadow-none">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
-          <p class="text-[16px] font-black leading-none text-white" data-metric="hold">--</p>
-          <span class="h-1 w-10 rounded-full bg-amber-400/80"></span>
         </div>
-        <div class="flex h-10 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1.5 shadow-none">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Recovery Queue</p>
-          <p class="text-[16px] font-black leading-none text-white" data-metric="recovery">--</p>
-          <span class="h-1 w-10 rounded-full bg-rose-400/80"></span>
+
+        <div id="panel-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
+          <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
         </div>
-        <div class="flex h-10 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1.5 shadow-none">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Utilization</p>
-          <p class="text-[16px] font-black leading-none text-white" data-metric="utilization">--</p>
-          <span class="h-1 w-10 rounded-full bg-blue-400/80"></span>
+
+        <div id="alerts-panel" class="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-dashboard lg:w-[300px]">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Alerts</p>
+              <h3 class="text-lg font-bold text-white">Priority Actions</h3>
+            </div>
+            <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
+          </div>
+          <ul class="mt-3 space-y-2 text-sm text-slate-200">
+            <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
+              <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-amber-300">
+                <i data-lucide="satellite" class="h-4 w-4"></i>
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs font-semibold text-white">GPS Offline Cluster</p>
+                <p class="truncate text-[10px] text-slate-400">Auto-highlights via toggle filter.</p>
+              </div>
+              <span class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
+            </li>
+            <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
+              <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-rose-300">
+                <i data-lucide="lifebuoy" class="h-4 w-4"></i>
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs font-semibold text-white">Recovery Dispatch</p>
+                <p class="truncate text-[10px] text-slate-400">Click a row to open details drawer.</p>
+              </div>
+              <span class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200">queue</span>
+            </li>
+            <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
+              <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-blue-300">
+                <i data-lucide="activity" class="h-4 w-4"></i>
+              </span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs font-semibold text-white">Utilization Dip</p>
+                <p class="truncate text-[10px] text-slate-400">Review deal status bars to spot shifts.</p>
+              </div>
+              <span class="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-blue-200">watch</span>
+            </li>
+          </ul>
         </div>
       </div>
     </section>
 
     <section class="z-30 p-4">
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Filter Bar</p>
-          <h3 class="text-lg font-bold text-white">Refine Inventory View</h3>
-        </div>
-        <div class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-          <span>Density</span>
-          <div class="inline-flex items-center gap-1 rounded-xl border border-slate-800/70 bg-slate-950/60 px-1 py-1">
-            <button type="button" data-density-option="compact" data-pill-control class="h-7 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-              Compact
-            </button>
-            <button type="button" data-density-option="comfortable" data-pill-control class="h-7 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-              Comfortable
-            </button>
-          </div>
-        </div>
-      </div>
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-end"></div>
 
       <div class="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto text-xs font-semibold text-slate-200" id="active-filters"></div>
 
       <div id="filter-builder" class="mt-3 grid grid-cols-12 gap-2">
         <div class="col-span-12 grid grid-cols-12 gap-2">
-          <input id="filter-search" type="search" aria-label="Search" placeholder="Search across all fields" class="col-span-12 h-8 rounded-xl border border-slate-800 bg-slate-950/70 px-3 text-[11px] font-semibold text-white sm:col-span-4" />
-          <div id="filter-date-range" class="col-span-12 sm:col-span-4"></div>
-          <div id="filter-status-block" class="col-span-12 sm:col-span-3"></div>
-          <div class="col-span-12 flex items-center justify-start gap-2 sm:col-span-1 sm:justify-end">
+          <div id="filter-date-range" class="col-span-12 sm:col-span-5"></div>
+          <div class="col-span-12 flex items-center justify-start gap-2 sm:col-span-7 sm:justify-end">
             <button id="reset-filters" type="button" aria-label="Clear filters" data-pill-control class="h-8 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">
               <i data-lucide="x" class="h-3 w-3"></i>
             </button>
@@ -210,102 +257,6 @@
       </div>
     </section>
 
-    <section class="grid gap-3 lg:grid-cols-[1.2fr_1fr]">
-      <div class="h-full rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
-        <div class="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Inventory Movement</p>
-            <h3 class="text-lg font-bold text-white">Units by Status</h3>
-          </div>
-          <span id="status-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Loading…</span>
-        </div>
-        <div class="mt-1 grid grid-cols-6 gap-2" data-bar-chart aria-label="Units by status chart"></div>
-      </div>
-
-      <div class="h-full rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Utilization Trend</p>
-            <h3 class="text-lg font-bold text-white">Dynamic Load Curve</h3>
-          </div>
-          <span id="trend-caption" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">7-day utilization</span>
-        </div>
-
-        <div class="mt-1 rounded-2xl border border-slate-800 bg-transparent p-3">
-          <div class="flex items-center justify-between text-xs text-slate-400">
-            <span>Low</span>
-            <span>High</span>
-          </div>
-          <svg viewBox="0 0 260 120" class="mt-2 h-14 w-full" id="trend-chart" aria-label="Utilization trend chart" role="img">
-            <defs>
-              <linearGradient id="trend-gradient" x1="0" x2="1" y1="0" y2="0">
-                <stop offset="0%" stop-color="#38bdf8" />
-                <stop offset="50%" stop-color="#818cf8" />
-                <stop offset="100%" stop-color="#22c55e" />
-              </linearGradient>
-            </defs>
-            <rect id="trend-brush-rect" x="0" y="10" width="0" height="100" fill="rgba(56,189,248,0.2)"></rect>
-            <polyline id="trend-line" points="" fill="none" stroke="url(#trend-gradient)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></polyline>
-            <g id="trend-dots"></g>
-          </svg>
-        </div>
-      </div>
-    </section>
-
-    <section class="grid gap-4 lg:grid-cols-3">
-      <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-dashboard lg:col-span-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Regional Coverage</p>
-            <h3 class="text-lg font-bold text-white">Top Performance Zones</h3>
-          </div>
-          <span class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Realtime</span>
-        </div>
-        <div class="mt-4 grid gap-3 sm:grid-cols-2" id="regional-coverage" aria-label="Top performance zones"></div>
-      </div>
-
-      <div class="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-dashboard">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Alerts</p>
-            <h3 class="text-lg font-bold text-white">Priority Actions</h3>
-          </div>
-          <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
-        </div>
-        <ul class="mt-3 space-y-2 text-sm text-slate-200">
-          <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
-            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-amber-300">
-              <i data-lucide="satellite" class="h-4 w-4"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-semibold text-white">GPS Offline Cluster</p>
-              <p class="truncate text-[10px] text-slate-400">Auto-highlights via toggle filter.</p>
-            </div>
-            <span class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
-          </li>
-          <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
-            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-rose-300">
-              <i data-lucide="lifebuoy" class="h-4 w-4"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-semibold text-white">Recovery Dispatch</p>
-              <p class="truncate text-[10px] text-slate-400">Click a row to open details drawer.</p>
-            </div>
-            <span class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200">queue</span>
-          </li>
-          <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
-            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-blue-300">
-              <i data-lucide="activity" class="h-4 w-4"></i>
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-xs font-semibold text-white">Utilization Dip</p>
-              <p class="truncate text-[10px] text-slate-400">Brush the trend chart to filter by date.</p>
-            </div>
-            <span class="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-blue-200">watch</span>
-          </li>
-        </ul>
-      </div>
-    </section>
 
     <section class="p-4">
       <div class="flex flex-col gap-2">
@@ -410,8 +361,6 @@
     lucide.createIcons();
 
     const PILL_CLASSES = 'rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1 text-[10px] hover:bg-slate-900/60';
-    const ACTIVE_DENSITY_CLASSES = ['border-blue-400', 'bg-blue-500/20', 'text-blue-100'];
-
     // ✅ Fallback: pega tus credenciales si tu módulo no exporta bien.
     //    (Anon key es pública, pero igual cuida RLS.)
     const SUPABASE_URL = '';       // <-- pega aquí
@@ -473,11 +422,11 @@
     const DashboardState = {
       filters: {
         dateRange: { start: '', end: '' },
-        search: '',
-        statuses: [],
-        statusKey: '',
         dateKey: '',
+        salesChannels: ['Finance-EX'],
+        salesChannelKey: '',
         categoryFilters: {},
+        columnFilters: {},
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -489,23 +438,21 @@
       },
       derived: {
         filtered: [],
-        kpis: { active: 0, hold: 0, recovery: 0, utilization: 0 },
+        kpis: { active: 0, hold: 0 },
         statusBars: [],
-        trendPoints: [],
-        regionCoverage: [],
       },
       realtime: { channel: null },
       ui: { isLoading: true },
     };
 
-    const STATUS_COLORS = {
-      Active: 'from-emerald-400 to-blue-500',
-      'On Hold': 'from-amber-400 to-orange-500',
-      'In Transit': 'from-blue-400 to-indigo-500',
-      Recovery: 'from-rose-400 to-red-500',
-      Ready: 'from-teal-400 to-cyan-500',
-      'Write-Off': 'from-slate-500 to-slate-400',
-    };
+    const DEAL_STATUS_COLORS = [
+      'from-emerald-400 to-green-500',
+      'from-blue-400 to-indigo-500',
+      'from-amber-400 to-orange-500',
+      'from-rose-400 to-red-500',
+      'from-teal-400 to-cyan-500',
+      'from-slate-400 to-slate-500',
+    ];
 
     const COLUMN_STORAGE_KEY = 'inventoryControlTableColumns';
 
@@ -600,14 +547,14 @@
       return Array.from(values).sort((a, b) => a.localeCompare(b));
     };
 
-    const detectStatusKey = (schema) =>
-      schema.find((col) => col.type === 'string' && /status/i.test(col.key))?.key || '';
-
     const detectDateKey = (schema) => {
       const preferred = schema.find((col) => col.type === 'date' && /created_at|created|updated_at|updated/i.test(col.key));
       if (preferred) return preferred.key;
       return schema.find((col) => col.type === 'date')?.key || '';
     };
+
+    const detectSalesChannelKey = (schema) =>
+      schema.find((col) => /sales channel/i.test(col.key))?.key || '';
 
     const detectCategoryKeys = (schema, rows, excludeKeys) => {
       const candidates = schema
@@ -691,47 +638,26 @@
       const schema = DashboardState.schema;
       if (!schema.length) return;
 
-      const statusKey = detectStatusKey(schema);
       const dateKey = detectDateKey(schema);
-      const categoryKeys = detectCategoryKeys(schema, dataset, [statusKey, dateKey].filter(Boolean));
+      const salesChannelKey = detectSalesChannelKey(schema);
+      const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey].filter(Boolean));
 
       if (!preserveSelections) {
-        DashboardState.filters.statuses = [];
         DashboardState.filters.categoryFilters = {};
+        DashboardState.filters.columnFilters = {};
       }
 
-      DashboardState.filters.statusKey = statusKey;
       DashboardState.filters.dateKey = dateKey;
+      DashboardState.filters.salesChannelKey = salesChannelKey;
 
       const builder = document.getElementById('filter-builder');
-      const statusBlock = document.getElementById('filter-status-block');
       const categoryBlock = document.getElementById('filter-category-block');
       const dateRangeBlock = document.getElementById('filter-date-range');
+      const salesChannelOptions = document.getElementById('sales-channel-options');
+      const salesChannelSummary = document.getElementById('sales-channel-summary');
 
-      statusBlock.innerHTML = '';
       categoryBlock.innerHTML = '';
       dateRangeBlock.innerHTML = '';
-
-      if (statusKey) {
-        const statusValues = getUniqueValues(dataset, statusKey);
-        const selectedStatuses = preserveSelections ? DashboardState.filters.statuses : statusValues;
-        DashboardState.filters.statuses = selectedStatuses;
-        statusBlock.innerHTML = `
-          <fieldset class="rounded-xl border border-slate-800/70 bg-slate-950/60 p-2">
-            <legend class="px-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">${formatColumnLabel(statusKey)}</legend>
-            <div class="mt-2 flex max-w-full gap-1 overflow-x-auto text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-              ${statusValues.map((value) => `
-                <label class="cursor-pointer">
-                  <input type="checkbox" value="${value}" data-filter-status class="peer sr-only" ${selectedStatuses.includes(value) ? 'checked' : ''} />
-                  <span class="${PILL_CLASSES} whitespace-nowrap text-slate-300 transition peer-checked:border-blue-400 peer-checked:bg-blue-500/20 peer-checked:text-blue-100">
-                    ${value}
-                  </span>
-                </label>
-              `).join('')}
-            </div>
-          </fieldset>
-        `;
-      }
 
       if (categoryKeys.length) {
         categoryKeys.forEach((entry) => {
@@ -760,9 +686,11 @@
           const latest = new Date(dateValues[dateValues.length - 1]);
           const startDate = new Date(latest);
           startDate.setDate(startDate.getDate() - 29);
-          DashboardState.filters.dateRange = { start: startDate.toISOString().slice(0, 10), end: latest.toISOString().slice(0, 10) };
+          DashboardState.filters.dateRange = { start: startDate.toISOString().slice(0, 10), end: '' };
         } else if (!dateValues.length) {
           DashboardState.filters.dateRange = { start: '', end: '' };
+        } else {
+          DashboardState.filters.dateRange.end = '';
         }
 
         dateRangeBlock.innerHTML = `
@@ -771,15 +699,39 @@
               <span>Start</span>
               <input id="filter-start-date" type="date" value="${DashboardState.filters.dateRange.start || ''}" class="h-8 flex-1 rounded-xl border border-slate-800 bg-slate-950/70 px-2 text-[11px] font-semibold text-white" />
             </label>
-            <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-              <span>End</span>
-              <input id="filter-end-date" type="date" value="${DashboardState.filters.dateRange.end || ''}" class="h-8 flex-1 rounded-xl border border-slate-800 bg-slate-950/70 px-2 text-[11px] font-semibold text-white" />
-            </label>
           </div>
         `;
       }
 
-      statusBlock.classList.toggle('hidden', !statusKey);
+      if (salesChannelOptions && salesChannelSummary) {
+        if (salesChannelKey) {
+          const channelValues = getUniqueValues(dataset, salesChannelKey);
+          const preferredValues = ['Finance-EX', 'Finance-EXT', 'Finance-ext', 'Finance-Ext'];
+          if (!preserveSelections || !DashboardState.filters.salesChannels.length) {
+            const selections = preferredValues.filter((value) => channelValues.includes(value));
+            if (selections.length) {
+              DashboardState.filters.salesChannels = selections;
+            } else {
+              const nonFinance = channelValues.find((value) => value.toUpperCase() !== 'FINANCE');
+              DashboardState.filters.salesChannels = [nonFinance || channelValues[0] || ''];
+            }
+          }
+          salesChannelOptions.innerHTML = (channelValues.length ? channelValues : [''])
+            .map((value) => `
+              <label class="flex items-center gap-2 text-xs">
+                <input type="checkbox" value="${value}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.filters.salesChannels.includes(value) ? 'checked' : ''} />
+                <span>${value || 'Unknown'}</span>
+              </label>
+            `).join('');
+          const count = DashboardState.filters.salesChannels.filter(Boolean).length;
+          salesChannelSummary.textContent = count ? String(count) : '0';
+        } else {
+          DashboardState.filters.salesChannels = [];
+          salesChannelOptions.innerHTML = '<p class="text-[10px] text-slate-400">No channels available.</p>';
+          salesChannelSummary.textContent = '0';
+        }
+      }
+
       categoryBlock.classList.toggle('hidden', categoryKeys.length === 0);
       dateRangeBlock.classList.toggle('hidden', !dateKey);
       builder.classList.toggle('opacity-50', DashboardState.ui.isLoading);
@@ -787,7 +739,6 @@
 
     const applyFilters = () => {
       const { filters } = DashboardState;
-      const searchText = filters.search.trim().toLowerCase();
 
       return getCurrentDataset().filter((item) => {
         const dateValue = filters.dateKey ? item[filters.dateKey] : null;
@@ -800,83 +751,52 @@
 
         if ((filters.dateRange.start || filters.dateRange.end) && !dateString) return false;
 
-        const searchMatch =
-          !searchText ||
-          DashboardState.schema.some((column) => {
-            const value = item[column.key];
-            if (value === null || value === undefined) return false;
-            return String(value).toLowerCase().includes(searchText);
-          });
-
-        const statusMatch = !filters.statusKey || !filters.statuses.length
-          || filters.statuses.includes(String(item[filters.statusKey] ?? ''));
-
         const categoryMatch = Object.entries(filters.categoryFilters || {}).every(([key, value]) => {
           if (value === 'all') return true;
           return String(item[key] ?? '') === value;
         });
 
-        return inDateRange && searchMatch && statusMatch && categoryMatch;
-      });
-    };
+        const salesChannelMatch = !filters.salesChannelKey || !filters.salesChannels.length
+          || filters.salesChannels.includes(String(item[filters.salesChannelKey] ?? ''));
 
-    const computeTrend = (items) => {
-      const filters = DashboardState.filters;
-      const activeDates = [...new Set(items.map((i) => i.date))].filter(Boolean).sort();
-      let dates = activeDates.slice(-7);
-
-      if (!dates.length) {
-        const endDate = filters.dateRange.end ? new Date(filters.dateRange.end) : new Date();
-        dates = Array.from({ length: 7 }, (_, idx) => {
-          const d = new Date(endDate);
-          d.setDate(d.getDate() - (6 - idx));
-          return d.toISOString().slice(0, 10);
+        const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
+          if (!entry) return true;
+          const value = item[key];
+          const valueString = String(value ?? '');
+          if (entry.select && entry.select !== 'all' && valueString !== entry.select) return false;
+          if (entry.search && !valueString.toLowerCase().includes(entry.search)) return false;
+          return true;
         });
-      }
 
-      return dates.map((date, index) => {
-        const dayItems = items.filter((i) => i.date === date);
-        const activeCount = dayItems.filter((i) => i.status === 'Active').length;
-        const value = dayItems.length ? Math.round((activeCount / dayItems.length) * 100) : 0;
-        return { x: index, value, date };
+        return inDateRange && categoryMatch && salesChannelMatch && columnMatch;
       });
     };
 
-    const computeRegionalCoverage = (items) => {
-      const byState = items.reduce((acc, item) => {
-        const key = item.state || '—';
-        const entry = acc[key] || { state: key, total: 0, active: 0 };
-        entry.total += 1;
-        if (item.status === 'Active') entry.active += 1;
-        acc[key] = entry;
-        return acc;
-      }, {});
-      return Object.values(byState)
-        .map((e) => ({ label: e.state, percent: e.total ? Math.round((e.active / e.total) * 100) : 0 }))
-        .sort((a, b) => b.percent - a.percent)
-        .slice(0, 4);
-    };
+    const getDealStatusLabel = (value) => String(value ?? '').trim() || 'Unassigned';
 
     const computeDerivedState = () => {
       const filtered = applyFilters();
       const activeCount = filtered.filter((i) => i.status === 'Active').length;
       const holdCount = filtered.filter((i) => i.hold || i.status === 'On Hold').length;
-      const recoveryCount = filtered.filter((i) => i.status === 'Recovery').length;
-      const utilization = filtered.length ? Math.round((activeCount / filtered.length) * 100) : 0;
-
-      const statusCounts = Object.keys(STATUS_COLORS).map((status) => ({
-        status,
-        count: filtered.filter((i) => i.status === status).length,
-      }));
+      const dealStatusCounts = filtered.reduce((acc, item) => {
+        const key = getDealStatusLabel(item.dealStatus);
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const statusCounts = Object.entries(dealStatusCounts)
+        .map(([status, count]) => ({ status, count }))
+        .sort((a, b) => b.count - a.count);
       const maxCount = Math.max(1, ...statusCounts.map((i) => i.count));
-      const statusBars = statusCounts.map((i) => ({ ...i, percentage: Math.round((i.count / maxCount) * 100) }));
+      const statusBars = statusCounts.map((i, index) => ({
+        ...i,
+        percentage: Math.round((i.count / maxCount) * 100),
+        color: DEAL_STATUS_COLORS[index % DEAL_STATUS_COLORS.length],
+      }));
 
       DashboardState.derived = {
         filtered,
-        kpis: { active: activeCount, hold: holdCount, recovery: recoveryCount, utilization },
+        kpis: { active: activeCount, hold: holdCount },
         statusBars,
-        trendPoints: computeTrend(filtered),
-        regionCoverage: computeRegionalCoverage(filtered),
       };
     };
 
@@ -885,19 +805,14 @@
       const isLoading = DashboardState.ui.isLoading;
       const active = document.querySelector('[data-metric="active"]');
       const hold = document.querySelector('[data-metric="hold"]');
-      const recovery = document.querySelector('[data-metric="recovery"]');
-      const utilization = document.querySelector('[data-metric="utilization"]');
-
-      [active, hold, recovery, utilization].forEach((el) => el.classList.toggle('animate-pulse', isLoading));
+      [active, hold].forEach((el) => el.classList.toggle('animate-pulse', isLoading));
 
       if (isLoading) {
-        active.textContent = hold.textContent = recovery.textContent = utilization.textContent = '...';
+        active.textContent = hold.textContent = '...';
         return;
       }
       active.textContent = formatNumber(kpis.active);
       hold.textContent = formatNumber(kpis.hold);
-      recovery.textContent = formatNumber(kpis.recovery);
-      utilization.textContent = `${kpis.utilization}%`;
     };
 
     const renderStatusBars = () => {
@@ -922,7 +837,7 @@
       container.innerHTML = DashboardState.derived.statusBars.map((item) => `
         <button type="button" data-status="${item.status}" class="flex flex-col items-center gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60">
           <div class="h-14 w-8 rounded-full bg-slate-800/70">
-            <div class="bar-fill w-full rounded-full bg-gradient-to-t ${STATUS_COLORS[item.status]}" style="height: ${item.percentage}%"></div>
+            <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
           </div>
           <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
           <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
@@ -930,72 +845,19 @@
       `).join('');
     };
 
-    const renderTrend = () => {
-      if (DashboardState.ui.isLoading) {
-        document.getElementById('trend-line').setAttribute('points', '');
-        document.getElementById('trend-dots').innerHTML = '';
-        return;
-      }
-      const points = DashboardState.derived.trendPoints;
-      const width = 260, height = 100;
-      const step = points.length > 1 ? width / (points.length - 1) : width;
-
-      const poly = points.map((p, idx) => {
-        const x = idx * step;
-        const y = height - (p.value / 100) * height + 10;
-        return `${x},${y}`;
-      }).join(' ');
-
-      document.getElementById('trend-line').setAttribute('points', poly);
-
-      document.getElementById('trend-dots').innerHTML = points.map((p, idx) => {
-        const x = idx * step;
-        const y = height - (p.value / 100) * height + 10;
-        return `<circle cx="${x}" cy="${y}" r="4" fill="#38bdf8" />`;
-      }).join('');
-    };
-
-    const renderRegionalCoverage = () => {
-      const container = document.getElementById('regional-coverage');
-      if (DashboardState.ui.isLoading) {
-        container.innerHTML = Array.from({ length: 4 }).map(() => `
-          <div class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
-            <div class="h-4 w-20 rounded-full bg-slate-800/70 animate-pulse"></div>
-            <div class="mt-3 h-6 w-16 rounded-full bg-slate-800/70 animate-pulse"></div>
-            <div class="mt-3 h-2 rounded-full bg-slate-800"></div>
-          </div>
-        `).join('');
-        return;
-      }
-
-      const zones = DashboardState.derived.regionCoverage;
-      if (!zones.length) {
-        container.innerHTML = '<p class="text-sm text-slate-400">No regional coverage available for the selected filters.</p>';
-        return;
-      }
-
-      container.innerHTML = zones.map((z, i) => `
-        <button type="button" data-state="${z.label}" class="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-left transition hover:border-blue-500 hover:bg-slate-950/80">
-          <p class="text-xs text-slate-400">State ${z.label}</p>
-          <p class="mt-2 text-xl font-black text-white">${z.percent}%</p>
-          <div class="mt-3 h-2 rounded-full bg-slate-800">
-            <div class="h-2 rounded-full bg-gradient-to-r ${i % 2 === 0 ? 'from-blue-500 to-emerald-400' : 'from-indigo-500 to-sky-400'}" style="width: ${z.percent}%"></div>
-          </div>
-        </button>
-      `).join('');
-    };
 
     const renderActiveFilters = () => {
       const chipsContainer = document.getElementById('active-filters');
       const { filters } = DashboardState;
       const chips = [];
 
-      if (filters.dateRange.start || filters.dateRange.end) chips.push(`Date: ${filters.dateRange.start || 'Any'} → ${filters.dateRange.end || 'Any'}`);
-      if (filters.statusKey && filters.statuses.length) chips.push(`${formatColumnLabel(filters.statusKey)}: ${filters.statuses.join(', ')}`);
+      if (filters.dateRange.start) chips.push(`Date: From ${filters.dateRange.start}`);
+      if (filters.salesChannelKey && filters.salesChannels.length) {
+        chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
+      }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
       });
-      if (filters.search) chips.push(`Search: ${filters.search}`);
 
       chipsContainer.innerHTML = chips.length
         ? chips.map((c) => `<span class="${PILL_CLASSES} whitespace-nowrap text-slate-200">${c}</span>`).join('')
@@ -1006,26 +868,49 @@
       const head = document.getElementById('inventory-table-head');
       const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
       const sortState = DashboardState.table.sort;
+      const dataset = getCurrentDataset();
 
       if (!visibleColumns.length) {
         head.innerHTML = '<tr><th class="px-3 py-2 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400">No columns</th></tr>';
         return;
       }
 
-      head.innerHTML = `<tr>${
-        visibleColumns.map((c) => {
-          const isSorted = sortState.key === c.key;
-          const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
-          return `
-            <th class="px-3 py-2">
-              <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                <span>${c.label}</span>
-                <span class="text-[10px] text-blue-300">${indicator}</span>
-              </button>
-            </th>
-          `;
-        }).join('')
-      }</tr>`;
+      head.innerHTML = `
+        <tr>${
+          visibleColumns.map((c) => {
+            const isSorted = sortState.key === c.key;
+            const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
+            return `
+              <th class="px-3 py-2">
+                <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
+                  <span>${c.label}</span>
+                  <span class="text-[10px] text-blue-300">${indicator}</span>
+                </button>
+              </th>
+            `;
+          }).join('')
+        }</tr>
+        <tr class="text-[10px] text-slate-300">
+          ${
+            visibleColumns.map((c) => {
+              const values = getUniqueValues(dataset, c.key).slice(0, 50);
+              const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
+              DashboardState.filters.columnFilters[c.key] = entry;
+              return `
+                <th class="px-3 pb-3">
+                  <div class="grid gap-1">
+                    <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
+                      <option value="all">All</option>
+                      ${values.map((value) => `<option value="${value}" ${entry.select === value ? 'selected' : ''}>${value}</option>`).join('')}
+                    </select>
+                    <input type="search" data-column-search="${c.key}" value="${entry.search || ''}" placeholder="Search" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" />
+                  </div>
+                </th>
+              `;
+            }).join('')
+          }
+        </tr>
+      `;
     };
 
     const renderTable = () => {
@@ -1122,8 +1007,6 @@
       computeDerivedState();
       renderKpis();
       renderStatusBars();
-      renderTrend();
-      renderRegionalCoverage();
       renderTableHead();
       renderTable();
       renderActiveFilters();
@@ -1215,42 +1098,28 @@
     };
 
     const bindFilterEvents = () => {
-      const searchInput = document.getElementById('filter-search');
       const builder = document.getElementById('filter-builder');
       const perPageSelect = document.getElementById('table-per-page');
       const goToInput = document.getElementById('table-go-to');
+      const tableHead = document.getElementById('inventory-table-head');
+      const salesChannelToggle = document.getElementById('sales-channel-toggle');
+      const salesChannelPanel = document.getElementById('sales-channel-panel');
+      const salesChannelOptions = document.getElementById('sales-channel-options');
+      const salesChannelSummary = document.getElementById('sales-channel-summary');
 
       const resetPagination = () => (DashboardState.table.page = 1);
 
-      let searchTimeout;
-      searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          DashboardState.filters.search = searchInput.value;
-          resetPagination();
-          renderDashboard();
-        }, 250);
-      });
-
       builder.addEventListener('change', (event) => {
         const target = event.target;
-        if (target.matches('[data-filter-status]')) {
-          const checkboxes = builder.querySelectorAll('[data-filter-status]');
-          DashboardState.filters.statuses = Array.from(checkboxes)
-            .filter((input) => input.checked)
-            .map((input) => input.value);
-          resetPagination();
-          renderDashboard();
-        }
         if (target.matches('[data-filter-category]')) {
           const key = target.dataset.filterCategory;
           DashboardState.filters.categoryFilters[key] = target.value;
           resetPagination();
           renderDashboard();
         }
-        if (target.matches('#filter-start-date, #filter-end-date')) {
+        if (target.matches('#filter-start-date')) {
           DashboardState.filters.dateRange.start = document.getElementById('filter-start-date')?.value || '';
-          DashboardState.filters.dateRange.end = document.getElementById('filter-end-date')?.value || '';
+          DashboardState.filters.dateRange.end = '';
           resetPagination();
           renderDashboard();
         }
@@ -1258,8 +1127,6 @@
 
       document.getElementById('reset-filters').addEventListener('click', () => {
         setupFilters();
-        DashboardState.filters.search = '';
-        searchInput.value = '';
         resetPagination();
         renderDashboard();
       });
@@ -1297,6 +1164,28 @@
         if (record) openDrawer(record);
       });
 
+      tableHead.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!target.matches('[data-column-filter]')) return;
+        const key = target.dataset.columnFilter;
+        const entry = DashboardState.filters.columnFilters[key] || { select: 'all', search: '' };
+        entry.select = target.value;
+        DashboardState.filters.columnFilters[key] = entry;
+        resetPagination();
+        renderDashboard();
+      });
+
+      tableHead.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!target.matches('[data-column-search]')) return;
+        const key = target.dataset.columnSearch;
+        const entry = DashboardState.filters.columnFilters[key] || { select: 'all', search: '' };
+        entry.search = target.value.trim().toLowerCase();
+        DashboardState.filters.columnFilters[key] = entry;
+        resetPagination();
+        renderDashboard();
+      });
+
       document.getElementById('drawer-close').addEventListener('click', closeDrawer);
 
       document.getElementById('column-chooser-toggle').addEventListener('click', () => {
@@ -1322,6 +1211,75 @@
       });
 
       document.getElementById('export-csv').addEventListener('click', exportCsv);
+
+      if (salesChannelToggle && salesChannelPanel) {
+        salesChannelToggle.addEventListener('click', () => {
+          const isHidden = salesChannelPanel.classList.toggle('hidden');
+          salesChannelToggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+      }
+
+      document.addEventListener('click', (event) => {
+        if (!salesChannelPanel || salesChannelPanel.classList.contains('hidden')) return;
+        if (salesChannelPanel.contains(event.target) || salesChannelToggle?.contains(event.target)) return;
+        salesChannelPanel.classList.add('hidden');
+        salesChannelToggle?.setAttribute('aria-expanded', 'false');
+      });
+
+      salesChannelOptions?.addEventListener('change', (event) => {
+        const input = event.target;
+        if (!input.matches('input[type="checkbox"]')) return;
+        const checked = Array.from(salesChannelOptions.querySelectorAll('input[type="checkbox"]'))
+          .filter((item) => item.checked)
+          .map((item) => item.value);
+        DashboardState.filters.salesChannels = checked;
+        if (salesChannelSummary) salesChannelSummary.textContent = String(checked.length);
+        resetPagination();
+        renderDashboard();
+      });
+    };
+
+    const initializeResizablePanels = () => {
+      const container = document.getElementById('deal-alerts-layout');
+      const handle = document.getElementById('panel-resizer');
+      const dealPanel = document.getElementById('deal-status-panel');
+      const alertsPanel = document.getElementById('alerts-panel');
+      if (!container || !handle || !dealPanel || !alertsPanel) return;
+
+      const minPanelWidth = 220;
+
+      let startX = 0;
+      let startAlertsWidth = 0;
+      let isDragging = false;
+
+      const onPointerMove = (event) => {
+        if (!isDragging) return;
+        const deltaX = event.clientX - startX;
+        const containerWidth = container.getBoundingClientRect().width;
+        const handleWidth = handle.getBoundingClientRect().width;
+        const maxAlertsWidth = Math.max(minPanelWidth, containerWidth - minPanelWidth - handleWidth);
+        const nextAlertsWidth = Math.min(maxAlertsWidth, Math.max(minPanelWidth, startAlertsWidth - deltaX));
+        alertsPanel.style.flex = `0 0 ${nextAlertsWidth}px`;
+        dealPanel.style.flex = '1 1 auto';
+      };
+
+      const stopDragging = () => {
+        if (!isDragging) return;
+        isDragging = false;
+        document.body.classList.remove('select-none');
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', stopDragging);
+      };
+
+      handle.addEventListener('pointerdown', (event) => {
+        if (window.innerWidth < 1024) return;
+        isDragging = true;
+        startX = event.clientX;
+        startAlertsWidth = alertsPanel.getBoundingClientRect().width;
+        document.body.classList.add('select-none');
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', stopDragging);
+      });
     };
 
     const initializeFilterPanel = () => {
@@ -1376,96 +1334,6 @@
           setAdvanced(!isExpanded);
         });
       }
-    };
-
-    const initializeDensityToggle = () => {
-      const options = document.querySelectorAll('[data-density-option]');
-      if (!options.length) return;
-
-      const stored = localStorage.getItem('dashboard-density');
-      const initial = stored || document.body.dataset.density || 'compact';
-      document.body.dataset.density = initial;
-
-      const setActive = (value) => {
-        options.forEach((button) => {
-          const isActive = button.dataset.densityOption === value;
-          button.classList.toggle('text-slate-200', !isActive);
-          button.classList.toggle('text-blue-100', isActive);
-          ACTIVE_DENSITY_CLASSES.forEach((cls) => button.classList.toggle(cls, isActive));
-          button.setAttribute('aria-pressed', String(isActive));
-        });
-      };
-
-      setActive(initial);
-
-      options.forEach((button) => {
-        button.addEventListener('click', () => {
-          const value = button.dataset.densityOption;
-          document.body.dataset.density = value;
-          localStorage.setItem('dashboard-density', value);
-          setActive(value);
-        });
-      });
-    };
-
-    const bindChartInteractions = () => {
-      const trendChart = document.getElementById('trend-chart');
-      const brushRect = document.getElementById('trend-brush-rect');
-      let brushing = false;
-      let startX = 0;
-      let startIndex = 0;
-
-      const getIndexFromEvent = (event) => {
-        const rect = trendChart.getBoundingClientRect();
-        const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-        const n = DashboardState.derived.trendPoints.length;
-        if (n <= 1) return 0;
-        const idx = Math.round((x / rect.width) * (n - 1));
-        return Math.min(Math.max(idx, 0), n - 1);
-      };
-
-      const updateBrush = (clientX) => {
-        const rect = trendChart.getBoundingClientRect();
-        const clampedX = Math.min(Math.max(clientX - rect.left, 0), rect.width);
-        const start = Math.min(startX, clampedX);
-        const width = Math.abs(clampedX - startX);
-        const ratio = 260 / rect.width;
-        brushRect.setAttribute('x', String(start * ratio));
-        brushRect.setAttribute('width', String(width * ratio));
-      };
-
-      trendChart.addEventListener('mousedown', (event) => {
-        brushing = true;
-        const rect = trendChart.getBoundingClientRect();
-        startX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
-        startIndex = getIndexFromEvent(event);
-        updateBrush(event.clientX);
-      });
-
-      window.addEventListener('mousemove', (event) => { if (brushing) updateBrush(event.clientX); });
-      window.addEventListener('mouseup', (event) => {
-        if (!brushing) return;
-        brushing = false;
-        updateBrush(event.clientX);
-
-        const endIndex = getIndexFromEvent(event);
-        const min = Math.min(startIndex, endIndex);
-        const max = Math.max(startIndex, endIndex);
-        const points = DashboardState.derived.trendPoints;
-
-        if (points.length) {
-          DashboardState.filters.dateRange = { start: points[min].date, end: points[max].date };
-          const startInput = document.getElementById('filter-start-date');
-          const endInput = document.getElementById('filter-end-date');
-          if (startInput) startInput.value = points[min].date;
-          if (endInput) endInput.value = points[max].date;
-          DashboardState.table.page = 1;
-          renderDashboard();
-        }
-        brushRect.setAttribute('width', '0');
-      });
-
-      trendChart.addEventListener('mouseleave', () => { brushing = false; brushRect.setAttribute('width', '0'); });
     };
 
     // ==========================================================
@@ -1569,10 +1437,9 @@
     // ==========================================================
 
     initializeFilterPanel();
-    initializeDensityToggle();
     setupFilters();
     bindFilterEvents();
-    bindChartInteractions();
+    initializeResizablePanels();
     renderDashboard();
 
     // Mobile nav
