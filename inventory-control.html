@@ -366,41 +366,27 @@
       <h4 class="text-lg font-bold text-white">Vehicle Details</h4>
       <button id="drawer-close" type="button" class="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs font-semibold text-slate-200">Close</button>
     </div>
-    <div class="grid grid-cols-2 gap-3 text-xs text-slate-200">
-      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
-        <div class="flex items-center justify-between">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">VIN</p>
-          <button type="button" class="rounded-full border border-slate-800 bg-slate-950/60 p-1 text-slate-300 transition hover:border-blue-500 hover:text-white" data-copy-target="drawer-vin" aria-label="Copy VIN">
-            <i data-lucide="copy" class="h-3.5 w-3.5"></i>
-          </button>
-        </div>
-        <p id="drawer-vin" class="mt-1 text-sm font-semibold text-white">-</p>
+    <div class="space-y-3 text-sm text-slate-200">
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">VIN</p>
+        <p id="drawer-vin" class="font-semibold text-white">-</p>
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
-        <div class="flex items-center justify-between">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Stock No</p>
-          <button type="button" class="rounded-full border border-slate-800 bg-slate-950/60 p-1 text-slate-300 transition hover:border-blue-500 hover:text-white" data-copy-target="drawer-stockno" aria-label="Copy Stock No">
-            <i data-lucide="copy" class="h-3.5 w-3.5"></i>
-          </button>
-        </div>
-        <p id="drawer-stockno" class="mt-1 text-sm font-semibold text-white">-</p>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
+      <div>
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Status</p>
-        <p id="drawer-status" class="mt-1 text-sm font-semibold text-white">-</p>
+        <p id="drawer-status" class="font-semibold text-white">-</p>
       </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
+      <div>
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Location</p>
-        <p id="drawer-location" class="mt-1 text-sm font-semibold text-white">-</p>
+        <p id="drawer-location" class="font-semibold text-white">-</p>
       </div>
-      <div class="col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 p-2">
+      <div>
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Unit</p>
-        <p id="drawer-unit" class="mt-1 text-sm font-semibold text-white">-</p>
+        <p id="drawer-unit" class="font-semibold text-white">-</p>
       </div>
-    </div>
-    <div>
-      <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Flags</p>
-      <div id="drawer-flags" class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-200"></div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Flags</p>
+        <p id="drawer-flags" class="font-semibold text-white">-</p>
+      </div>
     </div>
     <div>
       <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Timeline</p>
@@ -1174,37 +1160,49 @@
             const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
             const width = DashboardState.table.columnWidths[c.key];
             const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
-            const values = getUniqueValues(dataset, c.key).slice(0, 50);
-            const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
-            DashboardState.filters.columnFilters[c.key] = entry;
             return `
               <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
-                <div class="flex items-center justify-between gap-2">
-                  <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                    <span class="whitespace-normal break-words">${c.label}</span>
-                    <span class="text-[10px] text-blue-300">${indicator}</span>
-                  </button>
-                  <button type="button" data-filter-toggle="${c.key}" class="rounded-full border border-slate-800 bg-slate-950/60 p-1 text-slate-300 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false" aria-label="Filter ${c.label}">
-                    <i data-lucide="filter" class="h-3.5 w-3.5"></i>
-                  </button>
-                </div>
-                <div id="filter-panel-${c.key}" data-filter-panel="${c.key}" class="absolute right-2 top-9 z-30 hidden w-56 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
-                  <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">${c.label}</p>
-                  <div class="mt-2 grid gap-1">
-                    <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
-                      <option value="all">All</option>
-                      ${values.map((value) => `<option value="${value}" ${entry.select === value ? 'selected' : ''}>${value}</option>`).join('')}
-                    </select>
-                    <input type="search" data-column-search="${c.key}" value="${entry.search || ''}" placeholder="Search" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" />
-                  </div>
-                </div>
+                <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
+                  <span class="whitespace-normal break-words">${c.label}</span>
+                  <span class="text-[10px] text-blue-300">${indicator}</span>
+                </button>
                 <span class="column-resizer absolute right-0 top-2 h-4 w-2 cursor-col-resize rounded-full bg-slate-800/60 transition hover:bg-slate-500/80" data-resize-handle="${c.key}"></span>
               </th>
             `;
           }).join('')
         }</tr>
       `;
-      lucide.createIcons();
+    };
+
+    const renderFiltersPanel = () => {
+      const panelOptions = document.getElementById('filters-panel-options');
+      if (!panelOptions) return;
+      const visibleColumns = getOrderedColumns(DashboardState.schema)
+        .filter((c) => DashboardState.table.columns[c.key]);
+      const dataset = getCurrentDataset();
+
+      if (!visibleColumns.length) {
+        panelOptions.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
+        return;
+      }
+
+      panelOptions.innerHTML = visibleColumns.map((c) => {
+        const values = getUniqueValues(dataset, c.key).slice(0, 50);
+        const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
+        DashboardState.filters.columnFilters[c.key] = entry;
+        return `
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-2">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">${c.label}</p>
+            <div class="mt-2 grid gap-1">
+              <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
+                <option value="all">All</option>
+                ${values.map((value) => `<option value="${value}" ${entry.select === value ? 'selected' : ''}>${value}</option>`).join('')}
+              </select>
+              <input type="search" data-column-search="${c.key}" value="${entry.search || ''}" placeholder="Search" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" />
+            </div>
+          </div>
+        `;
+      }).join('');
     };
 
     const renderTable = () => {
@@ -1307,6 +1305,7 @@
       renderTableHead();
       renderTable();
       renderActiveFilters();
+      renderFiltersPanel();
       syncTopScrollbar();
     };
 
@@ -1358,7 +1357,6 @@
 
     const openDrawer = (record) => {
       document.getElementById('drawer-vin').textContent = record.vin || '--';
-      document.getElementById('drawer-stockno').textContent = record.stockNo || '--';
       document.getElementById('drawer-status').textContent = record.status || '--';
       document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
       document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
@@ -1368,14 +1366,9 @@
         record.hold ? 'Hold' : null,
         record.lien ? 'Lien' : null,
         record.recoveryPriority ? 'Recovery Priority' : null,
-      ].filter(Boolean);
+      ].filter(Boolean).join(' • ');
 
-      const flagsContainer = document.getElementById('drawer-flags');
-      flagsContainer.innerHTML = (flags.length ? flags : ['None']).map((flag) => `
-        <span class="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] font-semibold text-slate-200">
-          ${flag}
-        </span>
-      `).join('');
+      document.getElementById('drawer-flags').textContent = flags || 'None';
 
       const timeline = [
         { label: 'Created', value: record.createdAt || record.date },
@@ -1432,11 +1425,13 @@
       const salesChannelPanel = document.getElementById('sales-channel-panel');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
+      const filtersToggle = document.getElementById('filters-toggle');
+      const filtersPanel = document.getElementById('filters-panel');
+      const filtersPanelOptions = document.getElementById('filters-panel-options');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
       const alertsBadges = document.getElementById('alerts-badges');
       const alertsPanel = document.getElementById('alerts-panel');
-      const drawer = document.getElementById('row-drawer');
       const segmentSelects = document.querySelectorAll('[data-segment-select]');
       const chartContainers = document.querySelectorAll('[data-bar-chart]');
 
@@ -1483,17 +1478,6 @@
           lucide.createIcons();
         });
       }
-
-      drawer?.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-copy-target]');
-        if (!button) return;
-        const targetId = button.dataset.copyTarget;
-        const value = document.getElementById(targetId)?.textContent?.trim();
-        if (!value || value === '--') return;
-        navigator.clipboard?.writeText(value);
-        button.classList.add('text-emerald-300');
-        window.setTimeout(() => button.classList.remove('text-emerald-300'), 800);
-      });
 
       if (builder) {
         builder.addEventListener('change', (event) => {
@@ -1598,17 +1582,7 @@
         if (record) openDrawer(record);
       });
 
-      tableHead?.addEventListener('click', (event) => {
-        const toggle = event.target.closest('[data-filter-toggle]');
-        if (!toggle) return;
-        const key = toggle.dataset.filterToggle;
-        const panel = document.querySelector(`[data-filter-panel="${key}"]`);
-        if (!panel) return;
-        const isHidden = panel.classList.toggle('hidden');
-        toggle.setAttribute('aria-expanded', String(!isHidden));
-      });
-
-      tableHead?.addEventListener('change', (event) => {
+      filtersPanelOptions?.addEventListener('change', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-filter]')) return;
         const key = target.dataset.columnFilter;
@@ -1705,16 +1679,11 @@
       });
 
       document.addEventListener('click', (event) => {
-        const panel = event.target.closest('[data-filter-panel]');
-        const toggle = event.target.closest('[data-filter-toggle]');
-        if (panel || toggle) return;
-        document.querySelectorAll('[data-filter-panel]').forEach((element) => {
-          if (element.classList.contains('hidden')) return;
-          element.classList.add('hidden');
-        });
-        document.querySelectorAll('[data-filter-toggle]').forEach((button) => {
-          button.setAttribute('aria-expanded', 'false');
-        });
+        if (!filtersPanel || !filtersToggle) return;
+        if (filtersPanel.classList.contains('hidden')) return;
+        if (filtersPanel.contains(event.target) || filtersToggle.contains(event.target)) return;
+        filtersPanel.classList.add('hidden');
+        filtersToggle.setAttribute('aria-expanded', 'false');
       });
 
       document.getElementById('column-chooser-options').addEventListener('change', (event) => {
