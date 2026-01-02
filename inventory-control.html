@@ -1207,37 +1207,6 @@
       lucide.createIcons();
     };
 
-    const renderFiltersPanel = () => {
-      const panelOptions = document.getElementById('filters-panel-options');
-      if (!panelOptions) return;
-      const visibleColumns = getOrderedColumns(DashboardState.schema)
-        .filter((c) => DashboardState.table.columns[c.key]);
-      const dataset = getCurrentDataset();
-
-      if (!visibleColumns.length) {
-        panelOptions.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
-        return;
-      }
-
-      panelOptions.innerHTML = visibleColumns.map((c) => {
-        const values = getUniqueValues(dataset, c.key).slice(0, 50);
-        const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
-        DashboardState.filters.columnFilters[c.key] = entry;
-        return `
-          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-2">
-            <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">${c.label}</p>
-            <div class="mt-2 grid gap-1">
-              <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
-                <option value="all">All</option>
-                ${values.map((value) => `<option value="${value}" ${entry.select === value ? 'selected' : ''}>${value}</option>`).join('')}
-              </select>
-              <input type="search" data-column-search="${c.key}" value="${entry.search || ''}" placeholder="Search" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" />
-            </div>
-          </div>
-        `;
-      }).join('');
-    };
-
     const renderTable = () => {
       const tableBody = document.getElementById('inventory-table');
       const visibleColumns = getOrderedColumns(DashboardState.schema)
