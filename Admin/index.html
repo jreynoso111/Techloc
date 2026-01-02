@@ -495,10 +495,12 @@
       }, {});
 
     const cleanValue = (value) => {
-      if (value === undefined || value === null) return null;
-      const stringValue = typeof value === 'string' ? value.trim() : value;
-      if (`${stringValue}`.trim() === '') return null;
-      return stringValue;
+      if (value == null) return null;
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed === '' ? null : trimmed;
+      }
+      return value;
     };
 
     const formatSupabaseError = (err) => {
@@ -753,29 +755,39 @@
       // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
       const uniqueDealsMap = new Map();
       let skippedInvalid = 0;
+      let skippedInvalidSalesChannel = 0;
+      let skippedMissingRequired = 0;
       let duplicatesRemoved = 0;
-      let skippedStatus = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
-        const vehicleStatus = normalizedRow['vehicle status'];
-        const normalizedStatus =
-          typeof vehicleStatus === 'string' ? vehicleStatus.trim().toLowerCase() : '';
-
-        if (normalizedStatus !== 'active' && normalizedStatus !== 'stock') {
-          skippedStatus += 1;
-          return;
-        }
-        
         // Validaciones
         const salesChannel = normalizedRow['sales channel'];
-        const isFinance = typeof salesChannel === 'string' && salesChannel.toLowerCase().includes('finance');
-        
-        const stockNumber = normalizedRow['current stock no'];
-        const vin = normalizedRow['vin'];
+        const normalizedSalesChannel = (() => {
+          if (typeof salesChannel !== 'string') return '';
+          const trimmed = salesChannel.trim().toUpperCase();
+          if (trimmed === 'FINANCE-EX' || trimmed === 'FINANCE EXT' || trimmed === 'FINANCE-EXT') {
+            return 'FINANCE-EXT';
+          }
+          return '';
+        })();
 
-        if (!isFinance || !stockNumber || !vin) {
+        if (!normalizedSalesChannel) {
           skippedInvalid += 1;
+          skippedInvalidSalesChannel += 1;
+          return;
+        }
+
+        if (normalizedSalesChannel) {
+          normalizedRow['sales channel'] = normalizedSalesChannel;
+        }
+
+        const stockNumber = normalizeStockNumber(normalizedRow['current stock no']);
+        const vin = cleanValue(normalizedRow['vin']);
+
+        if (!stockNumber || !vin) {
+          skippedInvalid += 1;
+          skippedMissingRequired += 1;
           return; 
         }
 
@@ -783,16 +795,14 @@
         Object.entries(normalizedRow).forEach(([key, value]) => {
           const columnName = columnMap.get(key);
           const cleanedValue = cleanValue(value);
-          if (!columnName || cleanedValue === null) return;
+          if (!columnName || cleanedValue == null) return;
           mapped[columnName] = cleanedValue;
         });
 
-        if (!mapped[conflictColumn]) {
-            mapped[conflictColumn] = stockNumber;
-        }
+        mapped[conflictColumn] = stockNumber;
 
-        // LLAVE UNICA: VIN + Stock
-        const uniqueKey = `${vin}_${stockNumber}`;
+        // LLAVE UNICA: Current Stock No
+        const uniqueKey = stockNumber;
 
         if (uniqueDealsMap.has(uniqueKey)) {
             duplicatesRemoved++;
@@ -809,7 +819,7 @@
         return;
       }
 
-      const BATCH_SIZE = 1000;
+      const BATCH_SIZE = 500;
       let totalUpserted = 0;
       const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
       let processed = 0;
@@ -826,7 +836,7 @@
         // UPSERT
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
-          .upsert(batch, { onConflict: 'VIN,Current Stock No', ignoreDuplicates: false }) 
+          .upsert(batch, { onConflict: 'Current Stock No', ignoreDuplicates: false }) 
           .select();
 
         if (error) {
@@ -845,10 +855,11 @@
 
       const summary =
         'Completed.' +
+        '\nTotal rows processed: ' + rows.length +
         '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
-        '\nSkipped (Invalid/Not Finance): ' + skippedInvalid +
-        '\nSkipped (Vehicle Status): ' + skippedStatus +
+        '\nSkipped (Invalid Sales Channel): ' + skippedInvalidSalesChannel +
+        '\nSkipped (Missing Stock No or VIN): ' + skippedMissingRequired +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
