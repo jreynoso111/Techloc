@@ -65,6 +65,21 @@
     .scrollbar-hidden::-webkit-scrollbar {
       display: none;
     }
+
+    #inventory-table-scroll-top {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 12px;
+      background: rgba(2, 6, 23, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(30, 41, 59, 0.7);
+      border-radius: 12px;
+    }
+
+    #inventory-table-scroll-top-inner {
+      height: 12px;
+    }
   </style>
 
   <link rel="stylesheet" href="assets/visuals/theme.css" />
@@ -295,8 +310,8 @@
       </div>
 
       <div class="mt-2">
-        <div id="inventory-table-scroll-top" class="mb-2 h-3 overflow-x-auto">
-          <div id="inventory-table-scroll-top-inner" class="h-3"></div>
+        <div id="inventory-table-scroll-top" class="mb-2 overflow-x-auto">
+          <div id="inventory-table-scroll-top-inner"></div>
         </div>
         <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
           <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
@@ -1245,6 +1260,7 @@
       renderTableHead();
       renderTable();
       renderActiveFilters();
+      syncTopScrollbar();
     };
 
     const initializeTablePreferences = () => {
@@ -1349,6 +1365,8 @@
       URL.revokeObjectURL(url);
     };
 
+    let syncTopScrollbar = () => {};
+
     const bindFilterEvents = () => {
       const builder = document.getElementById('filter-builder');
       const perPageSelect = document.getElementById('table-per-page');
@@ -1369,8 +1387,10 @@
       let resizing = null;
 
       if (tableScroll && tableScrollTop && tableScrollTopInner) {
-        const syncTopWidth = () => {
-          tableScrollTopInner.style.width = `${tableScroll.scrollWidth}px`;
+        const tableElement = tableScroll.querySelector('table');
+        const updateTopWidth = () => {
+          if (!tableElement) return;
+          tableScrollTopInner.style.width = `${tableElement.scrollWidth}px`;
         };
 
         const syncScroll = (source, target) => {
@@ -1378,8 +1398,16 @@
           target.scrollLeft = source.scrollLeft;
         };
 
-        syncTopWidth();
-        window.addEventListener('resize', syncTopWidth);
+        syncTopScrollbar = () => {
+          updateTopWidth();
+        };
+
+        updateTopWidth();
+        if (tableElement) {
+          const resizeObserver = new ResizeObserver(updateTopWidth);
+          resizeObserver.observe(tableElement);
+          resizeObserver.observe(tableScroll);
+        }
         tableScroll.addEventListener('scroll', () => syncScroll(tableScroll, tableScrollTop));
         tableScrollTop.addEventListener('scroll', () => syncScroll(tableScrollTop, tableScroll));
       }
