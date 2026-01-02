@@ -12,6 +12,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script type="module" src="assets/scripts/authManager.js"></script>
 
   <script>
     tailwind.config = {
@@ -156,7 +157,7 @@
 
       <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
         <div id="deal-status-panel" class="flex-1">
-          <div class="grid gap-3 lg:grid-cols-[260px_1fr]">
+          <div class="grid gap-3 lg:grid-cols-[260px_1fr_1fr]">
           <div class="grid gap-2">
             <div class="flex h-20 flex-col justify-between rounded-2xl border border-slate-800/70 bg-slate-950/40 px-4 py-3 shadow-none">
               <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
@@ -172,14 +173,20 @@
             <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 class="text-lg font-bold text-white">UNITS BY DEAL STATUS</h3>
-              </div>
-              <div>
                 <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Segment
-                  <select id="deal-status-segment" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200"></select>
+                  <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select></select>
                 </label>
               </div>
+            </div>
+            <div class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));" data-bar-chart aria-label="Units by deal status chart"></div>
+          </div>
+          <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
+            <div class="flex justify-end">
+              <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Segment
+                <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select></select>
+              </label>
             </div>
             <div class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));" data-bar-chart aria-label="Units by deal status chart"></div>
           </div>
@@ -280,12 +287,17 @@
         </div>
       </div>
 
-      <div class="mt-6 overflow-x-auto">
-        <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+      <div class="mt-6">
+        <div id="inventory-table-scroll-top" class="mb-2 h-3 overflow-x-auto">
+          <div id="inventory-table-scroll-top-inner" class="h-3"></div>
+        </div>
+        <div id="inventory-table-scroll" class="overflow-x-auto">
+          <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
           <colgroup id="inventory-table-cols"></colgroup>
           <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
           <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </section>
   </main>
@@ -916,16 +928,19 @@
     };
 
     const renderSegmentOptions = () => {
-      const select = document.getElementById('deal-status-segment');
-      if (!select) return;
+      const selects = document.querySelectorAll('[data-segment-select]');
+      if (!selects.length) return;
       const options = getSegmentOptions();
       if (!options.some((opt) => opt.key === DashboardState.segmentKey)) {
         DashboardState.segmentKey = options[0]?.key || 'dealStatus';
       }
-      select.innerHTML = options
+      const optionsHtml = options
         .map((opt) => `<option value="${opt.key}">${opt.label}</option>`)
         .join('');
-      select.value = DashboardState.segmentKey;
+      selects.forEach((select) => {
+        select.innerHTML = optionsHtml;
+        select.value = DashboardState.segmentKey;
+      });
     };
 
     const computeDerivedState = () => {
@@ -971,34 +986,36 @@
     };
 
     const renderStatusBars = () => {
-      const container = document.querySelector('[data-bar-chart]');
+      const containers = document.querySelectorAll('[data-bar-chart]');
       renderSegmentOptions();
-      if (DashboardState.ui.isLoading) {
-        container.innerHTML = Array.from({ length: 6 }).map(() => `
-          <div class="flex h-full flex-col items-center justify-end gap-2">
-            <div class="h-full min-h-[140px] w-8 rounded-full bg-slate-800/70 overflow-hidden">
-              <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
+      containers.forEach((container) => {
+        if (DashboardState.ui.isLoading) {
+          container.innerHTML = Array.from({ length: 6 }).map(() => `
+            <div class="flex h-full flex-col items-center justify-end gap-2">
+              <div class="h-full min-h-[140px] w-8 rounded-full bg-slate-800/70 overflow-hidden">
+                <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
+              </div>
+              <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
             </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
-          </div>
+          `).join('');
+          return;
+        }
+
+        if (!DashboardState.derived.statusBars.length) {
+          container.innerHTML = '<p class="col-span-6 text-center text-xs text-slate-400">No vehicles match current filters.</p>';
+          return;
+        }
+
+        container.innerHTML = DashboardState.derived.statusBars.map((item) => `
+          <button type="button" data-status="${item.status}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60">
+            <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
+              <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
+            <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
+          </button>
         `).join('');
-        return;
-      }
-
-      if (!DashboardState.derived.statusBars.length) {
-        container.innerHTML = '<p class="col-span-6 text-center text-xs text-slate-400">No vehicles match current filters.</p>';
-        return;
-      }
-
-      container.innerHTML = DashboardState.derived.statusBars.map((item) => `
-        <button type="button" data-status="${item.status}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60">
-          <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
-            <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
-          </div>
-          <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
-          <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
-        </button>
-      `).join('');
+      });
     };
 
 
@@ -1056,7 +1073,7 @@
                   <span class="whitespace-normal break-words">${c.label}</span>
                   <span class="text-[10px] text-blue-300">${indicator}</span>
                 </button>
-                <span class="column-resizer absolute right-0 top-2 h-6 w-2 cursor-col-resize" data-resize-handle="${c.key}"></span>
+                <span class="column-resizer absolute right-0 top-2 h-4 w-2 cursor-col-resize rounded-full bg-slate-800/60 transition hover:bg-slate-500/80" data-resize-handle="${c.key}"></span>
               </th>
             `;
           }).join('')
@@ -1295,15 +1312,34 @@
       const perPageSelect = document.getElementById('table-per-page');
       const goToInput = document.getElementById('table-go-to');
       const tableHead = document.getElementById('inventory-table-head');
+      const tableScroll = document.getElementById('inventory-table-scroll');
+      const tableScrollTop = document.getElementById('inventory-table-scroll-top');
+      const tableScrollTopInner = document.getElementById('inventory-table-scroll-top-inner');
       const salesChannelToggle = document.getElementById('sales-channel-toggle');
       const salesChannelPanel = document.getElementById('sales-channel-panel');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
-      const segmentSelect = document.getElementById('deal-status-segment');
+      const segmentSelects = document.querySelectorAll('[data-segment-select]');
 
       const resetPagination = () => (DashboardState.table.page = 1);
       let activeDragKey = null;
       let resizing = null;
+
+      if (tableScroll && tableScrollTop && tableScrollTopInner) {
+        const syncTopWidth = () => {
+          tableScrollTopInner.style.width = `${tableScroll.scrollWidth}px`;
+        };
+
+        const syncScroll = (source, target) => {
+          if (target.scrollLeft === source.scrollLeft) return;
+          target.scrollLeft = source.scrollLeft;
+        };
+
+        syncTopWidth();
+        window.addEventListener('resize', syncTopWidth);
+        tableScroll.addEventListener('scroll', () => syncScroll(tableScroll, tableScrollTop));
+        tableScrollTop.addEventListener('scroll', () => syncScroll(tableScrollTop, tableScroll));
+      }
 
       if (builder) {
         builder.addEventListener('change', (event) => {
@@ -1519,10 +1555,12 @@
         schedulePersistPreferences();
       });
 
-      segmentSelect?.addEventListener('change', (event) => {
-        DashboardState.segmentKey = event.target.value || 'dealStatus';
-        renderDashboard();
-        schedulePersistPreferences();
+      segmentSelects.forEach((select) => {
+        select.addEventListener('change', (event) => {
+          DashboardState.segmentKey = event.target.value || 'dealStatus';
+          renderDashboard();
+          schedulePersistPreferences();
+        });
       });
     };
 
