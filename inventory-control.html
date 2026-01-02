@@ -305,6 +305,15 @@
               <div id="column-chooser-options" class="mt-2 grid gap-2"></div>
             </div>
           </div>
+          <div class="relative">
+            <button id="filters-toggle" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false">
+              Filters
+            </button>
+            <div id="filters-panel" class="absolute left-0 z-20 mt-2 hidden w-[320px] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Column filters</p>
+              <div id="filters-panel-options" class="mt-2 grid gap-2"></div>
+            </div>
+          </div>
           <button id="export-csv" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">
             Export
           </button>
@@ -1142,7 +1151,6 @@
       const visibleColumns = getOrderedColumns(DashboardState.schema)
         .filter((c) => DashboardState.table.columns[c.key]);
       const sortState = DashboardState.table.sort;
-      const dataset = getCurrentDataset();
       const colgroup = document.getElementById('inventory-table-cols');
 
       if (!visibleColumns.length) {
@@ -1612,7 +1620,7 @@
         schedulePersistPreferences();
       });
 
-      tableHead?.addEventListener('input', (event) => {
+      filtersPanelOptions?.addEventListener('input', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-search]')) return;
         const key = target.dataset.columnSearch;
@@ -1680,6 +1688,12 @@
         const chooser = document.getElementById('column-chooser');
         const isHidden = chooser.classList.toggle('hidden');
         document.getElementById('column-chooser-toggle').setAttribute('aria-expanded', String(!isHidden));
+      });
+
+      filtersToggle?.addEventListener('click', () => {
+        if (!filtersPanel) return;
+        const isHidden = filtersPanel.classList.toggle('hidden');
+        filtersToggle.setAttribute('aria-expanded', String(!isHidden));
       });
 
       document.addEventListener('click', (event) => {
