@@ -57,6 +57,15 @@
       cursor: col-resize;
     }
 
+    .column-resizer {
+      touch-action: none;
+    }
+
+    body.select-none {
+      user-select: none;
+      cursor: col-resize;
+    }
+
     .scrollbar-hidden {
       scrollbar-width: none;
       -ms-overflow-style: none;
@@ -1468,6 +1477,7 @@
       });
 
       tableHead?.addEventListener('dragstart', (event) => {
+        if (resizing) return;
         const th = event.target.closest('th[data-col-key]');
         if (!th || event.target.closest('[data-resize-handle]')) return;
         activeDragKey = th.dataset.colKey;
@@ -1541,32 +1551,47 @@
       const onResizeMove = (event) => {
         if (!resizing) return;
         const delta = event.clientX - resizing.startX;
-        const nextWidth = Math.max(120, resizing.startWidth + delta);
-        DashboardState.table.columnWidths[resizing.key] = nextWidth;
-        const col = document.querySelector(`#inventory-table-cols [data-col-key="${resizing.key}"]`);
-        if (col) col.style.width = `${nextWidth}px`;
+        const nextWidth = Math.max(60, resizing.startWidth + delta);
+        resizing.currentWidth = nextWidth;
+        if (resizing.col) resizing.col.style.width = `${nextWidth}px`;
       };
 
       const onResizeEnd = () => {
         if (!resizing) return;
+        if (resizing.handle?.hasPointerCapture(resizing.pointerId)) {
+          resizing.handle.releasePointerCapture(resizing.pointerId);
+        }
+        if (typeof resizing.currentWidth === 'number') {
+          DashboardState.table.columnWidths[resizing.key] = resizing.currentWidth;
+        }
         resizing = null;
         document.body.classList.remove('select-none');
         window.removeEventListener('pointermove', onResizeMove);
         schedulePersistPreferences();
         renderDashboard();
+        syncTopScrollbar();
       };
 
       tableHead?.addEventListener('pointerdown', (event) => {
         const handle = event.target.closest('[data-resize-handle]');
         if (!handle) return;
         event.preventDefault();
+        event.stopPropagation();
         const key = handle.dataset.resizeHandle;
         const th = handle.closest('th');
         if (!key || !th) return;
+        const colgroup = document.getElementById('inventory-table-cols');
+        const col = colgroup?.querySelector(`col[data-col-key="${key}"]`);
+        if (!col) return;
+        handle.setPointerCapture(event.pointerId);
         resizing = {
           key,
           startX: event.clientX,
-          startWidth: th.getBoundingClientRect().width,
+          startWidth: col.getBoundingClientRect().width,
+          currentWidth: col.getBoundingClientRect().width,
+          handle,
+          pointerId: event.pointerId,
+          col,
         };
         document.body.classList.add('select-none');
         window.addEventListener('pointermove', onResizeMove);
