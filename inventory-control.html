@@ -947,7 +947,7 @@
       builder?.classList.toggle('opacity-50', DashboardState.ui.isLoading);
     };
 
-    const applyFilters = () => {
+    const applyFilters = ({ ignoreChartFilter = false } = {}) => {
       const { filters } = DashboardState;
 
       return getCurrentDataset().filter((item) => {
@@ -978,7 +978,7 @@
           return true;
         });
 
-        const chartMatch = !filters.chartFilter
+        const chartMatch = ignoreChartFilter || !filters.chartFilter
           || getSegmentLabel(item[filters.chartFilter.key]) === filters.chartFilter.value;
 
         return inDateRange && categoryMatch && salesChannelMatch && columnMatch && chartMatch;
@@ -1062,7 +1062,11 @@
           return;
         }
 
-        const dealStatusCounts = DashboardState.derived.filtered.reduce((acc, item) => {
+        const activeChartId = DashboardState.filters.chartFilter?.chartId || null;
+        const dataset = activeChartId && activeChartId === chartId
+          ? applyFilters({ ignoreChartFilter: true })
+          : DashboardState.derived.filtered;
+        const dealStatusCounts = dataset.reduce((acc, item) => {
           const key = getSegmentLabel(item[segmentKey]);
           acc[key] = (acc[key] || 0) + 1;
           return acc;
@@ -1086,9 +1090,11 @@
           const isActive = DashboardState.filters.chartFilter
             && DashboardState.filters.chartFilter.key === segmentKey
             && DashboardState.filters.chartFilter.value === item.status;
+          const isDimmed = DashboardState.filters.chartFilter && !isActive;
           const activeClass = isActive ? 'ring-2 ring-blue-400/70 bg-slate-900/50' : '';
+          const dimClass = isDimmed ? 'opacity-50' : '';
           return `
-          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass}">
+          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass} ${dimClass}">
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
               <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
             </div>
@@ -1732,11 +1738,12 @@
           if (!button) return;
           const segmentKey = button.dataset.segmentKey;
           const status = button.dataset.status;
+          const chartId = button.dataset.chartId || 'default';
           const current = DashboardState.filters.chartFilter;
-          if (current && current.key === segmentKey && current.value === status) {
+          if (current && current.key === segmentKey && current.value === status && current.chartId === chartId) {
             DashboardState.filters.chartFilter = null;
           } else {
-            DashboardState.filters.chartFilter = { key: segmentKey, value: status };
+            DashboardState.filters.chartFilter = { key: segmentKey, value: status, chartId };
           }
           resetPagination();
           renderDashboard();
