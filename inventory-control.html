@@ -707,14 +707,17 @@
         if (salesChannelKey) {
           const channelValues = getUniqueValues(dataset, salesChannelKey);
           const preferredValues = ['Finance-EX', 'Finance-EXT', 'Finance-ext', 'Finance-Ext'];
-          if (!preserveSelections || !DashboardState.filters.salesChannels.length) {
+          const existingSelections = DashboardState.filters.salesChannels.filter((value) => channelValues.includes(value));
+          if (!preserveSelections || !existingSelections.length) {
             const selections = preferredValues.filter((value) => channelValues.includes(value));
             if (selections.length) {
               DashboardState.filters.salesChannels = selections;
             } else {
               const nonFinance = channelValues.find((value) => value.toUpperCase() !== 'FINANCE');
-              DashboardState.filters.salesChannels = [nonFinance || channelValues[0] || ''];
+              DashboardState.filters.salesChannels = nonFinance ? [nonFinance] : [...channelValues];
             }
+          } else {
+            DashboardState.filters.salesChannels = existingSelections;
           }
           salesChannelOptions.innerHTML = (channelValues.length ? channelValues : [''])
             .map((value) => `
