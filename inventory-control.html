@@ -57,6 +57,15 @@
       cursor: col-resize;
     }
 
+    .column-resizer {
+      touch-action: none;
+    }
+
+    body.select-none {
+      user-select: none;
+      cursor: col-resize;
+    }
+
     .scrollbar-hidden {
       scrollbar-width: none;
       -ms-overflow-style: none;
@@ -64,6 +73,21 @@
 
     .scrollbar-hidden::-webkit-scrollbar {
       display: none;
+    }
+
+    #inventory-table-scroll-top {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: 12px;
+      background: rgba(2, 6, 23, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(30, 41, 59, 0.7);
+      border-radius: 12px;
+    }
+
+    #inventory-table-scroll-top-inner {
+      height: 12px;
     }
   </style>
 
@@ -167,16 +191,16 @@
       <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
         <div id="deal-status-panel" class="flex-1">
           <div class="grid gap-3 lg:grid-cols-[260px_1fr_1fr]">
-          <div class="grid gap-2">
-            <div class="flex h-20 flex-col justify-between rounded-2xl border border-slate-800/70 bg-slate-950/40 px-4 py-3 shadow-none">
-              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
-              <p class="text-2xl font-black leading-none text-white" data-metric="active">--</p>
-              <span class="h-1 w-12 rounded-full bg-emerald-400/80"></span>
+          <div class="flex flex-wrap gap-2">
+            <div class="inline-flex h-9 items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 px-3 text-xs font-semibold text-slate-200 shadow-none">
+              <span class="h-2 w-2 rounded-full bg-emerald-400/80"></span>
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</span>
+              <span class="text-sm font-black text-white" data-metric="active">--</span>
             </div>
-            <div class="flex h-20 flex-col justify-between rounded-2xl border border-slate-800/70 bg-slate-950/40 px-4 py-3 shadow-none">
-              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
-              <p class="text-2xl font-black leading-none text-white" data-metric="hold">--</p>
-              <span class="h-1 w-12 rounded-full bg-amber-400/80"></span>
+            <div class="inline-flex h-9 items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 px-3 text-xs font-semibold text-slate-200 shadow-none">
+              <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</span>
+              <span class="text-sm font-black text-white" data-metric="hold">--</span>
             </div>
           </div>
             <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-primary">
@@ -206,41 +230,60 @@
           <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
         </div>
 
-        <div id="alerts-panel" class="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-dashboard lg:w-[300px]">
-          <div class="flex items-center justify-between">
+        <div id="alerts-panel" class="rounded-3xl border border-slate-800 bg-slate-900/60 p-4 shadow-dashboard lg:w-[300px]" data-collapsed="false">
+          <div class="flex items-center justify-between gap-3">
             <div>
               <p class="text-xs uppercase tracking-[0.3em] text-slate-400">Alerts</p>
               <h3 class="text-lg font-bold text-white">Priority Actions</h3>
             </div>
-            <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
+            <div class="flex items-center gap-2">
+              <span class="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
+              <button id="alerts-toggle" type="button" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-950/60 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-expanded="true" aria-controls="alerts-list alerts-badges">
+                <i data-lucide="chevron-up" class="h-4 w-4"></i>
+              </button>
+            </div>
           </div>
-          <ul class="mt-3 space-y-2 text-sm text-slate-200">
-            <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
+          <div id="alerts-badges" class="mt-3 hidden flex flex-wrap gap-2 text-xs text-slate-200">
+            <span class="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200">
+              <i data-lucide="satellite" class="h-3.5 w-3.5 text-amber-300"></i>
+              3
+            </span>
+            <span class="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200">
+              <i data-lucide="lifebuoy" class="h-3.5 w-3.5 text-rose-300"></i>
+              1
+            </span>
+            <span class="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200">
+              <i data-lucide="activity" class="h-3.5 w-3.5 text-blue-300"></i>
+              2
+            </span>
+          </div>
+          <ul id="alerts-list" class="mt-3 space-y-2 text-xs text-slate-200">
+            <li class="flex h-9 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-2 py-1.5 text-slate-200 transition hover:bg-slate-900/40">
               <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-amber-300">
                 <i data-lucide="satellite" class="h-4 w-4"></i>
               </span>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-semibold text-white">GPS Offline Cluster</p>
+                <p class="truncate text-[11px] font-semibold text-white">GPS Offline Cluster</p>
                 <p class="truncate text-[10px] text-slate-400">Auto-highlights via toggle filter.</p>
               </div>
               <span class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-amber-200">live</span>
             </li>
-            <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
+            <li class="flex h-9 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-2 py-1.5 text-slate-200 transition hover:bg-slate-900/40">
               <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-rose-300">
                 <i data-lucide="lifebuoy" class="h-4 w-4"></i>
               </span>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-semibold text-white">Recovery Dispatch</p>
+                <p class="truncate text-[11px] font-semibold text-white">Recovery Dispatch</p>
                 <p class="truncate text-[10px] text-slate-400">Click a row to open details drawer.</p>
               </div>
               <span class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200">queue</span>
             </li>
-            <li class="flex h-11 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-3 py-2 text-slate-200 transition hover:bg-slate-900/40">
+            <li class="flex h-9 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-2 py-1.5 text-slate-200 transition hover:bg-slate-900/40">
               <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-blue-300">
                 <i data-lucide="activity" class="h-4 w-4"></i>
               </span>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-semibold text-white">Utilization Dip</p>
+                <p class="truncate text-[11px] font-semibold text-white">Utilization Dip</p>
                 <p class="truncate text-[10px] text-slate-400">Review deal status bars to spot shifts.</p>
               </div>
               <span class="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-blue-200">watch</span>
@@ -295,8 +338,8 @@
       </div>
 
       <div class="mt-2">
-        <div id="inventory-table-scroll-top" class="mb-2 h-3 overflow-x-auto">
-          <div id="inventory-table-scroll-top-inner" class="h-3"></div>
+        <div id="inventory-table-scroll-top" class="mb-2 overflow-x-auto">
+          <div id="inventory-table-scroll-top-inner"></div>
         </div>
         <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
           <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
@@ -314,27 +357,41 @@
       <h4 class="text-lg font-bold text-white">Vehicle Details</h4>
       <button id="drawer-close" type="button" class="rounded-full border border-slate-700 bg-slate-900/80 px-3 py-1 text-xs font-semibold text-slate-200">Close</button>
     </div>
-    <div class="space-y-3 text-sm text-slate-200">
-      <div>
-        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">VIN</p>
-        <p id="drawer-vin" class="font-semibold text-white">-</p>
+    <div class="grid grid-cols-2 gap-3 text-xs text-slate-200">
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
+        <div class="flex items-center justify-between">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">VIN</p>
+          <button type="button" class="rounded-full border border-slate-800 bg-slate-950/60 p-1 text-slate-300 transition hover:border-blue-500 hover:text-white" data-copy-target="drawer-vin" aria-label="Copy VIN">
+            <i data-lucide="copy" class="h-3.5 w-3.5"></i>
+          </button>
+        </div>
+        <p id="drawer-vin" class="mt-1 text-sm font-semibold text-white">-</p>
       </div>
-      <div>
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
+        <div class="flex items-center justify-between">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Stock No</p>
+          <button type="button" class="rounded-full border border-slate-800 bg-slate-950/60 p-1 text-slate-300 transition hover:border-blue-500 hover:text-white" data-copy-target="drawer-stockno" aria-label="Copy Stock No">
+            <i data-lucide="copy" class="h-3.5 w-3.5"></i>
+          </button>
+        </div>
+        <p id="drawer-stockno" class="mt-1 text-sm font-semibold text-white">-</p>
+      </div>
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Status</p>
-        <p id="drawer-status" class="font-semibold text-white">-</p>
+        <p id="drawer-status" class="mt-1 text-sm font-semibold text-white">-</p>
       </div>
-      <div>
+      <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-2">
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Location</p>
-        <p id="drawer-location" class="font-semibold text-white">-</p>
+        <p id="drawer-location" class="mt-1 text-sm font-semibold text-white">-</p>
       </div>
-      <div>
+      <div class="col-span-2 rounded-xl border border-slate-800 bg-slate-900/50 p-2">
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Unit</p>
-        <p id="drawer-unit" class="font-semibold text-white">-</p>
+        <p id="drawer-unit" class="mt-1 text-sm font-semibold text-white">-</p>
       </div>
-      <div>
-        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Flags</p>
-        <p id="drawer-flags" class="font-semibold text-white">-</p>
-      </div>
+    </div>
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Flags</p>
+      <div id="drawer-flags" class="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-200"></div>
     </div>
     <div>
       <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Timeline</p>
@@ -1109,40 +1166,37 @@
             const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
             const width = DashboardState.table.columnWidths[c.key];
             const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
+            const values = getUniqueValues(dataset, c.key).slice(0, 50);
+            const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
+            DashboardState.filters.columnFilters[c.key] = entry;
             return `
               <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
-                <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                  <span class="whitespace-normal break-words">${c.label}</span>
-                  <span class="text-[10px] text-blue-300">${indicator}</span>
-                </button>
-                <span class="column-resizer absolute right-0 top-2 h-4 w-2 cursor-col-resize rounded-full bg-slate-800/60 transition hover:bg-slate-500/80" data-resize-handle="${c.key}"></span>
-              </th>
-            `;
-          }).join('')
-        }</tr>
-        <tr class="text-[10px] text-slate-300">
-          ${
-            visibleColumns.map((c) => {
-              const values = getUniqueValues(dataset, c.key).slice(0, 50);
-              const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
-              DashboardState.filters.columnFilters[c.key] = entry;
-              const width = DashboardState.table.columnWidths[c.key];
-              const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
-              return `
-                <th class="px-3 pb-3" data-col-key="${c.key}"${style}>
-                  <div class="grid gap-1">
+                <div class="flex items-center justify-between gap-2">
+                  <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
+                    <span class="whitespace-normal break-words">${c.label}</span>
+                    <span class="text-[10px] text-blue-300">${indicator}</span>
+                  </button>
+                  <button type="button" data-filter-toggle="${c.key}" class="rounded-full border border-slate-800 bg-slate-950/60 p-1 text-slate-300 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false" aria-label="Filter ${c.label}">
+                    <i data-lucide="filter" class="h-3.5 w-3.5"></i>
+                  </button>
+                </div>
+                <div id="filter-panel-${c.key}" data-filter-panel="${c.key}" class="absolute right-2 top-9 z-30 hidden w-56 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+                  <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">${c.label}</p>
+                  <div class="mt-2 grid gap-1">
                     <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
                       <option value="all">All</option>
                       ${values.map((value) => `<option value="${value}" ${entry.select === value ? 'selected' : ''}>${value}</option>`).join('')}
                     </select>
                     <input type="search" data-column-search="${c.key}" value="${entry.search || ''}" placeholder="Search" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" />
                   </div>
-                </th>
-              `;
-            }).join('')
-          }
-        </tr>
+                </div>
+                <span class="column-resizer absolute right-0 top-2 h-4 w-2 cursor-col-resize rounded-full bg-slate-800/60 transition hover:bg-slate-500/80" data-resize-handle="${c.key}"></span>
+              </th>
+            `;
+          }).join('')
+        }</tr>
       `;
+      lucide.createIcons();
     };
 
     const renderTable = () => {
@@ -1245,6 +1299,7 @@
       renderTableHead();
       renderTable();
       renderActiveFilters();
+      syncTopScrollbar();
     };
 
     const initializeTablePreferences = () => {
@@ -1295,6 +1350,7 @@
 
     const openDrawer = (record) => {
       document.getElementById('drawer-vin').textContent = record.vin || '--';
+      document.getElementById('drawer-stockno').textContent = record.stockNo || '--';
       document.getElementById('drawer-status').textContent = record.status || '--';
       document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
       document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
@@ -1304,9 +1360,14 @@
         record.hold ? 'Hold' : null,
         record.lien ? 'Lien' : null,
         record.recoveryPriority ? 'Recovery Priority' : null,
-      ].filter(Boolean).join(' • ');
+      ].filter(Boolean);
 
-      document.getElementById('drawer-flags').textContent = flags || 'None';
+      const flagsContainer = document.getElementById('drawer-flags');
+      flagsContainer.innerHTML = (flags.length ? flags : ['None']).map((flag) => `
+        <span class="inline-flex items-center rounded-full border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] font-semibold text-slate-200">
+          ${flag}
+        </span>
+      `).join('');
 
       const timeline = [
         { label: 'Created', value: record.createdAt || record.date },
@@ -1349,6 +1410,8 @@
       URL.revokeObjectURL(url);
     };
 
+    let syncTopScrollbar = () => {};
+
     const bindFilterEvents = () => {
       const builder = document.getElementById('filter-builder');
       const perPageSelect = document.getElementById('table-per-page');
@@ -1361,6 +1424,11 @@
       const salesChannelPanel = document.getElementById('sales-channel-panel');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
+      const alertsToggle = document.getElementById('alerts-toggle');
+      const alertsList = document.getElementById('alerts-list');
+      const alertsBadges = document.getElementById('alerts-badges');
+      const alertsPanel = document.getElementById('alerts-panel');
+      const drawer = document.getElementById('row-drawer');
       const segmentSelects = document.querySelectorAll('[data-segment-select]');
       const chartContainers = document.querySelectorAll('[data-bar-chart]');
 
@@ -1369,8 +1437,10 @@
       let resizing = null;
 
       if (tableScroll && tableScrollTop && tableScrollTopInner) {
-        const syncTopWidth = () => {
-          tableScrollTopInner.style.width = `${tableScroll.scrollWidth}px`;
+        const tableElement = tableScroll.querySelector('table');
+        const updateTopWidth = () => {
+          if (!tableElement) return;
+          tableScrollTopInner.style.width = `${tableElement.scrollWidth}px`;
         };
 
         const syncScroll = (source, target) => {
@@ -1378,11 +1448,44 @@
           target.scrollLeft = source.scrollLeft;
         };
 
-        syncTopWidth();
-        window.addEventListener('resize', syncTopWidth);
+        syncTopScrollbar = () => {
+          updateTopWidth();
+        };
+
+        updateTopWidth();
+        if (tableElement) {
+          const resizeObserver = new ResizeObserver(updateTopWidth);
+          resizeObserver.observe(tableElement);
+          resizeObserver.observe(tableScroll);
+        }
         tableScroll.addEventListener('scroll', () => syncScroll(tableScroll, tableScrollTop));
         tableScrollTop.addEventListener('scroll', () => syncScroll(tableScrollTop, tableScroll));
       }
+
+      if (alertsToggle && alertsList && alertsBadges && alertsPanel) {
+        alertsToggle.addEventListener('click', () => {
+          const isCollapsed = alertsPanel.dataset.collapsed === 'true';
+          const nextCollapsed = !isCollapsed;
+          alertsPanel.dataset.collapsed = String(nextCollapsed);
+          alertsList.classList.toggle('hidden', nextCollapsed);
+          alertsBadges.classList.toggle('hidden', !nextCollapsed);
+          alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
+          const icon = alertsToggle.querySelector('i[data-lucide]');
+          if (icon) icon.setAttribute('data-lucide', nextCollapsed ? 'chevron-down' : 'chevron-up');
+          lucide.createIcons();
+        });
+      }
+
+      drawer?.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-copy-target]');
+        if (!button) return;
+        const targetId = button.dataset.copyTarget;
+        const value = document.getElementById(targetId)?.textContent?.trim();
+        if (!value || value === '--') return;
+        navigator.clipboard?.writeText(value);
+        button.classList.add('text-emerald-300');
+        window.setTimeout(() => button.classList.remove('text-emerald-300'), 800);
+      });
 
       if (builder) {
         builder.addEventListener('change', (event) => {
@@ -1440,6 +1543,7 @@
       });
 
       tableHead?.addEventListener('dragstart', (event) => {
+        if (resizing) return;
         const th = event.target.closest('th[data-col-key]');
         if (!th || event.target.closest('[data-resize-handle]')) return;
         activeDragKey = th.dataset.colKey;
@@ -1486,6 +1590,16 @@
         if (record) openDrawer(record);
       });
 
+      tableHead?.addEventListener('click', (event) => {
+        const toggle = event.target.closest('[data-filter-toggle]');
+        if (!toggle) return;
+        const key = toggle.dataset.filterToggle;
+        const panel = document.querySelector(`[data-filter-panel="${key}"]`);
+        if (!panel) return;
+        const isHidden = panel.classList.toggle('hidden');
+        toggle.setAttribute('aria-expanded', String(!isHidden));
+      });
+
       tableHead?.addEventListener('change', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-filter]')) return;
@@ -1513,32 +1627,47 @@
       const onResizeMove = (event) => {
         if (!resizing) return;
         const delta = event.clientX - resizing.startX;
-        const nextWidth = Math.max(120, resizing.startWidth + delta);
-        DashboardState.table.columnWidths[resizing.key] = nextWidth;
-        const col = document.querySelector(`#inventory-table-cols [data-col-key="${resizing.key}"]`);
-        if (col) col.style.width = `${nextWidth}px`;
+        const nextWidth = Math.max(60, resizing.startWidth + delta);
+        resizing.currentWidth = nextWidth;
+        if (resizing.col) resizing.col.style.width = `${nextWidth}px`;
       };
 
       const onResizeEnd = () => {
         if (!resizing) return;
+        if (resizing.handle?.hasPointerCapture(resizing.pointerId)) {
+          resizing.handle.releasePointerCapture(resizing.pointerId);
+        }
+        if (typeof resizing.currentWidth === 'number') {
+          DashboardState.table.columnWidths[resizing.key] = resizing.currentWidth;
+        }
         resizing = null;
         document.body.classList.remove('select-none');
         window.removeEventListener('pointermove', onResizeMove);
         schedulePersistPreferences();
         renderDashboard();
+        syncTopScrollbar();
       };
 
       tableHead?.addEventListener('pointerdown', (event) => {
         const handle = event.target.closest('[data-resize-handle]');
         if (!handle) return;
         event.preventDefault();
+        event.stopPropagation();
         const key = handle.dataset.resizeHandle;
         const th = handle.closest('th');
         if (!key || !th) return;
+        const colgroup = document.getElementById('inventory-table-cols');
+        const col = colgroup?.querySelector(`col[data-col-key="${key}"]`);
+        if (!col) return;
+        handle.setPointerCapture(event.pointerId);
         resizing = {
           key,
           startX: event.clientX,
-          startWidth: th.getBoundingClientRect().width,
+          startWidth: col.getBoundingClientRect().width,
+          currentWidth: col.getBoundingClientRect().width,
+          handle,
+          pointerId: event.pointerId,
+          col,
         };
         document.body.classList.add('select-none');
         window.addEventListener('pointermove', onResizeMove);
@@ -1559,6 +1688,19 @@
         if (chooser.classList.contains('hidden')) return;
         if (chooser.contains(event.target) || toggle.contains(event.target)) return;
         chooser.classList.add('hidden');
+      });
+
+      document.addEventListener('click', (event) => {
+        const panel = event.target.closest('[data-filter-panel]');
+        const toggle = event.target.closest('[data-filter-toggle]');
+        if (panel || toggle) return;
+        document.querySelectorAll('[data-filter-panel]').forEach((element) => {
+          if (element.classList.contains('hidden')) return;
+          element.classList.add('hidden');
+        });
+        document.querySelectorAll('[data-filter-toggle]').forEach((button) => {
+          button.setAttribute('aria-expanded', 'false');
+        });
       });
 
       document.getElementById('column-chooser-options').addEventListener('change', (event) => {
