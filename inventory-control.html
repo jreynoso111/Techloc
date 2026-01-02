@@ -304,7 +304,8 @@
       </div>
 
       <div class="mt-6 overflow-x-auto">
-        <table class="min-w-full text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+        <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+          <colgroup id="inventory-table-cols"></colgroup>
           <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
           <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
         </table>
@@ -434,6 +435,8 @@
         perPage: 8,
         sort: { key: '', direction: 'asc' },
         columns: {},
+        columnOrder: [],
+        columnWidths: {},
       },
       derived: {
         filtered: [],
@@ -631,9 +634,22 @@
       };
     };
 
+    const getOrderedColumns = (columns) => {
+      const order = DashboardState.table.columnOrder;
+      if (!Array.isArray(order) || !order.length) return columns;
+      const byKey = new Map(columns.map((col) => [col.key, col]));
+      const ordered = order.map((key) => byKey.get(key)).filter(Boolean);
+      columns.forEach((col) => {
+        if (!order.includes(col.key)) ordered.push(col);
+      });
+      return ordered;
+    };
+
     const buildPreferencesPayload = () => ({
       table: {
         columns: DashboardState.table.columns,
+        columnOrder: DashboardState.table.columnOrder,
+        columnWidths: DashboardState.table.columnWidths,
         sort: DashboardState.table.sort,
         perPage: DashboardState.table.perPage,
       },
@@ -652,6 +668,8 @@
       if (!config || typeof config !== 'object') return;
       if (config.table?.sort) DashboardState.table.sort = config.table.sort;
       if (typeof config.table?.perPage === 'number') DashboardState.table.perPage = config.table.perPage;
+      if (Array.isArray(config.table?.columnOrder)) DashboardState.table.columnOrder = config.table.columnOrder;
+      if (config.table?.columnWidths) DashboardState.table.columnWidths = config.table.columnWidths;
       if (config.filters?.dateRange) DashboardState.filters.dateRange = { ...DashboardState.filters.dateRange, ...config.filters.dateRange };
       if (Array.isArray(config.filters?.salesChannels)) DashboardState.filters.salesChannels = config.filters.salesChannels;
       if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
@@ -991,13 +1009,24 @@
 
     const renderTableHead = () => {
       const head = document.getElementById('inventory-table-head');
-      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = getOrderedColumns(DashboardState.schema)
+        .filter((c) => DashboardState.table.columns[c.key]);
       const sortState = DashboardState.table.sort;
       const dataset = getCurrentDataset();
+      const colgroup = document.getElementById('inventory-table-cols');
 
       if (!visibleColumns.length) {
         head.innerHTML = '<tr><th class="px-3 py-2 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400">No columns</th></tr>';
+        if (colgroup) colgroup.innerHTML = '';
         return;
+      }
+
+      if (colgroup) {
+        colgroup.innerHTML = visibleColumns.map((c) => {
+          const width = DashboardState.table.columnWidths[c.key];
+          const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
+          return `<col data-col-key="${c.key}"${style} />`;
+        }).join('');
       }
 
       head.innerHTML = `
@@ -1005,12 +1034,15 @@
           visibleColumns.map((c) => {
             const isSorted = sortState.key === c.key;
             const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
+            const width = DashboardState.table.columnWidths[c.key];
+            const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
             return `
-              <th class="px-3 py-2">
+              <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
                 <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                  <span>${c.label}</span>
+                  <span class="whitespace-normal break-words">${c.label}</span>
                   <span class="text-[10px] text-blue-300">${indicator}</span>
                 </button>
+                <span class="column-resizer absolute right-0 top-2 h-6 w-2 cursor-col-resize" data-resize-handle="${c.key}"></span>
               </th>
             `;
           }).join('')
@@ -1021,8 +1053,10 @@
               const values = getUniqueValues(dataset, c.key).slice(0, 50);
               const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
               DashboardState.filters.columnFilters[c.key] = entry;
+              const width = DashboardState.table.columnWidths[c.key];
+              const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
               return `
-                <th class="px-3 pb-3">
+                <th class="px-3 pb-3" data-col-key="${c.key}"${style}>
                   <div class="grid gap-1">
                     <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
                       <option value="all">All</option>
@@ -1040,7 +1074,8 @@
 
     const renderTable = () => {
       const tableBody = document.getElementById('inventory-table');
-      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = getOrderedColumns(DashboardState.schema)
+        .filter((c) => DashboardState.table.columns[c.key]);
       const columnCount = Math.max(1, visibleColumns.length);
 
       if (DashboardState.ui.isLoading) {
@@ -1105,7 +1140,9 @@
 
           if (value === null || value === undefined || value === '') value = '--';
 
-          return `<td class="px-3 py-2">${value}</td>`;
+          const width = DashboardState.table.columnWidths[col.key];
+          const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
+          return `<td class="px-3 py-2 whitespace-normal break-words"${style}>${value}</td>`;
         }).join('');
 
         return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
@@ -1152,6 +1189,17 @@
         acc[column.key] = saved[column.key] ?? defaults[column.key] ?? true;
         return acc;
       }, {});
+      if (!DashboardState.table.columnOrder.length) {
+        DashboardState.table.columnOrder = DashboardState.schema.map((c) => c.key);
+      } else {
+        const known = new Set(DashboardState.schema.map((c) => c.key));
+        DashboardState.table.columnOrder = DashboardState.table.columnOrder.filter((key) => known.has(key));
+        DashboardState.schema.forEach((c) => {
+          if (!DashboardState.table.columnOrder.includes(c.key)) {
+            DashboardState.table.columnOrder.push(c.key);
+          }
+        });
+      }
       if (!DashboardState.schema.some((c) => c.key === DashboardState.table.sort.key)) {
         DashboardState.table.sort = { key: DashboardState.schema[0]?.key || '', direction: 'asc' };
       }
@@ -1239,6 +1287,8 @@
       const salesChannelSummary = document.getElementById('sales-channel-summary');
 
       const resetPagination = () => (DashboardState.table.page = 1);
+      let activeDragKey = null;
+      let resizing = null;
 
       builder.addEventListener('change', (event) => {
         const target = event.target;
@@ -1293,6 +1343,46 @@
         schedulePersistPreferences();
       });
 
+      tableHead.addEventListener('dragstart', (event) => {
+        const th = event.target.closest('th[data-col-key]');
+        if (!th || event.target.closest('[data-resize-handle]')) return;
+        activeDragKey = th.dataset.colKey;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', activeDragKey);
+      });
+
+      tableHead.addEventListener('dragover', (event) => {
+        if (!activeDragKey) return;
+        const th = event.target.closest('th[data-col-key]');
+        if (!th) return;
+        event.preventDefault();
+      });
+
+      tableHead.addEventListener('drop', (event) => {
+        if (!activeDragKey) return;
+        const th = event.target.closest('th[data-col-key]');
+        if (!th) return;
+        event.preventDefault();
+        const targetKey = th.dataset.colKey;
+        if (targetKey && targetKey !== activeDragKey) {
+          const order = DashboardState.table.columnOrder.slice();
+          const fromIndex = order.indexOf(activeDragKey);
+          const toIndex = order.indexOf(targetKey);
+          if (fromIndex !== -1 && toIndex !== -1) {
+            order.splice(fromIndex, 1);
+            order.splice(toIndex, 0, activeDragKey);
+            DashboardState.table.columnOrder = order;
+            renderDashboard();
+            schedulePersistPreferences();
+          }
+        }
+        activeDragKey = null;
+      });
+
+      tableHead.addEventListener('dragend', () => {
+        activeDragKey = null;
+      });
+
       document.getElementById('inventory-table').addEventListener('click', (event) => {
         const row = event.target.closest('[data-row-key]');
         if (!row) return;
@@ -1322,6 +1412,41 @@
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
+      });
+
+      const onResizeMove = (event) => {
+        if (!resizing) return;
+        const delta = event.clientX - resizing.startX;
+        const nextWidth = Math.max(120, resizing.startWidth + delta);
+        DashboardState.table.columnWidths[resizing.key] = nextWidth;
+        const col = document.querySelector(`#inventory-table-cols [data-col-key="${resizing.key}"]`);
+        if (col) col.style.width = `${nextWidth}px`;
+      };
+
+      const onResizeEnd = () => {
+        if (!resizing) return;
+        resizing = null;
+        document.body.classList.remove('select-none');
+        window.removeEventListener('pointermove', onResizeMove);
+        schedulePersistPreferences();
+        renderDashboard();
+      };
+
+      tableHead.addEventListener('pointerdown', (event) => {
+        const handle = event.target.closest('[data-resize-handle]');
+        if (!handle) return;
+        event.preventDefault();
+        const key = handle.dataset.resizeHandle;
+        const th = handle.closest('th');
+        if (!key || !th) return;
+        resizing = {
+          key,
+          startX: event.clientX,
+          startWidth: th.getBoundingClientRect().width,
+        };
+        document.body.classList.add('select-none');
+        window.addEventListener('pointermove', onResizeMove);
+        window.addEventListener('pointerup', onResizeEnd, { once: true });
       });
 
       document.getElementById('drawer-close').addEventListener('click', closeDrawer);
