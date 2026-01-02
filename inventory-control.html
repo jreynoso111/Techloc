@@ -12,6 +12,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script type="module" src="assets/scripts/authManager.js"></script>
 
   <script>
     tailwind.config = {
@@ -156,27 +157,38 @@
 
       <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
         <div id="deal-status-panel" class="flex-1">
-          <div class="grid gap-3 lg:grid-cols-[220px_1fr]">
+          <div class="grid gap-3 lg:grid-cols-[260px_1fr_1fr]">
           <div class="grid gap-2">
-            <div class="flex h-7 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1 shadow-none">
-              <p class="text-[9px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
-              <p class="text-[13px] font-black leading-none text-white" data-metric="active">--</p>
-              <span class="h-0.5 w-8 rounded-full bg-emerald-400/80"></span>
+            <div class="flex h-20 flex-col justify-between rounded-2xl border border-slate-800/70 bg-slate-950/40 px-4 py-3 shadow-none">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</p>
+              <p class="text-2xl font-black leading-none text-white" data-metric="active">--</p>
+              <span class="h-1 w-12 rounded-full bg-emerald-400/80"></span>
             </div>
-            <div class="flex h-7 flex-col justify-between rounded-xl border border-slate-800/70 bg-slate-950/40 px-3 py-1 shadow-none">
-              <p class="text-[9px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
-              <p class="text-[13px] font-black leading-none text-white" data-metric="hold">--</p>
-              <span class="h-0.5 w-8 rounded-full bg-amber-400/80"></span>
+            <div class="flex h-20 flex-col justify-between rounded-2xl border border-slate-800/70 bg-slate-950/40 px-4 py-3 shadow-none">
+              <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</p>
+              <p class="text-2xl font-black leading-none text-white" data-metric="hold">--</p>
+              <span class="h-1 w-12 rounded-full bg-amber-400/80"></span>
             </div>
           </div>
-            <div class="h-full rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
+            <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <h3 class="text-lg font-bold text-white">Units by Deal Status</h3>
+                <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                  Segment
+                  <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select></select>
+                </label>
               </div>
-              <span id="status-summary" class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-200">Loading…</span>
             </div>
-            <div class="mt-1 grid grid-cols-6 gap-2" data-bar-chart aria-label="Units by deal status chart"></div>
+            <div class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));" data-bar-chart aria-label="Units by deal status chart"></div>
+          </div>
+          <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard">
+            <div class="flex justify-end">
+              <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Segment
+                <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select></select>
+              </label>
+            </div>
+            <div class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));" data-bar-chart aria-label="Units by deal status chart"></div>
           </div>
         </div>
         </div>
@@ -229,35 +241,6 @@
       </div>
     </section>
 
-    <section class="z-30 p-4">
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-end"></div>
-
-      <div class="mt-2 flex flex-nowrap items-center gap-2 overflow-x-auto text-xs font-semibold text-slate-200" id="active-filters"></div>
-
-      <div id="filter-builder" class="mt-3 grid grid-cols-12 gap-2">
-        <div class="col-span-12 grid grid-cols-12 gap-2">
-          <div id="filter-date-range" class="col-span-12 sm:col-span-5"></div>
-          <div class="col-span-12 flex items-center justify-start gap-2 sm:col-span-7 sm:justify-end">
-            <button id="reset-filters" type="button" aria-label="Clear filters" data-pill-control class="h-8 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">
-              <i data-lucide="x" class="h-3 w-3"></i>
-            </button>
-            <button id="filter-toggle" type="button" aria-expanded="false" aria-controls="active-filters" data-pill-control class="h-8 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">
-              <i data-lucide="sliders-horizontal" class="h-3 w-3"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="col-span-12 flex items-center justify-between">
-          <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Advanced</p>
-          <button id="advanced-toggle" type="button" aria-expanded="false" aria-controls="filter-category-block" data-pill-control class="h-7 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">
-            <i data-lucide="chevron-down" class="h-3 w-3"></i>
-          </button>
-        </div>
-        <div id="filter-category-block" class="col-span-12 hidden grid grid-cols-12 gap-2"></div>
-      </div>
-    </section>
-
-
     <section class="p-4">
       <div class="flex flex-col gap-2">
         <div>
@@ -304,11 +287,17 @@
         </div>
       </div>
 
-      <div class="mt-6 overflow-x-auto">
-        <table class="min-w-full text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+      <div class="mt-6">
+        <div id="inventory-table-scroll-top" class="mb-2 h-3 overflow-x-auto">
+          <div id="inventory-table-scroll-top-inner" class="h-3"></div>
+        </div>
+        <div id="inventory-table-scroll" class="overflow-x-auto">
+          <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+          <colgroup id="inventory-table-cols"></colgroup>
           <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
           <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
-        </table>
+          </table>
+        </div>
       </div>
     </section>
   </main>
@@ -435,13 +424,22 @@
         perPage: 8,
         sort: { key: '', direction: 'asc' },
         columns: {},
+        columnOrder: [],
+        columnWidths: {},
       },
       derived: {
         filtered: [],
         kpis: { active: 0, hold: 0 },
         statusBars: [],
       },
+      segmentKey: 'dealStatus',
       realtime: { channel: null },
+      layout: { alertsPanelWidth: null },
+      preferences: {
+        userId: null,
+        config: null,
+        saveTimer: null,
+      },
       ui: { isLoading: true },
     };
 
@@ -455,6 +453,9 @@
     ];
 
     const COLUMN_STORAGE_KEY = 'inventoryControlTableColumns';
+    const PREFERENCES_STORAGE_KEY = 'inventoryControlPreferences';
+    const CONFIG_TABLE = 'user_table_configs';
+    const CONFIG_TABLE_NAME = 'Inventory Control';
 
     const formatDate = (value) => {
       if (!value) return '--';
@@ -623,6 +624,139 @@
       };
     };
 
+    const getOrderedColumns = (columns) => {
+      const order = DashboardState.table.columnOrder;
+      if (!Array.isArray(order) || !order.length) return columns;
+      const byKey = new Map(columns.map((col) => [col.key, col]));
+      const ordered = order.map((key) => byKey.get(key)).filter(Boolean);
+      columns.forEach((col) => {
+        if (!order.includes(col.key)) ordered.push(col);
+      });
+      return ordered;
+    };
+
+    const buildPreferencesPayload = () => ({
+      table: {
+        columns: DashboardState.table.columns,
+        columnOrder: DashboardState.table.columnOrder,
+        columnWidths: DashboardState.table.columnWidths,
+        sort: DashboardState.table.sort,
+        perPage: DashboardState.table.perPage,
+      },
+      chart: {
+        segmentKey: DashboardState.segmentKey,
+      },
+      filters: {
+        dateRange: DashboardState.filters.dateRange,
+        salesChannels: DashboardState.filters.salesChannels,
+        categoryFilters: DashboardState.filters.categoryFilters,
+        columnFilters: DashboardState.filters.columnFilters,
+      },
+      layout: {
+        alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
+      },
+    });
+
+    const applyPreferences = (config) => {
+      if (!config || typeof config !== 'object') return;
+      if (config.table?.sort) DashboardState.table.sort = config.table.sort;
+      if (typeof config.table?.perPage === 'number') DashboardState.table.perPage = config.table.perPage;
+      if (Array.isArray(config.table?.columnOrder)) DashboardState.table.columnOrder = config.table.columnOrder;
+      if (config.table?.columnWidths) DashboardState.table.columnWidths = config.table.columnWidths;
+      if (config.chart?.segmentKey) DashboardState.segmentKey = config.chart.segmentKey;
+      if (config.filters?.dateRange) DashboardState.filters.dateRange = { ...DashboardState.filters.dateRange, ...config.filters.dateRange };
+      if (Array.isArray(config.filters?.salesChannels)) DashboardState.filters.salesChannels = config.filters.salesChannels;
+      if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
+      if (config.filters?.columnFilters) DashboardState.filters.columnFilters = config.filters.columnFilters;
+      if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
+    };
+
+    const fetchTableConfig = async (userId) => {
+      if (!supabaseClient?.from || !userId) return null;
+      const { data, error } = await supabaseClient
+        .from(CONFIG_TABLE)
+        .select('config')
+        .eq('user_id', userId)
+        .eq('table_name', CONFIG_TABLE_NAME)
+        .maybeSingle();
+      if (error) return null;
+      return data?.config || null;
+    };
+
+    const fetchAdminUserId = async () => {
+      if (!supabaseClient?.from) return null;
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('id')
+        .eq('role', 'administrator')
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data?.id || null;
+    };
+
+    const loadDashboardPreferences = async () => {
+      let config = null;
+      if (supabaseClient?.auth) {
+        const { data } = await supabaseClient.auth.getSession();
+        const userId = data?.session?.user?.id || null;
+        DashboardState.preferences.userId = userId;
+        if (userId) {
+          config = await fetchTableConfig(userId);
+          if (!config) {
+            const adminId = await fetchAdminUserId();
+            if (adminId) config = await fetchTableConfig(adminId);
+          }
+        }
+      }
+
+      if (!config) {
+        try {
+          const raw = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+          config = raw ? JSON.parse(raw) : null;
+        } catch {}
+      }
+
+      if (config) {
+        DashboardState.preferences.config = config;
+        applyPreferences(config);
+      }
+    };
+
+    const applyLayoutPreferencesToDom = () => {
+      const alertsPanel = document.getElementById('alerts-panel');
+      const dealPanel = document.getElementById('deal-status-panel');
+      if (!alertsPanel || !dealPanel) return;
+      if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
+        alertsPanel.style.flex = `0 0 ${DashboardState.layout.alertsPanelWidth}px`;
+        dealPanel.style.flex = '1 1 auto';
+      }
+    };
+
+    const persistDashboardPreferences = async () => {
+      const payload = buildPreferencesPayload();
+      try {
+        localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(payload));
+        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(DashboardState.table.columns));
+      } catch {}
+
+      if (!supabaseClient?.from || !DashboardState.preferences.userId) return;
+
+      await supabaseClient
+        .from(CONFIG_TABLE)
+        .upsert(
+          { user_id: DashboardState.preferences.userId, table_name: CONFIG_TABLE_NAME, config: payload },
+          { onConflict: 'user_id, table_name' }
+        );
+    };
+
+    const schedulePersistPreferences = () => {
+      if (DashboardState.preferences.saveTimer) window.clearTimeout(DashboardState.preferences.saveTimer);
+      DashboardState.preferences.saveTimer = window.setTimeout(() => {
+        persistDashboardPreferences();
+      }, 500);
+    };
+
     const getCurrentDataset = () => Array.from(DashboardState.vehiclesRaw.values());
     const setVehiclesFromArray = (vehicles) => {
       DashboardState.vehiclesRaw.clear();
@@ -656,10 +790,14 @@
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
 
-      categoryBlock.innerHTML = '';
-      dateRangeBlock.innerHTML = '';
+      if (!builder && !categoryBlock && !dateRangeBlock && !preserveSelections) {
+        DashboardState.filters.dateRange = { start: '', end: '' };
+      }
 
-      if (categoryKeys.length) {
+      if (categoryBlock) categoryBlock.innerHTML = '';
+      if (dateRangeBlock) dateRangeBlock.innerHTML = '';
+
+      if (categoryBlock && categoryKeys.length) {
         categoryKeys.forEach((entry) => {
           const currentValue = preserveSelections ? (DashboardState.filters.categoryFilters[entry.key] || 'all') : 'all';
           DashboardState.filters.categoryFilters[entry.key] = currentValue;
@@ -675,7 +813,7 @@
         });
       }
 
-      if (dateKey) {
+      if (dateRangeBlock && dateKey) {
         const dateValues = getColumnValues(dataset, dateKey)
           .map((value) => new Date(value))
           .filter((value) => !Number.isNaN(value.getTime()))
@@ -735,9 +873,9 @@
         }
       }
 
-      categoryBlock.classList.toggle('hidden', categoryKeys.length === 0);
-      dateRangeBlock.classList.toggle('hidden', !dateKey);
-      builder.classList.toggle('opacity-50', DashboardState.ui.isLoading);
+      categoryBlock?.classList.toggle('hidden', categoryKeys.length === 0);
+      dateRangeBlock?.classList.toggle('hidden', !dateKey);
+      builder?.classList.toggle('opacity-50', DashboardState.ui.isLoading);
     };
 
     const applyFilters = () => {
@@ -775,14 +913,43 @@
       });
     };
 
-    const getDealStatusLabel = (value) => String(value ?? '').trim() || 'Unassigned';
+    const getSegmentLabel = (value) => String(value ?? '').trim() || 'Unassigned';
+    const getSegmentOptions = () => {
+      const options = [{ key: 'dealStatus', label: 'Deal Status' }];
+      const seen = new Set(options.map((opt) => opt.key));
+      DashboardState.schema
+        .filter((col) => ['string', 'number', 'boolean'].includes(col.type))
+        .forEach((col) => {
+          if (seen.has(col.key)) return;
+          seen.add(col.key);
+          options.push({ key: col.key, label: col.label || formatColumnLabel(col.key) });
+        });
+      return options;
+    };
+
+    const renderSegmentOptions = () => {
+      const selects = document.querySelectorAll('[data-segment-select]');
+      if (!selects.length) return;
+      const options = getSegmentOptions();
+      if (!options.some((opt) => opt.key === DashboardState.segmentKey)) {
+        DashboardState.segmentKey = options[0]?.key || 'dealStatus';
+      }
+      const optionsHtml = options
+        .map((opt) => `<option value="${opt.key}">${opt.label}</option>`)
+        .join('');
+      selects.forEach((select) => {
+        select.innerHTML = optionsHtml;
+        select.value = DashboardState.segmentKey;
+      });
+    };
 
     const computeDerivedState = () => {
       const filtered = applyFilters();
       const activeCount = filtered.filter((i) => i.status === 'Active').length;
       const holdCount = filtered.filter((i) => i.hold || i.status === 'On Hold').length;
+      const segmentKey = DashboardState.segmentKey || 'dealStatus';
       const dealStatusCounts = filtered.reduce((acc, item) => {
-        const key = getDealStatusLabel(item.dealStatus);
+        const key = getSegmentLabel(item[segmentKey]);
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
@@ -819,38 +986,42 @@
     };
 
     const renderStatusBars = () => {
-      const container = document.querySelector('[data-bar-chart]');
-      if (DashboardState.ui.isLoading) {
-        container.innerHTML = Array.from({ length: 6 }).map(() => `
-          <div class="flex flex-col items-center gap-2">
-            <div class="h-14 w-8 rounded-full bg-slate-800/70 overflow-hidden">
-              <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
+      const containers = document.querySelectorAll('[data-bar-chart]');
+      renderSegmentOptions();
+      containers.forEach((container) => {
+        if (DashboardState.ui.isLoading) {
+          container.innerHTML = Array.from({ length: 6 }).map(() => `
+            <div class="flex h-full flex-col items-center justify-end gap-2">
+              <div class="h-full min-h-[140px] w-8 rounded-full bg-slate-800/70 overflow-hidden">
+                <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
+              </div>
+              <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
             </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
-          </div>
+          `).join('');
+          return;
+        }
+
+        if (!DashboardState.derived.statusBars.length) {
+          container.innerHTML = '<p class="col-span-6 text-center text-xs text-slate-400">No vehicles match current filters.</p>';
+          return;
+        }
+
+        container.innerHTML = DashboardState.derived.statusBars.map((item) => `
+          <button type="button" data-status="${item.status}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60">
+            <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
+              <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
+            </div>
+            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
+            <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
+          </button>
         `).join('');
-        return;
-      }
-
-      if (!DashboardState.derived.statusBars.length) {
-        container.innerHTML = '<p class="col-span-6 text-center text-xs text-slate-400">No vehicles match current filters.</p>';
-        return;
-      }
-
-      container.innerHTML = DashboardState.derived.statusBars.map((item) => `
-        <button type="button" data-status="${item.status}" class="flex flex-col items-center gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60">
-          <div class="h-14 w-8 rounded-full bg-slate-800/70">
-            <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
-          </div>
-          <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
-          <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
-        </button>
-      `).join('');
+      });
     };
 
 
     const renderActiveFilters = () => {
       const chipsContainer = document.getElementById('active-filters');
+      if (!chipsContainer) return;
       const { filters } = DashboardState;
       const chips = [];
 
@@ -869,13 +1040,24 @@
 
     const renderTableHead = () => {
       const head = document.getElementById('inventory-table-head');
-      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = getOrderedColumns(DashboardState.schema)
+        .filter((c) => DashboardState.table.columns[c.key]);
       const sortState = DashboardState.table.sort;
       const dataset = getCurrentDataset();
+      const colgroup = document.getElementById('inventory-table-cols');
 
       if (!visibleColumns.length) {
         head.innerHTML = '<tr><th class="px-3 py-2 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400">No columns</th></tr>';
+        if (colgroup) colgroup.innerHTML = '';
         return;
+      }
+
+      if (colgroup) {
+        colgroup.innerHTML = visibleColumns.map((c) => {
+          const width = DashboardState.table.columnWidths[c.key];
+          const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
+          return `<col data-col-key="${c.key}"${style} />`;
+        }).join('');
       }
 
       head.innerHTML = `
@@ -883,12 +1065,15 @@
           visibleColumns.map((c) => {
             const isSorted = sortState.key === c.key;
             const indicator = isSorted ? (sortState.direction === 'asc' ? '▲' : '▼') : '';
+            const width = DashboardState.table.columnWidths[c.key];
+            const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
             return `
-              <th class="px-3 py-2">
+              <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
                 <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                  <span>${c.label}</span>
+                  <span class="whitespace-normal break-words">${c.label}</span>
                   <span class="text-[10px] text-blue-300">${indicator}</span>
                 </button>
+                <span class="column-resizer absolute right-0 top-2 h-4 w-2 cursor-col-resize rounded-full bg-slate-800/60 transition hover:bg-slate-500/80" data-resize-handle="${c.key}"></span>
               </th>
             `;
           }).join('')
@@ -899,8 +1084,10 @@
               const values = getUniqueValues(dataset, c.key).slice(0, 50);
               const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
               DashboardState.filters.columnFilters[c.key] = entry;
+              const width = DashboardState.table.columnWidths[c.key];
+              const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
               return `
-                <th class="px-3 pb-3">
+                <th class="px-3 pb-3" data-col-key="${c.key}"${style}>
                   <div class="grid gap-1">
                     <select data-column-filter="${c.key}" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200">
                       <option value="all">All</option>
@@ -918,7 +1105,8 @@
 
     const renderTable = () => {
       const tableBody = document.getElementById('inventory-table');
-      const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
+      const visibleColumns = getOrderedColumns(DashboardState.schema)
+        .filter((c) => DashboardState.table.columns[c.key]);
       const columnCount = Math.max(1, visibleColumns.length);
 
       if (DashboardState.ui.isLoading) {
@@ -983,7 +1171,9 @@
 
           if (value === null || value === undefined || value === '') value = '--';
 
-          return `<td class="px-3 py-2">${value}</td>`;
+          const width = DashboardState.table.columnWidths[col.key];
+          const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
+          return `<td class="px-3 py-2 whitespace-normal break-words"${style}>${value}</td>`;
         }).join('');
 
         return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
@@ -1013,17 +1203,34 @@
       renderTableHead();
       renderTable();
       renderActiveFilters();
-      document.getElementById('status-summary').textContent = `${DashboardState.derived.filtered.length} units in view`;
     };
 
     const initializeTablePreferences = () => {
-      const stored = localStorage.getItem(COLUMN_STORAGE_KEY);
-      const saved = stored ? JSON.parse(stored) : {};
+      let saved = DashboardState.preferences.config?.table?.columns || {};
+      if (!Object.keys(saved).length) {
+        try {
+          const stored = localStorage.getItem(COLUMN_STORAGE_KEY);
+          saved = stored ? JSON.parse(stored) : {};
+        } catch {
+          saved = {};
+        }
+      }
       const defaults = DashboardState.schema.reduce((acc, c) => ((acc[c.key] = true), acc), {});
       DashboardState.table.columns = DashboardState.schema.reduce((acc, column) => {
         acc[column.key] = saved[column.key] ?? defaults[column.key] ?? true;
         return acc;
       }, {});
+      if (!DashboardState.table.columnOrder.length) {
+        DashboardState.table.columnOrder = DashboardState.schema.map((c) => c.key);
+      } else {
+        const known = new Set(DashboardState.schema.map((c) => c.key));
+        DashboardState.table.columnOrder = DashboardState.table.columnOrder.filter((key) => known.has(key));
+        DashboardState.schema.forEach((c) => {
+          if (!DashboardState.table.columnOrder.includes(c.key)) {
+            DashboardState.table.columnOrder.push(c.key);
+          }
+        });
+      }
       if (!DashboardState.schema.some((c) => c.key === DashboardState.table.sort.key)) {
         DashboardState.table.sort = { key: DashboardState.schema[0]?.key || '', direction: 'asc' };
       }
@@ -1105,33 +1312,60 @@
       const perPageSelect = document.getElementById('table-per-page');
       const goToInput = document.getElementById('table-go-to');
       const tableHead = document.getElementById('inventory-table-head');
+      const tableScroll = document.getElementById('inventory-table-scroll');
+      const tableScrollTop = document.getElementById('inventory-table-scroll-top');
+      const tableScrollTopInner = document.getElementById('inventory-table-scroll-top-inner');
       const salesChannelToggle = document.getElementById('sales-channel-toggle');
       const salesChannelPanel = document.getElementById('sales-channel-panel');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
+      const segmentSelects = document.querySelectorAll('[data-segment-select]');
 
       const resetPagination = () => (DashboardState.table.page = 1);
+      let activeDragKey = null;
+      let resizing = null;
 
-      builder.addEventListener('change', (event) => {
-        const target = event.target;
-        if (target.matches('[data-filter-category]')) {
-          const key = target.dataset.filterCategory;
-          DashboardState.filters.categoryFilters[key] = target.value;
-          resetPagination();
-          renderDashboard();
-        }
-        if (target.matches('#filter-start-date')) {
-          DashboardState.filters.dateRange.start = document.getElementById('filter-start-date')?.value || '';
-          DashboardState.filters.dateRange.end = '';
-          resetPagination();
-          renderDashboard();
-        }
-      });
+      if (tableScroll && tableScrollTop && tableScrollTopInner) {
+        const syncTopWidth = () => {
+          tableScrollTopInner.style.width = `${tableScroll.scrollWidth}px`;
+        };
 
-      document.getElementById('reset-filters').addEventListener('click', () => {
+        const syncScroll = (source, target) => {
+          if (target.scrollLeft === source.scrollLeft) return;
+          target.scrollLeft = source.scrollLeft;
+        };
+
+        syncTopWidth();
+        window.addEventListener('resize', syncTopWidth);
+        tableScroll.addEventListener('scroll', () => syncScroll(tableScroll, tableScrollTop));
+        tableScrollTop.addEventListener('scroll', () => syncScroll(tableScrollTop, tableScroll));
+      }
+
+      if (builder) {
+        builder.addEventListener('change', (event) => {
+          const target = event.target;
+          if (target.matches('[data-filter-category]')) {
+            const key = target.dataset.filterCategory;
+            DashboardState.filters.categoryFilters[key] = target.value;
+            resetPagination();
+            renderDashboard();
+            schedulePersistPreferences();
+          }
+          if (target.matches('#filter-start-date')) {
+            DashboardState.filters.dateRange.start = document.getElementById('filter-start-date')?.value || '';
+            DashboardState.filters.dateRange.end = '';
+            resetPagination();
+            renderDashboard();
+            schedulePersistPreferences();
+          }
+        });
+      }
+
+      document.getElementById('reset-filters')?.addEventListener('click', () => {
         setupFilters();
         resetPagination();
         renderDashboard();
+        schedulePersistPreferences();
       });
 
       document.getElementById('table-prev').addEventListener('click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
@@ -1141,6 +1375,7 @@
         DashboardState.table.perPage = Number(perPageSelect.value);
         DashboardState.table.page = 1;
         renderDashboard();
+        schedulePersistPreferences();
       });
 
       goToInput.addEventListener('change', () => {
@@ -1158,6 +1393,47 @@
         if (DashboardState.table.sort.key === key) DashboardState.table.sort.direction = DashboardState.table.sort.direction === 'asc' ? 'desc' : 'asc';
         else { DashboardState.table.sort.key = key; DashboardState.table.sort.direction = 'asc'; }
         renderDashboard();
+        schedulePersistPreferences();
+      });
+
+      tableHead?.addEventListener('dragstart', (event) => {
+        const th = event.target.closest('th[data-col-key]');
+        if (!th || event.target.closest('[data-resize-handle]')) return;
+        activeDragKey = th.dataset.colKey;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', activeDragKey);
+      });
+
+      tableHead?.addEventListener('dragover', (event) => {
+        if (!activeDragKey) return;
+        const th = event.target.closest('th[data-col-key]');
+        if (!th) return;
+        event.preventDefault();
+      });
+
+      tableHead?.addEventListener('drop', (event) => {
+        if (!activeDragKey) return;
+        const th = event.target.closest('th[data-col-key]');
+        if (!th) return;
+        event.preventDefault();
+        const targetKey = th.dataset.colKey;
+        if (targetKey && targetKey !== activeDragKey) {
+          const order = DashboardState.table.columnOrder.slice();
+          const fromIndex = order.indexOf(activeDragKey);
+          const toIndex = order.indexOf(targetKey);
+          if (fromIndex !== -1 && toIndex !== -1) {
+            order.splice(fromIndex, 1);
+            order.splice(toIndex, 0, activeDragKey);
+            DashboardState.table.columnOrder = order;
+            renderDashboard();
+            schedulePersistPreferences();
+          }
+        }
+        activeDragKey = null;
+      });
+
+      tableHead?.addEventListener('dragend', () => {
+        activeDragKey = null;
       });
 
       document.getElementById('inventory-table').addEventListener('click', (event) => {
@@ -1167,7 +1443,7 @@
         if (record) openDrawer(record);
       });
 
-      tableHead.addEventListener('change', (event) => {
+      tableHead?.addEventListener('change', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-filter]')) return;
         const key = target.dataset.columnFilter;
@@ -1176,9 +1452,10 @@
         DashboardState.filters.columnFilters[key] = entry;
         resetPagination();
         renderDashboard();
+        schedulePersistPreferences();
       });
 
-      tableHead.addEventListener('input', (event) => {
+      tableHead?.addEventListener('input', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-search]')) return;
         const key = target.dataset.columnSearch;
@@ -1187,6 +1464,42 @@
         DashboardState.filters.columnFilters[key] = entry;
         resetPagination();
         renderDashboard();
+        schedulePersistPreferences();
+      });
+
+      const onResizeMove = (event) => {
+        if (!resizing) return;
+        const delta = event.clientX - resizing.startX;
+        const nextWidth = Math.max(120, resizing.startWidth + delta);
+        DashboardState.table.columnWidths[resizing.key] = nextWidth;
+        const col = document.querySelector(`#inventory-table-cols [data-col-key="${resizing.key}"]`);
+        if (col) col.style.width = `${nextWidth}px`;
+      };
+
+      const onResizeEnd = () => {
+        if (!resizing) return;
+        resizing = null;
+        document.body.classList.remove('select-none');
+        window.removeEventListener('pointermove', onResizeMove);
+        schedulePersistPreferences();
+        renderDashboard();
+      };
+
+      tableHead?.addEventListener('pointerdown', (event) => {
+        const handle = event.target.closest('[data-resize-handle]');
+        if (!handle) return;
+        event.preventDefault();
+        const key = handle.dataset.resizeHandle;
+        const th = handle.closest('th');
+        if (!key || !th) return;
+        resizing = {
+          key,
+          startX: event.clientX,
+          startWidth: th.getBoundingClientRect().width,
+        };
+        document.body.classList.add('select-none');
+        window.addEventListener('pointermove', onResizeMove);
+        window.addEventListener('pointerup', onResizeEnd, { once: true });
       });
 
       document.getElementById('drawer-close').addEventListener('click', closeDrawer);
@@ -1209,8 +1522,8 @@
         const input = event.target;
         if (!input.matches('input[type="checkbox"]')) return;
         DashboardState.table.columns[input.value] = input.checked;
-        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(DashboardState.table.columns));
         renderDashboard();
+        schedulePersistPreferences();
       });
 
       document.getElementById('export-csv').addEventListener('click', exportCsv);
@@ -1239,6 +1552,15 @@
         if (salesChannelSummary) salesChannelSummary.textContent = String(checked.length);
         resetPagination();
         renderDashboard();
+        schedulePersistPreferences();
+      });
+
+      segmentSelects.forEach((select) => {
+        select.addEventListener('change', (event) => {
+          DashboardState.segmentKey = event.target.value || 'dealStatus';
+          renderDashboard();
+          schedulePersistPreferences();
+        });
       });
     };
 
@@ -1272,7 +1594,14 @@
         document.body.classList.remove('select-none');
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', stopDragging);
+        DashboardState.layout.alertsPanelWidth = alertsPanel.getBoundingClientRect().width;
+        schedulePersistPreferences();
       };
+
+      if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
+        alertsPanel.style.flex = `0 0 ${DashboardState.layout.alertsPanelWidth}px`;
+        dealPanel.style.flex = '1 1 auto';
+      }
 
       handle.addEventListener('pointerdown', (event) => {
         if (window.innerWidth < 1024) return;
@@ -1457,6 +1786,8 @@
     (async () => {
       setConnectionStatus('Booting…');
       supabaseClient = await getSupabaseClient();
+      await loadDashboardPreferences();
+      applyLayoutPreferencesToDom();
 
       if (!supabaseClient) {
         setConnectionStatus('Offline');
