@@ -1204,15 +1204,17 @@
 
       const resetPagination = () => (DashboardState.table.page = 1);
 
-      let searchTimeout;
-      searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          DashboardState.filters.search = searchInput.value;
-          resetPagination();
-          renderDashboard();
-        }, 250);
-      });
+      if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+          clearTimeout(searchTimeout);
+          searchTimeout = setTimeout(() => {
+            DashboardState.filters.search = searchInput.value;
+            resetPagination();
+            renderDashboard();
+          }, 250);
+        });
+      }
 
       builder.addEventListener('change', (event) => {
         const target = event.target;
@@ -1241,7 +1243,7 @@
       document.getElementById('reset-filters').addEventListener('click', () => {
         setupFilters();
         DashboardState.filters.search = '';
-        searchInput.value = '';
+        if (searchInput) searchInput.value = '';
         resetPagination();
         renderDashboard();
       });
