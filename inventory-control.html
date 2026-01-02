@@ -265,6 +265,9 @@
           <button id="export-csv" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">
             Export
           </button>
+          <button id="erase-filters" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white">
+            Erase Filters
+          </button>
           <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-200">
             <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Per page</span>
             <select id="table-per-page" class="h-7 rounded-xl border border-slate-700 bg-slate-950/60 px-2 text-[11px] font-semibold text-slate-200">
@@ -420,6 +423,7 @@
         salesChannelKey: '',
         categoryFilters: {},
         columnFilters: {},
+        chartFilter: null,
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -454,6 +458,14 @@
       'from-rose-400 to-red-500',
       'from-teal-400 to-cyan-500',
       'from-slate-400 to-slate-500',
+    ];
+    const DEAL_STATUS_COLORS_ALT = [
+      'from-fuchsia-400 to-purple-500',
+      'from-cyan-400 to-sky-500',
+      'from-lime-400 to-emerald-500',
+      'from-orange-400 to-amber-500',
+      'from-pink-400 to-rose-500',
+      'from-violet-400 to-indigo-500',
     ];
     const DEFAULT_SEGMENT_KEY = 'dealStatus';
 
@@ -656,6 +668,7 @@
         salesChannels: DashboardState.filters.salesChannels,
         categoryFilters: DashboardState.filters.categoryFilters,
         columnFilters: DashboardState.filters.columnFilters,
+        chartFilter: DashboardState.filters.chartFilter,
       },
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -678,6 +691,9 @@
       if (Array.isArray(config.filters?.salesChannels)) DashboardState.filters.salesChannels = config.filters.salesChannels;
       if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
       if (config.filters?.columnFilters) DashboardState.filters.columnFilters = config.filters.columnFilters;
+      if (config.filters?.chartFilter === null || typeof config.filters?.chartFilter === 'object') {
+        DashboardState.filters.chartFilter = config.filters.chartFilter;
+      }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
     };
 
@@ -919,7 +935,10 @@
           return true;
         });
 
-        return inDateRange && categoryMatch && salesChannelMatch && columnMatch;
+        const chartMatch = !filters.chartFilter
+          || getSegmentLabel(item[filters.chartFilter.key]) === filters.chartFilter.value;
+
+        return inDateRange && categoryMatch && salesChannelMatch && columnMatch && chartMatch;
       });
     };
 
@@ -987,6 +1006,7 @@
       containers.forEach((container) => {
         const chartId = container.dataset.chartId || 'default';
         const segmentKey = DashboardState.chartSegments[chartId] || DashboardState.chartSegments.default || DEFAULT_SEGMENT_KEY;
+        const palette = chartId === 'status-secondary' ? DEAL_STATUS_COLORS_ALT : DEAL_STATUS_COLORS;
         if (DashboardState.ui.isLoading) {
           container.innerHTML = Array.from({ length: 6 }).map(() => `
             <div class="flex h-full flex-col items-center justify-end gap-2">
@@ -1011,7 +1031,7 @@
         const statusBars = statusCounts.map((i, index) => ({
           ...i,
           percentage: Math.round((i.count / maxCount) * 100),
-          color: DEAL_STATUS_COLORS[index % DEAL_STATUS_COLORS.length],
+          color: palette[index % palette.length],
         }));
 
         if (!statusBars.length) {
@@ -1019,15 +1039,21 @@
           return;
         }
 
-        container.innerHTML = statusBars.map((item) => `
-          <button type="button" data-status="${item.status}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60">
+        container.innerHTML = statusBars.map((item) => {
+          const isActive = DashboardState.filters.chartFilter
+            && DashboardState.filters.chartFilter.key === segmentKey
+            && DashboardState.filters.chartFilter.value === item.status;
+          const activeClass = isActive ? 'ring-2 ring-blue-400/70 bg-slate-900/50' : '';
+          return `
+          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass}">
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
               <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
             </div>
             <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
             <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
           </button>
-        `).join('');
+        `;
+        }).join('');
       });
     };
 
@@ -1045,6 +1071,9 @@
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
       });
+      if (filters.chartFilter) {
+        chips.push(`${formatColumnLabel(filters.chartFilter.key)}: ${filters.chartFilter.value}`);
+      }
 
       chipsContainer.innerHTML = chips.length
         ? chips.map((c) => `<span class="${PILL_CLASSES} whitespace-nowrap text-slate-200">${c}</span>`).join('')
@@ -1333,6 +1362,7 @@
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
       const segmentSelects = document.querySelectorAll('[data-segment-select]');
+      const chartContainers = document.querySelectorAll('[data-bar-chart]');
 
       const resetPagination = () => (DashboardState.table.page = 1);
       let activeDragKey = null;
@@ -1540,6 +1570,13 @@
       });
 
       document.getElementById('export-csv').addEventListener('click', exportCsv);
+      document.getElementById('erase-filters')?.addEventListener('click', () => {
+        setupFilters();
+        DashboardState.filters.chartFilter = null;
+        resetPagination();
+        renderDashboard();
+        schedulePersistPreferences();
+      });
 
       if (salesChannelToggle && salesChannelPanel) {
         salesChannelToggle.addEventListener('click', () => {
@@ -1572,6 +1609,24 @@
         select.addEventListener('change', (event) => {
           const chartId = event.target.dataset.chartId || 'default';
           DashboardState.chartSegments[chartId] = event.target.value || DEFAULT_SEGMENT_KEY;
+          renderDashboard();
+          schedulePersistPreferences();
+        });
+      });
+
+      chartContainers.forEach((container) => {
+        container.addEventListener('click', (event) => {
+          const button = event.target.closest('button[data-status][data-segment-key]');
+          if (!button) return;
+          const segmentKey = button.dataset.segmentKey;
+          const status = button.dataset.status;
+          const current = DashboardState.filters.chartFilter;
+          if (current && current.key === segmentKey && current.value === status) {
+            DashboardState.filters.chartFilter = null;
+          } else {
+            DashboardState.filters.chartFilter = { key: segmentKey, value: status };
+          }
+          resetPagination();
           renderDashboard();
           schedulePersistPreferences();
         });
