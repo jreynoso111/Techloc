@@ -504,7 +504,53 @@
     // - Si falla, crea el cliente aquí con URL/KEY
     // ==========================================================
 
-    lucide.createIcons();
+    const createLucideSvg = (name, className = '') => {
+      const iconDef = lucide?.icons?.[name];
+      if (!iconDef) return null;
+      const svgString = iconDef.toSvg({ class: className, 'data-lucide': name, 'data-lucide-initialized': 'true' });
+      const wrapper = document.createElement('span');
+      wrapper.innerHTML = svgString;
+      return wrapper.firstElementChild;
+    };
+
+    const initializeLucideIcons = (root = document) => {
+      if (!lucide?.icons) return;
+      const icons = [];
+      if (root.matches?.('[data-lucide]')) icons.push(root);
+      root.querySelectorAll?.('[data-lucide]').forEach((icon) => icons.push(icon));
+      icons.forEach((icon) => {
+        if (icon.getAttribute('data-lucide-initialized') === 'true') return;
+        const name = icon.getAttribute('data-lucide');
+        const className = icon.getAttribute('class') || '';
+        const svgEl = createLucideSvg(name, className);
+        if (svgEl) icon.replaceWith(svgEl);
+      });
+    };
+
+    const updateLucideIcon = (icon, name) => {
+      if (!icon) return;
+      icon.setAttribute('data-lucide', name);
+      icon.removeAttribute('data-lucide-initialized');
+      initializeLucideIcons(icon);
+    };
+
+    const observeLucideIcons = () => {
+      if (!('MutationObserver' in window)) return;
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList') {
+            mutation.addedNodes.forEach((node) => {
+              if (node.nodeType !== Node.ELEMENT_NODE) return;
+              initializeLucideIcons(node);
+            });
+          }
+        });
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    };
+
+    initializeLucideIcons();
+    observeLucideIcons();
 
     const PILL_CLASSES = 'rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1 text-[10px] hover:bg-slate-900/60';
     // ✅ Fallback: pega tus credenciales si tu módulo no exporta bien.
@@ -1528,8 +1574,13 @@
 
         let comparison = 0;
         if (column.type === 'date') {
-          const da = va ? Date.parse(va) : 0;
-          const db = vb ? Date.parse(vb) : 0;
+          const getDateValue = (value) => {
+            if (!value) return 0;
+            const parsed = Date.parse(value);
+            return Number.isNaN(parsed) ? 0 : parsed;
+          };
+          const da = getDateValue(va);
+          const db = getDateValue(vb);
           comparison = da - db;
         } else if (column.type === 'number') {
           comparison = (Number(va) || 0) - (Number(vb) || 0);
@@ -1592,7 +1643,6 @@
       renderKpis();
       renderStatusBars();
       renderTableHead();
-      lucide.createIcons();
       renderTable();
       renderActiveFilters();
       syncTopScrollbar();
@@ -1714,9 +1764,13 @@
 
     const bindFilterEvents = () => {
       const builder = document.getElementById('filter-builder');
+      const resetFiltersButton = document.getElementById('reset-filters');
+      const tablePrev = document.getElementById('table-prev');
+      const tableNext = document.getElementById('table-next');
       const perPageSelect = document.getElementById('table-per-page');
       const goToInput = document.getElementById('table-go-to');
       const tableHead = document.getElementById('inventory-table-head');
+      const inventoryTable = document.getElementById('inventory-table');
       const tableScroll = document.getElementById('inventory-table-scroll');
       const tableScrollTop = document.getElementById('inventory-table-scroll-top');
       const tableScrollTopInner = document.getElementById('inventory-table-scroll-top-inner');
@@ -1730,6 +1784,11 @@
       const alertsList = document.getElementById('alerts-list');
       const alertsBadges = document.getElementById('alerts-badges');
       const alertsPanel = document.getElementById('alerts-panel');
+      const drawerClose = document.getElementById('drawer-close');
+      const columnChooser = document.getElementById('column-chooser');
+      const columnChooserToggle = document.getElementById('column-chooser-toggle');
+      const columnChooserOptions = document.getElementById('column-chooser-options');
+      const exportCsvButton = document.getElementById('export-csv');
       const segmentSelects = document.querySelectorAll('[data-segment-select]');
       const chartContainers = document.querySelectorAll('[data-bar-chart]');
       const segmentFilterToggles = document.querySelectorAll('[data-segment-filter-toggle]');
@@ -1777,9 +1836,8 @@
           alertsList.classList.toggle('hidden', nextCollapsed);
           alertsBadges.classList.toggle('hidden', !nextCollapsed);
           alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
-          const icon = alertsToggle.querySelector('i[data-lucide]');
-          if (icon) icon.setAttribute('data-lucide', nextCollapsed ? 'chevron-down' : 'chevron-up');
-          lucide.createIcons();
+          const icon = alertsToggle.querySelector('[data-lucide]');
+          updateLucideIcon(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
         });
       }
 
@@ -1803,24 +1861,24 @@
         });
       }
 
-      document.getElementById('reset-filters')?.addEventListener('click', () => {
+      resetFiltersButton?.addEventListener('click', () => {
         setupFilters();
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
       });
 
-      document.getElementById('table-prev').addEventListener('click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
-      document.getElementById('table-next').addEventListener('click', () => { DashboardState.table.page += 1; renderDashboard(); });
+      tablePrev?.addEventListener('click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
+      tableNext?.addEventListener('click', () => { DashboardState.table.page += 1; renderDashboard(); });
 
-      perPageSelect.addEventListener('change', () => {
+      perPageSelect?.addEventListener('change', () => {
         DashboardState.table.perPage = Number(perPageSelect.value);
         DashboardState.table.page = 1;
         renderDashboard();
         schedulePersistPreferences();
       });
 
-      goToInput.addEventListener('change', () => {
+      goToInput?.addEventListener('change', () => {
         const totalRows = DashboardState.derived.filtered.length;
         const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
         const desired = Math.min(Math.max(1, Number(goToInput.value) || 1), totalPages);
@@ -1828,7 +1886,7 @@
         renderDashboard();
       });
 
-      document.getElementById('inventory-table-head').addEventListener('click', (event) => {
+      tableHead?.addEventListener('click', (event) => {
         const button = event.target.closest('[data-sort]');
         if (!button) return;
         const key = button.dataset.sort;
@@ -1898,7 +1956,7 @@
         activeDragKey = null;
       });
 
-      document.getElementById('inventory-table').addEventListener('click', (event) => {
+      inventoryTable?.addEventListener('click', (event) => {
         const row = event.target.closest('[data-row-key]');
         if (!row) return;
         const record = DashboardState.vehiclesRaw.get(row.dataset.rowKey);
@@ -1990,20 +2048,19 @@
         window.addEventListener('pointerup', onResizeEnd, { once: true });
       });
 
-      document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+      drawerClose?.addEventListener('click', closeDrawer);
 
-      document.getElementById('column-chooser-toggle').addEventListener('click', () => {
-        const chooser = document.getElementById('column-chooser');
-        const isHidden = chooser.classList.toggle('hidden');
-        document.getElementById('column-chooser-toggle').setAttribute('aria-expanded', String(!isHidden));
+      columnChooserToggle?.addEventListener('click', () => {
+        if (!columnChooser) return;
+        const isHidden = columnChooser.classList.toggle('hidden');
+        columnChooserToggle.setAttribute('aria-expanded', String(!isHidden));
       });
 
       document.addEventListener('click', (event) => {
-        const chooser = document.getElementById('column-chooser');
-        const toggle = document.getElementById('column-chooser-toggle');
-        if (chooser.classList.contains('hidden')) return;
-        if (chooser.contains(event.target) || toggle.contains(event.target)) return;
-        chooser.classList.add('hidden');
+        if (!columnChooser || !columnChooserToggle) return;
+        if (columnChooser.classList.contains('hidden')) return;
+        if (columnChooser.contains(event.target) || columnChooserToggle.contains(event.target)) return;
+        columnChooser.classList.add('hidden');
       });
 
       document.addEventListener('click', (event) => {
@@ -2012,7 +2069,7 @@
         closeColumnFilterPanels();
       });
 
-      document.getElementById('column-chooser-options').addEventListener('change', (event) => {
+      columnChooserOptions?.addEventListener('change', (event) => {
         const input = event.target;
         if (!input.matches('input[type="checkbox"]')) return;
         DashboardState.table.columns[input.value] = input.checked;
@@ -2020,7 +2077,7 @@
         schedulePersistPreferences();
       });
 
-      document.getElementById('export-csv').addEventListener('click', exportCsv);
+      exportCsvButton?.addEventListener('click', exportCsv);
       document.getElementById('erase-filters')?.addEventListener('click', () => {
         setupFilters();
         DashboardState.filters.chartFilters = {};
@@ -2106,8 +2163,8 @@
           fullChartBody.classList.toggle('hidden', nextCollapsed);
           fullChartResizer.classList.toggle('hidden', nextCollapsed);
           fullChartToggle.setAttribute('aria-expanded', String(!nextCollapsed));
-          const icon = fullChartToggle.querySelector('i[data-lucide]');
-          if (icon) icon.setAttribute('data-lucide', nextCollapsed ? 'chevron-down' : 'chevron-up');
+          const icon = fullChartToggle.querySelector('[data-lucide]');
+          updateLucideIcon(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
           if (nextCollapsed) {
             fullChartCard.style.height = '';
             fullChartCard.style.minHeight = '0px';
@@ -2118,7 +2175,6 @@
             fullChartCard.style.minHeight = fullChartMinHeight;
           }
           DashboardState.layout.fullChartCollapsed = nextCollapsed;
-          lucide.createIcons();
           schedulePersistPreferences();
         });
       }
@@ -2482,6 +2538,11 @@
     };
 
     const hydrateVehiclesFromSupabase = async () => {
+      if (supabaseClient === null) {
+        console.warn('Supabase client not available, skipping vehicle hydration.');
+        setConnectionStatus('Offline');
+        return;
+      }
       if (!supabaseClient?.from) {
         DashboardState.ui.isLoading = false;
         setConnectionStatus('Offline');
