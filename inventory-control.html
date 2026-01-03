@@ -336,28 +336,33 @@
     </section>
 
     <section class="p-3">
-      <div id="status-tertiary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary">
+      <div id="status-tertiary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary" data-collapsed="false">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
             Segment
             <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select data-chart-id="status-tertiary"></select>
           </label>
-          <div class="relative">
-            <button type="button" class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" data-segment-filter-toggle data-chart-id="status-tertiary" aria-expanded="false">
-              Fields
-              <span class="rounded-full border border-slate-800 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300" data-segment-filter-count data-chart-id="status-tertiary">All</span>
-            </button>
-            <div class="absolute right-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-tertiary">
-              <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show fields</p>
-              <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-                <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-tertiary">Show all</button>
-                <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-tertiary">Hide all</button>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="relative">
+              <button type="button" class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" data-segment-filter-toggle data-chart-id="status-tertiary" aria-expanded="false">
+                Fields
+                <span class="rounded-full border border-slate-800 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300" data-segment-filter-count data-chart-id="status-tertiary">All</span>
+              </button>
+              <div class="absolute right-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-tertiary">
+                <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show fields</p>
+                <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-tertiary">Show all</button>
+                  <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-tertiary">Hide all</button>
+                </div>
+                <div class="mt-2 grid gap-2" data-segment-filter-options data-chart-id="status-tertiary"></div>
               </div>
-              <div class="mt-2 grid gap-2" data-segment-filter-options data-chart-id="status-tertiary"></div>
             </div>
+            <button type="button" class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-800 bg-slate-950/60 text-slate-200 transition hover:border-blue-500 hover:text-white" data-full-chart-toggle aria-expanded="true" aria-controls="status-tertiary-body">
+              <i data-lucide="chevron-up" class="h-4 w-4"></i>
+            </button>
           </div>
         </div>
-        <div class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));" data-bar-chart data-chart-id="status-tertiary" aria-label="Units by deal status chart"></div>
+        <div id="status-tertiary-body" class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));" data-bar-chart data-chart-id="status-tertiary" aria-label="Units by deal status chart"></div>
       </div>
 
       <div id="full-chart-height-resizer" class="resize-handle resize-handle-row mt-2 hidden h-2 w-full items-center justify-center lg:flex">
@@ -592,7 +597,7 @@
       chartVisibility: {},
       chartVisibilityOptions: {},
       realtime: { channel: null },
-      layout: { alertsPanelWidth: null, chartSplitWidth: null, dealPanelHeight: null, fullChartHeight: null },
+      layout: { alertsPanelWidth: null, chartSplitWidth: null, dealPanelHeight: null, fullChartHeight: null, fullChartCollapsed: false },
       preferences: {
         userId: null,
         config: null,
@@ -845,6 +850,7 @@
         chartSplitWidth: DashboardState.layout.chartSplitWidth,
         dealPanelHeight: DashboardState.layout.dealPanelHeight,
         fullChartHeight: DashboardState.layout.fullChartHeight,
+        fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
       },
     });
 
@@ -880,6 +886,7 @@
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
       if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
       if (typeof config.layout?.fullChartHeight === 'number') DashboardState.layout.fullChartHeight = config.layout.fullChartHeight;
+      if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
     };
 
     const fetchTableConfig = async (userId) => {
@@ -940,6 +947,9 @@
       const primaryChart = document.getElementById('status-primary-card');
       const secondaryChart = document.getElementById('status-secondary-card');
       const fullWidthChart = document.getElementById('status-tertiary-card');
+      const fullWidthChartBody = document.getElementById('status-tertiary-body');
+      const fullWidthChartToggle = document.querySelector('[data-full-chart-toggle]');
+      const fullWidthChartResizer = document.getElementById('full-chart-height-resizer');
       if (!alertsPanel || !dealPanel) return;
       if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
         alertsPanel.style.flex = `0 0 ${DashboardState.layout.alertsPanelWidth}px`;
@@ -951,6 +961,18 @@
       }
       if (typeof DashboardState.layout.fullChartHeight === 'number' && fullWidthChart) {
         fullWidthChart.style.height = `${DashboardState.layout.fullChartHeight}px`;
+      }
+      if (fullWidthChart && fullWidthChartBody && fullWidthChartToggle && fullWidthChartResizer) {
+        const isCollapsed = Boolean(DashboardState.layout.fullChartCollapsed);
+        fullWidthChart.dataset.collapsed = String(isCollapsed);
+        fullWidthChartBody.classList.toggle('hidden', isCollapsed);
+        fullWidthChartResizer.classList.toggle('hidden', isCollapsed);
+        fullWidthChartToggle.setAttribute('aria-expanded', String(!isCollapsed));
+        const icon = fullWidthChartToggle.querySelector('i[data-lucide]');
+        if (icon) icon.setAttribute('data-lucide', isCollapsed ? 'chevron-down' : 'chevron-up');
+        if (isCollapsed) {
+          fullWidthChart.style.height = '';
+        }
       }
       if (typeof DashboardState.layout.dealPanelHeight === 'number' && window.innerWidth >= 1024) {
         const heightValue = `${DashboardState.layout.dealPanelHeight}px`;
@@ -1184,10 +1206,10 @@
         });
 
         const activeChartFilters = !ignoreChartFilter && filters.chartFilters
-          ? Object.entries(filters.chartFilters).filter(([chartId]) => chartId !== ignoreChartId)
+          ? Object.values(filters.chartFilters)
           : [];
         const chartMatch = ignoreChartFilter || !activeChartFilters.length
-          || activeChartFilters.every(([, filter]) => (
+          || activeChartFilters.every((filter) => (
             getSegmentLabel(item[filter.key]) === filter.value
           ));
 
@@ -1327,9 +1349,7 @@
           return;
         }
 
-        const dataset = Object.keys(DashboardState.filters.chartFilters || {}).length
-          ? applyFilters({ ignoreChartId: chartId })
-          : DashboardState.derived.filtered;
+        const dataset = DashboardState.derived.filtered;
         const uniqueRecords = Array.from(
           dataset.reduce((acc, item) => {
             const key = item.stockNo || item.vin || item.id;
@@ -1709,6 +1729,10 @@
       const chartContainers = document.querySelectorAll('[data-bar-chart]');
       const segmentFilterToggles = document.querySelectorAll('[data-segment-filter-toggle]');
       const segmentFilterPanels = document.querySelectorAll('[data-segment-filter-panel]');
+      const fullChartToggle = document.querySelector('[data-full-chart-toggle]');
+      const fullChartBody = document.getElementById('status-tertiary-body');
+      const fullChartCard = document.getElementById('status-tertiary-card');
+      const fullChartResizer = document.getElementById('full-chart-height-resizer');
 
       const resetPagination = () => (DashboardState.table.page = 1);
       let activeDragKey = null;
@@ -2068,6 +2092,27 @@
         });
       }
 
+      if (fullChartToggle && fullChartBody && fullChartCard && fullChartResizer) {
+        fullChartToggle.addEventListener('click', () => {
+          const isCollapsed = fullChartCard.dataset.collapsed === 'true';
+          const nextCollapsed = !isCollapsed;
+          fullChartCard.dataset.collapsed = String(nextCollapsed);
+          fullChartBody.classList.toggle('hidden', nextCollapsed);
+          fullChartResizer.classList.toggle('hidden', nextCollapsed);
+          fullChartToggle.setAttribute('aria-expanded', String(!nextCollapsed));
+          const icon = fullChartToggle.querySelector('i[data-lucide]');
+          if (icon) icon.setAttribute('data-lucide', nextCollapsed ? 'chevron-down' : 'chevron-up');
+          if (nextCollapsed) {
+            fullChartCard.style.height = '';
+          } else if (typeof DashboardState.layout.fullChartHeight === 'number') {
+            fullChartCard.style.height = `${DashboardState.layout.fullChartHeight}px`;
+          }
+          DashboardState.layout.fullChartCollapsed = nextCollapsed;
+          lucide.createIcons();
+          schedulePersistPreferences();
+        });
+      }
+
       document.addEventListener('click', (event) => {
         if (!salesChannelPanel || salesChannelPanel.classList.contains('hidden')) return;
         if (salesChannelPanel.contains(event.target) || salesChannelToggle?.contains(event.target)) return;
@@ -2310,6 +2355,7 @@
 
         fullChartHandle.addEventListener('pointerdown', (event) => {
           if (window.innerWidth < 1024) return;
+          if (fullChart.dataset.collapsed === 'true') return;
           isFullDragging = true;
           fullStartY = event.clientY;
           startFullHeight = fullChart.getBoundingClientRect().height;
