@@ -57,13 +57,24 @@
       cursor: col-resize;
     }
 
+    .resize-handle-row {
+      cursor: row-resize;
+    }
+
     .column-resizer {
       touch-action: none;
     }
 
     body.select-none {
       user-select: none;
+    }
+
+    body.resize-col {
       cursor: col-resize;
+    }
+
+    body.resize-row {
+      cursor: row-resize;
     }
 
     .scrollbar-hidden {
@@ -185,13 +196,17 @@
               <div id="sales-channel-options" class="mt-2 grid gap-2"></div>
             </div>
           </div>
+          <button id="last-deal-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
+            <span>Last Lead</span>
+            <span id="last-deal-status" class="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">TRUE</span>
+          </button>
         </div>
       </div>
 
       <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
         <div id="deal-status-panel" class="flex-1">
-          <div class="grid gap-3 lg:grid-cols-2">
-            <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-primary">
+          <div id="deal-charts-layout" class="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+            <div id="status-primary-card" class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-primary">
             <div class="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -202,7 +217,10 @@
             </div>
             <div class="mt-2 grid flex-1 items-end gap-2" style="grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));" data-bar-chart data-chart-id="status-primary" aria-label="Units by deal status chart"></div>
           </div>
-          <div class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-secondary">
+          <div id="chart-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
+            <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
+          </div>
+          <div id="status-secondary-card" class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-secondary">
             <div class="flex justify-end">
               <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                 Segment
@@ -279,6 +297,10 @@
           </ul>
         </div>
       </div>
+
+      <div id="panel-height-resizer" class="resize-handle resize-handle-row mt-2 hidden h-2 w-full items-center justify-center lg:flex">
+        <span class="h-0.5 w-full rounded-full bg-slate-800"></span>
+      </div>
     </section>
 
     <section class="p-4">
@@ -288,9 +310,9 @@
             <button id="column-chooser-toggle" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false">
               Columns
             </button>
-            <div id="column-chooser" class="absolute left-0 z-40 mt-2 hidden w-48 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+            <div id="column-chooser" class="absolute left-0 z-40 mt-2 hidden w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
               <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
-              <div id="column-chooser-options" class="mt-2 grid gap-2"></div>
+              <div id="column-chooser-options" class="mt-2 grid max-h-[48rem] gap-2 overflow-y-auto pr-1"></div>
             </div>
           </div>
           <button id="export-csv" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">
@@ -365,6 +387,18 @@
       <div>
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Status</p>
         <p id="drawer-status" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">GPS Status</p>
+        <p id="drawer-gps-status" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">GPS Review</p>
+        <p id="drawer-gps-flag" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Completion</p>
+        <p id="drawer-completion" class="font-semibold text-white">-</p>
       </div>
       <div>
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Location</p>
@@ -464,6 +498,9 @@
         dateKey: '',
         salesChannels: ['Finance-EX'],
         salesChannelKey: '',
+        lastLeadKey: '',
+        lastLeadValue: '',
+        lastLeadFilterActive: false,
         categoryFilters: {},
         columnFilters: {},
         chartFilter: null,
@@ -485,7 +522,7 @@
       },
       chartSegments: {},
       realtime: { channel: null },
-      layout: { alertsPanelWidth: null },
+      layout: { alertsPanelWidth: null, chartSplitWidth: null, dealPanelHeight: null },
       preferences: {
         userId: null,
         config: null,
@@ -617,6 +654,17 @@
     const detectSalesChannelKey = (schema) =>
       schema.find((col) => /sales channel/i.test(col.key))?.key || '';
 
+    const detectLastLeadKey = (schema) =>
+      schema.find((col) => /last\s*(lead|deal)/i.test(col.key) || /last\s*(lead|deal)/i.test(col.label))?.key || '';
+
+    const detectTruthyColumnValue = (rows, key) => {
+      if (!key) return '';
+      const truthyRow = rows.find((row) => normalizeBoolean(row?.[key]));
+      if (truthyRow) return String(truthyRow[key]);
+      const truthyValue = getUniqueValues(rows, key).find((value) => normalizeBoolean(value));
+      return truthyValue || '';
+    };
+
     const detectCategoryKeys = (schema, rows, excludeKeys) => {
       const candidates = schema
         .filter((col) => !excludeKeys.includes(col.key))
@@ -665,17 +713,23 @@
       const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'Last Updated');
       const createdAt = getField(vehicle, 'Created At');
       const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
+      const vin = getField(vehicle, 'VIN');
+      const uniqueId = vehicle.id || getField(vehicle, 'Current Stock No') || vin;
       return {
         ...vehicle,
-        id: vehicle.id ?? null,
+        id: uniqueId || null,
         stockNo: getField(vehicle, 'Current Stock No'),
-        vin: getField(vehicle, 'VIN'),
+        vin,
         status: normalizeStatus(getField(vehicle, 'Vehicle Status')),
         hold: normalizeBoolean(getField(vehicle, 'HOLD')),
         brand: getField(vehicle, 'Brand'),
         model: getField(vehicle, 'Model'),
         modelYear: getField(vehicle, 'Model Year'),
         dealStatus: getField(vehicle, 'Deal Status'),
+        gpsStatus: getField(vehicle, 'gps_status'),
+        gpsFlag: getField(vehicle, 'gps_review_flag'),
+        completion: getField(vehicle, 'Deal Completion'),
+        psrCategory: getField(vehicle, 'PSR Category'),
         prepStatus: getField(vehicle, 'Inventory Preparation Status'),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
@@ -715,6 +769,8 @@
       },
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
+        chartSplitWidth: DashboardState.layout.chartSplitWidth,
+        dealPanelHeight: DashboardState.layout.dealPanelHeight,
       },
     });
 
@@ -738,6 +794,8 @@
         DashboardState.filters.chartFilter = config.filters.chartFilter;
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
+      if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
+      if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
     };
 
     const fetchTableConfig = async (userId) => {
@@ -795,10 +853,23 @@
     const applyLayoutPreferencesToDom = () => {
       const alertsPanel = document.getElementById('alerts-panel');
       const dealPanel = document.getElementById('deal-status-panel');
+      const primaryChart = document.getElementById('status-primary-card');
+      const secondaryChart = document.getElementById('status-secondary-card');
       if (!alertsPanel || !dealPanel) return;
       if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
         alertsPanel.style.flex = `0 0 ${DashboardState.layout.alertsPanelWidth}px`;
         dealPanel.style.flex = '1 1 auto';
+      }
+      if (typeof DashboardState.layout.chartSplitWidth === 'number' && window.innerWidth >= 1024 && primaryChart && secondaryChart) {
+        primaryChart.style.flex = `0 0 ${DashboardState.layout.chartSplitWidth}px`;
+        secondaryChart.style.flex = '1 1 auto';
+      }
+      if (typeof DashboardState.layout.dealPanelHeight === 'number' && window.innerWidth >= 1024) {
+        const heightValue = `${DashboardState.layout.dealPanelHeight}px`;
+        dealPanel.style.height = heightValue;
+        alertsPanel.style.height = heightValue;
+        if (primaryChart) primaryChart.style.height = heightValue;
+        if (secondaryChart) secondaryChart.style.height = heightValue;
       }
     };
 
@@ -843,6 +914,7 @@
 
       const dateKey = detectDateKey(schema);
       const salesChannelKey = detectSalesChannelKey(schema);
+      const lastLeadKey = detectLastLeadKey(schema);
       const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey].filter(Boolean));
 
       if (!preserveSelections) {
@@ -852,12 +924,17 @@
 
       DashboardState.filters.dateKey = dateKey;
       DashboardState.filters.salesChannelKey = salesChannelKey;
+      DashboardState.filters.lastLeadKey = lastLeadKey;
+      DashboardState.filters.lastLeadValue = detectTruthyColumnValue(dataset, lastLeadKey);
 
       const builder = document.getElementById('filter-builder');
       const categoryBlock = document.getElementById('filter-category-block');
       const dateRangeBlock = document.getElementById('filter-date-range');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
+      const lastDealToggle = document.getElementById('last-deal-toggle');
+      const lastDealStatus = document.getElementById('last-deal-status');
+      const lastDealKey = lastLeadKey;
 
       if (!builder && !categoryBlock && !dateRangeBlock && !preserveSelections) {
         DashboardState.filters.dateRange = { start: '', end: '' };
@@ -942,6 +1019,29 @@
         }
       }
 
+      if (lastDealToggle && lastDealStatus) {
+        if (lastDealKey) {
+          const nextValue = DashboardState.filters.lastLeadValue || 'TRUE';
+          const existingEntry = DashboardState.filters.columnFilters[lastDealKey];
+          if (!preserveSelections || !existingEntry) {
+            DashboardState.filters.columnFilters[lastDealKey] = { select: nextValue, search: '' };
+            DashboardState.filters.lastLeadFilterActive = true;
+          } else {
+            DashboardState.filters.lastLeadFilterActive = existingEntry.select === nextValue;
+          }
+        }
+        const isActive = Boolean(
+          lastDealKey
+          && DashboardState.filters.lastLeadFilterActive
+          && DashboardState.filters.columnFilters[lastDealKey]?.select === (DashboardState.filters.lastLeadValue || 'TRUE')
+        );
+        lastDealToggle.disabled = !lastDealKey;
+        lastDealToggle.classList.toggle('opacity-50', !lastDealKey);
+        lastDealToggle.classList.toggle('cursor-not-allowed', !lastDealKey);
+        lastDealToggle.setAttribute('aria-pressed', String(isActive));
+        lastDealStatus.textContent = isActive ? 'TRUE' : 'ALL';
+      }
+
       categoryBlock?.classList.toggle('hidden', categoryKeys.length === 0);
       dateRangeBlock?.classList.toggle('hidden', !dateKey);
       builder?.classList.toggle('opacity-50', DashboardState.ui.isLoading);
@@ -973,7 +1073,11 @@
           if (!entry) return true;
           const value = item[key];
           const valueString = String(value ?? '');
-          if (entry.select && entry.select !== 'all' && valueString !== entry.select) return false;
+          if (filters.lastLeadKey && key === filters.lastLeadKey && filters.lastLeadFilterActive) {
+            if (entry.select && entry.select !== 'all' && !normalizeBoolean(value)) return false;
+          } else if (entry.select && entry.select !== 'all' && valueString !== entry.select) {
+            return false;
+          }
           if (entry.search && !valueString.toLowerCase().includes(entry.search)) return false;
           return true;
         });
@@ -1066,7 +1170,15 @@
         const dataset = activeChartId && activeChartId === chartId
           ? applyFilters({ ignoreChartFilter: true })
           : DashboardState.derived.filtered;
-        const dealStatusCounts = dataset.reduce((acc, item) => {
+        const uniqueRecords = Array.from(
+          dataset.reduce((acc, item) => {
+            const key = item.stockNo || item.vin || item.id;
+            if (!key) return acc;
+            if (!acc.has(key)) acc.set(key, item);
+            return acc;
+          }, new Map()).values()
+        );
+        const dealStatusCounts = uniqueRecords.reduce((acc, item) => {
           const key = getSegmentLabel(item[segmentKey]);
           acc[key] = (acc[key] || 0) + 1;
           return acc;
@@ -1332,7 +1444,8 @@
         container.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
         return;
       }
-      container.innerHTML = DashboardState.schema.map((c) => `
+      const sortedSchema = [...DashboardState.schema].sort((a, b) => a.label.localeCompare(b.label));
+      container.innerHTML = sortedSchema.map((c) => `
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
           <span>${c.label}</span>
@@ -1343,6 +1456,15 @@
     const openDrawer = (record) => {
       document.getElementById('drawer-vin').textContent = record.vin || '--';
       document.getElementById('drawer-status').textContent = record.status || '--';
+      document.getElementById('drawer-gps-status').textContent = record.gpsStatus || '--';
+      document.getElementById('drawer-gps-flag').textContent = record.gpsFlag ? `⚠️ ${record.gpsFlag}` : '—';
+      const completionValue = record.completion;
+      let completionText = '--';
+      if (completionValue !== null && completionValue !== undefined && completionValue !== '') {
+        const rawCompletion = String(completionValue).trim();
+        completionText = rawCompletion ? (rawCompletion.endsWith('%') ? rawCompletion : `${rawCompletion}%`) : '--';
+      }
+      document.getElementById('drawer-completion').textContent = completionText;
       document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
       document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
 
@@ -1410,6 +1532,7 @@
       const salesChannelPanel = document.getElementById('sales-channel-panel');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
+      const lastDealToggle = document.getElementById('last-deal-toggle');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
       const alertsBadges = document.getElementById('alerts-badges');
@@ -1590,6 +1713,10 @@
         const entry = DashboardState.filters.columnFilters[key] || { select: 'all', search: '' };
         entry.select = target.value;
         DashboardState.filters.columnFilters[key] = entry;
+        if (DashboardState.filters.lastLeadKey && key === DashboardState.filters.lastLeadKey) {
+          DashboardState.filters.lastLeadFilterActive = target.value === (DashboardState.filters.lastLeadValue || 'TRUE');
+          setupFilters({ preserveSelections: true });
+        }
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
@@ -1723,6 +1850,21 @@
         schedulePersistPreferences();
       });
 
+      lastDealToggle?.addEventListener('click', () => {
+        const { lastLeadKey, lastLeadValue, lastLeadFilterActive } = DashboardState.filters;
+        if (!lastLeadKey) return;
+        const nextValue = lastLeadValue || 'TRUE';
+        DashboardState.filters.lastLeadFilterActive = !lastLeadFilterActive;
+        DashboardState.filters.columnFilters[lastLeadKey] = {
+          select: lastLeadFilterActive ? 'all' : nextValue,
+          search: '',
+        };
+        resetPagination();
+        renderDashboard();
+        schedulePersistPreferences();
+        setupFilters({ preserveSelections: true });
+      });
+
       segmentSelects.forEach((select) => {
         select.addEventListener('change', (event) => {
           const chartId = event.target.dataset.chartId || 'default';
@@ -1757,6 +1899,11 @@
       const handle = document.getElementById('panel-resizer');
       const dealPanel = document.getElementById('deal-status-panel');
       const alertsPanel = document.getElementById('alerts-panel');
+      const chartsLayout = document.getElementById('deal-charts-layout');
+      const chartHandle = document.getElementById('chart-resizer');
+      const primaryChart = document.getElementById('status-primary-card');
+      const secondaryChart = document.getElementById('status-secondary-card');
+      const heightHandle = document.getElementById('panel-height-resizer');
       if (!container || !handle || !dealPanel || !alertsPanel) return;
 
       const minPanelWidth = 220;
@@ -1779,7 +1926,7 @@
       const stopDragging = () => {
         if (!isDragging) return;
         isDragging = false;
-        document.body.classList.remove('select-none');
+        document.body.classList.remove('select-none', 'resize-col');
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', stopDragging);
         DashboardState.layout.alertsPanelWidth = alertsPanel.getBoundingClientRect().width;
@@ -1796,10 +1943,99 @@
         isDragging = true;
         startX = event.clientX;
         startAlertsWidth = alertsPanel.getBoundingClientRect().width;
-        document.body.classList.add('select-none');
+        document.body.classList.add('select-none', 'resize-col');
         window.addEventListener('pointermove', onPointerMove);
         window.addEventListener('pointerup', stopDragging);
       });
+
+      if (chartsLayout && chartHandle && primaryChart && secondaryChart) {
+        const minChartWidth = 220;
+        let chartStartX = 0;
+        let startPrimaryWidth = 0;
+        let isChartDragging = false;
+
+        const onChartMove = (event) => {
+          if (!isChartDragging) return;
+          const deltaX = event.clientX - chartStartX;
+          const containerWidth = chartsLayout.getBoundingClientRect().width;
+          const handleWidth = chartHandle.getBoundingClientRect().width;
+          const maxPrimaryWidth = Math.max(minChartWidth, containerWidth - minChartWidth - handleWidth);
+          const nextPrimaryWidth = Math.min(maxPrimaryWidth, Math.max(minChartWidth, startPrimaryWidth + deltaX));
+          primaryChart.style.flex = `0 0 ${nextPrimaryWidth}px`;
+          secondaryChart.style.flex = '1 1 auto';
+        };
+
+        const stopChartDragging = () => {
+          if (!isChartDragging) return;
+          isChartDragging = false;
+          document.body.classList.remove('select-none', 'resize-col');
+          window.removeEventListener('pointermove', onChartMove);
+          window.removeEventListener('pointerup', stopChartDragging);
+          DashboardState.layout.chartSplitWidth = primaryChart.getBoundingClientRect().width;
+          schedulePersistPreferences();
+        };
+
+        if (typeof DashboardState.layout.chartSplitWidth === 'number' && window.innerWidth >= 1024) {
+          primaryChart.style.flex = `0 0 ${DashboardState.layout.chartSplitWidth}px`;
+          secondaryChart.style.flex = '1 1 auto';
+        }
+
+        chartHandle.addEventListener('pointerdown', (event) => {
+          if (window.innerWidth < 1024) return;
+          isChartDragging = true;
+          chartStartX = event.clientX;
+          startPrimaryWidth = primaryChart.getBoundingClientRect().width;
+          document.body.classList.add('select-none', 'resize-col');
+          window.addEventListener('pointermove', onChartMove);
+          window.addEventListener('pointerup', stopChartDragging);
+        });
+      }
+
+      if (heightHandle) {
+        const minPanelHeight = 220;
+        let heightStartY = 0;
+        let startHeight = 0;
+        let isHeightDragging = false;
+
+        const onHeightMove = (event) => {
+          if (!isHeightDragging) return;
+          const deltaY = event.clientY - heightStartY;
+          const nextHeight = Math.max(minPanelHeight, startHeight + deltaY);
+          const heightValue = `${nextHeight}px`;
+          dealPanel.style.height = heightValue;
+          alertsPanel.style.height = heightValue;
+          if (primaryChart) primaryChart.style.height = heightValue;
+          if (secondaryChart) secondaryChart.style.height = heightValue;
+        };
+
+        const stopHeightDragging = () => {
+          if (!isHeightDragging) return;
+          isHeightDragging = false;
+          document.body.classList.remove('select-none', 'resize-row');
+          window.removeEventListener('pointermove', onHeightMove);
+          window.removeEventListener('pointerup', stopHeightDragging);
+          DashboardState.layout.dealPanelHeight = dealPanel.getBoundingClientRect().height;
+          schedulePersistPreferences();
+        };
+
+        if (typeof DashboardState.layout.dealPanelHeight === 'number' && window.innerWidth >= 1024) {
+          const heightValue = `${DashboardState.layout.dealPanelHeight}px`;
+          dealPanel.style.height = heightValue;
+          alertsPanel.style.height = heightValue;
+          if (primaryChart) primaryChart.style.height = heightValue;
+          if (secondaryChart) secondaryChart.style.height = heightValue;
+        }
+
+        heightHandle.addEventListener('pointerdown', (event) => {
+          if (window.innerWidth < 1024) return;
+          isHeightDragging = true;
+          heightStartY = event.clientY;
+          startHeight = dealPanel.getBoundingClientRect().height;
+          document.body.classList.add('select-none', 'resize-row');
+          window.addEventListener('pointermove', onHeightMove);
+          window.addEventListener('pointerup', stopHeightDragging);
+        });
+      }
     };
 
     const initializeFilterPanel = () => {
@@ -1889,7 +2125,7 @@
 
       const channel = supabaseClient
         .channel('inventory-control-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'Inventory Control' }, handleVehicleChange);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'DealsJP1' }, handleVehicleChange);
 
       DashboardState.realtime.channel = channel;
 
@@ -1918,7 +2154,7 @@
       setConnectionStatus('Reconnecting…');
 
       const { data, error } = await supabaseClient
-        .from('Inventory Control')
+        .from('DealsJP1')
         .select('*')
         .limit(5000);
 
