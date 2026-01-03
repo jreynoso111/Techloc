@@ -1575,8 +1575,15 @@
         let comparison = 0;
         if (column.type === 'date') {
           const getDateValue = (value) => {
-            if (!value) return 0;
-            const parsed = Date.parse(value);
+            if (value === null || value === undefined || value === '') return 0;
+            if (value instanceof Date) {
+              const time = value.getTime();
+              return Number.isNaN(time) ? 0 : time;
+            }
+            if (typeof value === 'number') {
+              return Number.isFinite(value) ? value : 0;
+            }
+            const parsed = Date.parse(String(value));
             return Number.isNaN(parsed) ? 0 : parsed;
           };
           const da = getDateValue(va);
@@ -1798,6 +1805,10 @@
       const fullChartCard = document.getElementById('status-tertiary-card');
       const fullChartResizer = document.getElementById('full-chart-height-resizer');
 
+      const addListener = (element, event, handler, options) => {
+        element?.addEventListener(event, handler, options);
+      };
+
       const resetPagination = () => (DashboardState.table.page = 1);
       let activeDragKey = null;
       let resizing = null;
@@ -1824,12 +1835,12 @@
           resizeObserver.observe(tableElement);
           resizeObserver.observe(tableScroll);
         }
-        tableScroll.addEventListener('scroll', () => syncScroll(tableScroll, tableScrollTop));
-        tableScrollTop.addEventListener('scroll', () => syncScroll(tableScrollTop, tableScroll));
+        addListener(tableScroll, 'scroll', () => syncScroll(tableScroll, tableScrollTop));
+        addListener(tableScrollTop, 'scroll', () => syncScroll(tableScrollTop, tableScroll));
       }
 
       if (alertsToggle && alertsList && alertsBadges && alertsPanel) {
-        alertsToggle.addEventListener('click', () => {
+        addListener(alertsToggle, 'click', () => {
           const isCollapsed = alertsPanel.dataset.collapsed === 'true';
           const nextCollapsed = !isCollapsed;
           alertsPanel.dataset.collapsed = String(nextCollapsed);
@@ -1842,7 +1853,7 @@
       }
 
       if (builder) {
-        builder.addEventListener('change', (event) => {
+        addListener(builder, 'change', (event) => {
           const target = event.target;
           if (target.matches('[data-filter-category]')) {
             const key = target.dataset.filterCategory;
@@ -1861,24 +1872,24 @@
         });
       }
 
-      resetFiltersButton?.addEventListener('click', () => {
+      addListener(resetFiltersButton, 'click', () => {
         setupFilters();
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
       });
 
-      tablePrev?.addEventListener('click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
-      tableNext?.addEventListener('click', () => { DashboardState.table.page += 1; renderDashboard(); });
+      addListener(tablePrev, 'click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
+      addListener(tableNext, 'click', () => { DashboardState.table.page += 1; renderDashboard(); });
 
-      perPageSelect?.addEventListener('change', () => {
+      addListener(perPageSelect, 'change', () => {
         DashboardState.table.perPage = Number(perPageSelect.value);
         DashboardState.table.page = 1;
         renderDashboard();
         schedulePersistPreferences();
       });
 
-      goToInput?.addEventListener('change', () => {
+      addListener(goToInput, 'change', () => {
         const totalRows = DashboardState.derived.filtered.length;
         const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
         const desired = Math.min(Math.max(1, Number(goToInput.value) || 1), totalPages);
@@ -1886,7 +1897,7 @@
         renderDashboard();
       });
 
-      tableHead?.addEventListener('click', (event) => {
+      addListener(tableHead, 'click', (event) => {
         const button = event.target.closest('[data-sort]');
         if (!button) return;
         const key = button.dataset.sort;
@@ -1903,7 +1914,7 @@
         });
       };
 
-      tableHead?.addEventListener('click', (event) => {
+      addListener(tableHead, 'click', (event) => {
         const toggle = event.target.closest('[data-column-filter-toggle]');
         if (!toggle) return;
         event.preventDefault();
@@ -1915,7 +1926,7 @@
         closeColumnFilterPanels(isHidden ? null : key);
       });
 
-      tableHead?.addEventListener('dragstart', (event) => {
+      addListener(tableHead, 'dragstart', (event) => {
         if (resizing) return;
         const th = event.target.closest('th[data-col-key]');
         if (!th || event.target.closest('[data-resize-handle]')) return;
@@ -1924,14 +1935,14 @@
         event.dataTransfer.setData('text/plain', activeDragKey);
       });
 
-      tableHead?.addEventListener('dragover', (event) => {
+      addListener(tableHead, 'dragover', (event) => {
         if (!activeDragKey) return;
         const th = event.target.closest('th[data-col-key]');
         if (!th) return;
         event.preventDefault();
       });
 
-      tableHead?.addEventListener('drop', (event) => {
+      addListener(tableHead, 'drop', (event) => {
         if (!activeDragKey) return;
         const th = event.target.closest('th[data-col-key]');
         if (!th) return;
@@ -1952,18 +1963,18 @@
         activeDragKey = null;
       });
 
-      tableHead?.addEventListener('dragend', () => {
+      addListener(tableHead, 'dragend', () => {
         activeDragKey = null;
       });
 
-      inventoryTable?.addEventListener('click', (event) => {
+      addListener(inventoryTable, 'click', (event) => {
         const row = event.target.closest('[data-row-key]');
         if (!row) return;
         const record = DashboardState.vehiclesRaw.get(row.dataset.rowKey);
         if (record) openDrawer(record);
       });
 
-      tableHead?.addEventListener('change', (event) => {
+      addListener(tableHead, 'change', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-filter]')) return;
         const key = target.dataset.columnFilter;
@@ -1986,7 +1997,7 @@
         schedulePersistPreferences();
       });
 
-      tableHead?.addEventListener('input', (event) => {
+      addListener(tableHead, 'input', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-search]')) return;
         const key = target.dataset.columnSearch;
@@ -2022,7 +2033,7 @@
         syncTopScrollbar();
       };
 
-      tableHead?.addEventListener('pointerdown', (event) => {
+      addListener(tableHead, 'pointerdown', (event) => {
         const handle = event.target.closest('[data-resize-handle]');
         if (!handle) return;
         event.preventDefault();
@@ -2048,9 +2059,9 @@
         window.addEventListener('pointerup', onResizeEnd, { once: true });
       });
 
-      drawerClose?.addEventListener('click', closeDrawer);
+      addListener(drawerClose, 'click', closeDrawer);
 
-      columnChooserToggle?.addEventListener('click', () => {
+      addListener(columnChooserToggle, 'click', () => {
         if (!columnChooser) return;
         const isHidden = columnChooser.classList.toggle('hidden');
         columnChooserToggle.setAttribute('aria-expanded', String(!isHidden));
@@ -2069,7 +2080,7 @@
         closeColumnFilterPanels();
       });
 
-      columnChooserOptions?.addEventListener('change', (event) => {
+      addListener(columnChooserOptions, 'change', (event) => {
         const input = event.target;
         if (!input.matches('input[type="checkbox"]')) return;
         DashboardState.table.columns[input.value] = input.checked;
@@ -2077,7 +2088,7 @@
         schedulePersistPreferences();
       });
 
-      exportCsvButton?.addEventListener('click', exportCsv);
+      addListener(exportCsvButton, 'click', exportCsv);
       document.getElementById('erase-filters')?.addEventListener('click', () => {
         setupFilters();
         DashboardState.filters.chartFilters = {};
@@ -2148,14 +2159,14 @@
       });
 
       if (salesChannelToggle && salesChannelPanel) {
-        salesChannelToggle.addEventListener('click', () => {
+        addListener(salesChannelToggle, 'click', () => {
           const isHidden = salesChannelPanel.classList.toggle('hidden');
           salesChannelToggle.setAttribute('aria-expanded', String(!isHidden));
         });
       }
 
       if (fullChartToggle && fullChartBody && fullChartCard && fullChartResizer) {
-        fullChartToggle.addEventListener('click', () => {
+        addListener(fullChartToggle, 'click', () => {
           const fullChartMinHeight = '220px';
           const isCollapsed = fullChartCard.dataset.collapsed === 'true';
           const nextCollapsed = !isCollapsed;
@@ -2186,7 +2197,7 @@
         salesChannelToggle?.setAttribute('aria-expanded', 'false');
       });
 
-      salesChannelOptions?.addEventListener('change', (event) => {
+      addListener(salesChannelOptions, 'change', (event) => {
         const input = event.target;
         if (!input.matches('input[type="checkbox"]')) return;
         const checked = Array.from(salesChannelOptions.querySelectorAll('input[type="checkbox"]'))
@@ -2202,7 +2213,7 @@
         schedulePersistPreferences();
       });
 
-      lastDealSelect?.addEventListener('change', () => {
+      addListener(lastDealSelect, 'change', () => {
         const { lastLeadKey } = DashboardState.filters;
         if (!lastLeadKey) return;
         const selectionValue = lastDealSelect.value;
@@ -2540,7 +2551,9 @@
     const hydrateVehiclesFromSupabase = async () => {
       if (supabaseClient === null) {
         console.warn('Supabase client not available, skipping vehicle hydration.');
+        DashboardState.ui.isLoading = false;
         setConnectionStatus('Offline');
+        renderDashboard();
         return;
       }
       if (!supabaseClient?.from) {
