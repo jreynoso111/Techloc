@@ -197,7 +197,7 @@
             </div>
           </div>
           <button id="last-deal-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
-            <span>Last Deal</span>
+            <span>Last Lead</span>
             <span id="last-deal-status" class="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">TRUE</span>
           </button>
         </div>
@@ -312,7 +312,7 @@
             </button>
             <div id="column-chooser" class="absolute left-0 z-40 mt-2 hidden w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
               <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
-              <div id="column-chooser-options" class="mt-2 grid max-h-64 gap-2 overflow-y-auto pr-1"></div>
+              <div id="column-chooser-options" class="mt-2 grid max-h-[48rem] gap-2 overflow-y-auto pr-1"></div>
             </div>
           </div>
           <button id="export-csv" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Export filtered rows to CSV">
@@ -498,6 +498,9 @@
         dateKey: '',
         salesChannels: ['Finance-EX'],
         salesChannelKey: '',
+        lastLeadKey: '',
+        lastLeadValue: '',
+        lastLeadFilterActive: false,
         categoryFilters: {},
         columnFilters: {},
         chartFilter: null,
@@ -650,6 +653,17 @@
 
     const detectSalesChannelKey = (schema) =>
       schema.find((col) => /sales channel/i.test(col.key))?.key || '';
+
+    const detectLastLeadKey = (schema) =>
+      schema.find((col) => /last\s*(lead|deal)/i.test(col.key) || /last\s*(lead|deal)/i.test(col.label))?.key || '';
+
+    const detectTruthyColumnValue = (rows, key) => {
+      if (!key) return '';
+      const truthyRow = rows.find((row) => normalizeBoolean(row?.[key]));
+      if (truthyRow) return String(truthyRow[key]);
+      const truthyValue = getUniqueValues(rows, key).find((value) => normalizeBoolean(value));
+      return truthyValue || '';
+    };
 
     const detectCategoryKeys = (schema, rows, excludeKeys) => {
       const candidates = schema
@@ -897,6 +911,7 @@
 
       const dateKey = detectDateKey(schema);
       const salesChannelKey = detectSalesChannelKey(schema);
+      const lastLeadKey = detectLastLeadKey(schema);
       const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey].filter(Boolean));
 
       if (!preserveSelections) {
@@ -906,6 +921,8 @@
 
       DashboardState.filters.dateKey = dateKey;
       DashboardState.filters.salesChannelKey = salesChannelKey;
+      DashboardState.filters.lastLeadKey = lastLeadKey;
+      DashboardState.filters.lastLeadValue = detectTruthyColumnValue(dataset, lastLeadKey);
 
       const builder = document.getElementById('filter-builder');
       const categoryBlock = document.getElementById('filter-category-block');
@@ -914,7 +931,7 @@
       const salesChannelSummary = document.getElementById('sales-channel-summary');
       const lastDealToggle = document.getElementById('last-deal-toggle');
       const lastDealStatus = document.getElementById('last-deal-status');
-      const lastDealKey = schema.find((col) => col.key === 'Last Deal')?.key || '';
+      const lastDealKey = lastLeadKey;
 
       if (!builder && !categoryBlock && !dateRangeBlock && !preserveSelections) {
         DashboardState.filters.dateRange = { start: '', end: '' };
@@ -1000,10 +1017,21 @@
       }
 
       if (lastDealToggle && lastDealStatus) {
-        if (!preserveSelections && lastDealKey) {
-          DashboardState.filters.columnFilters[lastDealKey] = { select: 'TRUE', search: '' };
+        if (lastDealKey) {
+          const nextValue = DashboardState.filters.lastLeadValue || 'TRUE';
+          const existingEntry = DashboardState.filters.columnFilters[lastDealKey];
+          if (!preserveSelections || !existingEntry) {
+            DashboardState.filters.columnFilters[lastDealKey] = { select: nextValue, search: '' };
+            DashboardState.filters.lastLeadFilterActive = true;
+          } else {
+            DashboardState.filters.lastLeadFilterActive = existingEntry.select === nextValue;
+          }
         }
-        const isActive = Boolean(lastDealKey && DashboardState.filters.columnFilters[lastDealKey]?.select === 'TRUE');
+        const isActive = Boolean(
+          lastDealKey
+          && DashboardState.filters.lastLeadFilterActive
+          && DashboardState.filters.columnFilters[lastDealKey]?.select === (DashboardState.filters.lastLeadValue || 'TRUE')
+        );
         lastDealToggle.disabled = !lastDealKey;
         lastDealToggle.classList.toggle('opacity-50', !lastDealKey);
         lastDealToggle.classList.toggle('cursor-not-allowed', !lastDealKey);
@@ -1042,7 +1070,11 @@
           if (!entry) return true;
           const value = item[key];
           const valueString = String(value ?? '');
-          if (entry.select && entry.select !== 'all' && valueString !== entry.select) return false;
+          if (filters.lastLeadKey && key === filters.lastLeadKey && filters.lastLeadFilterActive) {
+            if (entry.select && entry.select !== 'all' && !normalizeBoolean(value)) return false;
+          } else if (entry.select && entry.select !== 'all' && valueString !== entry.select) {
+            return false;
+          }
           if (entry.search && !valueString.toLowerCase().includes(entry.search)) return false;
           return true;
         });
@@ -1670,6 +1702,10 @@
         const entry = DashboardState.filters.columnFilters[key] || { select: 'all', search: '' };
         entry.select = target.value;
         DashboardState.filters.columnFilters[key] = entry;
+        if (DashboardState.filters.lastLeadKey && key === DashboardState.filters.lastLeadKey) {
+          DashboardState.filters.lastLeadFilterActive = target.value === (DashboardState.filters.lastLeadValue || 'TRUE');
+          setupFilters({ preserveSelections: true });
+        }
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
@@ -1804,10 +1840,14 @@
       });
 
       lastDealToggle?.addEventListener('click', () => {
-        const key = DashboardState.schema.find((col) => col.key === 'Last Deal')?.key || '';
-        if (!key) return;
-        const isActive = DashboardState.filters.columnFilters[key]?.select === 'TRUE';
-        DashboardState.filters.columnFilters[key] = { select: isActive ? 'all' : 'TRUE', search: '' };
+        const { lastLeadKey, lastLeadValue, lastLeadFilterActive } = DashboardState.filters;
+        if (!lastLeadKey) return;
+        const nextValue = lastLeadValue || 'TRUE';
+        DashboardState.filters.lastLeadFilterActive = !lastLeadFilterActive;
+        DashboardState.filters.columnFilters[lastLeadKey] = {
+          select: lastLeadFilterActive ? 'all' : nextValue,
+          search: '',
+        };
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
