@@ -367,6 +367,18 @@
         <p id="drawer-status" class="font-semibold text-white">-</p>
       </div>
       <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">GPS Status</p>
+        <p id="drawer-gps-status" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">GPS Review</p>
+        <p id="drawer-gps-flag" class="font-semibold text-white">-</p>
+      </div>
+      <div>
+        <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Completion</p>
+        <p id="drawer-completion" class="font-semibold text-white">-</p>
+      </div>
+      <div>
         <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Location</p>
         <p id="drawer-location" class="font-semibold text-white">-</p>
       </div>
@@ -665,17 +677,22 @@
       const updatedAt = getField(vehicle, 'Updated At', 'Updated', 'Last Updated');
       const createdAt = getField(vehicle, 'Created At');
       const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
+      const vin = getField(vehicle, 'VIN');
       return {
         ...vehicle,
-        id: vehicle.id ?? null,
+        id: vin || null,
         stockNo: getField(vehicle, 'Current Stock No'),
-        vin: getField(vehicle, 'VIN'),
+        vin,
         status: normalizeStatus(getField(vehicle, 'Vehicle Status')),
         hold: normalizeBoolean(getField(vehicle, 'HOLD')),
         brand: getField(vehicle, 'Brand'),
         model: getField(vehicle, 'Model'),
         modelYear: getField(vehicle, 'Model Year'),
         dealStatus: getField(vehicle, 'Deal Status'),
+        gpsStatus: getField(vehicle, 'gps_status'),
+        gpsFlag: getField(vehicle, 'gps_review_flag'),
+        completion: getField(vehicle, 'Deal Completion'),
+        psrCategory: getField(vehicle, 'PSR Category'),
         prepStatus: getField(vehicle, 'Inventory Preparation Status'),
         createdAt: createdAt ? String(createdAt).slice(0, 10) : '',
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
@@ -1343,6 +1360,15 @@
     const openDrawer = (record) => {
       document.getElementById('drawer-vin').textContent = record.vin || '--';
       document.getElementById('drawer-status').textContent = record.status || '--';
+      document.getElementById('drawer-gps-status').textContent = record.gpsStatus || '--';
+      document.getElementById('drawer-gps-flag').textContent = record.gpsFlag ? `⚠️ ${record.gpsFlag}` : '—';
+      const completionValue = record.completion;
+      let completionText = '--';
+      if (completionValue !== null && completionValue !== undefined && completionValue !== '') {
+        const rawCompletion = String(completionValue).trim();
+        completionText = rawCompletion ? (rawCompletion.endsWith('%') ? rawCompletion : `${rawCompletion}%`) : '--';
+      }
+      document.getElementById('drawer-completion').textContent = completionText;
       document.getElementById('drawer-location').textContent = `${record.yard || '--'}, ${record.state || '--'}`;
       document.getElementById('drawer-unit').textContent = `${record.brand || '--'} ${record.unitType || ''}`.trim() || '--';
 
@@ -1889,7 +1915,7 @@
 
       const channel = supabaseClient
         .channel('inventory-control-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'Inventory Control' }, handleVehicleChange);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'DealsJP1' }, handleVehicleChange);
 
       DashboardState.realtime.channel = channel;
 
@@ -1918,7 +1944,7 @@
       setConnectionStatus('Reconnecting…');
 
       const { data, error } = await supabaseClient
-        .from('Inventory Control')
+        .from('DealsJP1')
         .select('*')
         .limit(5000);
 
