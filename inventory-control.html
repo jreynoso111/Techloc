@@ -867,6 +867,8 @@
         const heightValue = `${DashboardState.layout.dealPanelHeight}px`;
         dealPanel.style.height = heightValue;
         alertsPanel.style.height = heightValue;
+        if (primaryChart) primaryChart.style.height = heightValue;
+        if (secondaryChart) secondaryChart.style.height = heightValue;
       }
     };
 
@@ -1167,7 +1169,15 @@
         const dataset = activeChartId && activeChartId === chartId
           ? applyFilters({ ignoreChartFilter: true })
           : DashboardState.derived.filtered;
-        const dealStatusCounts = dataset.reduce((acc, item) => {
+        const uniqueRecords = Array.from(
+          dataset.reduce((acc, item) => {
+            const key = item.stockNo || item.vin || item.id;
+            if (!key) return acc;
+            if (!acc.has(key)) acc.set(key, item);
+            return acc;
+          }, new Map()).values()
+        );
+        const dealStatusCounts = uniqueRecords.reduce((acc, item) => {
           const key = getSegmentLabel(item[segmentKey]);
           acc[key] = (acc[key] || 0) + 1;
           return acc;
@@ -1993,6 +2003,8 @@
           const heightValue = `${nextHeight}px`;
           dealPanel.style.height = heightValue;
           alertsPanel.style.height = heightValue;
+          if (primaryChart) primaryChart.style.height = heightValue;
+          if (secondaryChart) secondaryChart.style.height = heightValue;
         };
 
         const stopHeightDragging = () => {
@@ -2009,6 +2021,8 @@
           const heightValue = `${DashboardState.layout.dealPanelHeight}px`;
           dealPanel.style.height = heightValue;
           alertsPanel.style.height = heightValue;
+          if (primaryChart) primaryChart.style.height = heightValue;
+          if (secondaryChart) secondaryChart.style.height = heightValue;
         }
 
         heightHandle.addEventListener('pointerdown', (event) => {
