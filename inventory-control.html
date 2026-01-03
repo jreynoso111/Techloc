@@ -963,6 +963,7 @@
         fullWidthChart.style.height = `${DashboardState.layout.fullChartHeight}px`;
       }
       if (fullWidthChart && fullWidthChartBody && fullWidthChartToggle && fullWidthChartResizer) {
+        const fullChartMinHeight = '220px';
         const isCollapsed = Boolean(DashboardState.layout.fullChartCollapsed);
         fullWidthChart.dataset.collapsed = String(isCollapsed);
         fullWidthChartBody.classList.toggle('hidden', isCollapsed);
@@ -972,6 +973,10 @@
         if (icon) icon.setAttribute('data-lucide', isCollapsed ? 'chevron-down' : 'chevron-up');
         if (isCollapsed) {
           fullWidthChart.style.height = '';
+          fullWidthChart.style.minHeight = '0px';
+        }
+        if (!isCollapsed) {
+          fullWidthChart.style.minHeight = fullChartMinHeight;
         }
       }
       if (typeof DashboardState.layout.dealPanelHeight === 'number' && window.innerWidth >= 1024) {
@@ -2094,6 +2099,7 @@
 
       if (fullChartToggle && fullChartBody && fullChartCard && fullChartResizer) {
         fullChartToggle.addEventListener('click', () => {
+          const fullChartMinHeight = '220px';
           const isCollapsed = fullChartCard.dataset.collapsed === 'true';
           const nextCollapsed = !isCollapsed;
           fullChartCard.dataset.collapsed = String(nextCollapsed);
@@ -2104,8 +2110,12 @@
           if (icon) icon.setAttribute('data-lucide', nextCollapsed ? 'chevron-down' : 'chevron-up');
           if (nextCollapsed) {
             fullChartCard.style.height = '';
+            fullChartCard.style.minHeight = '0px';
           } else if (typeof DashboardState.layout.fullChartHeight === 'number') {
             fullChartCard.style.height = `${DashboardState.layout.fullChartHeight}px`;
+            fullChartCard.style.minHeight = fullChartMinHeight;
+          } else {
+            fullChartCard.style.minHeight = fullChartMinHeight;
           }
           DashboardState.layout.fullChartCollapsed = nextCollapsed;
           lucide.createIcons();
