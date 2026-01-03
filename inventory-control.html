@@ -201,6 +201,7 @@
             <select id="last-deal-select" class="h-6 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
               <option value="true">TRUE</option>
               <option value="false">FALSE</option>
+              <option value="all">ALL</option>
             </select>
           </label>
         </div>
@@ -731,6 +732,7 @@
         vin,
         status: normalizeStatus(getField(vehicle, 'Vehicle Status')),
         hold: normalizeBoolean(getField(vehicle, 'HOLD')),
+        isLastDeal: normalizeBoolean(getField(vehicle, 'Last Deal', 'last_deal')),
         brand: getField(vehicle, 'Brand'),
         model: getField(vehicle, 'Model'),
         modelYear: getField(vehicle, 'Model Year'),
@@ -798,7 +800,7 @@
       }
       if (config.filters?.dateRange) DashboardState.filters.dateRange = { ...DashboardState.filters.dateRange, ...config.filters.dateRange };
       if (Array.isArray(config.filters?.salesChannels)) DashboardState.filters.salesChannels = config.filters.salesChannels;
-      if (typeof config.filters?.lastLeadSelection === 'boolean') {
+      if (config.filters?.lastLeadSelection === 'all' || typeof config.filters?.lastLeadSelection === 'boolean') {
         DashboardState.filters.lastLeadSelection = config.filters.lastLeadSelection;
       }
       if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
@@ -1043,10 +1045,14 @@
           }
           if (preserveSelections && existingEntry?.select && existingEntry.select !== 'all') {
             DashboardState.filters.lastLeadSelection = normalizeBoolean(existingEntry.select);
+          } else if (preserveSelections && existingEntry?.select === 'all') {
+            DashboardState.filters.lastLeadSelection = 'all';
           }
-          DashboardState.filters.lastLeadFilterActive = true;
+          DashboardState.filters.lastLeadFilterActive = DashboardState.filters.lastLeadSelection !== 'all';
           DashboardState.filters.columnFilters[lastDealKey] = {
-            select: DashboardState.filters.lastLeadSelection ? 'true' : 'false',
+            select: DashboardState.filters.lastLeadSelection === 'all'
+              ? 'all'
+              : (DashboardState.filters.lastLeadSelection ? 'true' : 'false'),
             search: '',
           };
         } else if (!preserveSelections) {
@@ -1055,7 +1061,9 @@
         lastDealSelect.disabled = !lastDealKey;
         lastDealSelect.classList.toggle('opacity-50', !lastDealKey);
         lastDealSelect.classList.toggle('cursor-not-allowed', !lastDealKey);
-        lastDealSelect.value = DashboardState.filters.lastLeadSelection ? 'true' : 'false';
+        lastDealSelect.value = DashboardState.filters.lastLeadSelection === 'all'
+          ? 'all'
+          : (DashboardState.filters.lastLeadSelection ? 'true' : 'false');
       }
 
       categoryBlock?.classList.toggle('hidden', categoryKeys.length === 0);
@@ -1067,6 +1075,7 @@
       const { filters } = DashboardState;
 
       return getCurrentDataset().filter((item) => {
+        if (filters.lastLeadFilterActive && filters.lastLeadSelection !== 'all' && item.isLastDeal !== filters.lastLeadSelection) return false;
         const dateValue = filters.dateKey ? item[filters.dateKey] : null;
         const parsedDate = dateValue ? new Date(dateValue) : null;
         const dateString = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : '';
@@ -1733,11 +1742,13 @@
         entry.select = target.value;
         DashboardState.filters.columnFilters[key] = entry;
         if (DashboardState.filters.lastLeadKey && key === DashboardState.filters.lastLeadKey) {
-          DashboardState.filters.lastLeadSelection = normalizeBoolean(target.value);
+          DashboardState.filters.lastLeadSelection = target.value === 'all' ? 'all' : normalizeBoolean(target.value);
           DashboardState.filters.lastLeadFilterActive = target.value !== 'all';
           const lastDealSelect = document.getElementById('last-deal-select');
           if (lastDealSelect) {
-            lastDealSelect.value = DashboardState.filters.lastLeadSelection ? 'true' : 'false';
+            lastDealSelect.value = DashboardState.filters.lastLeadSelection === 'all'
+              ? 'all'
+              : (DashboardState.filters.lastLeadSelection ? 'true' : 'false');
           }
           setupFilters({ preserveSelections: true });
         }
@@ -1880,11 +1891,12 @@
       lastDealSelect?.addEventListener('change', () => {
         const { lastLeadKey } = DashboardState.filters;
         if (!lastLeadKey) return;
-        const nextSelection = lastDealSelect.value === 'true';
+        const selectionValue = lastDealSelect.value;
+        const nextSelection = selectionValue === 'all' ? 'all' : selectionValue === 'true';
         DashboardState.filters.lastLeadSelection = nextSelection;
-        DashboardState.filters.lastLeadFilterActive = true;
+        DashboardState.filters.lastLeadFilterActive = selectionValue !== 'all';
         DashboardState.filters.columnFilters[lastLeadKey] = {
-          select: nextSelection ? 'true' : 'false',
+          select: selectionValue,
           search: '',
         };
         resetPagination();
