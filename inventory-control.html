@@ -188,7 +188,7 @@
           </div>
           <div class="relative">
             <button id="sales-channel-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" aria-expanded="false">
-              <span>Sales Channel</span>
+              <span id="sales-channel-label">Sales Channel</span>
               <span id="sales-channel-summary" class="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300">0</span>
             </button>
             <div id="sales-channel-panel" class="absolute right-0 z-40 mt-2 hidden w-56 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
@@ -196,10 +196,13 @@
               <div id="sales-channel-options" class="mt-2 grid gap-2"></div>
             </div>
           </div>
-          <button id="last-deal-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
-            <span>Last Lead</span>
-            <span id="last-deal-status" class="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">TRUE</span>
-          </button>
+          <label class="flex items-center gap-2 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200">
+            <span>Last Deal</span>
+            <select id="last-deal-select" class="h-6 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+              <option value="true">TRUE</option>
+              <option value="false">FALSE</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -505,7 +508,7 @@
         salesChannels: ['Finance-EX'],
         salesChannelKey: '',
         lastLeadKey: '',
-        lastLeadValue: '',
+        lastLeadSelection: true,
         lastLeadFilterActive: false,
         categoryFilters: {},
         columnFilters: {},
@@ -769,6 +772,7 @@
       filters: {
         dateRange: DashboardState.filters.dateRange,
         salesChannels: DashboardState.filters.salesChannels,
+        lastLeadSelection: DashboardState.filters.lastLeadSelection,
         categoryFilters: DashboardState.filters.categoryFilters,
         columnFilters: DashboardState.filters.columnFilters,
         chartFilter: DashboardState.filters.chartFilter,
@@ -794,6 +798,9 @@
       }
       if (config.filters?.dateRange) DashboardState.filters.dateRange = { ...DashboardState.filters.dateRange, ...config.filters.dateRange };
       if (Array.isArray(config.filters?.salesChannels)) DashboardState.filters.salesChannels = config.filters.salesChannels;
+      if (typeof config.filters?.lastLeadSelection === 'boolean') {
+        DashboardState.filters.lastLeadSelection = config.filters.lastLeadSelection;
+      }
       if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
       if (config.filters?.columnFilters) DashboardState.filters.columnFilters = config.filters.columnFilters;
       if (config.filters?.chartFilter === null || typeof config.filters?.chartFilter === 'object') {
@@ -931,15 +938,14 @@
       DashboardState.filters.dateKey = dateKey;
       DashboardState.filters.salesChannelKey = salesChannelKey;
       DashboardState.filters.lastLeadKey = lastLeadKey;
-      DashboardState.filters.lastLeadValue = detectTruthyColumnValue(dataset, lastLeadKey);
 
       const builder = document.getElementById('filter-builder');
       const categoryBlock = document.getElementById('filter-category-block');
       const dateRangeBlock = document.getElementById('filter-date-range');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
-      const lastDealToggle = document.getElementById('last-deal-toggle');
-      const lastDealStatus = document.getElementById('last-deal-status');
+      const salesChannelLabel = document.getElementById('sales-channel-label');
+      const lastDealSelect = document.getElementById('last-deal-select');
       const lastDealKey = lastLeadKey;
 
       if (!builder && !categoryBlock && !dateRangeBlock && !preserveSelections) {
@@ -1018,34 +1024,38 @@
             `).join('');
           const count = DashboardState.filters.salesChannels.filter(Boolean).length;
           salesChannelSummary.textContent = count ? String(count) : '0';
+          if (salesChannelLabel) {
+            salesChannelLabel.textContent = count === 1 ? DashboardState.filters.salesChannels[0] : 'Sales Channel';
+          }
         } else {
           DashboardState.filters.salesChannels = [];
           salesChannelOptions.innerHTML = '<p class="text-[10px] text-slate-400">No channels available.</p>';
           salesChannelSummary.textContent = '0';
+          if (salesChannelLabel) salesChannelLabel.textContent = 'Sales Channel';
         }
       }
 
-      if (lastDealToggle && lastDealStatus) {
+      if (lastDealSelect) {
         if (lastDealKey) {
-          const nextValue = DashboardState.filters.lastLeadValue || 'TRUE';
           const existingEntry = DashboardState.filters.columnFilters[lastDealKey];
-          if (!preserveSelections || !existingEntry) {
-            DashboardState.filters.columnFilters[lastDealKey] = { select: nextValue, search: '' };
-            DashboardState.filters.lastLeadFilterActive = true;
-          } else {
-            DashboardState.filters.lastLeadFilterActive = existingEntry.select === nextValue;
+          if (!preserveSelections) {
+            DashboardState.filters.lastLeadSelection = true;
           }
+          if (preserveSelections && existingEntry?.select && existingEntry.select !== 'all') {
+            DashboardState.filters.lastLeadSelection = normalizeBoolean(existingEntry.select);
+          }
+          DashboardState.filters.lastLeadFilterActive = true;
+          DashboardState.filters.columnFilters[lastDealKey] = {
+            select: DashboardState.filters.lastLeadSelection ? 'true' : 'false',
+            search: '',
+          };
+        } else if (!preserveSelections) {
+          DashboardState.filters.lastLeadFilterActive = false;
         }
-        const isActive = Boolean(
-          lastDealKey
-          && DashboardState.filters.lastLeadFilterActive
-          && DashboardState.filters.columnFilters[lastDealKey]?.select === (DashboardState.filters.lastLeadValue || 'TRUE')
-        );
-        lastDealToggle.disabled = !lastDealKey;
-        lastDealToggle.classList.toggle('opacity-50', !lastDealKey);
-        lastDealToggle.classList.toggle('cursor-not-allowed', !lastDealKey);
-        lastDealToggle.setAttribute('aria-pressed', String(isActive));
-        lastDealStatus.textContent = isActive ? 'TRUE' : 'ALL';
+        lastDealSelect.disabled = !lastDealKey;
+        lastDealSelect.classList.toggle('opacity-50', !lastDealKey);
+        lastDealSelect.classList.toggle('cursor-not-allowed', !lastDealKey);
+        lastDealSelect.value = DashboardState.filters.lastLeadSelection ? 'true' : 'false';
       }
 
       categoryBlock?.classList.toggle('hidden', categoryKeys.length === 0);
@@ -1080,7 +1090,10 @@
           const value = item[key];
           const valueString = String(value ?? '');
           if (filters.lastLeadKey && key === filters.lastLeadKey && filters.lastLeadFilterActive) {
-            if (entry.select && entry.select !== 'all' && !normalizeBoolean(value)) return false;
+            if (entry.select && entry.select !== 'all') {
+              const desired = normalizeBoolean(entry.select);
+              if (normalizeBoolean(value) !== desired) return false;
+            }
           } else if (entry.select && entry.select !== 'all' && valueString !== entry.select) {
             return false;
           }
@@ -1537,7 +1550,8 @@
       const salesChannelPanel = document.getElementById('sales-channel-panel');
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
-      const lastDealToggle = document.getElementById('last-deal-toggle');
+      const salesChannelLabel = document.getElementById('sales-channel-label');
+      const lastDealSelect = document.getElementById('last-deal-select');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
       const alertsBadges = document.getElementById('alerts-badges');
@@ -1719,7 +1733,12 @@
         entry.select = target.value;
         DashboardState.filters.columnFilters[key] = entry;
         if (DashboardState.filters.lastLeadKey && key === DashboardState.filters.lastLeadKey) {
-          DashboardState.filters.lastLeadFilterActive = target.value === (DashboardState.filters.lastLeadValue || 'TRUE');
+          DashboardState.filters.lastLeadSelection = normalizeBoolean(target.value);
+          DashboardState.filters.lastLeadFilterActive = target.value !== 'all';
+          const lastDealSelect = document.getElementById('last-deal-select');
+          if (lastDealSelect) {
+            lastDealSelect.value = DashboardState.filters.lastLeadSelection ? 'true' : 'false';
+          }
           setupFilters({ preserveSelections: true });
         }
         resetPagination();
@@ -1850,18 +1869,22 @@
           .map((item) => item.value);
         DashboardState.filters.salesChannels = checked;
         if (salesChannelSummary) salesChannelSummary.textContent = String(checked.length);
+        if (salesChannelLabel) {
+          salesChannelLabel.textContent = checked.length === 1 ? checked[0] : 'Sales Channel';
+        }
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
       });
 
-      lastDealToggle?.addEventListener('click', () => {
-        const { lastLeadKey, lastLeadValue, lastLeadFilterActive } = DashboardState.filters;
+      lastDealSelect?.addEventListener('change', () => {
+        const { lastLeadKey } = DashboardState.filters;
         if (!lastLeadKey) return;
-        const nextValue = lastLeadValue || 'TRUE';
-        DashboardState.filters.lastLeadFilterActive = !lastLeadFilterActive;
+        const nextSelection = lastDealSelect.value === 'true';
+        DashboardState.filters.lastLeadSelection = nextSelection;
+        DashboardState.filters.lastLeadFilterActive = true;
         DashboardState.filters.columnFilters[lastLeadKey] = {
-          select: lastLeadFilterActive ? 'all' : nextValue,
+          select: nextSelection ? 'true' : 'false',
           search: '',
         };
         resetPagination();
