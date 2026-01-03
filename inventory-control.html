@@ -571,7 +571,7 @@
         lastLeadFilterActive: false,
         categoryFilters: {},
         columnFilters: {},
-        chartFilter: null,
+        chartFilters: {},
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -838,7 +838,7 @@
         lastLeadSelection: DashboardState.filters.lastLeadSelection,
         categoryFilters: DashboardState.filters.categoryFilters,
         columnFilters: DashboardState.filters.columnFilters,
-        chartFilter: DashboardState.filters.chartFilter,
+        chartFilters: DashboardState.filters.chartFilters,
       },
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -870,8 +870,11 @@
       }
       if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
       if (config.filters?.columnFilters) DashboardState.filters.columnFilters = config.filters.columnFilters;
-      if (config.filters?.chartFilter === null || typeof config.filters?.chartFilter === 'object') {
-        DashboardState.filters.chartFilter = config.filters.chartFilter;
+      if (config.filters?.chartFilters && typeof config.filters?.chartFilters === 'object') {
+        DashboardState.filters.chartFilters = config.filters.chartFilters;
+      }
+      if (!Object.keys(DashboardState.filters.chartFilters || {}).length && config.filters?.chartFilter && typeof config.filters.chartFilter === 'object') {
+        DashboardState.filters.chartFilters = { default: config.filters.chartFilter };
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
@@ -1141,7 +1144,7 @@
       builder?.classList.toggle('opacity-50', DashboardState.ui.isLoading);
     };
 
-    const applyFilters = ({ ignoreChartFilter = false } = {}) => {
+    const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) => {
       const { filters } = DashboardState;
 
       return getCurrentDataset().filter((item) => {
@@ -1180,8 +1183,13 @@
           return true;
         });
 
-        const chartMatch = ignoreChartFilter || !filters.chartFilter
-          || getSegmentLabel(item[filters.chartFilter.key]) === filters.chartFilter.value;
+        const activeChartFilters = !ignoreChartFilter && filters.chartFilters
+          ? Object.entries(filters.chartFilters).filter(([chartId]) => chartId !== ignoreChartId)
+          : [];
+        const chartMatch = ignoreChartFilter || !activeChartFilters.length
+          || activeChartFilters.every(([, filter]) => (
+            getSegmentLabel(item[filter.key]) === filter.value
+          ));
 
         return inDateRange && categoryMatch && salesChannelMatch && columnMatch && chartMatch;
       });
@@ -1212,10 +1220,12 @@
     const setChartHiddenValues = (chartId, segmentKey, values) => {
       if (!DashboardState.chartVisibility[chartId]) DashboardState.chartVisibility[chartId] = {};
       DashboardState.chartVisibility[chartId][segmentKey] = values;
-      const activeFilter = DashboardState.filters.chartFilter;
-      if (activeFilter && activeFilter.key === segmentKey && values.includes(activeFilter.value)) {
-        DashboardState.filters.chartFilter = null;
-      }
+      const activeFilters = DashboardState.filters.chartFilters || {};
+      Object.entries(activeFilters).forEach(([filterChartId, filter]) => {
+        if (filter.key === segmentKey && values.includes(filter.value)) {
+          delete DashboardState.filters.chartFilters[filterChartId];
+        }
+      });
     };
 
     const renderSegmentFieldOptions = (chartId, segmentKey, segmentValues) => {
@@ -1317,8 +1327,8 @@
           return;
         }
 
-        const dataset = DashboardState.filters.chartFilter
-          ? applyFilters({ ignoreChartFilter: true })
+        const dataset = Object.keys(DashboardState.filters.chartFilters || {}).length
+          ? applyFilters({ ignoreChartId: chartId })
           : DashboardState.derived.filtered;
         const uniqueRecords = Array.from(
           dataset.reduce((acc, item) => {
@@ -1355,10 +1365,11 @@
         }
 
         container.innerHTML = statusBars.map((item) => {
-          const isActive = DashboardState.filters.chartFilter
-            && DashboardState.filters.chartFilter.key === segmentKey
-            && DashboardState.filters.chartFilter.value === item.status;
-          const isDimmed = DashboardState.filters.chartFilter && !isActive;
+          const activeFilter = DashboardState.filters.chartFilters?.[chartId];
+          const isActive = activeFilter
+            && activeFilter.key === segmentKey
+            && activeFilter.value === item.status;
+          const isDimmed = activeFilter && !isActive;
           const activeClass = isActive ? 'ring-2 ring-blue-400/70 bg-slate-900/50' : '';
           const dimClass = isDimmed ? 'opacity-50' : '';
           return `
@@ -1388,9 +1399,9 @@
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
       });
-      if (filters.chartFilter) {
-        chips.push(`${formatColumnLabel(filters.chartFilter.key)}: ${filters.chartFilter.value}`);
-      }
+      Object.values(filters.chartFilters || {}).forEach((filter) => {
+        chips.push(`${formatColumnLabel(filter.key)}: ${filter.value}`);
+      });
 
       chipsContainer.innerHTML = chips.length
         ? chips.map((c) => `<span class="${PILL_CLASSES} whitespace-nowrap text-slate-200">${c}</span>`).join('')
@@ -1983,7 +1994,7 @@
       document.getElementById('export-csv').addEventListener('click', exportCsv);
       document.getElementById('erase-filters')?.addEventListener('click', () => {
         setupFilters();
-        DashboardState.filters.chartFilter = null;
+        DashboardState.filters.chartFilters = {};
         resetPagination();
         renderDashboard();
         schedulePersistPreferences();
@@ -2112,11 +2123,11 @@
           if (!button) return;
           const segmentKey = button.dataset.segmentKey;
           const status = button.dataset.status;
-          const current = DashboardState.filters.chartFilter;
+          const current = DashboardState.filters.chartFilters?.[chartId];
           if (current && current.key === segmentKey && current.value === status) {
-            DashboardState.filters.chartFilter = null;
+            delete DashboardState.filters.chartFilters[chartId];
           } else {
-            DashboardState.filters.chartFilter = { key: segmentKey, value: status };
+            DashboardState.filters.chartFilters[chartId] = { key: segmentKey, value: status };
           }
           resetPagination();
           renderDashboard();
