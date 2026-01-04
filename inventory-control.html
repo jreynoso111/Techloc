@@ -578,13 +578,13 @@
         throw new Error('supabaseClient.js loaded but did not export a Supabase client (expected export const supabase = createClient(...)).');
       } catch (e) {
         // Fallback: create client here
-        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase?.createClient) {
           supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
           return supabaseClient;
         }
         showDebug(
           'Supabase client not available',
-          'Tu import falló y el fallback no tiene URL/KEY. Revisa supabaseClient.js export o pega credenciales aquí.',
+          'Tu import falló y el fallback no tiene URL/KEY o falta el CDN. Revisa supabaseClient.js o agrega el script de Supabase.',
           { error: String(e) }
         );
         return null;
@@ -2821,20 +2821,27 @@
     // Start Supabase
     (async () => {
       setConnectionStatus('Booting…');
-      supabaseClient = await getSupabaseClient();
-      await loadDashboardPreferences();
-      applyLayoutPreferencesToDom();
+      try {
+        supabaseClient = await getSupabaseClient();
+        await loadDashboardPreferences();
+        applyLayoutPreferencesToDom();
 
-      if (!supabaseClient) {
+        if (!supabaseClient) {
+          setConnectionStatus('Offline');
+          DashboardState.ui.isLoading = false;
+          renderDashboard();
+          return;
+        }
+
+        // If RLS blocks, debug banner will show exact error
+        await hydrateVehiclesFromSupabase();
+        initializeSupabaseRealtime();
+      } catch (error) {
         setConnectionStatus('Offline');
         DashboardState.ui.isLoading = false;
         renderDashboard();
-        return;
+        showDebug('Inventory boot failed', 'Error inicializando Supabase.', { error: String(error) });
       }
-
-      // If RLS blocks, debug banner will show exact error
-      await hydrateVehiclesFromSupabase();
-      initializeSupabaseRealtime();
     })();
   </script>
 </body>
