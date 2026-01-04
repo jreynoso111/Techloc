@@ -681,7 +681,6 @@
     };
 
     const formatColumnLabel = (key) => key.replace(/_/g, ' ');
-    const isAdminUser = () => String(window.currentUserRole || '').toLowerCase() === 'administrator';
     const getColumnLabel = (key) => {
       const override = DashboardState.table.columnLabels?.[key];
       if (override) return override;
@@ -985,18 +984,6 @@
         .maybeSingle();
       if (error) return null;
       return data?.config || null;
-    };
-
-    const fetchAdminUserId = async () => {
-      if (!supabaseClient?.from) return null;
-      const { data, error } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('role', 'administrator')
-        .limit(1)
-        .maybeSingle();
-      if (error) return null;
-      return data?.id || null;
     };
 
     const loadDashboardPreferences = async () => {
@@ -1830,9 +1817,7 @@
             <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
             <span>${c.label}</span>
           </span>
-          ${adminMode ? `
-            <input type="text" data-column-label-input="${c.key}" value="${c.label}" placeholder="Rename column" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[11px] font-semibold text-slate-200" />
-          ` : ''}
+          <input type="text" data-column-label-input="${c.key}" value="${c.label}" placeholder="Rename column" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[11px] font-semibold text-slate-200" />
         </label>
       `).join('');
     };
