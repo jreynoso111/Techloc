@@ -1965,16 +1965,28 @@
       }
 
       if (unitTypeFilters) {
+        addListener(unitTypeFilters, 'click', (event) => {
+          const toggle = event.target.closest('#unit-type-toggle');
+          if (!toggle) return;
+          const panel = unitTypeFilters.querySelector('#unit-type-panel');
+          if (!panel) return;
+          const isHidden = panel.classList.toggle('hidden');
+          toggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+
         addListener(unitTypeFilters, 'change', (event) => {
           const input = event.target;
           if (!input.matches('input[type="checkbox"]')) return;
-          const checked = Array.from(unitTypeOptions?.querySelectorAll('input[type="checkbox"]') || [])
+          const options = unitTypeFilters.querySelector('#unit-type-options');
+          const summary = unitTypeFilters.querySelector('#unit-type-summary');
+          const label = unitTypeFilters.querySelector('#unit-type-label');
+          const checked = Array.from(options?.querySelectorAll('input[type="checkbox"]') || [])
             .filter((item) => item.checked)
             .map((item) => item.value);
           DashboardState.filters.unitTypeSelection = checked;
-          if (unitTypeSummary) unitTypeSummary.textContent = String(checked.length);
-          if (unitTypeLabel) {
-            unitTypeLabel.textContent = checked.length === 1 ? checked[0] : 'Unit Type';
+          if (summary) summary.textContent = String(checked.length);
+          if (label) {
+            label.textContent = checked.length === 1 ? checked[0] : 'Unit Type';
           }
           resetPagination();
           renderDashboard();
@@ -2315,10 +2327,12 @@
       });
 
       document.addEventListener('click', (event) => {
-        if (!unitTypePanel || unitTypePanel.classList.contains('hidden')) return;
-        if (unitTypePanel.contains(event.target) || unitTypeToggle?.contains(event.target)) return;
-        unitTypePanel.classList.add('hidden');
-        unitTypeToggle?.setAttribute('aria-expanded', 'false');
+        const panel = document.getElementById('unit-type-panel');
+        const toggle = document.getElementById('unit-type-toggle');
+        if (!panel || panel.classList.contains('hidden')) return;
+        if (panel.contains(event.target) || toggle?.contains(event.target)) return;
+        panel.classList.add('hidden');
+        toggle?.setAttribute('aria-expanded', 'false');
       });
 
       addListener(salesChannelOptions, 'change', (event) => {
