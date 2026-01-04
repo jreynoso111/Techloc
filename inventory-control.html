@@ -1425,8 +1425,16 @@
 
     const computeDerivedState = () => {
       const filtered = applyFilters();
-      const activeCount = filtered.filter((i) => i.status === 'Active').length;
-      const holdCount = filtered.filter((i) => i.hold || i.status === 'On Hold').length;
+      const uniqueRecords = Array.from(
+        filtered.reduce((acc, item) => {
+          const key = item.stockNo || item.vin || item.id;
+          if (!key) return acc;
+          if (!acc.has(key)) acc.set(key, item);
+          return acc;
+        }, new Map()).values()
+      );
+      const activeCount = uniqueRecords.filter((i) => i.status === 'Active').length;
+      const holdCount = uniqueRecords.filter((i) => i.hold || i.status === 'On Hold').length;
 
       DashboardState.derived = {
         filtered,
@@ -2119,9 +2127,11 @@
         schedulePersistPreferences();
       });
 
-      addListener(tableHead, 'input', (event) => {
+      addListener(tableHead, 'keydown', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-search]')) return;
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
         const key = target.dataset.columnSearch;
         const entry = DashboardState.filters.columnFilters[key] || { select: 'all', search: '' };
         entry.search = target.value.trim().toLowerCase();
