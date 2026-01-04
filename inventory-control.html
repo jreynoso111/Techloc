@@ -178,11 +178,12 @@
           <p class="text-xs uppercase tracking-[0.3em] text-blue-300">Inventory Intelligence</p>
           <h2 class="text-xl font-black text-white md:text-2xl">Fleet Asset Visibility</h2>
         </div>
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200">
             <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
             <span id="connection-status">Booting…</span>
           </div>
+          <div id="unit-type-filters" class="flex flex-wrap items-center gap-2"></div>
           <div class="relative">
             <button id="sales-channel-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" aria-expanded="false">
               <span id="sales-channel-label">Sales Channel</span>
@@ -607,7 +608,7 @@
         columnFilters: {},
         chartFilters: {},
         unitTypeKey: '',
-        unitTypeSelection: 'all',
+        unitTypeSelection: [],
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -930,8 +931,10 @@
           ? { default: { key: fallbackKey, values: [String(fallbackValue)] } }
           : {};
       }
-      if (typeof config.filters?.unitTypeSelection === 'string') {
-        DashboardState.filters.unitTypeSelection = config.filters.unitTypeSelection;
+      if (Array.isArray(config.filters?.unitTypeSelection)) {
+        DashboardState.filters.unitTypeSelection = config.filters.unitTypeSelection.map((value) => String(value));
+      } else if (typeof config.filters?.unitTypeSelection === 'string') {
+        DashboardState.filters.unitTypeSelection = [config.filters.unitTypeSelection];
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
@@ -1087,7 +1090,7 @@
       if (!preserveSelections) {
         DashboardState.filters.categoryFilters = {};
         DashboardState.filters.columnFilters = {};
-        DashboardState.filters.unitTypeSelection = 'all';
+        DashboardState.filters.unitTypeSelection = [];
       }
 
       DashboardState.filters.dateKey = dateKey;
@@ -1248,9 +1251,10 @@
         const salesChannelMatch = !filters.salesChannelKey || !filters.salesChannels.length
           || filters.salesChannels.includes(String(item[filters.salesChannelKey] ?? ''));
 
+        const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
         const unitTypeMatch = !filters.unitTypeKey
-          || filters.unitTypeSelection === 'all'
-          || String(item[filters.unitTypeKey] ?? '') === filters.unitTypeSelection;
+          || !unitTypeSelections.length
+          || unitTypeSelections.includes(String(item[filters.unitTypeKey] ?? ''));
 
         const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
           if (!entry) return true;
@@ -1366,32 +1370,29 @@
         return;
       }
       const values = getUniqueValues(getCurrentDataset(), unitTypeKey);
-      if (DashboardState.filters.unitTypeSelection !== 'all' && !values.includes(DashboardState.filters.unitTypeSelection)) {
-        DashboardState.filters.unitTypeSelection = 'all';
-      }
-      const selection = DashboardState.filters.unitTypeSelection || 'all';
+      const selections = Array.isArray(DashboardState.filters.unitTypeSelection)
+        ? DashboardState.filters.unitTypeSelection.filter((value) => values.includes(value))
+        : [];
+      DashboardState.filters.unitTypeSelection = selections;
       if (!values.length) {
         container.classList.add('hidden');
         container.innerHTML = '';
         return;
       }
       container.classList.remove('hidden');
-      const buttonHtml = ['all', ...values].map((value) => {
-        const isActive = selection === value;
-        const label = value === 'all' ? 'All Unit Types' : value;
+      const buttonHtml = values.map((value) => {
+        const isActive = selections.includes(value);
         const activeClass = isActive
           ? 'border-blue-400/60 bg-blue-500/20 text-blue-100'
           : 'border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/60';
         return `
-          <button type="button" data-unit-type="${value}" class="rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] ${activeClass}">
-            ${label}
+          <button type="button" data-unit-type="${value}" class="rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] ${activeClass}">
+            ${value}
           </button>
         `;
       }).join('');
       container.innerHTML = `
-        <div class="w-full text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
-          Unit Type
-        </div>
+        <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Unit Type</span>
         ${buttonHtml}
       `;
     };
@@ -1529,8 +1530,9 @@
       if (filters.salesChannelKey && filters.salesChannels.length) {
         chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
       }
-      if (filters.unitTypeKey && filters.unitTypeSelection && filters.unitTypeSelection !== 'all') {
-        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${filters.unitTypeSelection}`);
+      const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
+      if (filters.unitTypeKey && unitTypeSelections.length) {
+        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
@@ -1946,7 +1948,18 @@
         addListener(unitTypeFilters, 'click', (event) => {
           const button = event.target.closest('[data-unit-type]');
           if (!button) return;
-          DashboardState.filters.unitTypeSelection = button.dataset.unitType || 'all';
+          const value = button.dataset.unitType;
+          if (!value) return;
+          const selections = Array.isArray(DashboardState.filters.unitTypeSelection)
+            ? DashboardState.filters.unitTypeSelection.slice()
+            : [];
+          const index = selections.indexOf(value);
+          if (index >= 0) {
+            selections.splice(index, 1);
+          } else {
+            selections.push(value);
+          }
+          DashboardState.filters.unitTypeSelection = selections;
           resetPagination();
           renderDashboard();
           schedulePersistPreferences();
