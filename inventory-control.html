@@ -177,11 +177,8 @@
         <div>
           <p class="text-xs uppercase tracking-[0.3em] text-blue-300">Inventory Intelligence</p>
           <h2 class="text-xl font-black text-white md:text-2xl">Fleet Asset Visibility</h2>
-          <p class="mt-2 text-sm text-slate-300">
-            Power BI-style monitoring for inventory health, utilization, and recovery signals.
-          </p>
         </div>
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200">
             <span id="connection-dot" class="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.8)]"></span>
             <span id="connection-status">Booting…</span>
@@ -205,6 +202,10 @@
             </select>
           </label>
         </div>
+      </div>
+
+      <div class="mt-4 flex w-full justify-center">
+        <div id="unit-type-filters" class="flex w-full max-w-4xl flex-col items-center gap-2"></div>
       </div>
 
       <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
@@ -534,23 +535,7 @@
       initializeLucideIcons(icon);
     };
 
-    const observeLucideIcons = () => {
-      if (!('MutationObserver' in window)) return;
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === 'childList') {
-            mutation.addedNodes.forEach((node) => {
-              if (node.nodeType !== Node.ELEMENT_NODE) return;
-              initializeLucideIcons(node);
-            });
-          }
-        });
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-    };
-
     initializeLucideIcons();
-    observeLucideIcons();
 
     const PILL_CLASSES = 'rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1 text-[10px] hover:bg-slate-900/60';
     // ✅ Fallback: pega tus credenciales si tu módulo no exporta bien.
@@ -623,6 +608,8 @@
         categoryFilters: {},
         columnFilters: {},
         chartFilters: {},
+        unitTypeKey: '',
+        unitTypeSelection: [],
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -778,6 +765,9 @@
     const detectLastLeadKey = (schema) =>
       schema.find((col) => /last\s*(lead|deal)/i.test(col.key) || /last\s*(lead|deal)/i.test(col.label))?.key || '';
 
+    const detectUnitTypeKey = (schema) =>
+      schema.find((col) => /unit\s*type/i.test(col.key) || /unit\s*type/i.test(col.label))?.key || '';
+
     const detectTruthyColumnValue = (rows, key) => {
       if (!key) return '';
       const truthyRow = rows.find((row) => normalizeBoolean(row?.[key]));
@@ -890,6 +880,7 @@
         categoryFilters: DashboardState.filters.categoryFilters,
         columnFilters: DashboardState.filters.columnFilters,
         chartFilters: DashboardState.filters.chartFilters,
+        unitTypeSelection: DashboardState.filters.unitTypeSelection,
       },
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -923,10 +914,28 @@
       if (config.filters?.categoryFilters) DashboardState.filters.categoryFilters = config.filters.categoryFilters;
       if (config.filters?.columnFilters) DashboardState.filters.columnFilters = config.filters.columnFilters;
       if (config.filters?.chartFilters && typeof config.filters?.chartFilters === 'object') {
-        DashboardState.filters.chartFilters = config.filters.chartFilters;
+        DashboardState.filters.chartFilters = Object.entries(config.filters.chartFilters).reduce((acc, [chartId, filter]) => {
+          if (!filter || typeof filter !== 'object') return acc;
+          const key = filter.key || DEFAULT_SEGMENT_KEY;
+          const values = Array.isArray(filter.values)
+            ? filter.values.map((value) => String(value))
+            : (filter.value ? [String(filter.value)] : []);
+          if (!values.length) return acc;
+          acc[chartId] = { key, values };
+          return acc;
+        }, {});
       }
       if (!Object.keys(DashboardState.filters.chartFilters || {}).length && config.filters?.chartFilter && typeof config.filters.chartFilter === 'object') {
-        DashboardState.filters.chartFilters = { default: config.filters.chartFilter };
+        const fallbackKey = config.filters.chartFilter.key || DEFAULT_SEGMENT_KEY;
+        const fallbackValue = config.filters.chartFilter.value;
+        DashboardState.filters.chartFilters = fallbackValue
+          ? { default: { key: fallbackKey, values: [String(fallbackValue)] } }
+          : {};
+      }
+      if (Array.isArray(config.filters?.unitTypeSelection)) {
+        DashboardState.filters.unitTypeSelection = config.filters.unitTypeSelection.map((value) => String(value));
+      } else if (typeof config.filters?.unitTypeSelection === 'string') {
+        DashboardState.filters.unitTypeSelection = [config.filters.unitTypeSelection];
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
@@ -1076,16 +1085,19 @@
       const dateKey = detectDateKey(schema);
       const salesChannelKey = detectSalesChannelKey(schema);
       const lastLeadKey = detectLastLeadKey(schema);
+      const unitTypeKey = detectUnitTypeKey(schema);
       const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey].filter(Boolean));
 
       if (!preserveSelections) {
         DashboardState.filters.categoryFilters = {};
         DashboardState.filters.columnFilters = {};
+        DashboardState.filters.unitTypeSelection = [];
       }
 
       DashboardState.filters.dateKey = dateKey;
       DashboardState.filters.salesChannelKey = salesChannelKey;
       DashboardState.filters.lastLeadKey = lastLeadKey;
+      DashboardState.filters.unitTypeKey = unitTypeKey;
 
       const builder = document.getElementById('filter-builder');
       const categoryBlock = document.getElementById('filter-category-block');
@@ -1240,6 +1252,11 @@
         const salesChannelMatch = !filters.salesChannelKey || !filters.salesChannels.length
           || filters.salesChannels.includes(String(item[filters.salesChannelKey] ?? ''));
 
+        const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
+        const unitTypeMatch = !filters.unitTypeKey
+          || !unitTypeSelections.length
+          || unitTypeSelections.includes(String(item[filters.unitTypeKey] ?? ''));
+
         const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
           if (!entry) return true;
           const value = item[key];
@@ -1260,11 +1277,13 @@
           ? Object.values(filters.chartFilters)
           : [];
         const chartMatch = ignoreChartFilter || !activeChartFilters.length
-          || activeChartFilters.every((filter) => (
-            getSegmentLabel(item[filter.key]) === filter.value
-          ));
+          || activeChartFilters.every((filter) => {
+            const values = Array.isArray(filter.values) ? filter.values : [];
+            if (!values.length) return true;
+            return values.includes(getSegmentLabel(item[filter.key]));
+          });
 
-        return inDateRange && categoryMatch && salesChannelMatch && columnMatch && chartMatch;
+        return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && columnMatch && chartMatch;
       });
     };
 
@@ -1295,8 +1314,13 @@
       DashboardState.chartVisibility[chartId][segmentKey] = values;
       const activeFilters = DashboardState.filters.chartFilters || {};
       Object.entries(activeFilters).forEach(([filterChartId, filter]) => {
-        if (filter.key === segmentKey && values.includes(filter.value)) {
+        if (filter.key !== segmentKey) return;
+        const currentValues = Array.isArray(filter.values) ? filter.values : [];
+        const nextValues = currentValues.filter((value) => !values.includes(value));
+        if (!nextValues.length) {
           delete DashboardState.filters.chartFilters[filterChartId];
+        } else {
+          DashboardState.filters.chartFilters[filterChartId] = { key: segmentKey, values: nextValues };
         }
       });
     };
@@ -1311,11 +1335,12 @@
       if (!DashboardState.chartVisibilityOptions[chartId]) DashboardState.chartVisibilityOptions[chartId] = {};
       DashboardState.chartVisibilityOptions[chartId][segmentKey] = segmentValues;
 
-      const hiddenValues = ensureChartVisibilityState(chartId, segmentKey)
-        .filter((value) => segmentValues.includes(value));
-      setChartHiddenValues(chartId, segmentKey, hiddenValues);
+      const hiddenValues = ensureChartVisibilityState(chartId, segmentKey);
+      const hiddenSet = new Set(hiddenValues);
+      const hiddenVisibleCount = segmentValues.reduce((count, value) => count + (hiddenSet.has(value) ? 1 : 0), 0);
+      setChartHiddenValues(chartId, segmentKey, hiddenValues.slice());
 
-      const visibleCount = Math.max(0, segmentValues.length - hiddenValues.length);
+      const visibleCount = Math.max(0, segmentValues.length - hiddenVisibleCount);
       summary.textContent = segmentValues.length ? `${visibleCount}/${segmentValues.length}` : '0';
 
       if (!segmentValues.length) {
@@ -1334,6 +1359,45 @@
           </label>
         `;
       }).join('');
+    };
+
+    const renderUnitTypeFilters = () => {
+      const container = document.getElementById('unit-type-filters');
+      if (!container) return;
+      const unitTypeKey = DashboardState.filters.unitTypeKey;
+      if (!unitTypeKey) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      const values = getUniqueValues(getCurrentDataset(), unitTypeKey);
+      const selections = Array.isArray(DashboardState.filters.unitTypeSelection)
+        ? DashboardState.filters.unitTypeSelection.filter((value) => values.includes(value))
+        : [];
+      DashboardState.filters.unitTypeSelection = selections;
+      if (!values.length) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      container.classList.remove('hidden');
+      const buttonHtml = values.map((value) => {
+        const isActive = selections.includes(value);
+        const activeClass = isActive
+          ? 'border-blue-400/60 bg-blue-500/20 text-blue-100'
+          : 'border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/60';
+        return `
+          <button type="button" data-unit-type="${value}" class="rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] ${activeClass}">
+            ${value}
+          </button>
+        `;
+      }).join('');
+      container.innerHTML = `
+        <span class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Unit Type</span>
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          ${buttonHtml}
+        </div>
+      `;
     };
 
     const renderSegmentOptions = () => {
@@ -1390,11 +1454,12 @@
         if (DashboardState.ui.isLoading) {
           renderSegmentFieldOptions(chartId, segmentKey, []);
           container.innerHTML = Array.from({ length: 6 }).map(() => `
-            <div class="flex h-full flex-col items-center justify-end gap-2">
+            <div class="flex h-full flex-col items-center justify-end">
+              <span class="mb-1 text-[11px] font-semibold text-slate-500">...</span>
               <div class="h-full min-h-[140px] w-8 rounded-full bg-slate-800/70 overflow-hidden">
                 <div class="h-full w-full animate-pulse bg-slate-700/70"></div>
               </div>
-              <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
+              <span class="mt-2 text-[10px] uppercase tracking-[0.2em] text-slate-500">...</span>
             </div>
           `).join('');
           return;
@@ -1437,19 +1502,20 @@
 
         container.innerHTML = statusBars.map((item) => {
           const activeFilter = DashboardState.filters.chartFilters?.[chartId];
+          const activeValues = Array.isArray(activeFilter?.values) ? activeFilter.values : [];
           const isActive = activeFilter
             && activeFilter.key === segmentKey
-            && activeFilter.value === item.status;
-          const isDimmed = activeFilter && !isActive;
+            && activeValues.includes(item.status);
+          const isDimmed = activeFilter && activeValues.length > 0 && !isActive;
           const activeClass = isActive ? 'ring-2 ring-blue-400/70 bg-slate-900/50' : '';
           const dimClass = isDimmed ? 'opacity-50' : '';
           return `
-          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="flex h-full flex-col items-center justify-end gap-2 rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass} ${dimClass}">
+          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass} ${dimClass}">
+            <span class="mb-1 text-[11px] font-semibold text-slate-200">${item.count}</span>
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
               <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: ${item.percentage}%"></div>
             </div>
-            <span class="text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
-            <span class="text-[11px] font-semibold text-slate-200">${item.count}</span>
+            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] text-slate-400">${item.status}</span>
           </button>
         `;
         }).join('');
@@ -1467,11 +1533,17 @@
       if (filters.salesChannelKey && filters.salesChannels.length) {
         chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
       }
+      const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
+      if (filters.unitTypeKey && unitTypeSelections.length) {
+        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
+      }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
       });
       Object.values(filters.chartFilters || {}).forEach((filter) => {
-        chips.push(`${formatColumnLabel(filter.key)}: ${filter.value}`);
+        const values = Array.isArray(filter.values) ? filter.values : [];
+        if (!values.length) return;
+        chips.push(`${formatColumnLabel(filter.key)}: ${values.join(', ')}`);
       });
 
       chipsContainer.innerHTML = chips.length
@@ -1646,6 +1718,7 @@
     };
 
     const renderDashboard = () => {
+      renderUnitTypeFilters();
       computeDerivedState();
       renderKpis();
       renderStatusBars();
@@ -1653,6 +1726,7 @@
       renderTable();
       renderActiveFilters();
       syncTopScrollbar();
+      lucide?.createIcons?.();
     };
 
     const initializeTablePreferences = () => {
@@ -1786,6 +1860,7 @@
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
       const salesChannelLabel = document.getElementById('sales-channel-label');
+      const unitTypeFilters = document.getElementById('unit-type-filters');
       const lastDealSelect = document.getElementById('last-deal-select');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
@@ -1869,6 +1944,28 @@
             renderDashboard();
             schedulePersistPreferences();
           }
+        });
+      }
+
+      if (unitTypeFilters) {
+        addListener(unitTypeFilters, 'click', (event) => {
+          const button = event.target.closest('[data-unit-type]');
+          if (!button) return;
+          const value = button.dataset.unitType;
+          if (!value) return;
+          const selections = Array.isArray(DashboardState.filters.unitTypeSelection)
+            ? DashboardState.filters.unitTypeSelection.slice()
+            : [];
+          const index = selections.indexOf(value);
+          if (index >= 0) {
+            selections.splice(index, 1);
+          } else {
+            selections.push(value);
+          }
+          DashboardState.filters.unitTypeSelection = selections;
+          resetPagination();
+          renderDashboard();
+          schedulePersistPreferences();
         });
       }
 
@@ -2243,13 +2340,25 @@
         container.addEventListener('click', (event) => {
           const button = event.target.closest('button[data-status][data-segment-key]');
           if (!button) return;
+          const chartId = container.dataset.chartId || 'default';
           const segmentKey = button.dataset.segmentKey;
           const status = button.dataset.status;
           const current = DashboardState.filters.chartFilters?.[chartId];
-          if (current && current.key === segmentKey && current.value === status) {
-            delete DashboardState.filters.chartFilters[chartId];
+          if (!current || current.key !== segmentKey) {
+            DashboardState.filters.chartFilters[chartId] = { key: segmentKey, values: [status] };
           } else {
-            DashboardState.filters.chartFilters[chartId] = { key: segmentKey, value: status };
+            const nextValues = Array.isArray(current.values) ? current.values.slice() : [];
+            const statusIndex = nextValues.indexOf(status);
+            if (statusIndex >= 0) {
+              nextValues.splice(statusIndex, 1);
+            } else {
+              nextValues.push(status);
+            }
+            if (nextValues.length) {
+              DashboardState.filters.chartFilters[chartId] = { key: segmentKey, values: nextValues };
+            } else {
+              delete DashboardState.filters.chartFilters[chartId];
+            }
           }
           resetPagination();
           renderDashboard();
