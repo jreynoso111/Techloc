@@ -1373,7 +1373,8 @@
       const selections = Array.isArray(DashboardState.filters.unitTypeSelection)
         ? DashboardState.filters.unitTypeSelection.filter((value) => values.includes(value))
         : [];
-      DashboardState.filters.unitTypeSelection = selections;
+      const selectedValue = selections[0] || 'all';
+      DashboardState.filters.unitTypeSelection = selectedValue === 'all' ? [] : [selectedValue];
       if (!values.length) {
         container.classList.add('hidden');
         container.innerHTML = '';
@@ -1872,6 +1873,11 @@
       const salesChannelSummary = document.getElementById('sales-channel-summary');
       const salesChannelLabel = document.getElementById('sales-channel-label');
       const unitTypeFilters = document.getElementById('unit-type-filters');
+      const unitTypeToggle = document.getElementById('unit-type-toggle');
+      const unitTypePanel = document.getElementById('unit-type-panel');
+      const unitTypeOptions = document.getElementById('unit-type-options');
+      const unitTypeSummary = document.getElementById('unit-type-summary');
+      const unitTypeLabel = document.getElementById('unit-type-label');
       const lastDealSelect = document.getElementById('last-deal-select');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
@@ -2278,6 +2284,13 @@
         addListener(salesChannelToggle, 'click', () => {
           const isHidden = salesChannelPanel.classList.toggle('hidden');
           salesChannelToggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+      }
+
+      if (unitTypeToggle && unitTypePanel) {
+        addListener(unitTypeToggle, 'click', () => {
+          const isHidden = unitTypePanel.classList.toggle('hidden');
+          unitTypeToggle.setAttribute('aria-expanded', String(!isHidden));
         });
       }
 
