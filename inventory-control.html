@@ -177,9 +177,6 @@
         <div>
           <p class="text-xs uppercase tracking-[0.3em] text-blue-300">Inventory Intelligence</p>
           <h2 class="text-xl font-black text-white md:text-2xl">Fleet Asset Visibility</h2>
-          <p class="mt-2 text-sm text-slate-300">
-            Power BI-style monitoring for inventory health, utilization, and recovery signals.
-          </p>
         </div>
         <div class="flex flex-wrap gap-3">
           <div class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-semibold text-slate-200">
@@ -206,6 +203,8 @@
           </label>
         </div>
       </div>
+
+      <div id="unit-type-filters" class="mt-4 flex flex-wrap justify-center gap-2"></div>
 
       <div id="deal-alerts-layout" class="mt-3 flex flex-col gap-3 lg:flex-row" aria-live="polite">
         <div id="deal-status-panel" class="flex-1">
@@ -607,6 +606,8 @@
         categoryFilters: {},
         columnFilters: {},
         chartFilters: {},
+        unitTypeKey: '',
+        unitTypeSelection: 'all',
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -762,6 +763,9 @@
     const detectLastLeadKey = (schema) =>
       schema.find((col) => /last\s*(lead|deal)/i.test(col.key) || /last\s*(lead|deal)/i.test(col.label))?.key || '';
 
+    const detectUnitTypeKey = (schema) =>
+      schema.find((col) => /unit\s*type/i.test(col.key) || /unit\s*type/i.test(col.label))?.key || '';
+
     const detectTruthyColumnValue = (rows, key) => {
       if (!key) return '';
       const truthyRow = rows.find((row) => normalizeBoolean(row?.[key]));
@@ -874,6 +878,7 @@
         categoryFilters: DashboardState.filters.categoryFilters,
         columnFilters: DashboardState.filters.columnFilters,
         chartFilters: DashboardState.filters.chartFilters,
+        unitTypeSelection: DashboardState.filters.unitTypeSelection,
       },
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -924,6 +929,9 @@
         DashboardState.filters.chartFilters = fallbackValue
           ? { default: { key: fallbackKey, values: [String(fallbackValue)] } }
           : {};
+      }
+      if (typeof config.filters?.unitTypeSelection === 'string') {
+        DashboardState.filters.unitTypeSelection = config.filters.unitTypeSelection;
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
@@ -1073,16 +1081,19 @@
       const dateKey = detectDateKey(schema);
       const salesChannelKey = detectSalesChannelKey(schema);
       const lastLeadKey = detectLastLeadKey(schema);
+      const unitTypeKey = detectUnitTypeKey(schema);
       const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey].filter(Boolean));
 
       if (!preserveSelections) {
         DashboardState.filters.categoryFilters = {};
         DashboardState.filters.columnFilters = {};
+        DashboardState.filters.unitTypeSelection = 'all';
       }
 
       DashboardState.filters.dateKey = dateKey;
       DashboardState.filters.salesChannelKey = salesChannelKey;
       DashboardState.filters.lastLeadKey = lastLeadKey;
+      DashboardState.filters.unitTypeKey = unitTypeKey;
 
       const builder = document.getElementById('filter-builder');
       const categoryBlock = document.getElementById('filter-category-block');
@@ -1237,6 +1248,10 @@
         const salesChannelMatch = !filters.salesChannelKey || !filters.salesChannels.length
           || filters.salesChannels.includes(String(item[filters.salesChannelKey] ?? ''));
 
+        const unitTypeMatch = !filters.unitTypeKey
+          || filters.unitTypeSelection === 'all'
+          || String(item[filters.unitTypeKey] ?? '') === filters.unitTypeSelection;
+
         const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
           if (!entry) return true;
           const value = item[key];
@@ -1263,7 +1278,7 @@
             return values.includes(getSegmentLabel(item[filter.key]));
           });
 
-        return inDateRange && categoryMatch && salesChannelMatch && columnMatch && chartMatch;
+        return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && columnMatch && chartMatch;
       });
     };
 
@@ -1339,6 +1354,46 @@
           </label>
         `;
       }).join('');
+    };
+
+    const renderUnitTypeFilters = () => {
+      const container = document.getElementById('unit-type-filters');
+      if (!container) return;
+      const unitTypeKey = DashboardState.filters.unitTypeKey;
+      if (!unitTypeKey) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      const values = getUniqueValues(getCurrentDataset(), unitTypeKey);
+      if (DashboardState.filters.unitTypeSelection !== 'all' && !values.includes(DashboardState.filters.unitTypeSelection)) {
+        DashboardState.filters.unitTypeSelection = 'all';
+      }
+      const selection = DashboardState.filters.unitTypeSelection || 'all';
+      if (!values.length) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      container.classList.remove('hidden');
+      const buttonHtml = ['all', ...values].map((value) => {
+        const isActive = selection === value;
+        const label = value === 'all' ? 'All Unit Types' : value;
+        const activeClass = isActive
+          ? 'border-blue-400/60 bg-blue-500/20 text-blue-100'
+          : 'border-slate-700 bg-slate-950/60 text-slate-200 hover:bg-slate-900/60';
+        return `
+          <button type="button" data-unit-type="${value}" class="rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] ${activeClass}">
+            ${label}
+          </button>
+        `;
+      }).join('');
+      container.innerHTML = `
+        <div class="w-full text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+          Unit Type
+        </div>
+        ${buttonHtml}
+      `;
     };
 
     const renderSegmentOptions = () => {
@@ -1473,6 +1528,9 @@
       if (filters.dateRange.start) chips.push(`Date: From ${filters.dateRange.start}`);
       if (filters.salesChannelKey && filters.salesChannels.length) {
         chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
+      }
+      if (filters.unitTypeKey && filters.unitTypeSelection && filters.unitTypeSelection !== 'all') {
+        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${filters.unitTypeSelection}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
@@ -1656,6 +1714,7 @@
 
     const renderDashboard = () => {
       computeDerivedState();
+      renderUnitTypeFilters();
       renderKpis();
       renderStatusBars();
       renderTableHead();
@@ -1796,6 +1855,7 @@
       const salesChannelOptions = document.getElementById('sales-channel-options');
       const salesChannelSummary = document.getElementById('sales-channel-summary');
       const salesChannelLabel = document.getElementById('sales-channel-label');
+      const unitTypeFilters = document.getElementById('unit-type-filters');
       const lastDealSelect = document.getElementById('last-deal-select');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
@@ -1879,6 +1939,17 @@
             renderDashboard();
             schedulePersistPreferences();
           }
+        });
+      }
+
+      if (unitTypeFilters) {
+        addListener(unitTypeFilters, 'click', (event) => {
+          const button = event.target.closest('[data-unit-type]');
+          if (!button) return;
+          DashboardState.filters.unitTypeSelection = button.dataset.unitType || 'all';
+          resetPagination();
+          renderDashboard();
+          schedulePersistPreferences();
         });
       }
 
