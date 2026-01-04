@@ -2121,9 +2121,11 @@
         schedulePersistPreferences();
       });
 
-      addListener(tableHead, 'input', (event) => {
+      addListener(tableHead, 'keydown', (event) => {
         const target = event.target;
         if (!target.matches('[data-column-search]')) return;
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
         const key = target.dataset.columnSearch;
         const entry = DashboardState.filters.columnFilters[key] || { select: 'all', search: '' };
         entry.search = target.value.trim().toLowerCase();
