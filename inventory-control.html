@@ -541,6 +541,20 @@
     //    (Anon key es pública, pero igual cuida RLS.)
     const SUPABASE_URL = '';       // <-- pega aquí
     const SUPABASE_ANON_KEY = '';  // <-- pega aquí
+    const getSupabaseCredentials = async () => {
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        return { url: SUPABASE_URL, key: SUPABASE_ANON_KEY };
+      }
+      try {
+        const env = await import('./assets/scripts/env.js');
+        if (env?.SUPABASE_URL && env?.SUPABASE_KEY) {
+          return { url: env.SUPABASE_URL, key: env.SUPABASE_KEY };
+        }
+      } catch (error) {
+        console.warn('Unable to load env.js for Supabase credentials.', error);
+      }
+      return { url: '', key: '' };
+    };
 
     const showDebug = (title, detail, obj) => {
       const banner = document.getElementById('debug-banner');
@@ -582,8 +596,17 @@
         throw new Error('supabaseClient.js loaded but did not export a Supabase client (expected export const supabase = createClient(...)).');
       } catch (e) {
         // Fallback: create client here
-        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { url, key } = await getSupabaseCredentials();
+        if (url && key) {
+          if (!window.supabase?.createClient) {
+            showDebug(
+              'Supabase library not ready',
+              'No se pudo crear el cliente porque falta la librería de Supabase.',
+              { error: String(e) }
+            );
+            return null;
+          }
+          supabaseClient = window.supabase.createClient(url, key);
           return supabaseClient;
         }
         showDebug(
