@@ -1315,11 +1315,12 @@
       if (!DashboardState.chartVisibilityOptions[chartId]) DashboardState.chartVisibilityOptions[chartId] = {};
       DashboardState.chartVisibilityOptions[chartId][segmentKey] = segmentValues;
 
-      const hiddenValues = ensureChartVisibilityState(chartId, segmentKey)
-        .filter((value) => segmentValues.includes(value));
-      setChartHiddenValues(chartId, segmentKey, hiddenValues);
+      const hiddenValues = ensureChartVisibilityState(chartId, segmentKey);
+      const hiddenSet = new Set(hiddenValues);
+      const hiddenVisibleCount = segmentValues.reduce((count, value) => count + (hiddenSet.has(value) ? 1 : 0), 0);
+      setChartHiddenValues(chartId, segmentKey, hiddenValues.slice());
 
-      const visibleCount = Math.max(0, segmentValues.length - hiddenValues.length);
+      const visibleCount = Math.max(0, segmentValues.length - hiddenVisibleCount);
       summary.textContent = segmentValues.length ? `${visibleCount}/${segmentValues.length}` : '0';
 
       if (!segmentValues.length) {
