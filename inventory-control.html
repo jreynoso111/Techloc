@@ -1381,18 +1381,27 @@
         return;
       }
       container.classList.remove('hidden');
-      const optionHtml = ['all', ...values].map((value) => {
-        const label = value === 'all' ? 'All' : value;
-        const isSelected = value === selectedValue;
-        return `<option value="${value}" ${isSelected ? 'selected' : ''}>${label}</option>`;
-      }).join('');
-      container.innerHTML = `
-        <label class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-          <span>Unit Type</span>
-          <select id="unit-type-select" class="h-6 rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200">
-            ${optionHtml}
-          </select>
+      const optionHtml = values.map((value) => `
+        <label class="flex items-center gap-2 text-xs">
+          <input type="checkbox" value="${value}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${selections.includes(value) ? 'checked' : ''} />
+          <span>${value}</span>
         </label>
+      `).join('');
+      const count = selections.length;
+      const labelText = count === 1 ? selections[0] : 'Unit Type';
+      container.innerHTML = `
+        <div class="relative">
+          <button id="unit-type-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" aria-expanded="false">
+            <span id="unit-type-label">${labelText}</span>
+            <span id="unit-type-summary" class="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300">${count}</span>
+          </button>
+          <div id="unit-type-panel" class="absolute left-1/2 z-40 mt-2 hidden w-56 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Choose unit types</p>
+            <div id="unit-type-options" class="mt-2 grid gap-2">
+              ${optionHtml}
+            </div>
+          </div>
+        </div>
       `;
     };
 
@@ -1864,6 +1873,11 @@
       const salesChannelSummary = document.getElementById('sales-channel-summary');
       const salesChannelLabel = document.getElementById('sales-channel-label');
       const unitTypeFilters = document.getElementById('unit-type-filters');
+      const unitTypeToggle = document.getElementById('unit-type-toggle');
+      const unitTypePanel = document.getElementById('unit-type-panel');
+      const unitTypeOptions = document.getElementById('unit-type-options');
+      const unitTypeSummary = document.getElementById('unit-type-summary');
+      const unitTypeLabel = document.getElementById('unit-type-label');
       const lastDealSelect = document.getElementById('last-deal-select');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
@@ -1952,10 +1966,16 @@
 
       if (unitTypeFilters) {
         addListener(unitTypeFilters, 'change', (event) => {
-          const select = event.target.closest('#unit-type-select');
-          if (!select) return;
-          const value = select.value;
-          DashboardState.filters.unitTypeSelection = value === 'all' ? [] : [value];
+          const input = event.target;
+          if (!input.matches('input[type="checkbox"]')) return;
+          const checked = Array.from(unitTypeOptions?.querySelectorAll('input[type="checkbox"]') || [])
+            .filter((item) => item.checked)
+            .map((item) => item.value);
+          DashboardState.filters.unitTypeSelection = checked;
+          if (unitTypeSummary) unitTypeSummary.textContent = String(checked.length);
+          if (unitTypeLabel) {
+            unitTypeLabel.textContent = checked.length === 1 ? checked[0] : 'Unit Type';
+          }
           resetPagination();
           renderDashboard();
           schedulePersistPreferences();
@@ -2255,6 +2275,13 @@
         });
       }
 
+      if (unitTypeToggle && unitTypePanel) {
+        addListener(unitTypeToggle, 'click', () => {
+          const isHidden = unitTypePanel.classList.toggle('hidden');
+          unitTypeToggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+      }
+
       if (fullChartToggle && fullChartBody && fullChartCard && fullChartResizer) {
         addListener(fullChartToggle, 'click', () => {
           const fullChartMinHeight = '220px';
@@ -2285,6 +2312,13 @@
         if (salesChannelPanel.contains(event.target) || salesChannelToggle?.contains(event.target)) return;
         salesChannelPanel.classList.add('hidden');
         salesChannelToggle?.setAttribute('aria-expanded', 'false');
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!unitTypePanel || unitTypePanel.classList.contains('hidden')) return;
+        if (unitTypePanel.contains(event.target) || unitTypeToggle?.contains(event.target)) return;
+        unitTypePanel.classList.add('hidden');
+        unitTypeToggle?.setAttribute('aria-expanded', 'false');
       });
 
       addListener(salesChannelOptions, 'change', (event) => {
