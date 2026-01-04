@@ -619,6 +619,7 @@
         columns: {},
         columnOrder: [],
         columnWidths: {},
+        columnLabels: {},
       },
       derived: {
         filtered: [],
@@ -680,6 +681,32 @@
     };
 
     const formatColumnLabel = (key) => key.replace(/_/g, ' ');
+    const isAdminUser = () => String(window.currentUserRole || '').toLowerCase() === 'administrator';
+    const getColumnLabel = (key) => {
+      const override = DashboardState.table.columnLabels?.[key];
+      if (override) return override;
+      const schemaLabel = DashboardState.schema.find((col) => col.key === key)?.label;
+      return schemaLabel || formatColumnLabel(key);
+    };
+    const applyColumnLabelsToSchema = () => {
+      if (!DashboardState.schema.length) return;
+      DashboardState.schema.forEach((col) => {
+        col.label = DashboardState.table.columnLabels?.[col.key] || formatColumnLabel(col.key);
+      });
+    };
+    const updateColumnLabel = (key, label) => {
+      const trimmed = String(label || '').trim();
+      if (!trimmed) {
+        delete DashboardState.table.columnLabels?.[key];
+        const column = DashboardState.schema.find((col) => col.key === key);
+        if (column) column.label = formatColumnLabel(key);
+        return;
+      }
+      if (!DashboardState.table.columnLabels) DashboardState.table.columnLabels = {};
+      DashboardState.table.columnLabels[key] = trimmed;
+      const column = DashboardState.schema.find((col) => col.key === key);
+      if (column) column.label = trimmed;
+    };
 
     const inferColumnType = (values) => {
       let sawString = false;
@@ -735,7 +762,7 @@
         const values = sample.map((row) => row?.[key]);
         return {
           key,
-          label: formatColumnLabel(key),
+          label: DashboardState.table.columnLabels?.[key] || formatColumnLabel(key),
           type: inferColumnType(values),
         };
       });
@@ -865,6 +892,7 @@
         columns: DashboardState.table.columns,
         columnOrder: DashboardState.table.columnOrder,
         columnWidths: DashboardState.table.columnWidths,
+        columnLabels: DashboardState.table.columnLabels,
         sort: DashboardState.table.sort,
         perPage: DashboardState.table.perPage,
       },
@@ -896,6 +924,10 @@
       if (typeof config.table?.perPage === 'number') DashboardState.table.perPage = config.table.perPage;
       if (Array.isArray(config.table?.columnOrder)) DashboardState.table.columnOrder = config.table.columnOrder;
       if (config.table?.columnWidths) DashboardState.table.columnWidths = config.table.columnWidths;
+      if (config.table?.columnLabels && typeof config.table.columnLabels === 'object') {
+        DashboardState.table.columnLabels = { ...config.table.columnLabels };
+        applyColumnLabelsToSchema();
+      }
       if (config.chart?.chartSegments && typeof config.chart.chartSegments === 'object') {
         DashboardState.chartSegments = { ...config.chart.chartSegments };
       }
@@ -969,17 +1001,20 @@
 
     const loadDashboardPreferences = async () => {
       let config = null;
+      let adminConfig = null;
       if (supabaseClient?.auth) {
         const { data } = await supabaseClient.auth.getSession();
         const userId = data?.session?.user?.id || null;
         DashboardState.preferences.userId = userId;
         if (userId) {
           config = await fetchTableConfig(userId);
-          if (!config) {
-            const adminId = await fetchAdminUserId();
-            if (adminId) config = await fetchTableConfig(adminId);
-          }
         }
+        const adminId = await fetchAdminUserId();
+        if (adminId) adminConfig = await fetchTableConfig(adminId);
+      }
+
+      if (adminConfig?.table?.columnLabels) {
+        DashboardState.table.columnLabels = { ...adminConfig.table.columnLabels };
       }
 
       if (!config) {
@@ -1295,7 +1330,7 @@
         .forEach((col) => {
           if (seen.has(col.key)) return;
           seen.add(col.key);
-          options.push({ key: col.key, label: col.label || formatColumnLabel(col.key) });
+          options.push({ key: col.key, label: col.label || getColumnLabel(col.key) });
         });
       return options;
     };
@@ -1550,19 +1585,19 @@
 
       if (filters.dateRange.start) chips.push(`Date: From ${filters.dateRange.start}`);
       if (filters.salesChannelKey && filters.salesChannels.length) {
-        chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
+        chips.push(`${getColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
       }
       const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
       if (filters.unitTypeKey && unitTypeSelections.length) {
-        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
+        chips.push(`${getColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
-        if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
+        if (value !== 'all') chips.push(`${getColumnLabel(key)}: ${value}`);
       });
       Object.values(filters.chartFilters || {}).forEach((filter) => {
         const values = Array.isArray(filter.values) ? filter.values : [];
         if (!values.length) return;
-        chips.push(`${formatColumnLabel(filter.key)}: ${values.join(', ')}`);
+        chips.push(`${getColumnLabel(filter.key)}: ${values.join(', ')}`);
       });
 
       chipsContainer.innerHTML = chips.length
@@ -1788,10 +1823,16 @@
         return;
       }
       const sortedSchema = [...DashboardState.schema].sort((a, b) => a.label.localeCompare(b.label));
+      const adminMode = isAdminUser();
       container.innerHTML = sortedSchema.map((c) => `
-        <label class="flex items-center gap-2 text-xs">
-          <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
-          <span>${c.label}</span>
+        <label class="flex flex-col gap-1 text-xs">
+          <span class="flex items-center gap-2">
+            <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
+            <span>${c.label}</span>
+          </span>
+          ${adminMode ? `
+            <input type="text" data-column-label-input="${c.key}" value="${c.label}" placeholder="Rename column" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[11px] font-semibold text-slate-200" />
+          ` : ''}
         </label>
       `).join('');
     };
@@ -2217,6 +2258,18 @@
         if (!input.matches('input[type="checkbox"]')) return;
         DashboardState.table.columns[input.value] = input.checked;
         renderDashboard();
+        schedulePersistPreferences();
+      });
+
+      addListener(columnChooserOptions, 'change', (event) => {
+        const input = event.target;
+        if (!input.matches('[data-column-label-input]')) return;
+        const key = input.dataset.columnLabelInput;
+        updateColumnLabel(key, input.value);
+        applyColumnLabelsToSchema();
+        setupFilters({ preserveSelections: true });
+        renderDashboard();
+        renderColumnChooser();
         schedulePersistPreferences();
       });
 
@@ -2667,6 +2720,7 @@
 
       if (!DashboardState.schema.length) {
         DashboardState.schema = buildSchemaFromData([record]);
+        applyColumnLabelsToSchema();
         initializeTablePreferences();
       }
 
@@ -2744,6 +2798,7 @@
       }
 
       DashboardState.schema = buildSchemaFromData(data || []);
+      applyColumnLabelsToSchema();
 
       setVehiclesFromArray((data || []).map((v) => {
         const updatedAt = getField(v, 'Updated At', 'Updated', 'Last Updated');
