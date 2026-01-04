@@ -988,6 +988,7 @@
 
     const loadDashboardPreferences = async () => {
       let config = null;
+      let adminConfig = null;
       if (supabaseClient?.auth) {
         const { data } = await supabaseClient.auth.getSession();
         const userId = data?.session?.user?.id || null;
@@ -995,6 +996,12 @@
         if (userId) {
           config = await fetchTableConfig(userId);
         }
+        const adminId = await fetchAdminUserId();
+        if (adminId) adminConfig = await fetchTableConfig(adminId);
+      }
+
+      if (adminConfig?.table?.columnLabels) {
+        DashboardState.table.columnLabels = { ...adminConfig.table.columnLabels };
       }
 
       if (!config) {
@@ -1803,6 +1810,7 @@
         return;
       }
       const sortedSchema = [...DashboardState.schema].sort((a, b) => a.label.localeCompare(b.label));
+      const adminMode = isAdminUser();
       container.innerHTML = sortedSchema.map((c) => `
         <label class="flex flex-col gap-1 text-xs">
           <span class="flex items-center gap-2">
