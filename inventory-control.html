@@ -541,6 +541,20 @@
     //    (Anon key es pública, pero igual cuida RLS.)
     const SUPABASE_URL = '';       // <-- pega aquí
     const SUPABASE_ANON_KEY = '';  // <-- pega aquí
+    const getSupabaseCredentials = async () => {
+      if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+        return { url: SUPABASE_URL, key: SUPABASE_ANON_KEY };
+      }
+      try {
+        const env = await import('./assets/scripts/env.js');
+        if (env?.SUPABASE_URL && env?.SUPABASE_KEY) {
+          return { url: env.SUPABASE_URL, key: env.SUPABASE_KEY };
+        }
+      } catch (error) {
+        console.warn('Unable to load env.js for Supabase credentials.', error);
+      }
+      return { url: '', key: '' };
+    };
 
     const showDebug = (title, detail, obj) => {
       const banner = document.getElementById('debug-banner');
@@ -569,6 +583,10 @@
     let supabaseClient = null;
 
     const getSupabaseClient = async () => {
+      if (window.supabaseClient?.from) {
+        supabaseClient = window.supabaseClient;
+        return supabaseClient;
+      }
       // Try import your module (best option)
       try {
         const mod = await import('./assets/scripts/supabaseClient.js');
@@ -578,8 +596,17 @@
         throw new Error('supabaseClient.js loaded but did not export a Supabase client (expected export const supabase = createClient(...)).');
       } catch (e) {
         // Fallback: create client here
-        if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-          supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { url, key } = await getSupabaseCredentials();
+        if (url && key) {
+          if (!window.supabase?.createClient) {
+            showDebug(
+              'Supabase library not ready',
+              'No se pudo crear el cliente porque falta la librería de Supabase.',
+              { error: String(e) }
+            );
+            return null;
+          }
+          supabaseClient = window.supabase.createClient(url, key);
           return supabaseClient;
         }
         showDebug(
@@ -619,6 +646,7 @@
         columns: {},
         columnOrder: [],
         columnWidths: {},
+        columnLabels: {},
       },
       derived: {
         filtered: [],
@@ -680,6 +708,12 @@
     };
 
     const formatColumnLabel = (key) => key.replace(/_/g, ' ');
+    const getColumnLabel = (key) =>
+      DashboardState.schema.find((col) => col.key === key)?.label || formatColumnLabel(key);
+    const getScopedStorageKey = (baseKey) => {
+      const userId = DashboardState.preferences.userId;
+      return userId ? `${baseKey}:${userId}` : baseKey;
+    };
 
     const inferColumnType = (values) => {
       let sawString = false;
@@ -733,12 +767,43 @@
       const sample = rows.slice(0, 50);
       return Object.keys(rows[0]).map((key) => {
         const values = sample.map((row) => row?.[key]);
+        const baseLabel = formatColumnLabel(key);
         return {
           key,
-          label: formatColumnLabel(key),
+          label: baseLabel,
+          defaultLabel: baseLabel,
           type: inferColumnType(values),
         };
       });
+    };
+
+    const applyColumnLabelsToSchema = () => {
+      DashboardState.schema.forEach((column) => {
+        const baseLabel = column.defaultLabel || formatColumnLabel(column.key);
+        column.defaultLabel = baseLabel;
+        const override = DashboardState.table.columnLabels?.[column.key];
+        column.label = override || baseLabel;
+      });
+    };
+
+    const updateColumnLabel = (key, nextLabel) => {
+      const column = DashboardState.schema.find((col) => col.key === key);
+      if (!column) return;
+      const baseLabel = column.defaultLabel || formatColumnLabel(column.key);
+      const trimmed = String(nextLabel ?? '').trim();
+      const finalLabel = trimmed || baseLabel;
+      if (finalLabel === baseLabel) {
+        delete DashboardState.table.columnLabels[key];
+      } else {
+        DashboardState.table.columnLabels[key] = finalLabel;
+      }
+      column.label = finalLabel;
+      renderColumnChooser();
+      renderSegmentOptions();
+      setupFilters({ preserveSelections: true });
+      renderTableHead();
+      renderActiveFilters();
+      schedulePersistPreferences();
     };
 
     const getColumnValues = (rows, key) => rows.map((row) => row?.[key]).filter((v) => v !== null && v !== undefined && v !== '');
@@ -762,10 +827,10 @@
       schema.find((col) => /sales channel/i.test(col.key))?.key || '';
 
     const detectLastLeadKey = (schema) =>
-      schema.find((col) => /last\s*(lead|deal)/i.test(col.key) || /last\s*(lead|deal)/i.test(col.label))?.key || '';
+      schema.find((col) => /last\s*(lead|deal)/i.test(col.key) || /last\s*(lead|deal)/i.test(col.defaultLabel || col.label))?.key || '';
 
     const detectUnitTypeKey = (schema) =>
-      schema.find((col) => /unit\s*type/i.test(col.key) || /unit\s*type/i.test(col.label))?.key || '';
+      schema.find((col) => /unit\s*type/i.test(col.key) || /unit\s*type/i.test(col.defaultLabel || col.label))?.key || '';
 
     const detectTruthyColumnValue = (rows, key) => {
       if (!key) return '';
@@ -867,6 +932,7 @@
         columnWidths: DashboardState.table.columnWidths,
         sort: DashboardState.table.sort,
         perPage: DashboardState.table.perPage,
+        columnLabels: DashboardState.table.columnLabels,
       },
       chart: {
         chartSegments: DashboardState.chartSegments,
@@ -896,6 +962,9 @@
       if (typeof config.table?.perPage === 'number') DashboardState.table.perPage = config.table.perPage;
       if (Array.isArray(config.table?.columnOrder)) DashboardState.table.columnOrder = config.table.columnOrder;
       if (config.table?.columnWidths) DashboardState.table.columnWidths = config.table.columnWidths;
+      if (config.table?.columnLabels && typeof config.table.columnLabels === 'object') {
+        DashboardState.table.columnLabels = { ...config.table.columnLabels };
+      }
       if (config.chart?.chartSegments && typeof config.chart.chartSegments === 'object') {
         DashboardState.chartSegments = { ...config.chart.chartSegments };
       }
@@ -955,18 +1024,6 @@
       return data?.config || null;
     };
 
-    const fetchAdminUserId = async () => {
-      if (!supabaseClient?.from) return null;
-      const { data, error } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('role', 'administrator')
-        .limit(1)
-        .maybeSingle();
-      if (error) return null;
-      return data?.id || null;
-    };
-
     const loadDashboardPreferences = async () => {
       let config = null;
       if (supabaseClient?.auth) {
@@ -975,16 +1032,12 @@
         DashboardState.preferences.userId = userId;
         if (userId) {
           config = await fetchTableConfig(userId);
-          if (!config) {
-            const adminId = await fetchAdminUserId();
-            if (adminId) config = await fetchTableConfig(adminId);
-          }
         }
       }
 
       if (!config) {
         try {
-          const raw = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+          const raw = localStorage.getItem(getScopedStorageKey(PREFERENCES_STORAGE_KEY));
           config = raw ? JSON.parse(raw) : null;
         } catch {}
       }
@@ -1045,8 +1098,8 @@
     const persistDashboardPreferences = async () => {
       const payload = buildPreferencesPayload();
       try {
-        localStorage.setItem(PREFERENCES_STORAGE_KEY, JSON.stringify(payload));
-        localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(DashboardState.table.columns));
+        localStorage.setItem(getScopedStorageKey(PREFERENCES_STORAGE_KEY), JSON.stringify(payload));
+        localStorage.setItem(getScopedStorageKey(COLUMN_STORAGE_KEY), JSON.stringify(DashboardState.table.columns));
       } catch {}
 
       if (!supabaseClient?.from || !DashboardState.preferences.userId) return;
@@ -1524,9 +1577,9 @@
           const dimClass = isDimmed ? 'opacity-50' : '';
           return `
           <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="group flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass} ${dimClass}">
-            <span class="mb-1 text-[11px] font-semibold text-slate-200">${item.count}</span>
+            <span class="mb-1 text-[11px] font-semibold text-slate-200 opacity-80 transition-opacity duration-200 ease-out group-hover:opacity-100">${item.count}</span>
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
-              <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: 0%;" data-height="${item.percentage}%"></div>
+              <div class="bar-fill w-full rounded-full bg-gradient-to-t transition-all duration-700 ease-out group-hover:scale-105 ${item.color}" style="height: 0%; transition-delay: ${index * 60}ms;" data-height="${item.percentage}%"></div>
             </div>
             <span class="mt-2 text-[10px] uppercase tracking-[0.2em] text-slate-400 transition duration-200 ease-out group-hover:scale-110 group-hover:text-slate-100">${item.status}</span>
           </button>
@@ -1550,19 +1603,19 @@
 
       if (filters.dateRange.start) chips.push(`Date: From ${filters.dateRange.start}`);
       if (filters.salesChannelKey && filters.salesChannels.length) {
-        chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
+        chips.push(`${getColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
       }
       const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
       if (filters.unitTypeKey && unitTypeSelections.length) {
-        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
+        chips.push(`${getColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
-        if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
+        if (value !== 'all') chips.push(`${getColumnLabel(key)}: ${value}`);
       });
       Object.values(filters.chartFilters || {}).forEach((filter) => {
         const values = Array.isArray(filter.values) ? filter.values : [];
         if (!values.length) return;
-        chips.push(`${formatColumnLabel(filter.key)}: ${values.join(', ')}`);
+        chips.push(`${getColumnLabel(filter.key)}: ${values.join(', ')}`);
       });
 
       chipsContainer.innerHTML = chips.length
@@ -1606,7 +1659,7 @@
               <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
                 <div class="flex items-center gap-2">
                   <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                    <span class="whitespace-normal break-words">${c.label}</span>
+                    <span class="whitespace-normal break-words rounded px-1 outline-none focus:ring-1 focus:ring-blue-400/70" contenteditable="true" spellcheck="false" data-col-label="${c.key}">${c.label}</span>
                     <span class="text-[10px] text-blue-300">${indicator}</span>
                   </button>
                   <button type="button" data-column-filter-toggle="${c.key}" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-800 bg-slate-950/70 text-slate-300 transition hover:text-white" aria-label="Filter ${c.label}">
@@ -1753,7 +1806,7 @@
       let saved = DashboardState.preferences.config?.table?.columns || {};
       if (!Object.keys(saved).length) {
         try {
-          const stored = localStorage.getItem(COLUMN_STORAGE_KEY);
+          const stored = localStorage.getItem(getScopedStorageKey(COLUMN_STORAGE_KEY));
           saved = stored ? JSON.parse(stored) : {};
         } catch {
           saved = {};
@@ -1778,6 +1831,7 @@
       if (!DashboardState.schema.some((c) => c.key === DashboardState.table.sort.key)) {
         DashboardState.table.sort = { key: DashboardState.schema[0]?.key || '', direction: 'asc' };
       }
+      applyColumnLabelsToSchema();
       renderColumnChooser();
     };
 
@@ -2028,6 +2082,7 @@
       });
 
       addListener(tableHead, 'click', (event) => {
+        if (event.target.closest('[data-col-label]')) return;
         const button = event.target.closest('[data-sort]');
         if (!button) return;
         const key = button.dataset.sort;
@@ -2036,6 +2091,38 @@
         renderDashboard();
         schedulePersistPreferences();
       });
+
+      addListener(tableHead, 'mousedown', (event) => {
+        if (event.target.closest('[data-col-label]')) event.stopPropagation();
+      });
+
+      addListener(tableHead, 'focusin', (event) => {
+        const label = event.target.closest('[data-col-label]');
+        if (!label) return;
+        label.dataset.initialValue = label.textContent;
+      });
+
+      addListener(tableHead, 'keydown', (event) => {
+        const label = event.target.closest('[data-col-label]');
+        if (!label) return;
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          label.blur();
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          label.textContent = label.dataset.initialValue || label.textContent;
+          label.blur();
+        }
+      });
+
+      addListener(tableHead, 'blur', (event) => {
+        const label = event.target.closest('[data-col-label]');
+        if (!label) return;
+        const key = label.dataset.colLabel;
+        if (!key) return;
+        updateColumnLabel(key, label.textContent);
+      }, true);
 
       const closeColumnFilterPanels = (exceptKey = null) => {
         tableHead?.querySelectorAll('[data-column-filter-panel]').forEach((panel) => {
@@ -2059,7 +2146,7 @@
       addListener(tableHead, 'dragstart', (event) => {
         if (resizing) return;
         const th = event.target.closest('th[data-col-key]');
-        if (!th || event.target.closest('[data-resize-handle]')) return;
+        if (!th || event.target.closest('[data-resize-handle]') || event.target.closest('[data-col-label]')) return;
         activeDragKey = th.dataset.colKey;
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', activeDragKey);
