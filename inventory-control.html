@@ -842,6 +842,23 @@
       if (normalized.includes('active')) return 'Active';
       return 'Active';
     };
+    const normalizePhysicalLocation = (value) => {
+      if (value === null || value === undefined) return value;
+      if (typeof value !== 'string') return value;
+      const trimmed = value.trim();
+      if (!trimmed) return trimmed;
+      const normalized = trimmed.toUpperCase();
+      if (normalized === 'COPART' || normalized === 'CO PART - PENDING FUNDING' || normalized === 'CO PART- PENDING FUNDING') {
+        return 'COPART';
+      }
+      if (normalized === 'EXTERNAL DEALER FOR FINANCE EXTERNAL DEAL') {
+        return 'External Dealer';
+      }
+      if (normalized === 'HOUSBY TRUCK & EQUIPMENT SOLUTIONS, LLC') {
+        return 'HOUSBY';
+      }
+      return trimmed;
+    };
     const getField = (row, ...keys) => {
       for (const key of keys) {
         const value = row?.[key];
@@ -855,6 +872,8 @@
       const dateValue = getField(vehicle, 'Date') || updatedAt || createdAt;
       const vin = getField(vehicle, 'VIN');
       const uniqueId = vehicle.id || getField(vehicle, 'Current Stock No') || vin;
+      const physicalLocation = getField(vehicle, 'Physical Location');
+      const normalizedPhysicalLocation = normalizePhysicalLocation(physicalLocation);
       return {
         ...vehicle,
         id: uniqueId || null,
@@ -876,6 +895,7 @@
         updatedAt: updatedAt ? String(updatedAt).slice(0, 10) : '',
         date: dateValue ? String(dateValue).slice(0, 10) : '',
         lastEventAt: vehicle.lastEventAt || (updatedAt ? new Date(updatedAt).getTime() : null),
+        'Physical Location': normalizedPhysicalLocation,
       };
     };
 
