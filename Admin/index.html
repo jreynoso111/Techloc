@@ -755,10 +755,19 @@
       // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
       const uniqueDealsMap = new Map();
       let skippedMissingRequired = 0;
+      let skippedSalesChannel = 0;
       let duplicatesRemoved = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
+        const salesChannel = String(normalizedRow['sales channel'] ?? '').toUpperCase();
+        const isAllowedSalesChannel =
+          salesChannel.includes('FINANCE-EX') || salesChannel.includes('FINANCE-EXT');
+
+        if (!isAllowedSalesChannel) {
+          skippedSalesChannel += 1;
+          return;
+        }
         const stockNumber = normalizeStockNumber(normalizedRow['current stock no']);
 
         if (!stockNumber) {
@@ -833,6 +842,7 @@
         '\nTotal rows processed: ' + rows.length +
         '\nProcessed (Unique): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
+        '\nSkipped (Sales Channel filter): ' + skippedSalesChannel +
         '\nSkipped (Missing Stock No): ' + skippedMissingRequired +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
