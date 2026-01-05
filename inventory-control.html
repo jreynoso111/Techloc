@@ -701,7 +701,9 @@
 
     const formatDate = (value) => {
       if (!value) return '--';
-      return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return '--';
+      return parsed.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
     };
     const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value);
 
@@ -790,6 +792,14 @@
       return 'string';
     };
 
+    const DATE_COLUMNS = new Set([
+      'Deal Date',
+      'Calc. End',
+      'Inv. Prep. Stat. On',
+      'Oldest Invoice (Open)',
+      'Last Payment date',
+      'Last Ping',
+    ]);
     const buildSchemaFromData = (rows) => {
       if (!rows?.length) return [];
       const sample = rows.slice(0, 50);
@@ -799,7 +809,7 @@
         return {
           key,
           label: override || formatColumnLabel(key),
-          type: inferColumnType(values),
+          type: DATE_COLUMNS.has(key) ? 'date' : inferColumnType(values),
         };
       });
     };
