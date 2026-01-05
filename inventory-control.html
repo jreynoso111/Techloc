@@ -38,6 +38,10 @@
       --text-base: 0.9rem;
     }
 
+    html {
+      font-size: 14px;
+    }
+
     body[data-density="compact"] .p-4 { padding: var(--pad-2) !important; }
     body[data-density="compact"] .p-6 { padding: calc(var(--pad-2) + 0.25rem) !important; }
     body[data-density="compact"] .py-6 { padding-top: calc(var(--pad-2) + 0.25rem) !important; padding-bottom: calc(var(--pad-2) + 0.25rem) !important; }
@@ -184,6 +188,7 @@
             <span id="connection-status">Booting…</span>
           </div>
           <div id="unit-type-filters" class="mt-2 flex w-full justify-center md:mt-0 md:w-auto md:flex-1 md:justify-center"></div>
+          <div id="vehicle-status-filters" class="mt-2 flex w-full justify-center md:mt-0 md:w-auto md:flex-1 md:justify-center"></div>
           <div class="relative">
             <button id="sales-channel-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" aria-expanded="false">
               <span id="sales-channel-label">Sales Channel</span>
@@ -639,6 +644,8 @@
         chartFilters: {},
         unitTypeKey: '',
         unitTypeSelection: [],
+        vehicleStatusKey: '',
+        vehicleStatusSelection: [],
       },
       vehiclesRaw: new Map(),
       schema: [],
@@ -797,6 +804,11 @@
     const detectUnitTypeKey = (schema) =>
       schema.find((col) => /unit\s*type/i.test(col.key) || /unit\s*type/i.test(col.label))?.key || '';
 
+    const detectVehicleStatusKey = (schema) =>
+      schema.find((col) => col.key === 'status')?.key
+      || schema.find((col) => /vehicle\s*status/i.test(col.key) || /vehicle\s*status/i.test(col.label))?.key
+      || '';
+
     const detectTruthyColumnValue = (rows, key) => {
       if (!key) return '';
       const truthyRow = rows.find((row) => normalizeBoolean(row?.[key]));
@@ -930,6 +942,7 @@
         columnFilters: DashboardState.filters.columnFilters,
         chartFilters: DashboardState.filters.chartFilters,
         unitTypeSelection: DashboardState.filters.unitTypeSelection,
+        vehicleStatusSelection: DashboardState.filters.vehicleStatusSelection,
       },
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -985,6 +998,11 @@
         DashboardState.filters.unitTypeSelection = config.filters.unitTypeSelection.map((value) => String(value));
       } else if (typeof config.filters?.unitTypeSelection === 'string') {
         DashboardState.filters.unitTypeSelection = [config.filters.unitTypeSelection];
+      }
+      if (Array.isArray(config.filters?.vehicleStatusSelection)) {
+        DashboardState.filters.vehicleStatusSelection = config.filters.vehicleStatusSelection.map((value) => String(value));
+      } else if (typeof config.filters?.vehicleStatusSelection === 'string') {
+        DashboardState.filters.vehicleStatusSelection = [config.filters.vehicleStatusSelection];
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
@@ -1145,18 +1163,21 @@
       const salesChannelKey = detectSalesChannelKey(schema);
       const lastLeadKey = detectLastLeadKey(schema);
       const unitTypeKey = detectUnitTypeKey(schema);
-      const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey].filter(Boolean));
+      const vehicleStatusKey = detectVehicleStatusKey(schema);
+      const categoryKeys = detectCategoryKeys(schema, dataset, [dateKey, salesChannelKey, unitTypeKey, vehicleStatusKey].filter(Boolean));
 
       if (!preserveSelections) {
         DashboardState.filters.categoryFilters = {};
         DashboardState.filters.columnFilters = {};
         DashboardState.filters.unitTypeSelection = [];
+        DashboardState.filters.vehicleStatusSelection = [];
       }
 
       DashboardState.filters.dateKey = dateKey;
       DashboardState.filters.salesChannelKey = salesChannelKey;
       DashboardState.filters.lastLeadKey = lastLeadKey;
       DashboardState.filters.unitTypeKey = unitTypeKey;
+      DashboardState.filters.vehicleStatusKey = vehicleStatusKey;
 
       const builder = document.getElementById('filter-builder');
       const categoryBlock = document.getElementById('filter-category-block');
@@ -1316,6 +1337,13 @@
           || !unitTypeSelections.length
           || unitTypeSelections.includes(String(item[filters.unitTypeKey] ?? ''));
 
+        const vehicleStatusSelections = Array.isArray(filters.vehicleStatusSelection)
+          ? filters.vehicleStatusSelection
+          : [];
+        const vehicleStatusMatch = !filters.vehicleStatusKey
+          || !vehicleStatusSelections.length
+          || vehicleStatusSelections.includes(String(item[filters.vehicleStatusKey] ?? ''));
+
         const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
           if (!entry) return true;
           const value = item[key];
@@ -1342,7 +1370,7 @@
             return values.includes(getSegmentLabel(item[filter.key]));
           });
 
-        return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && columnMatch && chartMatch;
+        return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && vehicleStatusMatch && columnMatch && chartMatch;
       });
     };
 
@@ -1457,6 +1485,50 @@
           <div id="unit-type-panel" class="absolute left-1/2 z-40 mt-2 hidden w-56 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
             <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Choose unit types</p>
             <div id="unit-type-options" class="mt-2 grid gap-2">
+              ${optionHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    const renderVehicleStatusFilters = () => {
+      const container = document.getElementById('vehicle-status-filters');
+      if (!container) return;
+      const vehicleStatusKey = DashboardState.filters.vehicleStatusKey;
+      if (!vehicleStatusKey) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      const values = getUniqueValues(getCurrentDataset(), vehicleStatusKey);
+      const selections = Array.isArray(DashboardState.filters.vehicleStatusSelection)
+        ? DashboardState.filters.vehicleStatusSelection.filter((value) => values.includes(value))
+        : [];
+      DashboardState.filters.vehicleStatusSelection = selections;
+      if (!values.length) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+      container.classList.remove('hidden');
+      const optionHtml = values.map((value) => `
+        <label class="flex items-center gap-2 text-xs">
+          <input type="checkbox" value="${value}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${selections.includes(value) ? 'checked' : ''} />
+          <span>${value}</span>
+        </label>
+      `).join('');
+      const count = selections.length;
+      const labelText = count === 1 ? selections[0] : 'Vehicle Status';
+      container.innerHTML = `
+        <div class="relative">
+          <button id="vehicle-status-toggle" type="button" class="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" aria-expanded="false">
+            <span id="vehicle-status-label">${labelText}</span>
+            <span id="vehicle-status-summary" class="rounded-full border border-slate-700 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300">${count}</span>
+          </button>
+          <div id="vehicle-status-panel" class="absolute left-1/2 z-40 mt-2 hidden w-56 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+            <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Choose vehicle status</p>
+            <div id="vehicle-status-options" class="mt-2 grid gap-2">
               ${optionHtml}
             </div>
           </div>
@@ -1614,6 +1686,12 @@
       const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
       if (filters.unitTypeKey && unitTypeSelections.length) {
         chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
+      }
+      const vehicleStatusSelections = Array.isArray(filters.vehicleStatusSelection)
+        ? filters.vehicleStatusSelection
+        : [];
+      if (filters.vehicleStatusKey && vehicleStatusSelections.length) {
+        chips.push(`${formatColumnLabel(filters.vehicleStatusKey)}: ${vehicleStatusSelections.join(', ')}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
@@ -1797,8 +1875,10 @@
 
     const renderDashboard = () => {
       renderUnitTypeFilters();
+      renderVehicleStatusFilters();
       computeDerivedState();
       renderUnitTypeFilters();
+      renderVehicleStatusFilters();
       renderKpis();
       renderStatusBars();
       renderTableHead();
@@ -1945,6 +2025,12 @@
       const unitTypeOptions = document.getElementById('unit-type-options');
       const unitTypeSummary = document.getElementById('unit-type-summary');
       const unitTypeLabel = document.getElementById('unit-type-label');
+      const vehicleStatusFilters = document.getElementById('vehicle-status-filters');
+      const vehicleStatusToggle = document.getElementById('vehicle-status-toggle');
+      const vehicleStatusPanel = document.getElementById('vehicle-status-panel');
+      const vehicleStatusOptions = document.getElementById('vehicle-status-options');
+      const vehicleStatusSummary = document.getElementById('vehicle-status-summary');
+      const vehicleStatusLabel = document.getElementById('vehicle-status-label');
       const lastDealSelect = document.getElementById('last-deal-select');
       const alertsToggle = document.getElementById('alerts-toggle');
       const alertsList = document.getElementById('alerts-list');
@@ -2054,6 +2140,36 @@
           if (summary) summary.textContent = String(checked.length);
           if (label) {
             label.textContent = checked.length === 1 ? checked[0] : 'Unit Type';
+          }
+          resetPagination();
+          renderDashboard();
+          schedulePersistPreferences();
+        });
+      }
+
+      if (vehicleStatusFilters) {
+        addListener(vehicleStatusFilters, 'click', (event) => {
+          const toggle = event.target.closest('#vehicle-status-toggle');
+          if (!toggle) return;
+          const panel = vehicleStatusFilters.querySelector('#vehicle-status-panel');
+          if (!panel) return;
+          const isHidden = panel.classList.toggle('hidden');
+          toggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+
+        addListener(vehicleStatusFilters, 'change', (event) => {
+          const input = event.target;
+          if (!input.matches('input[type="checkbox"]')) return;
+          const options = vehicleStatusFilters.querySelector('#vehicle-status-options');
+          const summary = vehicleStatusFilters.querySelector('#vehicle-status-summary');
+          const label = vehicleStatusFilters.querySelector('#vehicle-status-label');
+          const checked = Array.from(options?.querySelectorAll('input[type="checkbox"]') || [])
+            .filter((item) => item.checked)
+            .map((item) => item.value);
+          DashboardState.filters.vehicleStatusSelection = checked;
+          if (summary) summary.textContent = String(checked.length);
+          if (label) {
+            label.textContent = checked.length === 1 ? checked[0] : 'Vehicle Status';
           }
           resetPagination();
           renderDashboard();
@@ -2363,6 +2479,13 @@
         });
       }
 
+      if (vehicleStatusToggle && vehicleStatusPanel) {
+        addListener(vehicleStatusToggle, 'click', () => {
+          const isHidden = vehicleStatusPanel.classList.toggle('hidden');
+          vehicleStatusToggle.setAttribute('aria-expanded', String(!isHidden));
+        });
+      }
+
       if (fullChartToggles.length && fullChartBodies.length && fullChartCards.length && fullChartResizer) {
         const setFullChartsCollapsed = (nextCollapsed) => {
           const fullChartMinHeight = '220px';
@@ -2407,6 +2530,15 @@
       document.addEventListener('click', (event) => {
         const panel = document.getElementById('unit-type-panel');
         const toggle = document.getElementById('unit-type-toggle');
+        if (!panel || panel.classList.contains('hidden')) return;
+        if (panel.contains(event.target) || toggle?.contains(event.target)) return;
+        panel.classList.add('hidden');
+        toggle?.setAttribute('aria-expanded', 'false');
+      });
+
+      document.addEventListener('click', (event) => {
+        const panel = document.getElementById('vehicle-status-panel');
+        const toggle = document.getElementById('vehicle-status-toggle');
         if (!panel || panel.classList.contains('hidden')) return;
         if (panel.contains(event.target) || toggle?.contains(event.target)) return;
         panel.classList.add('hidden');
