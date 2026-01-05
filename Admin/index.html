@@ -33,15 +33,6 @@
   </div>
 
   <div data-auth-protected class="hidden">
-    <div data-dashboard-loading class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/95 hidden">
-      <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-6 py-4 text-slate-200 shadow-xl shadow-slate-900/60">
-        <span class="text-xl">🚚</span>
-        <div>
-          <p class="text-sm font-semibold uppercase tracking-[0.2em] text-blue-200">Truck businesses</p>
-          <p class="text-sm font-semibold text-white">Loading data room...</p>
-        </div>
-      </div>
-    </div>
 <div class="sticky top-0 z-50 space-y-px">
   <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
     <div class="flex items-center justify-between px-6 py-4 lg:px-10">
@@ -667,7 +658,7 @@
       });
     };
 
-    const createDatasetCard = (dataset) => {
+    const renderDatasetCard = async (dataset) => {
       const template = document.getElementById('dataset-card-template');
       const clone = template.content.firstElementChild.cloneNode(true);
       const els = {
@@ -682,15 +673,7 @@
       els.scope.textContent = dataset.scope;
       els.title.textContent = dataset.title;
       els.description.textContent = dataset.description;
-      els.status.textContent = 'Loading';
-      els.status.className = 'rounded-full border border-blue-600/60 bg-blue-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-200';
-      els.rows.textContent = '--';
-      els.columns.textContent = '--';
-      els.signal.textContent = 'Fetching live stats...';
-      return { card: clone, els };
-    };
-
-    const updateDatasetCard = (els, stats) => {
+      const stats = await getTableStats(dataset);
       els.rows.textContent = stats.rows ? stats.rows.toLocaleString() : '--';
       els.columns.textContent = stats.columns || '--';
       if (stats.restricted) {
@@ -705,6 +688,7 @@
         els.status.textContent = 'Empty';
         els.signal.textContent = 'Table exists but contains no records.';
       }
+      return { card: clone, stats: { ...stats, table: dataset.displayName } };
     };
 
     const ensureToastContainer = () => {
@@ -770,23 +754,39 @@
       
       // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
       const uniqueDealsMap = new Map();
+      let skippedInvalid = 0;
+      let skippedInvalidSalesChannel = 0;
       let skippedMissingRequired = 0;
-      let skippedSalesChannel = 0;
       let duplicatesRemoved = 0;
 
       rows.forEach((rawRow) => {
         const normalizedRow = normalizeRow(rawRow);
-        const salesChannel = String(normalizedRow['sales channel'] ?? '').toUpperCase();
-        const isAllowedSalesChannel =
-          salesChannel.includes('FINANCE-EX') || salesChannel.includes('FINANCE-EXT');
+        // Validaciones
+        const salesChannel = normalizedRow['sales channel'];
+        const normalizedSalesChannel = (() => {
+          if (typeof salesChannel !== 'string') return '';
+          const trimmed = salesChannel.trim().toUpperCase();
+          if (trimmed === 'FINANCE-EX' || trimmed === 'FINANCE EXT' || trimmed === 'FINANCE-EXT') {
+            return 'FINANCE-EXT';
+          }
+          return '';
+        })();
 
-        if (!isAllowedSalesChannel) {
-          skippedSalesChannel += 1;
+        if (!normalizedSalesChannel) {
+          skippedInvalid += 1;
+          skippedInvalidSalesChannel += 1;
           return;
         }
-        const stockNumber = normalizeStockNumber(normalizedRow['current stock no']);
 
-        if (!stockNumber) {
+        if (normalizedSalesChannel) {
+          normalizedRow['sales channel'] = normalizedSalesChannel;
+        }
+
+        const stockNumber = normalizeStockNumber(normalizedRow['current stock no']);
+        const vin = cleanValue(normalizedRow['vin']);
+
+        if (!stockNumber || !vin) {
+          skippedInvalid += 1;
           skippedMissingRequired += 1;
           return; 
         }
@@ -814,12 +814,12 @@
       const filteredRows = Array.from(uniqueDealsMap.values());
 
       if (!filteredRows.length) {
-        setProgress(0, 'No rows with a stock number detected.');
-        showToast('No valid rows detected.\nCheck "Current Stock No." values.', 'error');
+        setProgress(0, 'No finance rows detected.');
+        showToast('No valid FINANCE rows detected.\nCheck "Current Stock No." and "Sales Channel".', 'error');
         return;
       }
 
-      const BATCH_SIZE = 1000;
+      const BATCH_SIZE = 500;
       let totalUpserted = 0;
       const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
       let processed = 0;
@@ -856,10 +856,10 @@
       const summary =
         'Completed.' +
         '\nTotal rows processed: ' + rows.length +
-        '\nProcessed (Unique): ' + filteredRows.length +
+        '\nProcessed (Unique Finance): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
-        '\nSkipped (Sales Channel filter): ' + skippedSalesChannel +
-        '\nSkipped (Missing Stock No): ' + skippedMissingRequired +
+        '\nSkipped (Invalid Sales Channel): ' + skippedInvalidSalesChannel +
+        '\nSkipped (Missing Stock No or VIN): ' + skippedMissingRequired +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
         '\nErrors: ' + parseErrors;
       
@@ -875,7 +875,7 @@
         const to = from + pageSize - 1;
         const { data, error } = await supabaseClient
           .from(DEALS_TABLE)
-          .select('Current Stock No', { head: false })
+          .select('"Current Stock No"', { head: false })
           .range(from, to);
         if (error) throw error;
         (data || []).forEach((row) => {
@@ -1220,33 +1220,18 @@
 
     const mount = async () => {
       const container = document.getElementById('datasets');
-      const loader = document.querySelector('[data-dashboard-loading]');
-      if (loader) loader.classList.remove('hidden');
-      container.innerHTML = '';
-      const cards = DATASETS.map((dataset) => {
-        const { card, els } = createDatasetCard(dataset);
+      let totalRows = 0;
+      let activities = [];
+      for (const dataset of DATASETS) {
+        const { card, stats } = await renderDatasetCard(dataset);
         container.appendChild(card);
-        return { dataset, els };
-      });
-      document.getElementById('dataset-count').textContent = DATASETS.length;
-      try {
-        const statsList = await Promise.all(
-          cards.map(async ({ dataset, els }) => {
-            const stats = await getTableStats(dataset);
-            updateDatasetCard(els, stats);
-            return { stats: { ...stats, table: dataset.displayName } };
-          })
-        );
-        const totalRows = statsList.reduce((sum, item) => sum + (item.stats.rows || 0), 0);
-        const activities = statsList
-          .filter((item) => (item.stats.rows || 0) > 0 && !item.stats.restricted)
-          .map((item) => item.stats);
-        document.getElementById('records-count').textContent = totalRows.toLocaleString();
-        renderActivityLog(activities);
-        lucide.createIcons();
-      } finally {
-        if (loader) loader.classList.add('hidden');
+        totalRows += stats.rows || 0;
+        if ((stats.rows || 0) > 0 && !stats.restricted) activities.push(stats);
       }
+      document.getElementById('dataset-count').textContent = DATASETS.length;
+      document.getElementById('records-count').textContent = totalRows.toLocaleString();
+      renderActivityLog(activities);
+      lucide.createIcons();
     };
 
     const ensureXlsxLibrary = () => {
