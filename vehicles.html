@@ -854,7 +854,7 @@
 
     const TABLES = {
       services: SERVICE_TABLE,
-      vehicles: 'vehicles',
+      vehicles: 'DealsJP1',
       hotspots: 'Hotspots',
       blacklist: 'Services_Blacklist'
     };
@@ -1817,7 +1817,11 @@
       }
       const stopLoading = startLoading('Loading Vehicles…');
       try {
-        const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
+        const { data, error } = await supabaseClient
+          .from(TABLES.vehicles)
+          .select('*')
+          .or('"Deals Status".eq.ACTIVE,"Inventory Preparation Status".eq."Out for Repo","Inventory Preparation Status".eq."Repoed on Hold"')
+          .not('last_ping', 'is', null);
         if (error) throw error;
         vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx));
         vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
