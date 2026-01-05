@@ -1308,16 +1308,25 @@
       const moving = getField(row, 'moving');
       const lastPing = getField(row, 'last_ping');
       const ptSerial = getField(row, 'PassTime Serial No');
-      const { coords, accuracy } = resolveCoords(row, { city, stateCode, seed: idx });
+      const model = getField(row, 'Model');
+      const vin = getField(row, 'VIN');
+      const customer = getField(row, 'Customer');
+      const payment = getField(row, 'Payment Schedule');
+      const dealStatus = getField(row, 'Deal Status');
+      const address = getField(row, 'address');
+      const rawLat = parseFloat(getField(row, 'lat'));
+      const rawLng = parseFloat(getField(row, 'long'));
+      const lat = Number.isFinite(rawLat) ? rawLat : null;
+      const lng = Number.isFinite(rawLng) ? rawLng : null;
       const v = {
         id: row?.id ?? idx,
-        status: 'ACTIVE',
+        status: dealStatus || 'ACTIVE',
         invPrepStatus,
         dealCompletion: null,
         type: 'Vehicle',
         year: null,
-        model: 'Vehicle',
-        vin: 'N/A',
+        model: model || 'Vehicle',
+        vin: vin || 'N/A',
         gpsFix,
         gpsReason: null,
         gpsMoving: null,
@@ -1330,15 +1339,15 @@
         state: stateCode,
         city,
         zipcode: '',
-        lat: coords.lat,
-        lng: coords.lng,
-        locationAccuracy: accuracy,
+        lat,
+        lng,
+        locationAccuracy: Number.isFinite(lat) && Number.isFinite(lng) ? 'exact' : 'unknown',
         customerId: null,
-        customer: city
+        customer: customer || (city
           ? `${city}, ${stateCode || 'US'}`
-          : stateCode || 'Unknown area',
-        lastLocation: `${city || 'Unknown'}, ${stateCode || 'USA'}`.trim(),
-        payment: null,
+          : stateCode || 'Unknown area'),
+        lastLocation: address || `${city || 'Unknown'}, ${stateCode || 'USA'}`.trim(),
+        payment,
         details: row,
       };
 
