@@ -656,6 +656,7 @@
         columns: {},
         columnOrder: [],
         columnWidths: {},
+        columnLabels: {},
       },
       derived: {
         filtered: [],
@@ -717,6 +718,27 @@
     };
 
     const formatColumnLabel = (key) => key.replace(/_/g, ' ');
+    const getColumnLabel = (key) =>
+      DashboardState.table.columnLabels?.[key]
+      || DashboardState.schema.find((col) => col.key === key)?.label
+      || formatColumnLabel(key);
+    const applyColumnLabelOverrides = () => {
+      if (!DashboardState.schema.length) return;
+      DashboardState.schema = DashboardState.schema.map((col) => ({
+        ...col,
+        label: DashboardState.table.columnLabels?.[col.key] || formatColumnLabel(col.key),
+      }));
+    };
+    const setColumnLabelOverride = (key, label) => {
+      const trimmed = label?.trim() || '';
+      if (trimmed) {
+        DashboardState.table.columnLabels[key] = trimmed;
+      } else {
+        delete DashboardState.table.columnLabels[key];
+      }
+      const column = DashboardState.schema.find((col) => col.key === key);
+      if (column) column.label = trimmed || formatColumnLabel(key);
+    };
 
     const inferColumnType = (values) => {
       let sawString = false;
@@ -770,9 +792,10 @@
       const sample = rows.slice(0, 50);
       return Object.keys(rows[0]).map((key) => {
         const values = sample.map((row) => row?.[key]);
+        const override = DashboardState.table.columnLabels?.[key];
         return {
           key,
-          label: formatColumnLabel(key),
+          label: override || formatColumnLabel(key),
           type: inferColumnType(values),
         };
       });
@@ -929,6 +952,7 @@
         columnWidths: DashboardState.table.columnWidths,
         sort: DashboardState.table.sort,
         perPage: DashboardState.table.perPage,
+        columnLabels: DashboardState.table.columnLabels,
       },
       chart: {
         chartSegments: DashboardState.chartSegments,
@@ -959,6 +983,8 @@
       if (typeof config.table?.perPage === 'number') DashboardState.table.perPage = config.table.perPage;
       if (Array.isArray(config.table?.columnOrder)) DashboardState.table.columnOrder = config.table.columnOrder;
       if (config.table?.columnWidths) DashboardState.table.columnWidths = config.table.columnWidths;
+      if (config.table?.columnLabels) DashboardState.table.columnLabels = config.table.columnLabels;
+      applyColumnLabelOverrides();
       if (config.chart?.chartSegments && typeof config.chart.chartSegments === 'object') {
         DashboardState.chartSegments = { ...config.chart.chartSegments };
       }
@@ -1681,11 +1707,17 @@
 
       if (filters.dateRange.start) chips.push(`Date: From ${filters.dateRange.start}`);
       if (filters.salesChannelKey && filters.salesChannels.length) {
-        chips.push(`${formatColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
+        chips.push(`${getColumnLabel(filters.salesChannelKey)}: ${filters.salesChannels.join(', ')}`);
       }
       const unitTypeSelections = Array.isArray(filters.unitTypeSelection) ? filters.unitTypeSelection : [];
       if (filters.unitTypeKey && unitTypeSelections.length) {
-        chips.push(`${formatColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
+        chips.push(`${getColumnLabel(filters.unitTypeKey)}: ${unitTypeSelections.join(', ')}`);
+      }
+      const vehicleStatusSelections = Array.isArray(filters.vehicleStatusSelection)
+        ? filters.vehicleStatusSelection
+        : [];
+      if (filters.vehicleStatusKey && vehicleStatusSelections.length) {
+        chips.push(`${getColumnLabel(filters.vehicleStatusKey)}: ${vehicleStatusSelections.join(', ')}`);
       }
       const vehicleStatusSelections = Array.isArray(filters.vehicleStatusSelection)
         ? filters.vehicleStatusSelection
@@ -1694,12 +1726,12 @@
         chips.push(`${formatColumnLabel(filters.vehicleStatusKey)}: ${vehicleStatusSelections.join(', ')}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
-        if (value !== 'all') chips.push(`${formatColumnLabel(key)}: ${value}`);
+        if (value !== 'all') chips.push(`${getColumnLabel(key)}: ${value}`);
       });
       Object.values(filters.chartFilters || {}).forEach((filter) => {
         const values = Array.isArray(filter.values) ? filter.values : [];
         if (!values.length) return;
-        chips.push(`${formatColumnLabel(filter.key)}: ${values.join(', ')}`);
+        chips.push(`${getColumnLabel(filter.key)}: ${values.join(', ')}`);
       });
 
       chipsContainer.innerHTML = chips.length
@@ -1930,7 +1962,10 @@
       container.innerHTML = sortedSchema.map((c) => `
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" value="${c.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${DashboardState.table.columns[c.key] ? 'checked' : ''} />
-          <span>${c.label}</span>
+          <span class="flex-1">${c.label}</span>
+          <button type="button" class="rounded-full border border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300 transition hover:border-blue-500 hover:text-white" data-column-edit="${c.key}">
+            Edit
+          </button>
         </label>
       `).join('');
     };
@@ -2200,6 +2235,19 @@
         const desired = Math.min(Math.max(1, Number(goToInput.value) || 1), totalPages);
         DashboardState.table.page = desired;
         renderDashboard();
+      });
+
+      addListener(columnChooserOptions, 'click', (event) => {
+        const editButton = event.target.closest('[data-column-edit]');
+        if (!editButton) return;
+        const key = editButton.dataset.columnEdit;
+        if (!key) return;
+        const currentLabel = getColumnLabel(key);
+        const nextLabel = window.prompt('Edit column name', currentLabel);
+        if (nextLabel === null) return;
+        setColumnLabelOverride(key, nextLabel);
+        renderDashboard();
+        schedulePersistPreferences();
       });
 
       addListener(tableHead, 'click', (event) => {
