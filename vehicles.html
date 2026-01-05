@@ -1297,44 +1297,48 @@
     };
 
     const normalizeVehicle = (row, idx = 0) => {
-      const stateCode = toStateCode(getField(row, 'State Loc', 'State', 'state', 'state_code'));
-      const rawLat = parseFloat(getField(row, 'Lat', 'lat'));
-      const rawLng = parseFloat(getField(row, 'Long', 'Lng', 'long', 'lng'));
-      const hasExactCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
-      const zip = getField(row, 'PT ZipCode', 'Zip', 'zip');
-      const city = getField(row, 'PT City', 'City', 'city');
-      const { coords, accuracy } = resolveCoords(row, { zip, city, stateCode, seed: idx, fallbackLatLng: hasExactCoords ? { lat: rawLat, lng: rawLng } : null });
-      const dealCompletion = getField(row, 'Deal Completion', 'Deal completion', 'Deal completition', 'Remaining');
+      const shortLocation = getField(row, 'short_location');
+      const parsedShortLocation = typeof shortLocation === 'string'
+        ? shortLocation.split(',').map((part) => part.trim()).filter(Boolean)
+        : [];
+      const city = parsedShortLocation[0] || '';
+      const stateCode = toStateCode(parsedShortLocation[1] || '');
+      const invPrepStatus = getField(row, 'Inventory Preparation Status');
+      const gpsFix = getField(row, 'gps_status');
+      const moving = getField(row, 'moving');
+      const lastPing = getField(row, 'last_ping');
+      const ptSerial = getField(row, 'PassTime Serial No');
+      const { coords, accuracy } = resolveCoords(row, { city, stateCode, seed: idx });
       const v = {
         id: row?.id ?? idx,
-        status: getField(row, 'Deal Status', 'status') || 'ACTIVE',
-        invPrepStatus: getField(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat'),
-        dealCompletion,
-        type: getField(row, 'Unit Type', 'type') || 'Vehicle',
-        year: getField(row, 'Model Year', 'year'),
-        model: getField(row, 'Model', 'model') || 'Vehicle',
-        vin: getField(row, 'ShortVIN', 'VIN', 'vin') || 'N/A',
-        gpsFix: getField(row, 'GPS Fix', 'gps_fix'),
-        gpsReason: getField(row, 'GPS Fix Reason', 'gps_fix_reason'),
-        gpsMoving: getField(row, 'GPS Moving', 'gps_moving'),
-        moving: getField(row, 'Moving', 'moving'),
-        movingCalc: getField(row, 'Moving (Calc)', 'moving_calc'),
-        ptStatus: getField(row, 'PT Status', 'pt_status'),
-        ptSerial: getField(row, 'PT Serial ', 'PT Serial', 'pt_serial'),
-        encoreSerial: getField(row, 'Encore Serial', 'encore_serial'),
-        lastRead: getField(row, 'PT Last Read', 'pt_last_read'),
+        status: 'ACTIVE',
+        invPrepStatus,
+        dealCompletion: null,
+        type: 'Vehicle',
+        year: null,
+        model: 'Vehicle',
+        vin: 'N/A',
+        gpsFix,
+        gpsReason: null,
+        gpsMoving: null,
+        moving,
+        movingCalc: null,
+        ptStatus: null,
+        ptSerial,
+        encoreSerial: null,
+        lastRead: lastPing,
         state: stateCode,
-        city: city || '',
-        zipcode: zip || '',
+        city,
+        zipcode: '',
         lat: coords.lat,
         lng: coords.lng,
         locationAccuracy: accuracy,
-        customerId: getField(row, 'Customer ID', 'Customer', 'customer_id'),
-        customer: getField(row, 'PT City', 'City', 'city')
-          ? `${getField(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
+        customerId: null,
+        customer: city
+          ? `${city}, ${stateCode || 'US'}`
           : stateCode || 'Unknown area',
-        lastLocation: `${getField(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${zip ? ' ' + zip : ''}`.trim(),
-        payment: getField(row, 'Payment Schedule', 'payment'),
+        lastLocation: `${city || 'Unknown'}, ${stateCode || 'USA'}`.trim(),
+        payment: null,
         details: row,
       };
 
