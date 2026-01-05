@@ -731,6 +731,9 @@
     };
     const setColumnLabelOverride = (key, label) => {
       const trimmed = label?.trim() || '';
+      if (!DashboardState.table.columnLabels || typeof DashboardState.table.columnLabels !== 'object') {
+        DashboardState.table.columnLabels = {};
+      }
       if (trimmed) {
         DashboardState.table.columnLabels[key] = trimmed;
       } else {
@@ -983,7 +986,9 @@
       if (typeof config.table?.perPage === 'number') DashboardState.table.perPage = config.table.perPage;
       if (Array.isArray(config.table?.columnOrder)) DashboardState.table.columnOrder = config.table.columnOrder;
       if (config.table?.columnWidths) DashboardState.table.columnWidths = config.table.columnWidths;
-      if (config.table?.columnLabels) DashboardState.table.columnLabels = config.table.columnLabels;
+      if (config.table?.columnLabels && typeof config.table.columnLabels === 'object') {
+        DashboardState.table.columnLabels = config.table.columnLabels;
+      }
       applyColumnLabelOverrides();
       if (config.chart?.chartSegments && typeof config.chart.chartSegments === 'object') {
         DashboardState.chartSegments = { ...config.chart.chartSegments };
@@ -1718,12 +1723,6 @@
         : [];
       if (filters.vehicleStatusKey && vehicleStatusSelections.length) {
         chips.push(`${getColumnLabel(filters.vehicleStatusKey)}: ${vehicleStatusSelections.join(', ')}`);
-      }
-      const vehicleStatusSelections = Array.isArray(filters.vehicleStatusSelection)
-        ? filters.vehicleStatusSelection
-        : [];
-      if (filters.vehicleStatusKey && vehicleStatusSelections.length) {
-        chips.push(`${formatColumnLabel(filters.vehicleStatusKey)}: ${vehicleStatusSelections.join(', ')}`);
       }
       Object.entries(filters.categoryFilters || {}).forEach(([key, value]) => {
         if (value !== 'all') chips.push(`${getColumnLabel(key)}: ${value}`);
