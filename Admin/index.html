@@ -658,7 +658,7 @@
       });
     };
 
-    const renderDatasetCard = async (dataset) => {
+    const createDatasetCard = (dataset) => {
       const template = document.getElementById('dataset-card-template');
       const clone = template.content.firstElementChild.cloneNode(true);
       const els = {
@@ -673,7 +673,10 @@
       els.scope.textContent = dataset.scope;
       els.title.textContent = dataset.title;
       els.description.textContent = dataset.description;
-      const stats = await getTableStats(dataset);
+      return { card: clone, els };
+    };
+
+    const updateDatasetCardStats = (els, stats) => {
       els.rows.textContent = stats.rows ? stats.rows.toLocaleString() : '--';
       els.columns.textContent = stats.columns || '--';
       if (stats.restricted) {
@@ -688,7 +691,6 @@
         els.status.textContent = 'Empty';
         els.signal.textContent = 'Table exists but contains no records.';
       }
-      return { card: clone, stats: { ...stats, table: dataset.displayName } };
     };
 
     const ensureToastContainer = () => {
@@ -1220,14 +1222,28 @@
 
     const mount = async () => {
       const container = document.getElementById('datasets');
-      let totalRows = 0;
-      let activities = [];
-      for (const dataset of DATASETS) {
-        const { card, stats } = await renderDatasetCard(dataset);
+      const datasetCards = DATASETS.map((dataset) => {
+        const { card, els } = createDatasetCard(dataset);
         container.appendChild(card);
-        totalRows += stats.rows || 0;
-        if ((stats.rows || 0) > 0 && !stats.restricted) activities.push(stats);
-      }
+        return { dataset, els };
+      });
+      const statsResults = await Promise.all(
+        datasetCards.map(async ({ dataset, els }) => {
+          try {
+            const stats = await getTableStats(dataset);
+            updateDatasetCardStats(els, stats);
+            return { stats, dataset };
+          } catch (err) {
+            const stats = { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: err.message };
+            updateDatasetCardStats(els, stats);
+            return { stats, dataset };
+          }
+        }),
+      );
+      const totalRows = statsResults.reduce((sum, { stats }) => sum + (stats.rows || 0), 0);
+      const activities = statsResults
+        .filter(({ stats }) => (stats.rows || 0) > 0 && !stats.restricted)
+        .map(({ stats, dataset }) => ({ ...stats, table: dataset.displayName }));
       document.getElementById('dataset-count').textContent = DATASETS.length;
       document.getElementById('records-count').textContent = totalRows.toLocaleString();
       renderActivityLog(activities);
