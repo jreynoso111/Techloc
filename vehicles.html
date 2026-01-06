@@ -1323,6 +1323,7 @@
         ptSerial: getField(row, 'PT Serial ', 'PT Serial', 'pt_serial'),
         encoreSerial: getField(row, 'Encore Serial', 'encore_serial'),
         lastRead: getField(row, 'PT Last Read', 'pt_last_read'),
+        daysStationary: getField(row, 'days_stationary', 'Days Stationary', 'Days stationary', 'Days Stationary (Calc)', 'Days Parked'),
         state: stateCode,
         city: city || '',
         zipcode: zip || '',
@@ -1341,6 +1342,30 @@
       v._searchBlob = `${v.model} ${v.vin} ${v.lastLocation} ${v.customerId} ${v.customer}`.toLowerCase();
 
       return v;
+    };
+
+    const VEHICLE_HEADER_LABELS = {
+      days_stationary: 'Days Parked',
+      short_location: 'GPS City'
+    };
+
+    const EDITABLE_VEHICLE_FIELDS = {
+      'gps fix': 'gpsFix',
+      'gps fix reason': 'gpsReason'
+    };
+
+    const formatDateTime = (value) => {
+      if (!value) return '—';
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '—';
+      return date.toLocaleString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(',', '');
     };
 
     const normalizeHotspot = (row, idx = 0) => {
@@ -2745,6 +2770,9 @@
                   <span class="w-2 h-2 rounded-full ${movingMeta.dot}"></span>
                   <span>${movingMeta.label}</span>
                 </div>
+                <div class="text-[10px] font-semibold text-slate-300">
+                  Days Parked <span class="text-slate-100">${vehicle.daysStationary || '—'}</span>
+                </div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -2783,7 +2811,7 @@
                 </div>
               </div>
               <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span class="flex items-center gap-2 font-semibold text-slate-200">${svgIcon('clock', 'h-3 w-3')} ${vehicle.lastRead || '—'}</span>
+                <span class="flex items-center gap-2 font-semibold text-slate-200">${svgIcon('clock', 'h-3 w-3')} PT Last Read ${formatDateTime(vehicle.lastRead)}</span>
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
@@ -3320,15 +3348,77 @@
       const body = document.getElementById('vehicle-modal-body');
       if (!modal || !title || !body) return;
 
+      modal.dataset.vehicleId = vehicle.id;
       title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
       const detailRows = vehicleHeaders.map(header => {
+        if (header.toLowerCase() === 'pt city') return '';
+        const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
+        const fieldKey = EDITABLE_VEHICLE_FIELDS[header.toLowerCase()];
+        const isEditable = Boolean(fieldKey);
         const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
-        return `<tr class="border-b border-slate-800/80"><th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">${header}</th><td class="text-xs text-slate-100 py-2">${value || '—'}</td></tr>`;
+        return `
+          <tr class="border-b border-slate-800/80">
+            <th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">${displayHeader}</th>
+            <td class="text-xs text-slate-100 py-2">
+              <div class="flex items-center justify-between gap-2">
+                <span data-field-value>${value || '—'}</span>
+                ${isEditable ? `
+                  <button type="button" class="rounded border border-amber-400/40 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}">Edit</button>
+                ` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
       }).join('');
       body.innerHTML = `<table class="w-full text-left">${detailRows}</table>`;
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+      attachVehicleModalEditors(vehicle);
+    }
+
+    function attachVehicleModalEditors(vehicle) {
+      const modal = document.getElementById('vehicle-modal');
+      if (!modal) return;
+      const editButtons = modal.querySelectorAll('[data-edit-field]');
+      editButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const fieldKey = button.dataset.editField;
+          const headerKey = button.dataset.editHeader;
+          const cell = button.closest('td');
+          const valueNode = cell?.querySelector('[data-field-value]');
+          if (!cell || !valueNode) return;
+
+          if (button.dataset.editing === 'true') {
+            const input = cell.querySelector('input[data-edit-input]');
+            const newValue = input ? input.value.trim() : '';
+            valueNode.textContent = newValue || '—';
+            button.dataset.editing = 'false';
+            button.textContent = 'Edit';
+            if (input) input.remove();
+
+            if (vehicle?.details && headerKey) {
+              vehicle.details[headerKey] = newValue;
+            }
+            if (fieldKey && vehicle) {
+              vehicle[fieldKey] = newValue;
+            }
+            return;
+          }
+
+          const currentValue = valueNode.textContent === '—' ? '' : valueNode.textContent;
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.value = currentValue;
+          input.dataset.editInput = 'true';
+          input.className = 'flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-100';
+          valueNode.textContent = '';
+          valueNode.appendChild(input);
+          button.dataset.editing = 'true';
+          button.textContent = 'Save';
+          input.focus();
+        });
+      });
     }
 
     function closeVehicleModal() {
