@@ -1227,6 +1227,11 @@
       });
     };
 
+    const signalDashboardReady = () => {
+      window.adminDashboardReady = true;
+      window.dispatchEvent(new Event('admin:dashboard-ready'));
+    };
+
     const mount = async () => {
       const container = document.getElementById('datasets');
       let totalRows = 0;
@@ -1630,7 +1635,12 @@
     initBackground().catch((error) =>
       console.error('Unable to initialize background manager', error)
     );
-    mount();
+    mount()
+      .then(() => signalDashboardReady())
+      .catch((error) => {
+        console.error('Unable to load dashboard datasets', error);
+        signalDashboardReady();
+      });
     wireDealsUpload();
     wireInvoicesUpload();
     wirePtPingUpload();

@@ -295,6 +295,21 @@ const waitForPageLoad = () =>
     window.addEventListener('load', () => resolve(), { once: true });
   });
 
+const waitForDashboardReady = () =>
+  new Promise((resolve) => {
+    if (!routeInfo.isAdminRoute) {
+      resolve();
+      return;
+    }
+
+    if (window.adminDashboardReady) {
+      resolve();
+      return;
+    }
+
+    window.addEventListener('admin:dashboard-ready', () => resolve(), { once: true });
+  });
+
 const applyLoadingState = () => {
   const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
   protectedBlocks.forEach((block) => {
@@ -378,6 +393,7 @@ const enforceAdminGuard = async () => {
   }
 
   await waitForPageLoad();
+  await waitForDashboardReady();
   revealAuthorizedUi();
   return session;
 };
