@@ -3530,9 +3530,18 @@
                 throw new Error('Supabase unavailable');
               }
 
+              const normalizedHeaderKey = normalizeKey(headerKey);
+              const hasHeader = vehicleHeaders.includes(headerKey);
+              const hasNormalizedHeader = vehicleHeaders.includes(normalizedHeaderKey);
+              const resolvedHeaderKey = hasHeader
+                ? headerKey
+                : hasNormalizedHeader
+                  ? normalizedHeaderKey
+                  : headerKey;
+
               const { error } = await supabaseClient
                 .from(TABLES.vehicles)
-                .update({ [normalizedHeaderKey]: newValue })
+                .update({ [resolvedHeaderKey]: newValue })
                 .eq('id', vehicle.id);
 
               if (error) throw error;
@@ -3543,8 +3552,11 @@
               button.disabled = false;
               if (input) input.remove();
 
-              if (vehicle?.details && headerKey) {
-                vehicle.details[headerKey] = newValue;
+              if (vehicle?.details) {
+                vehicle.details[resolvedHeaderKey] = newValue;
+                if (headerKey && headerKey !== resolvedHeaderKey) {
+                  vehicle.details[headerKey] = newValue;
+                }
               }
               if (fieldKey && vehicle) {
                 vehicle[fieldKey] = newValue;
