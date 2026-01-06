@@ -3518,19 +3518,25 @@
           if (button.dataset.editing === 'true') {
             const input = cell.querySelector('input[data-edit-input]');
             const newValue = input ? input.value.trim() : '';
+            const normalizedHeaderKey = headerKey
+              ? headerKey.trim().toLowerCase().replace(/\s+/g, '_')
+              : '';
             button.disabled = true;
             button.textContent = 'Saving...';
+            const stopLoading = startLoading('Actualizando vehículo…');
 
             let saveError = null;
-            if (supabaseClient && headerKey && vehicle?.id !== undefined) {
+            if (supabaseClient && normalizedHeaderKey && vehicle?.id !== undefined) {
               const { error } = await supabaseClient
                 .from(TABLES.vehicles)
-                .update({ [headerKey]: newValue })
+                .update({ [normalizedHeaderKey]: newValue })
                 .eq('id', vehicle.id);
               saveError = error;
             } else {
               saveError = new Error('Supabase unavailable');
             }
+
+            stopLoading();
 
             if (saveError) {
               console.warn('Failed to update vehicle field:', saveError);
@@ -3545,12 +3551,16 @@
             button.disabled = false;
             if (input) input.remove();
 
-            if (vehicle?.details && headerKey) {
-              vehicle.details[headerKey] = newValue;
+            if (vehicle?.details && normalizedHeaderKey) {
+              vehicle.details[normalizedHeaderKey] = newValue;
+              if (headerKey && headerKey !== normalizedHeaderKey) {
+                vehicle.details[headerKey] = newValue;
+              }
             }
             if (fieldKey && vehicle) {
               vehicle[fieldKey] = newValue;
             }
+            renderVehicles();
             return;
           }
 
