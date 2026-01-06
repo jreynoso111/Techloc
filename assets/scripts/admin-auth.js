@@ -286,6 +286,15 @@ const waitForDom = () =>
     document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
   });
 
+const waitForPageLoad = () =>
+  new Promise((resolve) => {
+    if (document.readyState === 'complete') {
+      resolve();
+      return;
+    }
+    window.addEventListener('load', () => resolve(), { once: true });
+  });
+
 const applyLoadingState = () => {
   const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
   protectedBlocks.forEach((block) => {
@@ -368,6 +377,7 @@ const enforceAdminGuard = async () => {
     return session;
   }
 
+  await waitForPageLoad();
   revealAuthorizedUi();
   return session;
 };
