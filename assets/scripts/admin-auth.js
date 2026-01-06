@@ -136,6 +136,8 @@ const routeInfo = (() => {
   const path = window.location.pathname.toLowerCase();
   return {
     isAdminRoute: path.includes('/admin/'),
+    isAdminDashboard:
+      path.endsWith('/admin/index.html') || path.endsWith('/admin/') || path.endsWith('admin/index.html'),
     isControlView: path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
     isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
     isProfilesPage: path.includes('/admin/profiles.html'),
@@ -286,6 +288,15 @@ const waitForDom = () =>
     document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
   });
 
+const waitForPageLoad = () =>
+  new Promise((resolve) => {
+    if (document.readyState === 'complete') {
+      resolve();
+      return;
+    }
+    window.addEventListener('load', () => resolve(), { once: true });
+  });
+
 const applyLoadingState = () => {
   const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
   protectedBlocks.forEach((block) => {
@@ -365,6 +376,13 @@ const enforceAdminGuard = async () => {
 
   if (routeInfo.isAdminRoute && !roleAllowsDashboard(role)) {
     redirectToHome();
+    return session;
+  }
+
+  await waitForPageLoad();
+  if (routeInfo.isAdminDashboard) {
+    window.adminAuthReady = true;
+    window.dispatchEvent(new Event('admin:auth-ready'));
     return session;
   }
 
