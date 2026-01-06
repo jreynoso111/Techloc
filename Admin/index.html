@@ -746,9 +746,20 @@
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
       const conflictColumn = columnMap.get('current stock no'); 
+      const dealStatusColumn = columnMap.get('deal status');
+      const vehicleStatusColumn = columnMap.get('vehicle status');
 
-      if (!conflictColumn) {
-        showToast('Local configuration error: "Current Stock No" missing from whitelist.', 'error');
+      const normalizeFinanceSalesChannel = (value) => {
+        if (typeof value !== 'string') return '';
+        const trimmed = value.trim().toUpperCase();
+        if (trimmed === 'FINANCE-EX' || trimmed === 'FINANCE EXT' || trimmed === 'FINANCE-EXT') {
+          return 'FINANCE-EXT';
+        }
+        return '';
+      };
+
+      if (!conflictColumn || !dealStatusColumn || !vehicleStatusColumn) {
+        showToast('Local configuration error: missing required Deal columns.', 'error');
         return;
       }
 
@@ -765,16 +776,9 @@
         const normalizedRow = normalizeRow(rawRow);
         // Validaciones
         const salesChannel = normalizedRow['sales channel'];
-        const normalizedSalesChannel = (() => {
-          if (typeof salesChannel !== 'string') return '';
-          const trimmed = salesChannel.trim().toUpperCase();
-          if (trimmed === 'FINANCE-EX' || trimmed === 'FINANCE EXT' || trimmed === 'FINANCE-EXT') {
-            return 'FINANCE-EXT';
-          }
-          return '';
-        })();
+        const normalizedSalesChannel = normalizeFinanceSalesChannel(salesChannel);
 
-        if (!normalizedSalesChannel) {
+        if (normalizedSalesChannel !== 'FINANCE-EXT') {
           skippedInvalid += 1;
           skippedInvalidSalesChannel += 1;
           return;
@@ -802,9 +806,11 @@
         });
 
         mapped[conflictColumn] = stockNumber;
+        mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
+        mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
 
-        // LLAVE UNICA: Current Stock No
-        const uniqueKey = stockNumber;
+        // LLAVE UNICA: VIN + Current Stock No
+        const uniqueKey = `${vin}_${stockNumber}`;
 
         if (uniqueDealsMap.has(uniqueKey)) {
             duplicatesRemoved++;
