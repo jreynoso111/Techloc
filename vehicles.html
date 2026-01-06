@@ -1345,7 +1345,8 @@
     };
 
     const VEHICLE_HEADER_LABELS = {
-      days_stationary: 'Days Parked'
+      days_stationary: 'Days Parked',
+      short_location: 'GPS City'
     };
 
     const EDITABLE_VEHICLE_FIELDS = {
@@ -2772,9 +2773,6 @@
                 <div class="text-[10px] font-semibold text-slate-300">
                   Days Parked <span class="text-slate-100">${vehicle.daysStationary || '—'}</span>
                 </div>
-                <div class="text-[10px] font-semibold text-slate-300">
-                  PT Last Read <span class="text-slate-100">${formatDateTime(vehicle.lastRead)}</span>
-                </div>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -2813,7 +2811,7 @@
                 </div>
               </div>
               <div class="flex items-center justify-between text-[11px] text-slate-400">
-                <span class="flex items-center gap-2 font-semibold text-slate-200">${svgIcon('clock', 'h-3 w-3')} ${vehicle.lastRead || '—'}</span>
+                <span class="flex items-center gap-2 font-semibold text-slate-200">${svgIcon('clock', 'h-3 w-3')} PT Last Read ${formatDateTime(vehicle.lastRead)}</span>
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
@@ -3353,6 +3351,7 @@
       modal.dataset.vehicleId = vehicle.id;
       title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
       const detailRows = vehicleHeaders.map(header => {
+        if (header.toLowerCase() === 'pt city') return '';
         const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
         const fieldKey = EDITABLE_VEHICLE_FIELDS[header.toLowerCase()];
         const isEditable = Boolean(fieldKey);
