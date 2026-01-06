@@ -3529,33 +3529,19 @@
               throw new Error('Supabase unavailable');
             }
 
-            const normalizedHeaderKey = normalizeKey(headerKey);
-            const hasHeader = vehicleHeaders.includes(headerKey);
-            const hasNormalizedHeader = vehicleHeaders.includes(normalizedHeaderKey);
-            const resolvedHeaderKey = hasHeader
-              ? headerKey
-              : hasNormalizedHeader
-                ? normalizedHeaderKey
-                : headerKey;
-
             const { error } = await supabaseClient
               .from(TABLES.vehicles)
-              .update({ [resolvedHeaderKey]: newValue })
+              .update({ [headerKey]: newValue })
               .eq('id', vehicle.id);
 
             if (error) throw error;
 
             valueNode.textContent = newValue || '—';
             button.dataset.editing = 'false';
-            button.textContent = 'Edit';
-            button.disabled = false;
             if (input) input.remove();
 
             if (vehicle?.details) {
-              vehicle.details[resolvedHeaderKey] = newValue;
-              if (headerKey && headerKey !== resolvedHeaderKey) {
-                vehicle.details[headerKey] = newValue;
-              }
+              vehicle.details[headerKey] = newValue;
             }
             if (fieldKey && vehicle) {
               vehicle[fieldKey] = newValue;
@@ -3565,17 +3551,15 @@
           } catch (error) {
             console.warn('Failed to update vehicle field:', error);
             alert(error?.message || 'Failed to save vehicle update.');
-            button.disabled = false;
-            button.textContent = 'Save';
           } finally {
             stopLoading();
             saveInProgress = false;
+            button.disabled = false;
+            button.textContent = button.dataset.editing === 'true' ? 'Save' : 'Edit';
           }
         };
 
-        button.addEventListener('click', async () => {
-          const fieldKey = button.dataset.editField;
-          const headerKey = button.dataset.editHeader;
+        button.onclick = async () => {
           const cell = button.closest('td');
           const valueNode = cell?.querySelector('[data-field-value]');
           if (!cell || !valueNode) return;
@@ -3602,12 +3586,7 @@
               saveEdit();
             }
           });
-          input.addEventListener('blur', () => {
-            if (button.dataset.editing === 'true') {
-              saveEdit();
-            }
-          });
-        });
+        };
       });
     }
 
