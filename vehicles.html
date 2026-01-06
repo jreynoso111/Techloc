@@ -3508,69 +3508,65 @@
       if (!modal) return;
       const editButtons = modal.querySelectorAll('[data-edit-field]');
       editButtons.forEach((button) => {
-        button.addEventListener('click', async () => {
+        let saveInProgress = false;
+        const saveEdit = async () => {
+          if (saveInProgress) return;
           const fieldKey = button.dataset.editField;
           const headerKey = button.dataset.editHeader;
           const cell = button.closest('td');
           const valueNode = cell?.querySelector('[data-field-value]');
           if (!cell || !valueNode) return;
 
-          if (button.dataset.editing === 'true') {
-            const input = cell.querySelector('input[data-edit-input]');
-            const newValue = input ? input.value.trim() : '';
-            const normalizedHeaderKey = headerKey
-              ? headerKey.trim().toLowerCase().replace(/\s+/g, '_')
-              : '';
-            button.disabled = true;
-            button.textContent = 'Saving...';
-            const stopLoading = startLoading('Saving...');
+          const input = cell.querySelector('input[data-edit-input]');
+          const newValue = input ? input.value.trim() : '';
+          saveInProgress = true;
+          button.disabled = true;
+          button.textContent = 'Saving...';
+          const stopLoading = startLoading('Saving...');
 
-            try {
-              if (!supabaseClient || !headerKey || vehicle?.id === undefined) {
-                throw new Error('Supabase unavailable');
-              }
-
-              const normalizedHeaderKey = normalizeKey(headerKey);
-              const hasHeader = vehicleHeaders.includes(headerKey);
-              const hasNormalizedHeader = vehicleHeaders.includes(normalizedHeaderKey);
-              const resolvedHeaderKey = hasHeader
-                ? headerKey
-                : hasNormalizedHeader
-                  ? normalizedHeaderKey
-                  : headerKey;
-
-              const { error } = await supabaseClient
-                .from(TABLES.vehicles)
-                .update({ [resolvedHeaderKey]: newValue })
-                .eq('id', vehicle.id);
-
-              if (error) throw error;
-
-              valueNode.textContent = newValue || '—';
-              button.dataset.editing = 'false';
-              button.textContent = 'Edit';
-              button.disabled = false;
-              if (input) input.remove();
-
-              if (vehicle?.details) {
-                vehicle.details[resolvedHeaderKey] = newValue;
-                if (headerKey && headerKey !== resolvedHeaderKey) {
-                  vehicle.details[headerKey] = newValue;
-                }
-              }
-              if (fieldKey && vehicle) {
-                vehicle[fieldKey] = newValue;
-              }
-              renderVehicles();
-              return;
-            } catch (error) {
-              console.warn('Failed to update vehicle field:', error);
-              alert(error?.message || 'Failed to save vehicle update.');
-              button.disabled = false;
-              button.textContent = 'Save';
-            } finally {
-              stopLoading();
+          try {
+            if (!supabaseClient || !headerKey || vehicle?.id === undefined) {
+              throw new Error('Supabase unavailable');
             }
+
+            const { error } = await supabaseClient
+              .from(TABLES.vehicles)
+              .update({ [headerKey]: newValue })
+              .eq('id', vehicle.id);
+
+            if (error) throw error;
+
+            valueNode.textContent = newValue || '—';
+            button.dataset.editing = 'false';
+            if (input) input.remove();
+
+            if (vehicle?.details) {
+              vehicle.details[headerKey] = newValue;
+            }
+            if (fieldKey && vehicle) {
+              vehicle[fieldKey] = newValue;
+            }
+            renderVehicles();
+            return;
+          } catch (error) {
+            console.warn('Failed to update vehicle field:', error);
+            alert(error?.message || 'Failed to save vehicle update.');
+          } finally {
+            stopLoading();
+            saveInProgress = false;
+            button.disabled = false;
+            button.textContent = button.dataset.editing === 'true' ? 'Save' : 'Edit';
+          }
+        };
+
+        button.onclick = async () => {
+          const cell = button.closest('td');
+          const valueNode = cell?.querySelector('[data-field-value]');
+          if (!cell || !valueNode) return;
+
+          if (button.dataset.editing === 'true') {
+            await saveEdit();
+            return;
           }
 
           const currentValue = valueNode.textContent === '—' ? '' : valueNode.textContent;
@@ -3584,7 +3580,13 @@
           button.dataset.editing = 'true';
           button.textContent = 'Save';
           input.focus();
-        });
+          input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              saveEdit();
+            }
+          });
+        };
       });
     }
 
