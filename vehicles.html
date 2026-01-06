@@ -3523,45 +3523,42 @@
               : '';
             button.disabled = true;
             button.textContent = 'Saving...';
-            const stopLoading = startLoading('Actualizando vehículo…');
+            const stopLoading = startLoading('Saving...');
 
-            let saveError = null;
-            if (supabaseClient && normalizedHeaderKey && vehicle?.id !== undefined) {
+            try {
+              if (!supabaseClient || !headerKey || vehicle?.id === undefined) {
+                throw new Error('Supabase unavailable');
+              }
+
               const { error } = await supabaseClient
                 .from(TABLES.vehicles)
                 .update({ [normalizedHeaderKey]: newValue })
                 .eq('id', vehicle.id);
-              saveError = error;
-            } else {
-              saveError = new Error('Supabase unavailable');
-            }
 
-            stopLoading();
+              if (error) throw error;
 
-            if (saveError) {
-              console.warn('Failed to update vehicle field:', saveError);
+              valueNode.textContent = newValue || '—';
+              button.dataset.editing = 'false';
+              button.textContent = 'Edit';
               button.disabled = false;
-              button.textContent = 'Save';
-              return;
-            }
+              if (input) input.remove();
 
-            valueNode.textContent = newValue || '—';
-            button.dataset.editing = 'false';
-            button.textContent = 'Edit';
-            button.disabled = false;
-            if (input) input.remove();
-
-            if (vehicle?.details && normalizedHeaderKey) {
-              vehicle.details[normalizedHeaderKey] = newValue;
-              if (headerKey && headerKey !== normalizedHeaderKey) {
+              if (vehicle?.details && headerKey) {
                 vehicle.details[headerKey] = newValue;
               }
+              if (fieldKey && vehicle) {
+                vehicle[fieldKey] = newValue;
+              }
+              renderVehicles();
+              return;
+            } catch (error) {
+              console.warn('Failed to update vehicle field:', error);
+              alert(error?.message || 'Failed to save vehicle update.');
+              button.disabled = false;
+              button.textContent = 'Save';
+            } finally {
+              stopLoading();
             }
-            if (fieldKey && vehicle) {
-              vehicle[fieldKey] = newValue;
-            }
-            renderVehicles();
-            return;
           }
 
           const currentValue = valueNode.textContent === '—' ? '' : valueNode.textContent;
