@@ -1632,18 +1632,44 @@
       });
     };
 
-    initBackground().catch((error) =>
-      console.error('Unable to initialize background manager', error)
-    );
-    mount()
-      .then(() => signalDashboardReady())
-      .catch((error) => {
-        console.error('Unable to load dashboard datasets', error);
-        signalDashboardReady();
+    const waitForAuthReady = () =>
+      new Promise((resolve) => {
+        if (window.adminAuthReady) {
+          resolve();
+          return;
+        }
+        window.addEventListener('admin:auth-ready', () => resolve(), { once: true });
       });
-    wireDealsUpload();
-    wireInvoicesUpload();
-    wirePtPingUpload();
+
+    const revealDashboard = () => {
+      const loading = document.querySelector('[data-auth-loading]');
+      if (loading) {
+        loading.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+        setTimeout(() => loading.classList.add('hidden'), 500);
+      }
+      document.querySelectorAll('[data-auth-protected]').forEach((block) => {
+        block.classList.remove('hidden');
+        block.removeAttribute('aria-hidden');
+      });
+    };
+
+    const start = async () => {
+      try {
+        await initBackground();
+        await mount();
+      } catch (error) {
+        console.error('Unable to load dashboard datasets', error);
+        return;
+      }
+
+      wireDealsUpload();
+      wireInvoicesUpload();
+      wirePtPingUpload();
+      await waitForAuthReady();
+      revealDashboard();
+    };
+
+    start();
   </script>
 </body>
 </html>
