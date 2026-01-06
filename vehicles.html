@@ -3518,6 +3518,9 @@
           if (button.dataset.editing === 'true') {
             const input = cell.querySelector('input[data-edit-input]');
             const newValue = input ? input.value.trim() : '';
+            const normalizedHeaderKey = headerKey
+              ? headerKey.trim().toLowerCase().replace(/\s+/g, '_')
+              : '';
             button.disabled = true;
             button.textContent = 'Saving...';
             const stopLoading = startLoading('Saving...');
@@ -3529,7 +3532,7 @@
 
               const { error } = await supabaseClient
                 .from(TABLES.vehicles)
-                .update({ [headerKey]: newValue })
+                .update({ [normalizedHeaderKey]: newValue })
                 .eq('id', vehicle.id);
 
               if (error) throw error;
