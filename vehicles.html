@@ -3852,6 +3852,22 @@
         renderRepairHistory(repairs);
       };
 
+      const deleteRepair = async (repairId) => {
+        if (!supabaseClient) {
+          throw new Error('Supabase unavailable');
+        }
+        if (!repairId) return;
+        const confirmed = window.confirm('Are you sure you want to delete this repair entry?');
+        if (!confirmed) return;
+        const { error } = await supabaseClient
+          .from(TABLES.repairHistory)
+          .delete()
+          .eq('id', repairId);
+        if (error) throw error;
+        const repairs = await fetchRepairs(vehicle.id);
+        renderRepairHistory(repairs);
+      };
+
       if (historyEmpty) historyEmpty.textContent = 'Loading history...';
       fetchRepairs(vehicle.id).then(renderRepairHistory);
 
