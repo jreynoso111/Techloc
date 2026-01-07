@@ -3428,34 +3428,28 @@
 
     const buildRepairSnapshot = (vehicle) => {
       return {
-        vehicle_id: vehicle?.id,
-        vin: vehicle?.vin,
+        deal_status: vehicle?.deal_status ?? vehicle?.status,
+        customer_id: vehicle?.customer_id ?? vehicle?.customerId,
+        unit_type: vehicle?.unit_type ?? vehicle?.type,
+        model_year: vehicle?.model_year ?? vehicle?.year,
         model: vehicle?.model,
-        year: vehicle?.year,
-        customer_id: vehicle?.customerId,
-        gps_fix: vehicle?.gpsFix,
-        gps_fix_reason: vehicle?.gpsReason,
-        gps_moving: vehicle?.gpsMoving,
+        inv_prep_stat: vehicle?.inv_prep_stat ?? vehicle?.invPrepStatus,
+        deal_completion: vehicle?.deal_completion ?? vehicle?.dealCompletion,
+        pt_status: vehicle?.pt_status ?? vehicle?.ptStatus,
+        pt_serial: vehicle?.pt_serial ?? vehicle?.ptSerial,
+        encore_serial: vehicle?.encore_serial ?? vehicle?.encoreSerial,
         moving: vehicle?.moving,
-        moving_calc: vehicle?.movingCalc,
-        pt_status: vehicle?.ptStatus,
-        pt_serial: vehicle?.ptSerial,
-        encore_serial: vehicle?.encoreSerial,
-        last_read: vehicle?.lastRead,
-        days_stationary: vehicle?.daysStationary,
-        state: vehicle?.state,
-        city: vehicle?.city,
-        zipcode: vehicle?.zipcode,
+        pt_last_read: vehicle?.pt_last_read ?? vehicle?.lastRead,
         lat: vehicle?.lat,
-        lng: vehicle?.lng,
-        location_accuracy: vehicle?.locationAccuracy,
-        status: vehicle?.status,
-        inv_prep_status: vehicle?.invPrepStatus,
-        deal_completion: vehicle?.dealCompletion,
-        payment: vehicle?.payment,
-        customer: vehicle?.customer,
-        last_location: vehicle?.lastLocation,
-        location_note: vehicle?.locationNote
+        long: vehicle?.long ?? vehicle?.lng,
+        phys_loc: vehicle?.phys_loc ?? vehicle?.lastLocation,
+        vin: vehicle?.vin,
+        vehicle_status: vehicle?.vehicle_status ?? vehicle?.status,
+        open_balance: vehicle?.open_balance ?? vehicle?.openBalance,
+        days_stationary: vehicle?.days_stationary ?? vehicle?.daysStationary,
+        short_location: vehicle?.short_location ?? vehicle?.shortLocation ?? vehicle?.city,
+        gps_fix: vehicle?.gps_fix ?? vehicle?.gpsFix,
+        gps_fix_reason: vehicle?.gps_fix_reason ?? vehicle?.gpsReason
       };
     };
 
@@ -3484,8 +3478,11 @@
       const payload = {
         ...buildRepairSnapshot(vehicle),
         cs_contact_date: formData.get('cs_contact_date') || null,
-        service_title: formData.get('service_title') || null,
-        repair_detail: formData.get('repair_detail') || null,
+        customer_availability: formData.get('customer_availability') || null,
+        installer_request_date: formData.get('installer_request_date') || null,
+        installation_company: formData.get('installation_company') || null,
+        technician_availability_date: formData.get('technician_availability_date') || null,
+        installation_place: formData.get('installation_place') || null,
         repair_price: cleanPrice,
         repair_notes: formData.get('repair_notes') || null
       };
@@ -3568,14 +3565,18 @@
                 <thead class="text-[10px] uppercase text-slate-500">
                   <tr>
                     <th class="py-2 pr-3">Date</th>
-                    <th class="py-2 pr-3">Service</th>
-                    <th class="py-2 pr-3">Details</th>
+                    <th class="py-2 pr-3">Customer Availability</th>
+                    <th class="py-2 pr-3">Installer Request Date</th>
+                    <th class="py-2 pr-3">Installation Company</th>
+                    <th class="py-2 pr-3">Technician Availability Date</th>
+                    <th class="py-2 pr-3">Installation Place</th>
+                    <th class="py-2 pr-3">Notes</th>
                     <th class="py-2">Cost</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800/80" data-repair-history-body>
                   <tr data-repair-empty>
-                    <td class="py-2 pr-3 text-slate-400" colspan="4">Loading history...</td>
+                    <td class="py-2 pr-3 text-slate-400" colspan="8">Loading history...</td>
                   </tr>
                 </tbody>
               </table>
@@ -3589,14 +3590,30 @@
                   <input type="date" name="cs_contact_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
                 <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Service</span>
-                  <input type="text" name="service_title" placeholder="Oil change" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Customer Availability</span>
+                  <input type="text" name="customer_availability" placeholder="Mon-Fri afternoons" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
               </div>
-              <label class="space-y-1 block">
-                <span class="text-[10px] uppercase text-slate-500 font-semibold">Details</span>
-                <textarea rows="3" name="repair_detail" placeholder="Describe the repair performed..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100"></textarea>
-              </label>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Installer Request Date</span>
+                  <input type="date" name="installer_request_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Installation Company</span>
+                  <input type="text" name="installation_company" placeholder="Techloc Installers" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Technician Availability</span>
+                  <input type="date" name="technician_availability_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Installation Place</span>
+                  <input type="text" name="installation_place" placeholder="123 Main St" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+              </div>
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1 block">
                   <span class="text-[10px] uppercase text-slate-500 font-semibold">Cost</span>
@@ -3647,18 +3664,28 @@
         if (!repairs.length) {
           historyBody.innerHTML = `
             <tr data-repair-empty>
-              <td class="py-2 pr-3 text-slate-400" colspan="4">No repair records yet.</td>
+              <td class="py-2 pr-3 text-slate-400" colspan="8">No repair records yet.</td>
             </tr>
           `;
           return;
         }
         historyBody.innerHTML = repairs.map((repair) => {
           const dateLabel = repair?.cs_contact_date ? formatDateTime(repair.cs_contact_date) : '—';
+          const installerRequestLabel = repair?.installer_request_date
+            ? formatDateTime(repair.installer_request_date)
+            : '—';
+          const technicianAvailabilityLabel = repair?.technician_availability_date
+            ? formatDateTime(repair.technician_availability_date)
+            : '—';
           return `
             <tr>
               <td class="py-2 pr-3 text-slate-100">${escapeHTML(dateLabel)}</td>
-              <td class="py-2 pr-3 text-slate-100">${escapeHTML(repair?.service_title || '—')}</td>
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.repair_detail || '—')}</td>
+              <td class="py-2 pr-3 text-slate-100">${escapeHTML(repair?.customer_availability || '—')}</td>
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(installerRequestLabel)}</td>
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.installation_company || '—')}</td>
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(technicianAvailabilityLabel)}</td>
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.installation_place || '—')}</td>
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.repair_notes || '—')}</td>
               <td class="py-2 text-amber-200 font-semibold">${escapeHTML(repair?.repair_price || '—')}</td>
             </tr>
           `;
