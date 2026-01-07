@@ -3689,9 +3689,9 @@
       const historyBody = body.querySelector('[data-repair-history-body]');
       const historyEmpty = body.querySelector('[data-repair-empty]');
       const historyHead = body.querySelector('[data-repair-history-head]');
-      const columnsToggle = body.querySelector('[data-repair-columns-toggle]');
-      const columnsPanel = body.querySelector('[data-repair-columns-panel]');
-      const columnsList = body.querySelector('[data-repair-columns-list]');
+      const repairColumnsToggle = body.querySelector('[data-repair-columns-toggle]');
+      const repairColumnsPanel = body.querySelector('[data-repair-columns-panel]');
+      const repairColumnsList = body.querySelector('[data-repair-columns-list]');
       const form = body.querySelector('[data-repair-form]');
       const statusText = body.querySelector('[data-repair-status]');
       const submitBtn = body.querySelector('[data-repair-submit]');
@@ -3770,12 +3770,12 @@
       };
 
       const renderRepairColumnsList = () => {
-        if (!columnsList) return;
+        if (!repairColumnsList) return;
         if (!repairColumns.length) {
-          columnsList.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
+          repairColumnsList.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
           return;
         }
-        columnsList.innerHTML = repairColumns.map((col) => `
+        repairColumnsList.innerHTML = repairColumns.map((col) => `
           <label class="flex items-center gap-2">
             <input type="checkbox" value="${col.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${repairColumnVisibility[col.key] ? 'checked' : ''} />
             <span class="text-slate-200">${escapeHTML(col.label)}</span>
@@ -3852,33 +3852,17 @@
         renderRepairHistory(repairs);
       };
 
-      const deleteRepair = async (repairId) => {
-        if (!supabaseClient) {
-          throw new Error('Supabase unavailable');
-        }
-        if (!repairId) return;
-        const confirmed = window.confirm('Are you sure you want to delete this repair entry?');
-        if (!confirmed) return;
-        const { error } = await supabaseClient
-          .from(TABLES.repairHistory)
-          .delete()
-          .eq('id', repairId);
-        if (error) throw error;
-        const repairs = await fetchRepairs(vehicle.id);
-        renderRepairHistory(repairs);
-      };
-
       if (historyEmpty) historyEmpty.textContent = 'Loading history...';
       fetchRepairs(vehicle.id).then(renderRepairHistory);
 
-      if (columnsToggle && columnsPanel) {
-        columnsToggle.addEventListener('click', () => {
-          columnsPanel.classList.toggle('hidden');
+      if (repairColumnsToggle && repairColumnsPanel) {
+        repairColumnsToggle.addEventListener('click', () => {
+          repairColumnsPanel.classList.toggle('hidden');
         });
       }
 
-      if (columnsList) {
-        columnsList.addEventListener('change', (event) => {
+      if (repairColumnsList) {
+        repairColumnsList.addEventListener('change', (event) => {
           const input = event.target;
           if (!input || input.tagName !== 'INPUT') return;
           repairColumnVisibility[input.value] = input.checked;
