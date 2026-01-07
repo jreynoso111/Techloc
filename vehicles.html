@@ -3428,6 +3428,7 @@
 
     const buildRepairSnapshot = (vehicle) => {
       return {
+        vehicle_id: vehicle?.id,
         deal_status: vehicle?.deal_status ?? vehicle?.status,
         customer_id: vehicle?.customer_id ?? vehicle?.customerId,
         unit_type: vehicle?.unit_type ?? vehicle?.type,
@@ -3448,6 +3449,7 @@
         open_balance: vehicle?.open_balance ?? vehicle?.openBalance,
         days_stationary: vehicle?.days_stationary ?? vehicle?.daysStationary,
         short_location: vehicle?.short_location ?? vehicle?.shortLocation ?? vehicle?.city,
+        current_stock_no: vehicle?.details?.['Current Stock No'] || vehicle?.current_stock_no,
         gps_fix: vehicle?.gps_fix ?? vehicle?.gpsFix,
         gps_fix_reason: vehicle?.gps_fix_reason ?? vehicle?.gpsReason
       };
@@ -3469,12 +3471,11 @@
       }
     }
 
-    async function saveRepair(vehicle, formData) {
+    async function saveRepair(vehicle, formData, editId) {
       if (!supabaseClient) {
         throw new Error('Supabase unavailable');
       }
-      const rawPrice = formData.get('repair_price') || '0';
-      const cleanPrice = Number.parseFloat(`${rawPrice}`.replace(/[$,]/g, '')) || 0;
+      const cleanPrice = Number.parseFloat(`${formData.get('repair_price') || '0'}`.replace(/[$,]/g, '')) || 0;
       const payload = {
         ...buildRepairSnapshot(vehicle),
         cs_contact_date: formData.get('cs_contact_date') || null,
@@ -3487,10 +3488,10 @@
         repair_notes: formData.get('repair_notes') || null
       };
 
-      const { data, error } = await supabaseClient
-        .from(TABLES.repairHistory)
-        .insert(payload)
-        .select('*');
+      const query = supabaseClient.from(TABLES.repairHistory);
+      const { data, error } = editId
+        ? await query.update(payload).eq('id', editId).select('*')
+        : await query.insert(payload).select('*');
       if (error) throw error;
       return data || [];
     }
@@ -3572,11 +3573,12 @@
                     <th class="py-2 pr-3">Installation Place</th>
                     <th class="py-2 pr-3">Notes</th>
                     <th class="py-2">Cost</th>
+                    <th class="py-2">Acciones</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800/80" data-repair-history-body>
                   <tr data-repair-empty>
-                    <td class="py-2 pr-3 text-slate-400" colspan="8">Loading history...</td>
+                    <td class="py-2 pr-3 text-slate-400" colspan="9">Loading history...</td>
                   </tr>
                 </tbody>
               </table>
@@ -3659,12 +3661,15 @@
       const statusText = body.querySelector('[data-repair-status]');
       const submitBtn = body.querySelector('[data-repair-submit]');
 
+      let repairCache = [];
+
       const renderRepairHistory = (repairs = []) => {
         if (!historyBody) return;
+        repairCache = repairs;
         if (!repairs.length) {
           historyBody.innerHTML = `
             <tr data-repair-empty>
-              <td class="py-2 pr-3 text-slate-400" colspan="8">No repair records yet.</td>
+              <td class="py-2 pr-3 text-slate-400" colspan="9">No repair records yet.</td>
             </tr>
           `;
           return;
@@ -3687,13 +3692,75 @@
               <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.installation_place || '—')}</td>
               <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.repair_notes || '—')}</td>
               <td class="py-2 text-amber-200 font-semibold">${escapeHTML(repair?.repair_price || '—')}</td>
+              <td class="py-2">
+                <div class="flex items-center gap-2">
+                  <button type="button" class="rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/20 transition-colors" data-repair-edit="${repair?.id || ''}">Edit</button>
+                  <button type="button" class="rounded border border-rose-400/50 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-100 hover:bg-rose-500/20 transition-colors" data-repair-delete="${repair?.id || ''}">Delete</button>
+                </div>
+              </td>
             </tr>
           `;
         }).join('');
       };
 
+      const deleteRepair = async (repairId) => {
+        if (!supabaseClient) {
+          throw new Error('Supabase unavailable');
+        }
+        if (!repairId) return;
+        const confirmed = window.confirm('Are you sure you want to delete this repair entry?');
+        if (!confirmed) return;
+        const { error } = await supabaseClient
+          .from(TABLES.repairHistory)
+          .delete()
+          .eq('id', repairId);
+        if (error) throw error;
+        const repairs = await fetchRepairs(vehicle.id);
+        renderRepairHistory(repairs);
+      };
+
       if (historyEmpty) historyEmpty.textContent = 'Loading history...';
       fetchRepairs(vehicle.id).then(renderRepairHistory);
+
+      if (historyBody) {
+        historyBody.addEventListener('click', async (event) => {
+          const editButton = event.target.closest('[data-repair-edit]');
+          const deleteButton = event.target.closest('[data-repair-delete]');
+          if (editButton) {
+            const repairId = editButton.dataset.repairEdit;
+            const repair = repairCache.find((item) => `${item?.id}` === `${repairId}`);
+            if (!repair || !form) return;
+            form.dataset.editRepairId = repairId;
+            const csContactInput = form.querySelector('[name="cs_contact_date"]');
+            const customerAvailabilityInput = form.querySelector('[name="customer_availability"]');
+            const installerRequestInput = form.querySelector('[name="installer_request_date"]');
+            const installationCompanyInput = form.querySelector('[name="installation_company"]');
+            const technicianAvailabilityInput = form.querySelector('[name="technician_availability_date"]');
+            const installationPlaceInput = form.querySelector('[name="installation_place"]');
+            const repairPriceInput = form.querySelector('[name="repair_price"]');
+            const repairNotesInput = form.querySelector('[name="repair_notes"]');
+            if (csContactInput) csContactInput.value = repair?.cs_contact_date || '';
+            if (customerAvailabilityInput) customerAvailabilityInput.value = repair?.customer_availability || '';
+            if (installerRequestInput) installerRequestInput.value = repair?.installer_request_date || '';
+            if (installationCompanyInput) installationCompanyInput.value = repair?.installation_company || '';
+            if (technicianAvailabilityInput) technicianAvailabilityInput.value = repair?.technician_availability_date || '';
+            if (installationPlaceInput) installationPlaceInput.value = repair?.installation_place || '';
+            if (repairPriceInput) repairPriceInput.value = repair?.repair_price ?? '';
+            if (repairNotesInput) repairNotesInput.value = repair?.repair_notes || '';
+            if (submitBtn) submitBtn.textContent = 'Update Record';
+            if (statusText) statusText.textContent = '';
+            setActiveTab('new-entry');
+            return;
+          }
+          if (deleteButton) {
+            try {
+              await deleteRepair(deleteButton.dataset.repairDelete);
+            } catch (error) {
+              console.warn('Failed to delete repair:', error);
+            }
+          }
+        });
+      }
 
       if (form) {
         form.addEventListener('submit', async (event) => {
@@ -3710,8 +3777,13 @@
           const stopLoading = startLoading('Saving repair...');
           try {
             const formData = new FormData(form);
-            await saveRepair(vehicle, formData);
+            const editId = form?.dataset.editRepairId || '';
+            await saveRepair(vehicle, formData, editId);
             form.reset();
+            if (editId) {
+              delete form.dataset.editRepairId;
+              if (submitBtn) submitBtn.textContent = 'Save entry';
+            }
             const repairs = await fetchRepairs(vehicle.id);
             renderRepairHistory(repairs);
             if (statusText) {
