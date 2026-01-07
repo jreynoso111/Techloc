@@ -357,8 +357,8 @@
     </section>
 
     <section class="p-3">
-      <div class="grid gap-3 lg:grid-cols-2">
-        <div id="status-tertiary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary" data-collapsed="false" data-full-chart-card>
+      <div id="full-chart-layout" class="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-stretch">
+        <div id="status-tertiary-card" class="flex min-h-[220px] min-w-0 flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-tertiary" data-collapsed="false" data-full-chart-card>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
               Segment
@@ -386,7 +386,10 @@
           </div>
           <div id="status-tertiary-body" class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 96px;" data-bar-chart data-chart-id="status-tertiary" data-full-chart-body aria-label="Units by deal status chart"></div>
         </div>
-        <div id="status-tertiary-secondary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary-2" data-collapsed="false" data-full-chart-card>
+        <div id="full-chart-width-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
+          <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
+        </div>
+        <div id="status-tertiary-secondary-card" class="flex min-h-[220px] min-w-0 flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-tertiary-2" data-collapsed="false" data-full-chart-card>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
               Segment
@@ -683,7 +686,14 @@
       chartVisibility: {},
       chartVisibilityOptions: {},
       realtime: { channel: null },
-      layout: { alertsPanelWidth: null, chartSplitWidth: null, dealPanelHeight: null, fullChartHeight: null, fullChartCollapsed: false },
+      layout: {
+        alertsPanelWidth: null,
+        chartSplitWidth: null,
+        dealPanelHeight: null,
+        fullChartHeight: null,
+        fullChartSplitWidth: null,
+        fullChartCollapsed: false,
+      },
       preferences: {
         userId: null,
         config: null,
@@ -1002,6 +1012,7 @@
         chartSplitWidth: DashboardState.layout.chartSplitWidth,
         dealPanelHeight: DashboardState.layout.dealPanelHeight,
         fullChartHeight: DashboardState.layout.fullChartHeight,
+        fullChartSplitWidth: DashboardState.layout.fullChartSplitWidth,
         fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
       },
     });
@@ -1065,6 +1076,7 @@
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
       if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
       if (typeof config.layout?.fullChartHeight === 'number') DashboardState.layout.fullChartHeight = config.layout.fullChartHeight;
+      if (typeof config.layout?.fullChartSplitWidth === 'number') DashboardState.layout.fullChartSplitWidth = config.layout.fullChartSplitWidth;
       if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
     };
 
@@ -1129,6 +1141,8 @@
       const fullWidthChartBodies = document.querySelectorAll('[data-full-chart-body]');
       const fullWidthChartToggles = document.querySelectorAll('[data-full-chart-toggle]');
       const fullWidthChartResizer = document.getElementById('full-chart-height-resizer');
+      const fullChartPrimary = document.getElementById('status-tertiary-card');
+      const fullChartSecondary = document.getElementById('status-tertiary-secondary-card');
       if (!alertsPanel || !dealPanel) return;
       if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
         alertsPanel.style.flex = `0 0 ${DashboardState.layout.alertsPanelWidth}px`;
@@ -1142,6 +1156,10 @@
         fullWidthCharts.forEach((chart) => {
           chart.style.height = `${DashboardState.layout.fullChartHeight}px`;
         });
+      }
+      if (typeof DashboardState.layout.fullChartSplitWidth === 'number' && window.innerWidth >= 1024 && fullChartPrimary && fullChartSecondary) {
+        fullChartPrimary.style.flex = `0 0 ${DashboardState.layout.fullChartSplitWidth}px`;
+        fullChartSecondary.style.flex = '1 1 0';
       }
       if (fullWidthCharts.length && fullWidthChartBodies.length && fullWidthChartToggles.length && fullWidthChartResizer) {
         const fullChartMinHeight = '220px';
@@ -2707,6 +2725,10 @@
       const heightHandle = document.getElementById('panel-height-resizer');
       const fullChartCards = document.querySelectorAll('[data-full-chart-card]');
       const fullChartHandle = document.getElementById('full-chart-height-resizer');
+      const fullChartLayout = document.getElementById('full-chart-layout');
+      const fullChartWidthHandle = document.getElementById('full-chart-width-resizer');
+      const fullChartPrimary = document.getElementById('status-tertiary-card');
+      const fullChartSecondary = document.getElementById('status-tertiary-secondary-card');
       if (!container || !handle || !dealPanel || !alertsPanel) return;
 
       const minPanelWidth = 220;
@@ -2880,6 +2902,50 @@
           document.body.classList.add('select-none', 'resize-row');
           window.addEventListener('pointermove', onFullHeightMove);
           window.addEventListener('pointerup', stopFullDragging);
+        });
+      }
+
+      if (fullChartLayout && fullChartWidthHandle && fullChartPrimary && fullChartSecondary) {
+        const minFullWidth = 220;
+        let fullChartStartX = 0;
+        let startFullWidth = 0;
+        let isFullWidthDragging = false;
+
+        const onFullWidthMove = (event) => {
+          if (!isFullWidthDragging) return;
+          const deltaX = event.clientX - fullChartStartX;
+          const containerWidth = fullChartLayout.getBoundingClientRect().width;
+          const handleWidth = fullChartWidthHandle.getBoundingClientRect().width;
+          const maxPrimaryWidth = Math.max(minFullWidth, containerWidth - minFullWidth - handleWidth);
+          const nextPrimaryWidth = Math.min(maxPrimaryWidth, Math.max(minFullWidth, startFullWidth + deltaX));
+          fullChartPrimary.style.flex = `0 0 ${nextPrimaryWidth}px`;
+          fullChartSecondary.style.flex = '1 1 0';
+        };
+
+        const stopFullWidthDragging = () => {
+          if (!isFullWidthDragging) return;
+          isFullWidthDragging = false;
+          document.body.classList.remove('select-none', 'resize-col');
+          window.removeEventListener('pointermove', onFullWidthMove);
+          window.removeEventListener('pointerup', stopFullWidthDragging);
+          DashboardState.layout.fullChartSplitWidth = fullChartPrimary.getBoundingClientRect().width;
+          schedulePersistPreferences();
+        };
+
+        if (typeof DashboardState.layout.fullChartSplitWidth === 'number' && window.innerWidth >= 1024) {
+          fullChartPrimary.style.flex = `0 0 ${DashboardState.layout.fullChartSplitWidth}px`;
+          fullChartSecondary.style.flex = '1 1 0';
+        }
+
+        fullChartWidthHandle.addEventListener('pointerdown', (event) => {
+          if (window.innerWidth < 1024) return;
+          if (fullChartPrimary.dataset.collapsed === 'true') return;
+          isFullWidthDragging = true;
+          fullChartStartX = event.clientX;
+          startFullWidth = fullChartPrimary.getBoundingClientRect().width;
+          document.body.classList.add('select-none', 'resize-col');
+          window.addEventListener('pointermove', onFullWidthMove);
+          window.addEventListener('pointerup', stopFullWidthDragging);
         });
       }
     };
