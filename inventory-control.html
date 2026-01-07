@@ -357,8 +357,8 @@
     </section>
 
     <section class="p-3">
-      <div class="grid gap-3 lg:grid-cols-2">
-        <div id="status-tertiary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary" data-collapsed="false" data-full-chart-card>
+      <div id="tertiary-charts-layout" class="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        <div id="status-tertiary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-tertiary" data-collapsed="false" data-full-chart-card>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
               Segment
@@ -386,7 +386,10 @@
           </div>
           <div id="status-tertiary-body" class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 96px;" data-bar-chart data-chart-id="status-tertiary" data-full-chart-body aria-label="Units by deal status chart"></div>
         </div>
-        <div id="status-tertiary-secondary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary-2" data-collapsed="false" data-full-chart-card>
+        <div id="tertiary-chart-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
+          <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
+        </div>
+        <div id="status-tertiary-secondary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-tertiary-2" data-collapsed="false" data-full-chart-card>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
               Segment
@@ -683,7 +686,14 @@
       chartVisibility: {},
       chartVisibilityOptions: {},
       realtime: { channel: null },
-      layout: { alertsPanelWidth: null, chartSplitWidth: null, dealPanelHeight: null, fullChartHeight: null, fullChartCollapsed: false },
+      layout: {
+        alertsPanelWidth: null,
+        chartSplitWidth: null,
+        tertiaryChartSplitWidth: null,
+        dealPanelHeight: null,
+        fullChartHeight: null,
+        fullChartCollapsed: false,
+      },
       preferences: {
         userId: null,
         config: null,
@@ -1000,6 +1010,7 @@
       layout: {
         alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
         chartSplitWidth: DashboardState.layout.chartSplitWidth,
+        tertiaryChartSplitWidth: DashboardState.layout.tertiaryChartSplitWidth,
         dealPanelHeight: DashboardState.layout.dealPanelHeight,
         fullChartHeight: DashboardState.layout.fullChartHeight,
         fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
@@ -1063,6 +1074,9 @@
       }
       if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
       if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
+      if (typeof config.layout?.tertiaryChartSplitWidth === 'number') {
+        DashboardState.layout.tertiaryChartSplitWidth = config.layout.tertiaryChartSplitWidth;
+      }
       if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
       if (typeof config.layout?.fullChartHeight === 'number') DashboardState.layout.fullChartHeight = config.layout.fullChartHeight;
       if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
@@ -1128,6 +1142,9 @@
       const fullWidthCharts = document.querySelectorAll('[data-full-chart-card]');
       const fullWidthChartBodies = document.querySelectorAll('[data-full-chart-body]');
       const fullWidthChartToggles = document.querySelectorAll('[data-full-chart-toggle]');
+      const tertiaryChartsLayout = document.getElementById('tertiary-charts-layout');
+      const tertiaryPrimaryChart = document.getElementById('status-tertiary-card');
+      const tertiarySecondaryChart = document.getElementById('status-tertiary-secondary-card');
       const fullWidthChartResizer = document.getElementById('full-chart-height-resizer');
       if (!alertsPanel || !dealPanel) return;
       if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
@@ -1137,6 +1154,14 @@
       if (typeof DashboardState.layout.chartSplitWidth === 'number' && window.innerWidth >= 1024 && primaryChart && secondaryChart) {
         primaryChart.style.flex = `0 0 ${DashboardState.layout.chartSplitWidth}px`;
         secondaryChart.style.flex = '1 1 auto';
+      }
+      if (typeof DashboardState.layout.tertiaryChartSplitWidth === 'number'
+        && window.innerWidth >= 1024
+        && tertiaryChartsLayout
+        && tertiaryPrimaryChart
+        && tertiarySecondaryChart) {
+        tertiaryPrimaryChart.style.flex = `0 0 ${DashboardState.layout.tertiaryChartSplitWidth}px`;
+        tertiarySecondaryChart.style.flex = '1 1 auto';
       }
       if (typeof DashboardState.layout.fullChartHeight === 'number' && fullWidthCharts.length) {
         fullWidthCharts.forEach((chart) => {
@@ -2704,6 +2729,10 @@
       const chartHandle = document.getElementById('chart-resizer');
       const primaryChart = document.getElementById('status-primary-card');
       const secondaryChart = document.getElementById('status-secondary-card');
+      const tertiaryChartsLayout = document.getElementById('tertiary-charts-layout');
+      const tertiaryChartHandle = document.getElementById('tertiary-chart-resizer');
+      const tertiaryPrimaryChart = document.getElementById('status-tertiary-card');
+      const tertiarySecondaryChart = document.getElementById('status-tertiary-secondary-card');
       const heightHandle = document.getElementById('panel-height-resizer');
       const fullChartCards = document.querySelectorAll('[data-full-chart-card]');
       const fullChartHandle = document.getElementById('full-chart-height-resizer');
@@ -2791,6 +2820,49 @@
           document.body.classList.add('select-none', 'resize-col');
           window.addEventListener('pointermove', onChartMove);
           window.addEventListener('pointerup', stopChartDragging);
+        });
+      }
+
+      if (tertiaryChartsLayout && tertiaryChartHandle && tertiaryPrimaryChart && tertiarySecondaryChart) {
+        const minTertiaryWidth = 220;
+        let tertiaryStartX = 0;
+        let startTertiaryWidth = 0;
+        let isTertiaryDragging = false;
+
+        const onTertiaryMove = (event) => {
+          if (!isTertiaryDragging) return;
+          const deltaX = event.clientX - tertiaryStartX;
+          const containerWidth = tertiaryChartsLayout.getBoundingClientRect().width;
+          const handleWidth = tertiaryChartHandle.getBoundingClientRect().width;
+          const maxPrimaryWidth = Math.max(minTertiaryWidth, containerWidth - minTertiaryWidth - handleWidth);
+          const nextPrimaryWidth = Math.min(maxPrimaryWidth, Math.max(minTertiaryWidth, startTertiaryWidth + deltaX));
+          tertiaryPrimaryChart.style.flex = `0 0 ${nextPrimaryWidth}px`;
+          tertiarySecondaryChart.style.flex = '1 1 auto';
+        };
+
+        const stopTertiaryDragging = () => {
+          if (!isTertiaryDragging) return;
+          isTertiaryDragging = false;
+          document.body.classList.remove('select-none', 'resize-col');
+          window.removeEventListener('pointermove', onTertiaryMove);
+          window.removeEventListener('pointerup', stopTertiaryDragging);
+          DashboardState.layout.tertiaryChartSplitWidth = tertiaryPrimaryChart.getBoundingClientRect().width;
+          schedulePersistPreferences();
+        };
+
+        if (typeof DashboardState.layout.tertiaryChartSplitWidth === 'number' && window.innerWidth >= 1024) {
+          tertiaryPrimaryChart.style.flex = `0 0 ${DashboardState.layout.tertiaryChartSplitWidth}px`;
+          tertiarySecondaryChart.style.flex = '1 1 auto';
+        }
+
+        tertiaryChartHandle.addEventListener('pointerdown', (event) => {
+          if (window.innerWidth < 1024) return;
+          isTertiaryDragging = true;
+          tertiaryStartX = event.clientX;
+          startTertiaryWidth = tertiaryPrimaryChart.getBoundingClientRect().width;
+          document.body.classList.add('select-none', 'resize-col');
+          window.addEventListener('pointermove', onTertiaryMove);
+          window.addEventListener('pointerup', stopTertiaryDragging);
         });
       }
 
