@@ -3428,6 +3428,7 @@
 
     const buildRepairSnapshot = (vehicle) => {
       return {
+        vehicle_id: vehicle?.id,
         deal_status: vehicle?.deal_status ?? vehicle?.status,
         customer_id: vehicle?.customer_id ?? vehicle?.customerId,
         unit_type: vehicle?.unit_type ?? vehicle?.type,
@@ -3448,6 +3449,7 @@
         open_balance: vehicle?.open_balance ?? vehicle?.openBalance,
         days_stationary: vehicle?.days_stationary ?? vehicle?.daysStationary,
         short_location: vehicle?.short_location ?? vehicle?.shortLocation ?? vehicle?.city,
+        current_stock_no: vehicle?.details?.['Current Stock No'] || vehicle?.current_stock_no,
         gps_fix: vehicle?.gps_fix ?? vehicle?.gpsFix,
         gps_fix_reason: vehicle?.gps_fix_reason ?? vehicle?.gpsReason
       };
@@ -3473,8 +3475,7 @@
       if (!supabaseClient) {
         throw new Error('Supabase unavailable');
       }
-      const rawPrice = formData.get('repair_price') || '0';
-      const cleanPrice = Number.parseFloat(`${rawPrice}`.replace(/[$,]/g, '')) || 0;
+      const cleanPrice = Number.parseFloat(`${formData.get('repair_price') || '0'}`.replace(/[$,]/g, '')) || 0;
       const payload = {
         ...buildRepairSnapshot(vehicle),
         cs_contact_date: formData.get('cs_contact_date') || null,
