@@ -1484,9 +1484,9 @@
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
 
     const getLocationNote = (accuracy = '') => {
-      if (accuracy === 'zip') return 'Ubicación aproximada (Basada en Zip Code)';
-      if (accuracy === 'city') return 'Ubicación aproximada (Basada en Ciudad)';
-      if (accuracy === 'state') return 'Ubicación aproximada (Centro del estado)';
+      if (accuracy === 'zip') return 'Approximate location (based on ZIP code)';
+      if (accuracy === 'city') return 'Approximate location (based on city)';
+      if (accuracy === 'state') return 'Approximate location (state center)';
       return '';
     };
 
@@ -3261,8 +3261,8 @@
       const vehicle = vehicles.find(v => v.id === selectedVehicleId);
       const tech = technicians.find(t => t.id === selectedTechId);
       const parts = [];
-      if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
-      if (tech) parts.push(`Técnico ${tech.company}`);
+      if (vehicle) parts.push(`Vehicle ${vehicle.vin || vehicle.model}`);
+      if (tech) parts.push(`Technician ${tech.company}`);
       text.textContent = `Filtered by ${parts.join(' & ')}`;
       banner.classList.remove('hidden');
     }
@@ -3378,7 +3378,7 @@
         if (!query || partners.length === 0) return;
 
         const originalBtnText = button.innerHTML;
-        const stopLoading = startLoading('Buscando dirección…');
+        const stopLoading = startLoading('Searching address…');
         button.innerHTML = svgIcon('loader2', 'animate-spin h-4 w-4');
         button.disabled = true;
         status?.classList.remove('hidden');
@@ -3479,12 +3479,14 @@
       if (!supabaseClient) {
         throw new Error('Supabase unavailable');
       }
+      const rawPrice = formData.get('repair_price') || '0';
+      const cleanPrice = Number.parseFloat(`${rawPrice}`.replace(/[$,]/g, '')) || 0;
       const payload = {
         ...buildRepairSnapshot(vehicle),
         cs_contact_date: formData.get('cs_contact_date') || null,
         service_title: formData.get('service_title') || null,
         repair_detail: formData.get('repair_detail') || null,
-        repair_price: formData.get('repair_price') || null,
+        repair_price: cleanPrice,
         repair_notes: formData.get('repair_notes') || null
       };
 
@@ -3507,7 +3509,7 @@
       modal.dataset.vehicleId = vehicle.id;
       columnsToggle?.classList.remove('hidden');
       columnsPanel?.classList.add('hidden');
-      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      title.textContent = `${vehicle.model || 'Vehicle'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
       const { headers, hidden } = getVehicleModalHeaders();
       const detailRows = headers.map(header => {
         const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
@@ -3557,23 +3559,23 @@
       body.innerHTML = `
         <div class="space-y-4">
           <div class="inline-flex rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-[11px] font-semibold text-slate-300">
-            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-white bg-slate-800/80" data-tab="history">Historial</button>
-            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-slate-400 hover:text-white" data-tab="new-entry">Nueva Entrada</button>
+            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-white bg-slate-800/80" data-tab="history">History</button>
+            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-slate-400 hover:text-white" data-tab="new-entry">New Entry</button>
           </div>
           <div class="repair-tab-panel" data-tab-panel="history">
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
               <table class="w-full text-left text-[11px] text-slate-200">
                 <thead class="text-[10px] uppercase text-slate-500">
                   <tr>
-                    <th class="py-2 pr-3">Fecha</th>
-                    <th class="py-2 pr-3">Servicio</th>
-                    <th class="py-2 pr-3">Detalle</th>
-                    <th class="py-2">Costo</th>
+                    <th class="py-2 pr-3">Date</th>
+                    <th class="py-2 pr-3">Service</th>
+                    <th class="py-2 pr-3">Details</th>
+                    <th class="py-2">Cost</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-800/80" data-repair-history-body>
                   <tr data-repair-empty>
-                    <td class="py-2 pr-3 text-slate-400" colspan="4">Cargando historial...</td>
+                    <td class="py-2 pr-3 text-slate-400" colspan="4">Loading history...</td>
                   </tr>
                 </tbody>
               </table>
@@ -3583,31 +3585,31 @@
             <form class="space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-[11px] text-slate-200" data-repair-form>
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Fecha</span>
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Date</span>
                   <input type="date" name="cs_contact_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
                 <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Servicio</span>
-                  <input type="text" name="service_title" placeholder="Cambio de aceite" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Service</span>
+                  <input type="text" name="service_title" placeholder="Oil change" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
               </div>
               <label class="space-y-1 block">
-                <span class="text-[10px] uppercase text-slate-500 font-semibold">Detalle</span>
-                <textarea rows="3" name="repair_detail" placeholder="Describe la reparación realizada..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100"></textarea>
+                <span class="text-[10px] uppercase text-slate-500 font-semibold">Details</span>
+                <textarea rows="3" name="repair_detail" placeholder="Describe the repair performed..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100"></textarea>
               </label>
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1 block">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Costo</span>
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Cost</span>
                   <input type="text" name="repair_price" placeholder="$0.00" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
                 <label class="space-y-1 block">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Notas</span>
-                  <input type="text" name="repair_notes" placeholder="Notas internas..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Notes</span>
+                  <input type="text" name="repair_notes" placeholder="Internal notes..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
               </div>
               <div class="flex items-center justify-between gap-3">
                 <p class="text-[10px] text-slate-400" data-repair-status></p>
-                <button type="submit" data-repair-submit class="rounded-lg border border-blue-400/50 bg-blue-500/20 px-4 py-1.5 text-[11px] font-semibold text-blue-100 hover:bg-blue-500/30 transition-colors">Guardar entrada</button>
+                <button type="submit" data-repair-submit class="rounded-lg border border-blue-400/50 bg-blue-500/20 px-4 py-1.5 text-[11px] font-semibold text-blue-100 hover:bg-blue-500/30 transition-colors">Save entry</button>
               </div>
             </form>
           </div>
@@ -3645,7 +3647,7 @@
         if (!repairs.length) {
           historyBody.innerHTML = `
             <tr data-repair-empty>
-              <td class="py-2 pr-3 text-slate-400" colspan="4">No hay registros de reparación todavía.</td>
+              <td class="py-2 pr-3 text-slate-400" colspan="4">No repair records yet.</td>
             </tr>
           `;
           return;
@@ -3663,22 +3665,22 @@
         }).join('');
       };
 
-      if (historyEmpty) historyEmpty.textContent = 'Cargando historial...';
+      if (historyEmpty) historyEmpty.textContent = 'Loading history...';
       fetchRepairs(vehicle.id).then(renderRepairHistory);
 
       if (form) {
         form.addEventListener('submit', async (event) => {
           event.preventDefault();
           if (!vehicle) return;
-          const submitLabel = submitBtn?.textContent || 'Guardar entrada';
+          const submitLabel = submitBtn?.textContent || 'Save entry';
           submitBtn && (submitBtn.disabled = true);
-          if (submitBtn) submitBtn.textContent = 'Guardando...';
+          if (submitBtn) submitBtn.textContent = 'Saving...';
           if (statusText) {
-            statusText.textContent = 'Guardando reparación...';
+            statusText.textContent = 'Saving repair...';
             statusText.classList.remove('text-amber-200');
             statusText.classList.add('text-slate-400');
           }
-          const stopLoading = startLoading('Guardando reparación...');
+          const stopLoading = startLoading('Saving repair...');
           try {
             const formData = new FormData(form);
             await saveRepair(vehicle, formData);
@@ -3686,7 +3688,7 @@
             const repairs = await fetchRepairs(vehicle.id);
             renderRepairHistory(repairs);
             if (statusText) {
-              statusText.textContent = 'Entrada guardada correctamente.';
+              statusText.textContent = 'Entry saved successfully.';
               statusText.classList.remove('text-slate-400', 'text-amber-300');
               statusText.classList.add('text-amber-200');
             }
@@ -3694,7 +3696,7 @@
           } catch (error) {
             console.warn('Failed to save repair:', error);
             if (statusText) {
-              statusText.textContent = error?.message || 'No se pudo guardar la reparación.';
+              statusText.textContent = error?.message || 'Unable to save repair.';
               statusText.classList.remove('text-slate-400', 'text-amber-200');
               statusText.classList.add('text-amber-300');
             }
