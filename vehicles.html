@@ -3567,23 +3567,23 @@
           </div>
           <div class="repair-tab-panel" data-tab-panel="history">
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
+                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Repair History</p>
+                <div class="relative">
+                  <button type="button" class="rounded border border-slate-700 bg-slate-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 hover:border-slate-500" data-repair-columns-toggle>
+                    Columns
+                  </button>
+                  <div class="absolute right-0 z-10 mt-2 hidden w-64 rounded-lg border border-slate-800 bg-slate-950/95 p-3 text-[11px] text-slate-200 shadow-xl" data-repair-columns-panel>
+                    <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
+                    <div class="mt-2 grid gap-2" data-repair-columns-list></div>
+                  </div>
+                </div>
+              </div>
               <table class="w-full text-left text-[11px] text-slate-200">
-                <thead class="text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th class="py-2 pr-3">Date</th>
-                    <th class="py-2 pr-3">Customer Availability</th>
-                    <th class="py-2 pr-3">Installer Request Date</th>
-                    <th class="py-2 pr-3">Installation Company</th>
-                    <th class="py-2 pr-3">Technician Availability Date</th>
-                    <th class="py-2 pr-3">Installation Place</th>
-                    <th class="py-2 pr-3">Notes</th>
-                    <th class="py-2">Cost</th>
-                    <th class="py-2">Actions</th>
-                  </tr>
-                </thead>
+                <thead class="text-[10px] uppercase text-slate-500" data-repair-history-head></thead>
                 <tbody class="divide-y divide-slate-800/80" data-repair-history-body>
                   <tr data-repair-empty>
-                    <td class="py-2 pr-3 text-slate-400" colspan="9">Loading history...</td>
+                    <td class="py-2 pr-3 text-slate-400" colspan="1">Loading history...</td>
                   </tr>
                 </tbody>
               </table>
@@ -3688,50 +3688,168 @@
 
       const historyBody = body.querySelector('[data-repair-history-body]');
       const historyEmpty = body.querySelector('[data-repair-empty]');
+      const historyHead = body.querySelector('[data-repair-history-head]');
+      const columnsToggle = body.querySelector('[data-repair-columns-toggle]');
+      const columnsPanel = body.querySelector('[data-repair-columns-panel]');
+      const columnsList = body.querySelector('[data-repair-columns-list]');
       const form = body.querySelector('[data-repair-form]');
       const statusText = body.querySelector('[data-repair-status]');
       const submitBtn = body.querySelector('[data-repair-submit]');
 
       let repairCache = [];
+      let repairColumns = [];
+      let repairColumnVisibility = {};
+      const REPAIR_COLUMN_STORAGE_KEY = 'repairHistoryColumns';
 
-      const renderRepairHistory = (repairs = []) => {
-        if (!historyBody) return;
-        repairCache = repairs;
-        if (!repairs.length) {
-          historyBody.innerHTML = `
-            <tr data-repair-empty>
-              <td class="py-2 pr-3 text-slate-400" colspan="9">No repair records yet.</td>
+      const DEFAULT_REPAIR_COLUMNS = [
+        { key: 'cs_contact_date', label: 'Date' },
+        { key: 'status', label: 'Status' },
+        { key: 'doc', label: 'DOC' },
+        { key: 'shipping_date', label: 'Shipping Date' },
+        { key: 'poc_name', label: 'POC Name' },
+        { key: 'poc_phone', label: 'POC Phone' },
+        { key: 'customer_availability', label: 'Customer Availability' },
+        { key: 'installer_request_date', label: 'Installer Request Date' },
+        { key: 'installation_company', label: 'Installation Company' },
+        { key: 'technician_availability_date', label: 'Technician Availability Date' },
+        { key: 'installation_place', label: 'Installation Place' },
+        { key: 'repair_notes', label: 'Notes' },
+        { key: 'repair_price', label: 'Cost' }
+      ];
+
+      const formatRepairValue = (key, value) => {
+        if (value === null || value === undefined || value === '') return '—';
+        if (key.includes('date')) return formatDateTime(value);
+        return value;
+      };
+
+      const titleCase = (value) => value
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (match) => match.toUpperCase());
+
+      const loadRepairColumnVisibility = (columns) => {
+        let saved = {};
+        try {
+          saved = JSON.parse(localStorage.getItem(REPAIR_COLUMN_STORAGE_KEY) || '{}');
+        } catch (error) {
+          saved = {};
+        }
+        repairColumnVisibility = columns.reduce((acc, col) => {
+          acc[col.key] = saved[col.key] !== undefined ? saved[col.key] : true;
+          return acc;
+        }, {});
+      };
+
+      const saveRepairColumnVisibility = () => {
+        localStorage.setItem(REPAIR_COLUMN_STORAGE_KEY, JSON.stringify(repairColumnVisibility));
+      };
+
+      const buildRepairColumns = (repairs) => {
+        const columnMap = new Map(DEFAULT_REPAIR_COLUMNS.map((col) => [col.key, col]));
+        repairs.forEach((repair) => {
+          Object.keys(repair || {}).forEach((key) => {
+            if (!columnMap.has(key)) {
+              columnMap.set(key, { key, label: titleCase(key) });
+            }
+          });
+        });
+        const orderedKeys = [
+          ...DEFAULT_REPAIR_COLUMNS.map((col) => col.key),
+          ...[...columnMap.keys()].filter((key) => !DEFAULT_REPAIR_COLUMNS.some((col) => col.key === key))
+        ];
+        repairColumns = orderedKeys.map((key) => columnMap.get(key)).filter(Boolean);
+        if (!Object.keys(repairColumnVisibility).length) {
+          loadRepairColumnVisibility(repairColumns);
+        } else {
+          repairColumns.forEach((col) => {
+            if (repairColumnVisibility[col.key] === undefined) {
+              repairColumnVisibility[col.key] = true;
+            }
+          });
+        }
+      };
+
+      const renderRepairColumnsList = () => {
+        if (!columnsList) return;
+        if (!repairColumns.length) {
+          columnsList.innerHTML = '<p class="text-xs text-slate-400">No columns available.</p>';
+          return;
+        }
+        columnsList.innerHTML = repairColumns.map((col) => `
+          <label class="flex items-center gap-2">
+            <input type="checkbox" value="${col.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${repairColumnVisibility[col.key] ? 'checked' : ''} />
+            <span class="text-slate-200">${escapeHTML(col.label)}</span>
+          </label>
+        `).join('');
+      };
+
+      const getVisibleRepairColumns = () => repairColumns.filter((col) => repairColumnVisibility[col.key]);
+
+      const renderRepairTableHead = () => {
+        if (!historyHead) return;
+        const visibleColumns = getVisibleRepairColumns();
+        if (!visibleColumns.length) {
+          historyHead.innerHTML = `
+            <tr>
+              <th class="py-2 pr-3">No columns selected</th>
+              <th class="py-2">Actions</th>
             </tr>
           `;
           return;
         }
-        historyBody.innerHTML = repairs.map((repair) => {
-          const dateLabel = repair?.cs_contact_date ? formatDateTime(repair.cs_contact_date) : '—';
-          const installerRequestLabel = repair?.installer_request_date
-            ? formatDateTime(repair.installer_request_date)
-            : '—';
-          const technicianAvailabilityLabel = repair?.technician_availability_date
-            ? formatDateTime(repair.technician_availability_date)
-            : '—';
-          return `
-            <tr>
-              <td class="py-2 pr-3 text-slate-100">${escapeHTML(dateLabel)}</td>
-              <td class="py-2 pr-3 text-slate-100">${escapeHTML(repair?.customer_availability || '—')}</td>
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(installerRequestLabel)}</td>
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.installation_company || '—')}</td>
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(technicianAvailabilityLabel)}</td>
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.installation_place || '—')}</td>
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.repair_notes || '—')}</td>
-              <td class="py-2 text-amber-200 font-semibold">${escapeHTML(repair?.repair_price || '—')}</td>
-              <td class="py-2">
-                <div class="flex items-center gap-2">
-                  <button type="button" class="rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/20 transition-colors" data-repair-edit="${repair?.id || ''}">Edit</button>
-                  <button type="button" class="rounded border border-rose-400/50 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-100 hover:bg-rose-500/20 transition-colors" data-repair-delete="${repair?.id || ''}">Delete</button>
-                </div>
-              </td>
+        historyHead.innerHTML = `
+          <tr>
+            ${visibleColumns.map((col) => `<th class="py-2 pr-3">${escapeHTML(col.label)}</th>`).join('')}
+            <th class="py-2">Actions</th>
+          </tr>
+        `;
+      };
+
+      const renderRepairHistory = (repairs = []) => {
+        if (!historyBody) return;
+        repairCache = repairs;
+        buildRepairColumns(repairs);
+        renderRepairColumnsList();
+        renderRepairTableHead();
+        const visibleColumns = getVisibleRepairColumns();
+        if (!repairs.length) {
+          const colSpan = Math.max(visibleColumns.length + 1, 1);
+          historyBody.innerHTML = `
+            <tr data-repair-empty>
+              <td class="py-2 pr-3 text-slate-400" colspan="${colSpan}">No repair records yet.</td>
             </tr>
           `;
-        }).join('');
+          return;
+        }
+        historyBody.innerHTML = repairs.map((repair) => `
+          <tr>
+            ${visibleColumns.map((col) => `
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(formatRepairValue(col.key, repair?.[col.key]))}</td>
+            `).join('')}
+            <td class="py-2">
+              <div class="flex items-center gap-2">
+                <button type="button" class="rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/20 transition-colors" data-repair-edit="${repair?.id || ''}">Edit</button>
+                <button type="button" class="rounded border border-rose-400/50 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-100 hover:bg-rose-500/20 transition-colors" data-repair-delete="${repair?.id || ''}">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      };
+
+      const deleteRepair = async (repairId) => {
+        if (!supabaseClient) {
+          throw new Error('Supabase unavailable');
+        }
+        if (!repairId) return;
+        const confirmed = window.confirm('Are you sure you want to delete this repair entry?');
+        if (!confirmed) return;
+        const { error } = await supabaseClient
+          .from(TABLES.repairHistory)
+          .delete()
+          .eq('id', repairId);
+        if (error) throw error;
+        const repairs = await fetchRepairs(vehicle.id);
+        renderRepairHistory(repairs);
       };
 
       const deleteRepair = async (repairId) => {
@@ -3752,6 +3870,23 @@
 
       if (historyEmpty) historyEmpty.textContent = 'Loading history...';
       fetchRepairs(vehicle.id).then(renderRepairHistory);
+
+      if (columnsToggle && columnsPanel) {
+        columnsToggle.addEventListener('click', () => {
+          columnsPanel.classList.toggle('hidden');
+        });
+      }
+
+      if (columnsList) {
+        columnsList.addEventListener('change', (event) => {
+          const input = event.target;
+          if (!input || input.tagName !== 'INPUT') return;
+          repairColumnVisibility[input.value] = input.checked;
+          saveRepairColumnVisibility();
+          renderRepairTableHead();
+          renderRepairHistory(repairCache);
+        });
+      }
 
       if (historyBody) {
         historyBody.addEventListener('click', async (event) => {
