@@ -3479,6 +3479,11 @@
       const payload = {
         ...buildRepairSnapshot(vehicle),
         cs_contact_date: formData.get('cs_contact_date') || null,
+        status: formData.get('status') || null,
+        doc: formData.get('doc') || null,
+        shipping_date: formData.get('shipping_date') || null,
+        poc_name: formData.get('poc_name') || null,
+        poc_phone: formData.get('poc_phone') || null,
         customer_availability: formData.get('customer_availability') || null,
         installer_request_date: formData.get('installer_request_date') || null,
         installation_company: formData.get('installation_company') || null,
@@ -3588,29 +3593,55 @@
             <form class="space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-[11px] text-slate-200" data-repair-form>
               <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Status</span>
+                  <input type="text" name="status" placeholder="Pending" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">DOC</span>
+                  <input type="text" name="doc" placeholder="DOC-12345" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1">
                   <span class="text-[10px] uppercase text-slate-500 font-semibold">Date</span>
                   <input type="date" name="cs_contact_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
                 <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Customer Availability</span>
-                  <input type="text" name="customer_availability" placeholder="Mon-Fri afternoons" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Shipping Date</span>
+                  <input type="date" name="shipping_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
               </div>
               <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">POC Name</span>
+                  <input type="text" name="poc_name" placeholder="Primary contact" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">POC Phone</span>
+                  <input type="tel" name="poc_phone" placeholder="(555) 555-5555" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Customer Availability</span>
+                  <input type="text" name="customer_availability" placeholder="Mon-Fri afternoons" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
                 <label class="space-y-1">
                   <span class="text-[10px] uppercase text-slate-500 font-semibold">Installer Request Date</span>
                   <input type="date" name="installer_request_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1">
                   <span class="text-[10px] uppercase text-slate-500 font-semibold">Installation Company</span>
                   <input type="text" name="installation_company" placeholder="Techloc Installers" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1">
                   <span class="text-[10px] uppercase text-slate-500 font-semibold">Technician Availability</span>
                   <input type="date" name="technician_availability_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
                 </label>
+              </div>
+              <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-1">
                   <span class="text-[10px] uppercase text-slate-500 font-semibold">Installation Place</span>
                   <input type="text" name="installation_place" placeholder="123 Main St" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
@@ -3732,6 +3763,11 @@
             if (!repair || !form) return;
             form.dataset.editRepairId = repairId;
             const csContactInput = form.querySelector('[name="cs_contact_date"]');
+            const statusInput = form.querySelector('[name="status"]');
+            const docInput = form.querySelector('[name="doc"]');
+            const shippingDateInput = form.querySelector('[name="shipping_date"]');
+            const pocNameInput = form.querySelector('[name="poc_name"]');
+            const pocPhoneInput = form.querySelector('[name="poc_phone"]');
             const customerAvailabilityInput = form.querySelector('[name="customer_availability"]');
             const installerRequestInput = form.querySelector('[name="installer_request_date"]');
             const installationCompanyInput = form.querySelector('[name="installation_company"]');
@@ -3740,6 +3776,11 @@
             const repairPriceInput = form.querySelector('[name="repair_price"]');
             const repairNotesInput = form.querySelector('[name="repair_notes"]');
             if (csContactInput) csContactInput.value = repair?.cs_contact_date || '';
+            if (statusInput) statusInput.value = repair?.status || '';
+            if (docInput) docInput.value = repair?.doc || '';
+            if (shippingDateInput) shippingDateInput.value = repair?.shipping_date || '';
+            if (pocNameInput) pocNameInput.value = repair?.poc_name || '';
+            if (pocPhoneInput) pocPhoneInput.value = repair?.poc_phone || '';
             if (customerAvailabilityInput) customerAvailabilityInput.value = repair?.customer_availability || '';
             if (installerRequestInput) installerRequestInput.value = repair?.installer_request_date || '';
             if (installationCompanyInput) installationCompanyInput.value = repair?.installation_company || '';
