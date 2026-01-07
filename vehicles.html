@@ -868,7 +868,8 @@
       services: SERVICE_TABLE,
       vehicles: 'vehicles',
       hotspots: 'Hotspots',
-      blacklist: 'Services_Blacklist'
+      blacklist: 'Services_Blacklist',
+      repairHistory: 'repair_history'
     };
 
     const serviceCategoryLabelsByType = new Map();
@@ -1483,9 +1484,9 @@
     const hasValidCoords = (entry) => Number.isFinite(entry?.lat) && Number.isFinite(entry?.lng) && entry.lat !== 0 && entry.lng !== 0;
 
     const getLocationNote = (accuracy = '') => {
-      if (accuracy === 'zip') return 'Ubicación aproximada (Basada en Zip Code)';
-      if (accuracy === 'city') return 'Ubicación aproximada (Basada en Ciudad)';
-      if (accuracy === 'state') return 'Ubicación aproximada (Centro del estado)';
+      if (accuracy === 'zip') return 'Approximate location (based on ZIP code)';
+      if (accuracy === 'city') return 'Approximate location (based on city)';
+      if (accuracy === 'state') return 'Approximate location (state center)';
       return '';
     };
 
@@ -2538,6 +2539,7 @@
       const container = event.currentTarget;
       const card = event.target.closest('[data-type="vehicle"]');
       const viewMoreBtn = event.target.closest('[data-action="vehicle-view-more"]');
+      const repairHistoryBtn = event.target.closest('[data-action="repair-history"]');
       if (!card || !container.contains(card)) return;
 
       const vehicle = findVehicleById(card.dataset.id);
@@ -2546,6 +2548,12 @@
       if (viewMoreBtn) {
         event.stopPropagation();
         openVehicleModal(vehicle);
+        return;
+      }
+
+      if (repairHistoryBtn) {
+        event.stopPropagation();
+        openRepairModal(vehicle);
         return;
       }
 
@@ -2895,6 +2903,7 @@
                 ${svgIcon('info', 'h-3.5 w-3.5')}
                 See more
               </button>
+              <button data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">History</button>
             </div>
           `;
 
@@ -3252,8 +3261,8 @@
       const vehicle = vehicles.find(v => v.id === selectedVehicleId);
       const tech = technicians.find(t => t.id === selectedTechId);
       const parts = [];
-      if (vehicle) parts.push(`Vehículo ${vehicle.vin || vehicle.model}`);
-      if (tech) parts.push(`Técnico ${tech.company}`);
+      if (vehicle) parts.push(`Vehicle ${vehicle.vin || vehicle.model}`);
+      if (tech) parts.push(`Technician ${tech.company}`);
       text.textContent = `Filtered by ${parts.join(' & ')}`;
       banner.classList.remove('hidden');
     }
@@ -3369,7 +3378,7 @@
         if (!query || partners.length === 0) return;
 
         const originalBtnText = button.innerHTML;
-        const stopLoading = startLoading('Buscando dirección…');
+        const stopLoading = startLoading('Searching address…');
         button.innerHTML = svgIcon('loader2', 'animate-spin h-4 w-4');
         button.disabled = true;
         status?.classList.remove('hidden');
@@ -3417,14 +3426,90 @@
       partnerType: 'repair'
     });
 
+    const buildRepairSnapshot = (vehicle) => {
+      return {
+        vehicle_id: vehicle?.id,
+        vin: vehicle?.vin,
+        model: vehicle?.model,
+        year: vehicle?.year,
+        customer_id: vehicle?.customerId,
+        gps_fix: vehicle?.gpsFix,
+        gps_fix_reason: vehicle?.gpsReason,
+        gps_moving: vehicle?.gpsMoving,
+        moving: vehicle?.moving,
+        moving_calc: vehicle?.movingCalc,
+        pt_status: vehicle?.ptStatus,
+        pt_serial: vehicle?.ptSerial,
+        encore_serial: vehicle?.encoreSerial,
+        last_read: vehicle?.lastRead,
+        days_stationary: vehicle?.daysStationary,
+        state: vehicle?.state,
+        city: vehicle?.city,
+        zipcode: vehicle?.zipcode,
+        lat: vehicle?.lat,
+        lng: vehicle?.lng,
+        location_accuracy: vehicle?.locationAccuracy,
+        status: vehicle?.status,
+        inv_prep_status: vehicle?.invPrepStatus,
+        deal_completion: vehicle?.dealCompletion,
+        payment: vehicle?.payment,
+        customer: vehicle?.customer,
+        last_location: vehicle?.lastLocation,
+        location_note: vehicle?.locationNote
+      };
+    };
+
+    async function fetchRepairs(vehicleId) {
+      if (!supabaseClient || !vehicleId) return [];
+      try {
+        const { data, error } = await supabaseClient
+          .from(TABLES.repairHistory)
+          .select('*')
+          .eq('vehicle_id', vehicleId)
+          .order('cs_contact_date', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.warn('Repair history load warning:', error);
+        return [];
+      }
+    }
+
+    async function saveRepair(vehicle, formData) {
+      if (!supabaseClient) {
+        throw new Error('Supabase unavailable');
+      }
+      const rawPrice = formData.get('repair_price') || '0';
+      const cleanPrice = Number.parseFloat(`${rawPrice}`.replace(/[$,]/g, '')) || 0;
+      const payload = {
+        ...buildRepairSnapshot(vehicle),
+        cs_contact_date: formData.get('cs_contact_date') || null,
+        service_title: formData.get('service_title') || null,
+        repair_detail: formData.get('repair_detail') || null,
+        repair_price: cleanPrice,
+        repair_notes: formData.get('repair_notes') || null
+      };
+
+      const { data, error } = await supabaseClient
+        .from(TABLES.repairHistory)
+        .insert(payload)
+        .select('*');
+      if (error) throw error;
+      return data || [];
+    }
+
     function openVehicleModal(vehicle) {
       const modal = document.getElementById('vehicle-modal');
       const title = document.getElementById('vehicle-modal-title');
       const body = document.getElementById('vehicle-modal-body');
+      const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
+      const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
       if (!modal || !title || !body) return;
 
       modal.dataset.vehicleId = vehicle.id;
-      title.textContent = `${vehicle.model || 'Vehículo'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      columnsToggle?.classList.remove('hidden');
+      columnsPanel?.classList.add('hidden');
+      title.textContent = `${vehicle.model || 'Vehicle'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
       const { headers, hidden } = getVehicleModalHeaders();
       const detailRows = headers.map(header => {
         const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
@@ -3457,6 +3542,176 @@
       renderVehicleModalColumnsList(headers, hidden);
       attachVehicleModalRowDrag();
       attachVehicleModalEditors(vehicle);
+    }
+
+    function openRepairModal(vehicle) {
+      const modal = document.getElementById('vehicle-modal');
+      const title = document.getElementById('vehicle-modal-title');
+      const body = document.getElementById('vehicle-modal-body');
+      const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
+      const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
+      if (!modal || !title || !body) return;
+
+      modal.dataset.vehicleId = vehicle.id;
+      title.textContent = 'Repair Management';
+      columnsToggle?.classList.add('hidden');
+      columnsPanel?.classList.add('hidden');
+      body.innerHTML = `
+        <div class="space-y-4">
+          <div class="inline-flex rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-[11px] font-semibold text-slate-300">
+            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-white bg-slate-800/80" data-tab="history">History</button>
+            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-slate-400 hover:text-white" data-tab="new-entry">New Entry</button>
+          </div>
+          <div class="repair-tab-panel" data-tab-panel="history">
+            <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+              <table class="w-full text-left text-[11px] text-slate-200">
+                <thead class="text-[10px] uppercase text-slate-500">
+                  <tr>
+                    <th class="py-2 pr-3">Date</th>
+                    <th class="py-2 pr-3">Service</th>
+                    <th class="py-2 pr-3">Details</th>
+                    <th class="py-2">Cost</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/80" data-repair-history-body>
+                  <tr data-repair-empty>
+                    <td class="py-2 pr-3 text-slate-400" colspan="4">Loading history...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="repair-tab-panel hidden" data-tab-panel="new-entry">
+            <form class="space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-[11px] text-slate-200" data-repair-form>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Date</span>
+                  <input type="date" name="cs_contact_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+                <label class="space-y-1">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Service</span>
+                  <input type="text" name="service_title" placeholder="Oil change" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+              </div>
+              <label class="space-y-1 block">
+                <span class="text-[10px] uppercase text-slate-500 font-semibold">Details</span>
+                <textarea rows="3" name="repair_detail" placeholder="Describe the repair performed..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100"></textarea>
+              </label>
+              <div class="grid gap-3 md:grid-cols-2">
+                <label class="space-y-1 block">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Cost</span>
+                  <input type="text" name="repair_price" placeholder="$0.00" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+                <label class="space-y-1 block">
+                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Notes</span>
+                  <input type="text" name="repair_notes" placeholder="Internal notes..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
+                </label>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-[10px] text-slate-400" data-repair-status></p>
+                <button type="submit" data-repair-submit class="rounded-lg border border-blue-400/50 bg-blue-500/20 px-4 py-1.5 text-[11px] font-semibold text-blue-100 hover:bg-blue-500/30 transition-colors">Save entry</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      const tabButtons = body.querySelectorAll('.repair-tab-btn');
+      const tabPanels = body.querySelectorAll('.repair-tab-panel');
+      const setActiveTab = (tabKey) => {
+        tabButtons.forEach((button) => {
+          const isActive = button.dataset.tab === tabKey;
+          button.classList.toggle('bg-slate-800/80', isActive);
+          button.classList.toggle('text-white', isActive);
+          button.classList.toggle('text-slate-400', !isActive);
+        });
+        tabPanels.forEach((panel) => {
+          panel.classList.toggle('hidden', panel.dataset.tabPanel !== tabKey);
+        });
+      };
+
+      tabButtons.forEach((button) => {
+        button.addEventListener('click', () => setActiveTab(button.dataset.tab));
+      });
+
+      setActiveTab('history');
+
+      const historyBody = body.querySelector('[data-repair-history-body]');
+      const historyEmpty = body.querySelector('[data-repair-empty]');
+      const form = body.querySelector('[data-repair-form]');
+      const statusText = body.querySelector('[data-repair-status]');
+      const submitBtn = body.querySelector('[data-repair-submit]');
+
+      const renderRepairHistory = (repairs = []) => {
+        if (!historyBody) return;
+        if (!repairs.length) {
+          historyBody.innerHTML = `
+            <tr data-repair-empty>
+              <td class="py-2 pr-3 text-slate-400" colspan="4">No repair records yet.</td>
+            </tr>
+          `;
+          return;
+        }
+        historyBody.innerHTML = repairs.map((repair) => {
+          const dateLabel = repair?.cs_contact_date ? formatDateTime(repair.cs_contact_date) : '—';
+          return `
+            <tr>
+              <td class="py-2 pr-3 text-slate-100">${escapeHTML(dateLabel)}</td>
+              <td class="py-2 pr-3 text-slate-100">${escapeHTML(repair?.service_title || '—')}</td>
+              <td class="py-2 pr-3 text-slate-300">${escapeHTML(repair?.repair_detail || '—')}</td>
+              <td class="py-2 text-amber-200 font-semibold">${escapeHTML(repair?.repair_price || '—')}</td>
+            </tr>
+          `;
+        }).join('');
+      };
+
+      if (historyEmpty) historyEmpty.textContent = 'Loading history...';
+      fetchRepairs(vehicle.id).then(renderRepairHistory);
+
+      if (form) {
+        form.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (!vehicle) return;
+          const submitLabel = submitBtn?.textContent || 'Save entry';
+          submitBtn && (submitBtn.disabled = true);
+          if (submitBtn) submitBtn.textContent = 'Saving...';
+          if (statusText) {
+            statusText.textContent = 'Saving repair...';
+            statusText.classList.remove('text-amber-200');
+            statusText.classList.add('text-slate-400');
+          }
+          const stopLoading = startLoading('Saving repair...');
+          try {
+            const formData = new FormData(form);
+            await saveRepair(vehicle, formData);
+            form.reset();
+            const repairs = await fetchRepairs(vehicle.id);
+            renderRepairHistory(repairs);
+            if (statusText) {
+              statusText.textContent = 'Entry saved successfully.';
+              statusText.classList.remove('text-slate-400', 'text-amber-300');
+              statusText.classList.add('text-amber-200');
+            }
+            setActiveTab('history');
+          } catch (error) {
+            console.warn('Failed to save repair:', error);
+            if (statusText) {
+              statusText.textContent = error?.message || 'Unable to save repair.';
+              statusText.classList.remove('text-slate-400', 'text-amber-200');
+              statusText.classList.add('text-amber-300');
+            }
+          } finally {
+            stopLoading();
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = submitLabel;
+            }
+          }
+        });
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
     }
 
     function attachVehicleModalRowDrag() {
