@@ -456,12 +456,12 @@
           </label>
           <span id="table-summary" class="rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1 text-[11px] font-semibold text-slate-200">0 assets</span>
           <div class="flex items-center gap-1 text-[11px] font-semibold text-slate-200">
-            <button id="table-prev" type="button" data-pill-control class="h-7 w-7 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Previous page">
-              <i data-lucide="chevron-left" class="h-3 w-3"></i>
+            <button id="table-prev" type="button" data-pill-control class="h-9 w-9 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Previous page">
+              <i data-lucide="chevron-left" class="h-4 w-4"></i>
             </button>
             <span id="table-page" class="text-[11px] text-slate-300">Page 1</span>
-            <button id="table-next" type="button" data-pill-control class="h-7 w-7 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Next page">
-              <i data-lucide="chevron-right" class="h-3 w-3"></i>
+            <button id="table-next" type="button" data-pill-control class="h-9 w-9 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Next page">
+              <i data-lucide="chevron-right" class="h-4 w-4"></i>
             </button>
           <label class="inline-flex items-center gap-1">
             <i data-lucide="hash" class="h-3 w-3 text-slate-400"></i>
@@ -722,6 +722,25 @@
       return parsed.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
     };
     const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value);
+    const MILEAGE_COLUMNS = new Set(['mileage']);
+    const CURRENCY_COLUMNS = new Set([
+      'price on contract',
+      'scheduled amount',
+      'open balance',
+      'regular amount',
+    ]);
+    const formatMileage = (value) => {
+      if (value === null || value === undefined || value === '') return '--';
+      const numeric = Number(String(value).replace(/,/g, ''));
+      if (!Number.isFinite(numeric)) return value;
+      return formatNumber(numeric);
+    };
+    const formatCurrency = (value) => {
+      if (value === null || value === undefined || value === '') return '--';
+      const numeric = Number(String(value).replace(/[$,]/g, ''));
+      if (!Number.isFinite(numeric)) return value;
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
+    };
 
     const formatRelativeTime = (timestamp) => {
       if (!timestamp) return 'Updated --';
@@ -864,7 +883,10 @@
     const INV_PREP_STATUS_CLASSES = {
       'out for repo': 'bg-gradient-to-r from-pink-500/20 via-pink-400/10 to-pink-500/20 backdrop-blur-sm',
       'passtime unavailable': 'bg-gradient-to-r from-amber-700/25 via-amber-500/10 to-amber-700/25 backdrop-blur-sm',
-      accident: 'bg-gradient-to-r from-red-500/25 via-red-400/10 to-red-500/25 backdrop-blur-sm',
+      accident: 'bg-gradient-to-r from-orange-500/25 via-orange-400/10 to-orange-500/25 backdrop-blur-sm',
+      'not stock': 'bg-gradient-to-r from-slate-500/25 via-slate-400/10 to-slate-500/25 backdrop-blur-sm',
+      stolen: 'bg-gradient-to-r from-red-500/25 via-red-400/10 to-red-500/25 backdrop-blur-sm',
+      'm&t repo title in process': 'bg-gradient-to-r from-blue-600/25 via-blue-500/10 to-blue-600/25 backdrop-blur-sm',
       'repoed on hold': 'bg-gradient-to-r from-blue-700/25 via-blue-500/10 to-blue-700/25 backdrop-blur-sm',
       'third party repair shop': 'bg-gradient-to-r from-yellow-300/20 via-yellow-200/10 to-yellow-300/20 backdrop-blur-sm',
       'available for deals': 'bg-gradient-to-r from-emerald-400/20 via-emerald-300/10 to-emerald-400/20 backdrop-blur-sm',
@@ -1448,7 +1470,9 @@
         });
 
         const activeChartFilters = !ignoreChartFilter && filters.chartFilters
-          ? Object.values(filters.chartFilters)
+          ? Object.entries(filters.chartFilters)
+            .filter(([chartId]) => !ignoreChartId || chartId !== ignoreChartId)
+            .map(([, filter]) => filter)
           : [];
         const chartMatch = ignoreChartFilter || !activeChartFilters.length
           || activeChartFilters.every((filter) => {
@@ -1697,8 +1721,17 @@
         }
 
         const dataset = DashboardState.derived.filtered;
+        const segmentDataset = applyFilters({ ignoreChartId: chartId });
         const uniqueRecords = Array.from(
           dataset.reduce((acc, item) => {
+            const key = item.stockNo || item.vin || item.id;
+            if (!key) return acc;
+            if (!acc.has(key)) acc.set(key, item);
+            return acc;
+          }, new Map()).values()
+        );
+        const segmentRecords = Array.from(
+          segmentDataset.reduce((acc, item) => {
             const key = item.stockNo || item.vin || item.id;
             if (!key) return acc;
             if (!acc.has(key)) acc.set(key, item);
@@ -1710,15 +1743,23 @@
           acc[key] = (acc[key] || 0) + 1;
           return acc;
         }, {});
-        const segmentValues = Object.keys(dealStatusCounts).sort((a, b) => a.localeCompare(b));
+        const segmentValues = Array.from(
+          new Set(segmentRecords.map((item) => getSegmentLabel(item[segmentKey])))
+        ).sort((a, b) => a.localeCompare(b));
         renderSegmentFieldOptions(chartId, segmentKey, segmentValues);
         const hiddenValues = ensureChartVisibilityState(chartId, segmentKey);
+        const hiddenSet = new Set(hiddenValues);
         const statusCounts = Object.entries(dealStatusCounts)
-          .map(([status, count]) => ({ status, count }))
-          .filter((item) => !hiddenValues.includes(item.status))
+          .reduce((acc, [status, count]) => {
+            acc[status] = count;
+            return acc;
+          }, {});
+        const statusList = segmentValues
+          .filter((status) => !hiddenSet.has(status))
+          .map((status) => ({ status, count: statusCounts[status] || 0 }))
           .sort((a, b) => a.status.localeCompare(b.status));
-        const maxCount = Math.max(1, ...statusCounts.map((i) => i.count));
-        const statusBars = statusCounts.map((i, index) => ({
+        const maxCount = Math.max(1, ...statusList.map((i) => i.count));
+        const statusBars = statusList.map((i, index) => ({
           ...i,
           percentage: Math.round((i.count / maxCount) * 100),
           color: palette[index % palette.length],
@@ -1737,16 +1778,20 @@
           const isActive = activeFilter
             && activeFilter.key === segmentKey
             && activeValues.includes(item.status);
-          const isDimmed = activeFilter && activeValues.length > 0 && !isActive;
+          const isDisabled = activeFilter && activeValues.length > 0 && !isActive;
           const activeClass = isActive ? 'ring-2 ring-blue-400/70 bg-slate-900/50' : '';
-          const dimClass = isDimmed ? 'opacity-50' : '';
+          const dimClass = isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : '';
+          const hoverClass = isDisabled ? '' : 'hover:bg-slate-900/60';
+          const countClass = isDisabled ? 'text-slate-500' : 'text-slate-200';
+          const labelClass = isDisabled ? 'text-slate-500' : 'text-slate-400';
+          const disabledAttr = isDisabled ? 'disabled aria-disabled="true"' : '';
           return `
-          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="group flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass} ${dimClass}">
-            <span class="mb-1 text-[11px] font-semibold text-slate-200">${item.count}</span>
+          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="group flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition ${hoverClass} ${activeClass} ${dimClass}" ${disabledAttr}>
+            <span class="mb-1 text-[11px] font-semibold ${countClass}">${item.count}</span>
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
               <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: 0%;" data-height="${item.percentage}%"></div>
             </div>
-            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] text-slate-400 transition duration-200 ease-out group-hover:scale-110 group-hover:text-slate-100">${item.status}</span>
+            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] transition duration-200 ease-out group-hover:scale-110 group-hover:text-slate-100 ${labelClass}">${item.status}</span>
           </button>
         `;
         }).join('');
@@ -1935,6 +1980,14 @@
 
           if (col.type === 'boolean') value = value ? 'Yes' : 'No';
           else if (col.type === 'date') value = value ? formatDate(value) : '--';
+          else if (MILEAGE_COLUMNS.has(col.key.toLowerCase()) || col.label?.toLowerCase() === 'mileage') {
+            value = formatMileage(value);
+          } else if (
+            CURRENCY_COLUMNS.has(col.key.toLowerCase())
+            || (col.label && CURRENCY_COLUMNS.has(col.label.toLowerCase()))
+          ) {
+            value = formatCurrency(value);
+          }
 
           if (value === null || value === undefined || value === '') value = '--';
 
