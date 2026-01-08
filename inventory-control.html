@@ -1451,7 +1451,9 @@
         });
 
         const activeChartFilters = !ignoreChartFilter && filters.chartFilters
-          ? Object.values(filters.chartFilters)
+          ? Object.entries(filters.chartFilters)
+            .filter(([chartId]) => !ignoreChartId || chartId !== ignoreChartId)
+            .map(([, filter]) => filter)
           : [];
         const chartMatch = ignoreChartFilter || !activeChartFilters.length
           || activeChartFilters.every((filter) => {
@@ -1700,8 +1702,17 @@
         }
 
         const dataset = DashboardState.derived.filtered;
+        const segmentDataset = applyFilters({ ignoreChartId: chartId });
         const uniqueRecords = Array.from(
           dataset.reduce((acc, item) => {
+            const key = item.stockNo || item.vin || item.id;
+            if (!key) return acc;
+            if (!acc.has(key)) acc.set(key, item);
+            return acc;
+          }, new Map()).values()
+        );
+        const segmentRecords = Array.from(
+          segmentDataset.reduce((acc, item) => {
             const key = item.stockNo || item.vin || item.id;
             if (!key) return acc;
             if (!acc.has(key)) acc.set(key, item);
@@ -1713,15 +1724,23 @@
           acc[key] = (acc[key] || 0) + 1;
           return acc;
         }, {});
-        const segmentValues = Object.keys(dealStatusCounts).sort((a, b) => a.localeCompare(b));
+        const segmentValues = Array.from(
+          new Set(segmentRecords.map((item) => getSegmentLabel(item[segmentKey])))
+        ).sort((a, b) => a.localeCompare(b));
         renderSegmentFieldOptions(chartId, segmentKey, segmentValues);
         const hiddenValues = ensureChartVisibilityState(chartId, segmentKey);
+        const hiddenSet = new Set(hiddenValues);
         const statusCounts = Object.entries(dealStatusCounts)
-          .map(([status, count]) => ({ status, count }))
-          .filter((item) => !hiddenValues.includes(item.status))
+          .reduce((acc, [status, count]) => {
+            acc[status] = count;
+            return acc;
+          }, {});
+        const statusList = segmentValues
+          .filter((status) => !hiddenSet.has(status))
+          .map((status) => ({ status, count: statusCounts[status] || 0 }))
           .sort((a, b) => a.status.localeCompare(b.status));
-        const maxCount = Math.max(1, ...statusCounts.map((i) => i.count));
-        const statusBars = statusCounts.map((i, index) => ({
+        const maxCount = Math.max(1, ...statusList.map((i) => i.count));
+        const statusBars = statusList.map((i, index) => ({
           ...i,
           percentage: Math.round((i.count / maxCount) * 100),
           color: palette[index % palette.length],
@@ -1740,16 +1759,20 @@
           const isActive = activeFilter
             && activeFilter.key === segmentKey
             && activeValues.includes(item.status);
-          const isDimmed = activeFilter && activeValues.length > 0 && !isActive;
+          const isDisabled = activeFilter && activeValues.length > 0 && !isActive;
           const activeClass = isActive ? 'ring-2 ring-blue-400/70 bg-slate-900/50' : '';
-          const dimClass = isDimmed ? 'opacity-50' : '';
+          const dimClass = isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : '';
+          const hoverClass = isDisabled ? '' : 'hover:bg-slate-900/60';
+          const countClass = isDisabled ? 'text-slate-500' : 'text-slate-200';
+          const labelClass = isDisabled ? 'text-slate-500' : 'text-slate-400';
+          const disabledAttr = isDisabled ? 'disabled aria-disabled="true"' : '';
           return `
-          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="group flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition hover:bg-slate-900/60 ${activeClass} ${dimClass}">
-            <span class="mb-1 text-[11px] font-semibold text-slate-200">${item.count}</span>
+          <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="group flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition ${hoverClass} ${activeClass} ${dimClass}" ${disabledAttr}>
+            <span class="mb-1 text-[11px] font-semibold ${countClass}">${item.count}</span>
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
               <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: 0%;" data-height="${item.percentage}%"></div>
             </div>
-            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] text-slate-400 transition duration-200 ease-out group-hover:scale-110 group-hover:text-slate-100">${item.status}</span>
+            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] transition duration-200 ease-out group-hover:scale-110 group-hover:text-slate-100 ${labelClass}">${item.status}</span>
           </button>
         `;
         }).join('');
