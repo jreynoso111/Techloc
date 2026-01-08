@@ -722,6 +722,25 @@
       return parsed.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' });
     };
     const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value);
+    const MILEAGE_COLUMNS = new Set(['mileage']);
+    const CURRENCY_COLUMNS = new Set([
+      'price on contract',
+      'scheduled amount',
+      'open balance',
+      'regular amount',
+    ]);
+    const formatMileage = (value) => {
+      if (value === null || value === undefined || value === '') return '--';
+      const numeric = Number(String(value).replace(/,/g, ''));
+      if (!Number.isFinite(numeric)) return value;
+      return formatNumber(numeric);
+    };
+    const formatCurrency = (value) => {
+      if (value === null || value === undefined || value === '') return '--';
+      const numeric = Number(String(value).replace(/[$,]/g, ''));
+      if (!Number.isFinite(numeric)) return value;
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(numeric);
+    };
 
     const formatRelativeTime = (timestamp) => {
       if (!timestamp) return 'Updated --';
@@ -1961,6 +1980,14 @@
 
           if (col.type === 'boolean') value = value ? 'Yes' : 'No';
           else if (col.type === 'date') value = value ? formatDate(value) : '--';
+          else if (MILEAGE_COLUMNS.has(col.key.toLowerCase()) || col.label?.toLowerCase() === 'mileage') {
+            value = formatMileage(value);
+          } else if (
+            CURRENCY_COLUMNS.has(col.key.toLowerCase())
+            || (col.label && CURRENCY_COLUMNS.has(col.label.toLowerCase()))
+          ) {
+            value = formatCurrency(value);
+          }
 
           if (value === null || value === undefined || value === '') value = '--';
 
