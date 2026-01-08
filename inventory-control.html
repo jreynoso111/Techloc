@@ -861,6 +861,36 @@
       || schema.find((col) => /vehicle\s*status/i.test(col.key) || /vehicle\s*status/i.test(col.label))?.key
       || '';
 
+    const INV_PREP_STATUS_CLASSES = {
+      'out for repo': 'bg-gradient-to-r from-pink-500/20 via-pink-400/10 to-pink-500/20 backdrop-blur-sm',
+      'passtime unavailable': 'bg-gradient-to-r from-amber-700/25 via-amber-500/10 to-amber-700/25 backdrop-blur-sm',
+      accident: 'bg-gradient-to-r from-red-500/25 via-red-400/10 to-red-500/25 backdrop-blur-sm',
+      'repoed on hold': 'bg-gradient-to-r from-blue-700/25 via-blue-500/10 to-blue-700/25 backdrop-blur-sm',
+      'third party repair shop': 'bg-gradient-to-r from-yellow-300/20 via-yellow-200/10 to-yellow-300/20 backdrop-blur-sm',
+      'available for deals': 'bg-gradient-to-r from-emerald-400/20 via-emerald-300/10 to-emerald-400/20 backdrop-blur-sm',
+    };
+
+    const detectInvPrepStatusKey = (schema) =>
+      schema.find((col) =>
+        /inv\.?\s*prep\.?\s*stat/i.test(col.key)
+          || /inv\.?\s*prep\.?\s*stat/i.test(col.label)
+          || /inventory\s*preparation\s*status/i.test(col.key)
+          || /inventory\s*preparation\s*status/i.test(col.label)
+      )?.key || '';
+
+    const getInvPrepStatusValue = (item, key) => {
+      const value = key ? item?.[key] : undefined;
+      if (value !== undefined && value !== null && value !== '') return String(value);
+      const fallback = item?.prepStatus ?? item?.['Inventory Preparation Status'] ?? item?.['Inv. Prep. Stat'];
+      return fallback !== undefined && fallback !== null && fallback !== '' ? String(fallback) : '';
+    };
+
+    const getInvPrepStatusRowClass = (status) => {
+      if (!status) return '';
+      const normalized = String(status).trim().toLowerCase();
+      return INV_PREP_STATUS_CLASSES[normalized] || '';
+    };
+
     const detectTruthyColumnValue = (rows, key) => {
       if (!key) return '';
       const truthyRow = rows.find((row) => normalizeBoolean(row?.[key]));
@@ -1830,6 +1860,7 @@
       const visibleColumns = getOrderedColumns(DashboardState.schema)
         .filter((c) => DashboardState.table.columns[c.key]);
       const columnCount = Math.max(1, visibleColumns.length);
+      const invPrepKey = detectInvPrepStatusKey(DashboardState.schema);
 
       if (DashboardState.ui.isLoading) {
         tableBody.innerHTML = Array.from({ length: DashboardState.table.perPage }).map(() => `
@@ -1897,6 +1928,8 @@
       const rangeEnd = totalRows ? startIndex + pageItems.length : 0;
 
       const rowsHtml = pageItems.map((item) => {
+        const prepStatus = getInvPrepStatusValue(item, invPrepKey);
+        const prepClass = getInvPrepStatusRowClass(prepStatus);
         const cells = visibleColumns.map((col) => {
           let value = item[col.key];
 
@@ -1910,7 +1943,7 @@
           return `<td class="px-3 py-2 whitespace-normal break-words"${style}>${value}</td>`;
         }).join('');
 
-        return `<tr class="text-xs hover:bg-slate-900/60 cursor-pointer" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
+        return `<tr class="text-xs ${prepClass} hover:bg-slate-900/60 cursor-pointer transition" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
       }).join('');
 
       tableBody.innerHTML = rowsHtml || `<tr><td class="px-3 py-6 text-center text-sm text-slate-400" colspan="${columnCount}">No vehicles match current filters.</td></tr>`;
