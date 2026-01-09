@@ -675,11 +675,12 @@
 
   <!-- Vehicle detail modal -->
   <div id="vehicle-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div class="flex w-full max-w-6xl flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden max-h-[90vh]">
-      <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900/70 px-4 py-3">
+    <div class="flex w-auto max-w-[90vw] h-auto max-h-[85vh] flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+      <div class="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-4 py-3 backdrop-blur">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
           <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
+          <p id="vehicle-modal-vin" class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400"></p>
         </div>
         <div class="flex items-center gap-2">
           <button id="vehicle-modal-columns-toggle" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Columns</button>
@@ -1914,6 +1915,12 @@
       if (vehicles.length) return;
       if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping vehicle load.');
+        document.getElementById('vehicle-list').innerHTML = `
+          <div class="text-center mt-10 px-6">
+            ${svgIcon('alertCircle', 'mx-auto h-8 w-8 text-slate-600 mb-2')}
+            <p class="text-slate-500 text-xs">Supabase is offline. Unable to load vehicles.</p>
+          </div>
+        `;
         return;
       }
       const stopLoading = startLoading('Loading Vehicles…');
@@ -2832,6 +2839,12 @@
 
           if (idx >= VEHICLE_RENDER_LIMIT) return;
 
+          const dealStatus = `${vehicle.dealStatus ?? vehicle.status ?? ''}`.trim();
+          const prepStatus = `${vehicle.invPrepStatus ?? ''}`.trim();
+          const gpsStatus = `${vehicle.gpsFix ?? ''}`.trim();
+          const isGpsDisabled = gpsStatus.toLowerCase() === 'disabled';
+          const isOutForRepo = prepStatus.toLowerCase() === 'out for repo';
+          const isDealActive = dealStatus.toLowerCase() === 'active';
           const card = document.createElement('div');
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
           card.dataset.id = vehicle.id;
@@ -2859,11 +2872,11 @@
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
+              <div class="rounded-lg border ${isGpsDisabled ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-950/70'} px-2 py-1.5 flex items-center gap-2 text-slate-200">
                 ${svgIcon('wifiOff', 'h-3 w-3 text-amber-300')}
                 <div class="text-left leading-tight">
-                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
-                  <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
+                  <p class="font-semibold ${isGpsDisabled ? 'text-rose-200' : ''}">${vehicle.gpsFix || 'GPS issue'}</p>
+                  <p class="text-[10px] ${isGpsDisabled ? 'text-rose-200/80' : 'text-slate-400'}">${vehicle.gpsReason || 'Pending'}</p>
                 </div>
               </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
@@ -2876,13 +2889,13 @@
             </div>
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
               <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                <div class="rounded border ${isDealActive ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-900'} px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
+                  <p class="text-[11px] font-semibold ${isDealActive ? 'text-emerald-200' : 'text-slate-100'}">${dealStatus || '—'}</p>
                 </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                <div class="rounded border ${isOutForRepo ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-900'} px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
+                  <p class="text-[11px] font-semibold ${isOutForRepo ? 'text-rose-200' : 'text-slate-100'}">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
@@ -3427,8 +3440,8 @@
     });
 
     const getRepairVehicleVin = (vehicle) => {
-      const vin = vehicle?.vin ?? vehicle?.VIN ?? vehicle?.details?.VIN;
-      return typeof vin === 'string' ? vin.trim().toLowerCase() : '';
+      const vin = vehicle?.VIN ?? vehicle?.details?.VIN ?? '';
+      return typeof vin === 'string' ? vin.trim() : '';
     };
 
     const buildRepairSnapshot = (vehicle) => {
@@ -3460,15 +3473,14 @@
       };
     };
 
-    async function fetchRepairs(vehicle) {
-      const vin = getRepairVehicleVin(vehicle);
-      if (!supabaseClient || !vin) return [];
+    async function fetchRepairs(VIN) {
+      if (!supabaseClient || !VIN) return [];
       try {
         const { data, error } = await supabaseClient
           .from(TABLES.repairHistory)
           .select('*')
-          .ilike('vin', vin)
-          .order('cs_contact_date', { ascending: false });
+          .eq('VIN', VIN)
+          .order('created_at', { ascending: false });
         if (error) throw error;
         return data || [];
       } catch (error) {
@@ -3510,15 +3522,20 @@
     function openVehicleModal(vehicle) {
       const modal = document.getElementById('vehicle-modal');
       const title = document.getElementById('vehicle-modal-title');
+      const vinDisplay = document.getElementById('vehicle-modal-vin');
       const body = document.getElementById('vehicle-modal-body');
       const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
       const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
       if (!modal || !title || !body) return;
 
+      const VIN = getRepairVehicleVin(vehicle);
       modal.dataset.vehicleId = vehicle.id;
       columnsToggle?.classList.remove('hidden');
       columnsPanel?.classList.add('hidden');
       title.textContent = `${vehicle.model || 'Vehicle'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
+      if (vinDisplay) {
+        vinDisplay.textContent = VIN ? `VIN: ${VIN}` : '';
+      }
       const { headers, hidden } = getVehicleModalHeaders();
       const detailRows = headers.map(header => {
         const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
@@ -3556,32 +3573,42 @@
     function openRepairModal(vehicle) {
       const modal = document.getElementById('vehicle-modal');
       const title = document.getElementById('vehicle-modal-title');
+      const vinDisplay = document.getElementById('vehicle-modal-vin');
       const body = document.getElementById('vehicle-modal-body');
       const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
       const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
       if (!modal || !title || !body) return;
 
+      const VIN = getRepairVehicleVin(vehicle);
       modal.dataset.vehicleId = vehicle.id;
       title.textContent = 'Repair Management';
+      if (vinDisplay) {
+        vinDisplay.textContent = VIN ? `VIN: ${VIN}` : '';
+      }
       columnsToggle?.classList.add('hidden');
       columnsPanel?.classList.add('hidden');
       body.innerHTML = `
         <div class="space-y-4">
-          <div class="inline-flex rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-[11px] font-semibold text-slate-300">
-            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-white bg-slate-800/80" data-tab="history">History</button>
-            <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-slate-400 hover:text-white" data-tab="new-entry">New Entry</button>
+          <div class="sticky top-0 z-10 -mx-4 border-b border-slate-800 bg-slate-950/95 px-4 pb-3 pt-1 backdrop-blur">
+            <div class="inline-flex rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-[11px] font-semibold text-slate-300">
+              <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-white bg-slate-800/80" data-tab="history">History</button>
+              <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-slate-400 hover:text-white" data-tab="new-entry">New Entry</button>
+            </div>
           </div>
           <div class="repair-tab-panel" data-tab-panel="history">
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
               <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
                 <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Repair History</p>
-                <div class="relative">
+                <div class="flex flex-wrap items-center gap-2">
+                  <input type="text" class="w-48 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 placeholder-slate-500" placeholder="Search notes, status, company" data-repair-search />
+                  <div class="relative">
                   <button type="button" class="rounded border border-slate-700 bg-slate-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 hover:border-slate-500" data-repair-columns-toggle>
                     Columns
                   </button>
                   <div class="absolute right-0 z-10 mt-2 hidden w-64 rounded-lg border border-slate-800 bg-slate-950/95 p-3 text-[11px] text-slate-200 shadow-xl" data-repair-columns-panel>
                     <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
                     <div class="mt-2 grid gap-2" data-repair-columns-list></div>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -3698,6 +3725,7 @@
       const repairColumnsToggle = body.querySelector('[data-repair-columns-toggle]');
       const repairColumnsPanel = body.querySelector('[data-repair-columns-panel]');
       const repairColumnsList = body.querySelector('[data-repair-columns-list]');
+      const repairSearchInput = body.querySelector('[data-repair-search]');
       const form = body.querySelector('[data-repair-form]');
       const statusText = body.querySelector('[data-repair-status]');
       const submitBtn = body.querySelector('[data-repair-submit]');
@@ -3705,7 +3733,13 @@
       let repairCache = [];
       let repairColumns = [];
       let repairColumnVisibility = {};
+      let repairSearchQuery = '';
+      let repairSortKey = '';
+      let repairSortDirection = 'desc';
+      let repairColumnWidths = {};
+      let repairColumnOrder = [];
       const REPAIR_COLUMN_STORAGE_KEY = 'repairHistoryColumns';
+      const REPAIR_COLUMN_ORDER_KEY = 'repairHistoryColumnOrder';
 
       const DEFAULT_REPAIR_COLUMNS = [
         { key: 'cs_contact_date', label: 'Date' },
@@ -3729,9 +3763,69 @@
         return value;
       };
 
+      const renderStatusBadge = (value) => {
+        const text = value ? `${value}` : '—';
+        const normalized = text.toLowerCase();
+        let badgeClasses = 'bg-slate-800/70 text-slate-200 border-slate-700';
+        if (normalized.includes('done') || normalized.includes('complete')) {
+          badgeClasses = 'bg-emerald-500/15 text-emerald-200 border-emerald-400/40';
+        } else if (normalized.includes('pending') || normalized.includes('open')) {
+          badgeClasses = 'bg-amber-500/15 text-amber-200 border-amber-400/40';
+        } else if (normalized.includes('cancel') || normalized.includes('fail')) {
+          badgeClasses = 'bg-rose-500/15 text-rose-200 border-rose-400/40';
+        }
+        return `<span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${badgeClasses}">${escapeHTML(text)}</span>`;
+      };
+
+      const renderNotesCell = (value) => {
+        if (value === null || value === undefined || value === '') return '—';
+        return `
+          <button type="button" class="max-w-[260px] truncate text-left text-slate-300 hover:text-slate-100 transition-colors" data-repair-notes>
+            ${escapeHTML(value)}
+          </button>
+        `;
+      };
+
+      const renderRepairCell = (columnKey, repair) => {
+        if (columnKey === 'status') {
+          return renderStatusBadge(repair?.[columnKey]);
+        }
+        if (columnKey === 'repair_notes') {
+          return renderNotesCell(repair?.[columnKey]);
+        }
+        return escapeHTML(formatRepairValue(columnKey, repair?.[columnKey]));
+      };
+
       const titleCase = (value) => value
         .replace(/_/g, ' ')
         .replace(/\b\w/g, (match) => match.toUpperCase());
+
+      const CRITICAL_REPAIR_COLUMNS = new Set(['cs_contact_date', 'status', 'repair_notes']);
+      const TECHNICAL_REPAIR_COLUMNS = new Set([
+        'id',
+        'vehicle_id',
+        'vehicleId',
+        'customer_id',
+        'customerId',
+        'created_at',
+        'updated_at',
+        'VIN',
+        'vin'
+      ]);
+
+      const getDefaultRepairColumnVisibility = (key) => {
+        if (CRITICAL_REPAIR_COLUMNS.has(key)) return true;
+        if (TECHNICAL_REPAIR_COLUMNS.has(key)) return false;
+        if (DEFAULT_REPAIR_COLUMNS.some((col) => col.key === key)) return true;
+        return false;
+      };
+
+      const toggleRepairColumn = (key, isVisible) => {
+        repairColumnVisibility[key] = isVisible;
+        saveRepairColumnVisibility();
+        renderRepairTableHead();
+        renderRepairHistory(repairCache);
+      };
 
       const loadRepairColumnVisibility = (columns) => {
         let saved = {};
@@ -3741,13 +3835,39 @@
           saved = {};
         }
         repairColumnVisibility = columns.reduce((acc, col) => {
-          acc[col.key] = saved[col.key] !== undefined ? saved[col.key] : true;
+          acc[col.key] = saved[col.key] !== undefined ? saved[col.key] : getDefaultRepairColumnVisibility(col.key);
           return acc;
         }, {});
       };
 
       const saveRepairColumnVisibility = () => {
         localStorage.setItem(REPAIR_COLUMN_STORAGE_KEY, JSON.stringify(repairColumnVisibility));
+      };
+
+      const loadRepairColumnOrder = () => {
+        try {
+          repairColumnOrder = JSON.parse(localStorage.getItem(REPAIR_COLUMN_ORDER_KEY) || '[]');
+        } catch (error) {
+          repairColumnOrder = [];
+        }
+      };
+
+      const saveRepairColumnOrder = () => {
+        localStorage.setItem(REPAIR_COLUMN_ORDER_KEY, JSON.stringify(repairColumnOrder));
+      };
+
+      loadRepairColumnOrder();
+
+      const applyRepairColumnOrder = (orderedKeys, columnMap) => {
+        if (!repairColumnOrder.length) {
+          repairColumnOrder = orderedKeys;
+          saveRepairColumnOrder();
+        }
+        repairColumnOrder = [
+          ...repairColumnOrder.filter((key) => orderedKeys.includes(key)),
+          ...orderedKeys.filter((key) => !repairColumnOrder.includes(key))
+        ];
+        repairColumns = repairColumnOrder.map((key) => columnMap.get(key)).filter(Boolean);
       };
 
       const buildRepairColumns = (repairs) => {
@@ -3763,13 +3883,13 @@
           ...DEFAULT_REPAIR_COLUMNS.map((col) => col.key),
           ...[...columnMap.keys()].filter((key) => !DEFAULT_REPAIR_COLUMNS.some((col) => col.key === key))
         ];
-        repairColumns = orderedKeys.map((key) => columnMap.get(key)).filter(Boolean);
+        applyRepairColumnOrder(orderedKeys, columnMap);
         if (!Object.keys(repairColumnVisibility).length) {
           loadRepairColumnVisibility(repairColumns);
         } else {
           repairColumns.forEach((col) => {
             if (repairColumnVisibility[col.key] === undefined) {
-              repairColumnVisibility[col.key] = true;
+              repairColumnVisibility[col.key] = getDefaultRepairColumnVisibility(col.key);
             }
           });
         }
@@ -3805,10 +3925,45 @@
         }
         historyHead.innerHTML = `
           <tr>
-            ${visibleColumns.map((col) => `<th class="py-2 pr-3">${escapeHTML(col.label)}</th>`).join('')}
+            ${visibleColumns.map((col) => `
+              <th class="group py-2 pr-3 relative cursor-move select-none whitespace-nowrap" draggable="true" data-repair-column="${col.key}" data-repair-drag="${col.key}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">
+                <button type="button" class="group inline-flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.08em] text-slate-400 hover:text-slate-200 transition-colors" data-repair-sort="${col.key}">
+                  <span>${escapeHTML(col.label)}</span>
+                  <span class="text-[9px] text-slate-500 group-hover:text-slate-300">${repairSortKey === col.key ? (repairSortDirection === 'asc' ? '▲' : '▼') : ''}</span>
+                </button>
+                <span class="absolute right-0 top-0 h-full w-1.5 cursor-col-resize" data-repair-resize="${col.key}"></span>
+              </th>
+            `).join('')}
             <th class="py-2">Actions</th>
           </tr>
         `;
+      };
+
+      const getFilteredRepairs = (repairs) => {
+        const query = repairSearchQuery.trim().toLowerCase();
+        if (!query) return repairs;
+        return repairs.filter((repair) => {
+          const status = `${repair?.status || ''}`.toLowerCase();
+          const notes = `${repair?.repair_notes || ''}`.toLowerCase();
+          const company = `${repair?.installation_company || ''}`.toLowerCase();
+          return status.includes(query) || notes.includes(query) || company.includes(query);
+        });
+      };
+
+      const getSortedRepairs = (repairs) => {
+        if (!repairSortKey) return repairs;
+        const direction = repairSortDirection === 'asc' ? 1 : -1;
+        return [...repairs].sort((a, b) => {
+          const valueA = a?.[repairSortKey];
+          const valueB = b?.[repairSortKey];
+          if (valueA === valueB) return 0;
+          if (valueA === null || valueA === undefined || valueA === '') return 1 * direction;
+          if (valueB === null || valueB === undefined || valueB === '') return -1 * direction;
+          if (typeof valueA === 'number' && typeof valueB === 'number') {
+            return (valueA - valueB) * direction;
+          }
+          return `${valueA}`.localeCompare(`${valueB}`, undefined, { numeric: true, sensitivity: 'base' }) * direction;
+        });
       };
 
       const renderRepairHistory = (repairs = []) => {
@@ -3818,7 +3973,8 @@
         renderRepairColumnsList();
         renderRepairTableHead();
         const visibleColumns = getVisibleRepairColumns();
-        if (!repairs.length) {
+        const filteredRepairs = getSortedRepairs(getFilteredRepairs(repairs));
+        if (!filteredRepairs.length) {
           const colSpan = Math.max(visibleColumns.length + 1, 1);
           historyBody.innerHTML = `
             <tr data-repair-empty>
@@ -3827,10 +3983,10 @@
           `;
           return;
         }
-        historyBody.innerHTML = repairs.map((repair) => `
+        historyBody.innerHTML = filteredRepairs.map((repair) => `
           <tr>
             ${visibleColumns.map((col) => `
-              <td class="py-2 pr-3 text-slate-300">${escapeHTML(formatRepairValue(col.key, repair?.[col.key]))}</td>
+              <td class="py-2 pr-3 text-slate-300 whitespace-nowrap ${col.key === 'repair_notes' ? 'repair-notes-cell' : ''}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">${renderRepairCell(col.key, repair)}</td>
             `).join('')}
             <td class="py-2">
               <div class="flex items-center gap-2">
@@ -3854,12 +4010,12 @@
           .delete()
           .eq('id', repairId);
         if (error) throw error;
-        const repairs = await fetchRepairs(vehicle);
+        const repairs = await fetchRepairs(VIN);
         renderRepairHistory(repairs);
       };
 
       if (historyEmpty) historyEmpty.textContent = 'Loading history...';
-      fetchRepairs(vehicle).then(renderRepairHistory);
+      fetchRepairs(VIN).then(renderRepairHistory);
 
       if (repairColumnsToggle && repairColumnsPanel) {
         repairColumnsToggle.addEventListener('click', () => {
@@ -3871,15 +4027,106 @@
         repairColumnsList.addEventListener('change', (event) => {
           const input = event.target;
           if (!input || input.tagName !== 'INPUT') return;
-          repairColumnVisibility[input.value] = input.checked;
-          saveRepairColumnVisibility();
-          renderRepairTableHead();
+          toggleRepairColumn(input.value, input.checked);
+        });
+      }
+
+      if (historyHead) {
+        historyHead.addEventListener('dragstart', (event) => {
+          const headerCell = event.target.closest('[data-repair-drag]');
+          if (!headerCell || !event.dataTransfer) return;
+          event.dataTransfer.setData('text/plain', headerCell.dataset.repairDrag);
+          event.dataTransfer.effectAllowed = 'move';
+        });
+
+        historyHead.addEventListener('dragover', (event) => {
+          if (!event.target.closest('[data-repair-drag]')) return;
+          event.preventDefault();
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+          }
+        });
+
+        historyHead.addEventListener('drop', (event) => {
+          const targetCell = event.target.closest('[data-repair-drag]');
+          if (!targetCell || !event.dataTransfer) return;
+          event.preventDefault();
+          const sourceKey = event.dataTransfer.getData('text/plain');
+          const targetKey = targetCell.dataset.repairDrag;
+          if (!sourceKey || !targetKey || sourceKey === targetKey) return;
+          const nextOrder = repairColumnOrder.length ? [...repairColumnOrder] : [];
+          const fromIndex = nextOrder.indexOf(sourceKey);
+          const toIndex = nextOrder.indexOf(targetKey);
+          if (fromIndex === -1 || toIndex === -1) return;
+          nextOrder.splice(fromIndex, 1);
+          nextOrder.splice(toIndex, 0, sourceKey);
+          repairColumnOrder = nextOrder;
+          saveRepairColumnOrder();
+          renderRepairHistory(repairCache);
+        });
+
+        historyHead.addEventListener('mousedown', (event) => {
+          const resizer = event.target.closest('[data-repair-resize]');
+          if (!resizer) return;
+          event.preventDefault();
+          const columnKey = resizer.dataset.repairResize;
+          const headerCell = historyHead.querySelector(`[data-repair-column="${columnKey}"]`);
+          if (!headerCell) return;
+          const startX = event.clientX;
+          const startWidth = headerCell.getBoundingClientRect().width;
+
+          const onMouseMove = (moveEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            repairColumnWidths[columnKey] = Math.round(nextWidth);
+            renderRepairTableHead();
+            renderRepairHistory(repairCache);
+          };
+
+          const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+          };
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        });
+
+        historyHead.addEventListener('click', (event) => {
+          const button = event.target.closest('[data-repair-sort]');
+          if (!button) return;
+          const sortKey = button.dataset.repairSort;
+          if (!sortKey) return;
+          if (repairSortKey === sortKey) {
+            repairSortDirection = repairSortDirection === 'asc' ? 'desc' : 'asc';
+          } else {
+            repairSortKey = sortKey;
+            repairSortDirection = 'asc';
+          }
+          renderRepairHistory(repairCache);
+        });
+      }
+
+      if (repairSearchInput) {
+        repairSearchInput.addEventListener('input', (event) => {
+          repairSearchQuery = event.target.value || '';
           renderRepairHistory(repairCache);
         });
       }
 
       if (historyBody) {
         historyBody.addEventListener('click', async (event) => {
+          const notesButton = event.target.closest('[data-repair-notes]');
+          if (notesButton) {
+            const notesCell = notesButton.closest('td');
+            if (notesCell) {
+              notesCell.classList.toggle('whitespace-nowrap');
+              notesCell.classList.toggle('whitespace-normal');
+            }
+            notesButton.classList.toggle('truncate');
+            notesButton.classList.toggle('whitespace-normal');
+            notesButton.classList.toggle('break-words');
+            return;
+          }
           const editButton = event.target.closest('[data-repair-edit]');
           const deleteButton = event.target.closest('[data-repair-delete]');
           if (editButton) {
@@ -3950,7 +4197,7 @@
               delete form.dataset.editRepairId;
               if (submitBtn) submitBtn.textContent = 'Save entry';
             }
-            const repairs = await fetchRepairs(vehicle);
+            const repairs = await fetchRepairs(VIN);
             renderRepairHistory(repairs);
             if (statusText) {
               statusText.textContent = 'Entry saved successfully.';
