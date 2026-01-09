@@ -2834,6 +2834,9 @@
           if (idx >= VEHICLE_RENDER_LIMIT) return;
 
           const card = document.createElement('div');
+          const dealStatusStyles = getStatusCardStyles(vehicle.status, 'deal');
+          const prepStatusStyles = getStatusCardStyles(vehicle.invPrepStatus, 'prep');
+          const ptStatusStyles = getStatusCardStyles(vehicle.ptStatus, 'pt');
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
           card.dataset.id = vehicle.id;
           card.dataset.type = 'vehicle';
@@ -2877,21 +2880,21 @@
             </div>
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
               <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
+                <div class="rounded border px-2 py-1.5 ${dealStatusStyles.card}">
+                  <p class="text-[9px] uppercase font-bold ${dealStatusStyles.label}">Deal</p>
+                  <p class="text-[11px] font-semibold ${dealStatusStyles.value}">${vehicle.status || '—'}</p>
                 </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
+                <div class="rounded border px-2 py-1.5 ${prepStatusStyles.card}">
+                  <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">Prep</p>
+                  <p class="text-[11px] font-semibold ${prepStatusStyles.value}">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
                 </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">PT</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.ptStatus || '—'}</p>
+                <div class="rounded border px-2 py-1.5 ${ptStatusStyles.card}">
+                  <p class="text-[9px] uppercase font-bold ${ptStatusStyles.label}">PT</p>
+                  <p class="text-[11px] font-semibold ${ptStatusStyles.value}">${vehicle.ptStatus || '—'}</p>
                 </div>
               </div>
               <div class="flex items-center justify-between text-[11px] text-slate-400">
@@ -3020,6 +3023,36 @@
     }
 
     const normalizeFilterValue = (value) => (value ?? '').toString().trim().toLowerCase();
+
+    function getStatusCardStyles(value, type) {
+      const normalized = normalizeFilterValue(value);
+      if (type === 'deal' && normalized === 'active') {
+        return {
+          card: 'border-emerald-500/60 bg-emerald-500/15 text-emerald-100',
+          label: 'text-emerald-200/80',
+          value: 'text-emerald-50'
+        };
+      }
+      if (type === 'prep' && normalized === 'out for repo') {
+        return {
+          card: 'border-red-500/60 bg-red-500/15 text-red-100',
+          label: 'text-red-200/80',
+          value: 'text-red-50'
+        };
+      }
+      if (type === 'pt' && normalized === 'disabled') {
+        return {
+          card: 'border-red-500/60 bg-red-500/15 text-red-100',
+          label: 'text-red-200/80',
+          value: 'text-red-50'
+        };
+      }
+      return {
+        card: 'border-slate-800 bg-slate-900 text-slate-200',
+        label: 'text-slate-500',
+        value: 'text-slate-100'
+      };
+    }
 
     function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
