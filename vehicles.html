@@ -3426,11 +3426,14 @@
       partnerType: 'repair'
     });
 
-    const getRepairVehicleId = (vehicle) => vehicle?.vehicle_id ?? vehicle?.vehicleId ?? vehicle?.id;
+    const getRepairVehicleVin = (vehicle) => {
+      const vin = vehicle?.vin ?? vehicle?.VIN ?? vehicle?.details?.VIN;
+      return typeof vin === 'string' ? vin.trim().toLowerCase() : '';
+    };
 
     const buildRepairSnapshot = (vehicle) => {
       return {
-        vehicle_id: getRepairVehicleId(vehicle),
+        vehicle_id: vehicle?.vehicle_id ?? vehicle?.vehicleId ?? vehicle?.id,
         deal_status: vehicle?.deal_status ?? vehicle?.status,
         customer_id: vehicle?.customer_id ?? vehicle?.customerId,
         unit_type: vehicle?.unit_type ?? vehicle?.type,
@@ -3446,7 +3449,7 @@
         lat: vehicle?.lat,
         long: vehicle?.long ?? vehicle?.lng,
         phys_loc: vehicle?.phys_loc ?? vehicle?.lastLocation,
-        vin: vehicle?.vin,
+        vin: vehicle?.vin ?? vehicle?.VIN ?? vehicle?.details?.VIN,
         vehicle_status: vehicle?.vehicle_status ?? vehicle?.status,
         open_balance: vehicle?.open_balance ?? vehicle?.openBalance,
         days_stationary: vehicle?.days_stationary ?? vehicle?.daysStationary,
@@ -3457,13 +3460,14 @@
       };
     };
 
-    async function fetchRepairs(vehicleId) {
-      if (!supabaseClient || !vehicleId) return [];
+    async function fetchRepairs(vehicle) {
+      const vin = getRepairVehicleVin(vehicle);
+      if (!supabaseClient || !vin) return [];
       try {
         const { data, error } = await supabaseClient
           .from(TABLES.repairHistory)
           .select('*')
-          .eq('vehicle_id', vehicleId)
+          .eq('vin', vin)
           .order('cs_contact_date', { ascending: false });
         if (error) throw error;
         return data || [];
@@ -3850,12 +3854,12 @@
           .delete()
           .eq('id', repairId);
         if (error) throw error;
-        const repairs = await fetchRepairs(getRepairVehicleId(vehicle));
+        const repairs = await fetchRepairs(vehicle);
         renderRepairHistory(repairs);
       };
 
       if (historyEmpty) historyEmpty.textContent = 'Loading history...';
-      fetchRepairs(getRepairVehicleId(vehicle)).then(renderRepairHistory);
+      fetchRepairs(vehicle).then(renderRepairHistory);
 
       if (repairColumnsToggle && repairColumnsPanel) {
         repairColumnsToggle.addEventListener('click', () => {
@@ -3946,7 +3950,7 @@
               delete form.dataset.editRepairId;
               if (submitBtn) submitBtn.textContent = 'Save entry';
             }
-            const repairs = await fetchRepairs(getRepairVehicleId(vehicle));
+            const repairs = await fetchRepairs(vehicle);
             renderRepairHistory(repairs);
             if (statusText) {
               statusText.textContent = 'Entry saved successfully.';
