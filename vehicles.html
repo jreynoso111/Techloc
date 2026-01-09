@@ -675,7 +675,7 @@
 
   <!-- Vehicle detail modal -->
   <div id="vehicle-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div class="flex w-auto max-w-[90vw] h-auto max-h-[85vh] flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+    <div class="flex w-[90vw] max-w-7xl flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden max-h-[85vh]">
       <div class="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-4 py-3 backdrop-blur">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
@@ -702,22 +702,8 @@
 
   <script type="module">
     import { supabase as supabaseClient } from './assets/scripts/supabaseClient.js';
-    import { SUPABASE_KEY, SUPABASE_URL } from './assets/scripts/env.js';
     
     // --- Base Config ---
-    const getSupabaseClient = () => {
-      if (supabaseClient) return supabaseClient;
-      if (typeof window === 'undefined') return null;
-      if (window.supabaseClient) return window.supabaseClient;
-      if (window.supabase && SUPABASE_URL && SUPABASE_KEY) {
-        const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-          auth: { persistSession: true, autoRefreshToken: true },
-        });
-        window.supabaseClient = client;
-        return client;
-      }
-      return null;
-    };
     let STATE_CENTERS = {};
     const DEFAULT_STATE_CENTER = [39.8, -98.5];
 
@@ -904,14 +890,13 @@
     };
 
     const ensureServiceCache = async () => {
-      const client = getSupabaseClient();
-      if (!client) return null;
+      if (!supabaseClient) return null;
       if (serviceCacheByCategory.size) return serviceCacheByCategory;
       if (serviceFetchPromise) return serviceFetchPromise;
 
       const stopLoading = startLoading('Loading Services…');
       serviceFetchPromise = (async () => {
-        const { data, error } = await client.from(SERVICE_TABLE).select('*');
+        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*');
         if (error) throw error;
         serviceCacheByCategory = buildServiceCache(data || []);
         return serviceCacheByCategory;
@@ -1059,11 +1044,10 @@
     const getEnabledServiceTypes = () => SERVICE_TYPES.filter(isServiceTypeEnabled);
 
     async function syncAvailableServiceTypes() {
-      const client = getSupabaseClient();
-      if (!client) return;
+      if (!supabaseClient) return;
 
       try {
-        const { data, error } = await client.from(SERVICE_TABLE).select('category');
+        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('category');
         if (error) throw error;
 
         const rawCategories = new Map();
@@ -1893,8 +1877,7 @@
     // --- 2. Load data from Supabase ---
     async function loadTechnicians() {
       if (!isServiceTypeEnabled('tech')) return;
-      const client = getSupabaseClient();
-      if (!client) {
+      if (!supabaseClient) {
         console.warn('Supabase unavailable: showing local installer placeholders.');
         document.getElementById('tech-list').innerHTML = `
           <div class="text-center mt-10 px-6">
@@ -1930,20 +1913,13 @@
 
     async function loadVehicles() {
       if (vehicles.length) return;
-      const client = getSupabaseClient();
-      if (!client) {
+      if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping vehicle load.');
-        document.getElementById('vehicle-list').innerHTML = `
-          <div class="text-center mt-10 px-6">
-            ${svgIcon('alertCircle', 'mx-auto h-8 w-8 text-slate-600 mb-2')}
-            <p class="text-slate-500 text-xs">Supabase is offline. Unable to load vehicles.</p>
-          </div>
-        `;
         return;
       }
       const stopLoading = startLoading('Loading Vehicles…');
       try {
-        const { data, error } = await client.from(TABLES.vehicles).select('*');
+        const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
         if (error) throw error;
         vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx));
         vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
@@ -2021,15 +1997,14 @@
     }
 
     async function loadHotspots() {
-      const client = getSupabaseClient();
-      if (!client) {
+      if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping hotspot load.');
         return;
       }
 
       const stopLoading = startLoading('Loading hotspots…');
       try {
-        const { data, error } = await client.from(TABLES.hotspots).select('*');
+        const { data, error } = await supabaseClient.from(TABLES.hotspots).select('*');
         if (error) throw error;
         hotspots = (data || []).map((row, idx) => normalizeHotspot(row, idx)).filter(hasValidCoords);
         renderHotspots();
@@ -2041,15 +2016,14 @@
     }
 
     async function loadBlacklistSites() {
-      const client = getSupabaseClient();
-      if (!client) {
+      if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping blacklist load.');
         return;
       }
 
       const stopLoading = startLoading('Loading Blacklist Locations…');
       try {
-        const { data, error } = await client.from(TABLES.blacklist).select('*');
+        const { data, error } = await supabaseClient.from(TABLES.blacklist).select('*');
         if (error) throw error;
         blacklistSites = (data || []).map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
         renderBlacklistSites();
@@ -2075,8 +2049,7 @@
 
     async function loadPartnerService(type) {
       if (!isServiceTypeEnabled(type)) return;
-      const client = getSupabaseClient();
-      if (!client) return;
+      if (!supabaseClient) return;
 
       const config = SERVICE_LOAD_CONFIG[type];
       if (!config) {
@@ -2098,8 +2071,7 @@
     }
 
     async function loadAllServices() {
-      const client = getSupabaseClient();
-      if (!client) return;
+      if (!supabaseClient) return;
 
       await ensureServiceCache();
 
@@ -2131,8 +2103,7 @@
 
     async function loadCustomServices() {
       if (!isServiceTypeEnabled('custom') || !customCategoryLabels.size) return;
-      const client = getSupabaseClient();
-      if (!client) {
+      if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping custom categories.');
         return;
       }
@@ -2862,17 +2833,8 @@
 
           if (idx >= VEHICLE_RENDER_LIMIT) return;
 
-          const dealStatus = `${vehicle.dealStatus ?? vehicle.status ?? ''}`.trim();
-          const prepStatus = `${vehicle.invPrepStatus ?? ''}`.trim();
-          const gpsStatus = `${vehicle.gpsFix ?? ''}`.trim();
-          const isGpsDisabled = gpsStatus.toLowerCase() === 'disabled';
-          const isOutForRepo = prepStatus.toLowerCase() === 'out for repo';
-          const isDealActive = dealStatus.toLowerCase() === 'active';
           const card = document.createElement('div');
-          const dangerCardClass = isDisabled || isOutForRepo
-            ? 'border-rose-500/60 bg-rose-950/40 hover:border-rose-400/80 hover:shadow-rose-500/20'
-            : 'border-slate-800 bg-slate-900/80 hover:border-amber-500/80 hover:shadow-amber-500/20';
-          card.className = `p-3 rounded-lg border ${dangerCardClass} transition-all cursor-pointer shadow-sm backdrop-blur space-y-3`;
+          card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
           card.dataset.id = vehicle.id;
           card.dataset.type = 'vehicle';
           card.innerHTML = `
@@ -2898,11 +2860,11 @@
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
-              <div class="rounded-lg border ${isGpsDisabled ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-950/70'} px-2 py-1.5 flex items-center gap-2 text-slate-200">
+              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
                 ${svgIcon('wifiOff', 'h-3 w-3 text-amber-300')}
                 <div class="text-left leading-tight">
-                  <p class="font-semibold ${isGpsDisabled ? 'text-rose-200' : ''}">${vehicle.gpsFix || 'GPS issue'}</p>
-                  <p class="text-[10px] ${isGpsDisabled ? 'text-rose-200/80' : 'text-slate-400'}">${vehicle.gpsReason || 'Pending'}</p>
+                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
+                  <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
                 </div>
               </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
@@ -2915,13 +2877,13 @@
             </div>
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
               <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border ${isDealActive ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-900'} px-2 py-1.5">
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold ${isDealActive ? 'text-emerald-200' : 'text-slate-100'}">${dealStatus || '—'}</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
                 </div>
-                <div class="rounded border ${isOutForRepo ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-900'} px-2 py-1.5">
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold ${isOutForRepo ? 'text-rose-200' : 'text-slate-100'}">${vehicle.invPrepStatus || '—'}</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
@@ -3500,10 +3462,9 @@
     };
 
     async function fetchRepairs(VIN) {
-      const client = getSupabaseClient();
-      if (!client || !VIN) return [];
+      if (!supabaseClient || !VIN) return [];
       try {
-        const { data, error } = await client
+        const { data, error } = await supabaseClient
           .from(TABLES.repairHistory)
           .select('*')
           .eq('VIN', VIN)
@@ -3517,8 +3478,7 @@
     }
 
     async function saveRepair(vehicle, formData, editId) {
-      const client = getSupabaseClient();
-      if (!client) {
+      if (!supabaseClient) {
         throw new Error('Supabase unavailable');
       }
       const cleanPrice = Number.parseFloat(`${formData.get('repair_price') || '0'}`.replace(/[$,]/g, '')) || 0;
@@ -3539,7 +3499,7 @@
         repair_notes: formData.get('repair_notes') || null
       };
 
-      const query = client.from(TABLES.repairHistory);
+      const query = supabaseClient.from(TABLES.repairHistory);
       const { data, error } = editId
         ? await query.update(payload).eq('id', editId).select('*')
         : await query.insert(payload).select('*');
@@ -3764,10 +3724,7 @@
       let repairSearchQuery = '';
       let repairSortKey = '';
       let repairSortDirection = 'desc';
-      let repairColumnWidths = {};
-      let repairColumnOrder = [];
       const REPAIR_COLUMN_STORAGE_KEY = 'repairHistoryColumns';
-      const REPAIR_COLUMN_ORDER_KEY = 'repairHistoryColumnOrder';
 
       const DEFAULT_REPAIR_COLUMNS = [
         { key: 'cs_contact_date', label: 'Date' },
@@ -3872,32 +3829,6 @@
         localStorage.setItem(REPAIR_COLUMN_STORAGE_KEY, JSON.stringify(repairColumnVisibility));
       };
 
-      const loadRepairColumnOrder = () => {
-        try {
-          repairColumnOrder = JSON.parse(localStorage.getItem(REPAIR_COLUMN_ORDER_KEY) || '[]');
-        } catch (error) {
-          repairColumnOrder = [];
-        }
-      };
-
-      const saveRepairColumnOrder = () => {
-        localStorage.setItem(REPAIR_COLUMN_ORDER_KEY, JSON.stringify(repairColumnOrder));
-      };
-
-      loadRepairColumnOrder();
-
-      const applyRepairColumnOrder = (orderedKeys, columnMap) => {
-        if (!repairColumnOrder.length) {
-          repairColumnOrder = orderedKeys;
-          saveRepairColumnOrder();
-        }
-        repairColumnOrder = [
-          ...repairColumnOrder.filter((key) => orderedKeys.includes(key)),
-          ...orderedKeys.filter((key) => !repairColumnOrder.includes(key))
-        ];
-        repairColumns = repairColumnOrder.map((key) => columnMap.get(key)).filter(Boolean);
-      };
-
       const buildRepairColumns = (repairs) => {
         const columnMap = new Map(DEFAULT_REPAIR_COLUMNS.map((col) => [col.key, col]));
         repairs.forEach((repair) => {
@@ -3911,7 +3842,7 @@
           ...DEFAULT_REPAIR_COLUMNS.map((col) => col.key),
           ...[...columnMap.keys()].filter((key) => !DEFAULT_REPAIR_COLUMNS.some((col) => col.key === key))
         ];
-        applyRepairColumnOrder(orderedKeys, columnMap);
+        repairColumns = orderedKeys.map((key) => columnMap.get(key)).filter(Boolean);
         if (!Object.keys(repairColumnVisibility).length) {
           loadRepairColumnVisibility(repairColumns);
         } else {
@@ -3954,12 +3885,11 @@
         historyHead.innerHTML = `
           <tr>
             ${visibleColumns.map((col) => `
-              <th class="group py-2 pr-3 relative cursor-move select-none whitespace-nowrap" draggable="true" data-repair-column="${col.key}" data-repair-drag="${col.key}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">
+              <th class="py-2 pr-3">
                 <button type="button" class="group inline-flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.08em] text-slate-400 hover:text-slate-200 transition-colors" data-repair-sort="${col.key}">
                   <span>${escapeHTML(col.label)}</span>
                   <span class="text-[9px] text-slate-500 group-hover:text-slate-300">${repairSortKey === col.key ? (repairSortDirection === 'asc' ? '▲' : '▼') : ''}</span>
                 </button>
-                <span class="absolute right-0 top-0 h-full w-1.5 cursor-col-resize" data-repair-resize="${col.key}"></span>
               </th>
             `).join('')}
             <th class="py-2">Actions</th>
@@ -4014,7 +3944,7 @@
         historyBody.innerHTML = filteredRepairs.map((repair) => `
           <tr>
             ${visibleColumns.map((col) => `
-              <td class="py-2 pr-3 text-slate-300 whitespace-nowrap ${col.key === 'repair_notes' ? 'repair-notes-cell' : ''}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">${renderRepairCell(col.key, repair)}</td>
+              <td class="py-2 pr-3 text-slate-300">${renderRepairCell(col.key, repair)}</td>
             `).join('')}
             <td class="py-2">
               <div class="flex items-center gap-2">
@@ -4027,14 +3957,13 @@
       };
 
       const deleteRepair = async (repairId) => {
-        const client = getSupabaseClient();
-        if (!client) {
+        if (!supabaseClient) {
           throw new Error('Supabase unavailable');
         }
         if (!repairId) return;
         const confirmed = window.confirm('Are you sure you want to delete this repair entry?');
         if (!confirmed) return;
-        const { error } = await client
+        const { error } = await supabaseClient
           .from(TABLES.repairHistory)
           .delete()
           .eq('id', repairId);
@@ -4061,65 +3990,6 @@
       }
 
       if (historyHead) {
-        historyHead.addEventListener('dragstart', (event) => {
-          const headerCell = event.target.closest('[data-repair-drag]');
-          if (!headerCell || !event.dataTransfer) return;
-          event.dataTransfer.setData('text/plain', headerCell.dataset.repairDrag);
-          event.dataTransfer.effectAllowed = 'move';
-        });
-
-        historyHead.addEventListener('dragover', (event) => {
-          if (!event.target.closest('[data-repair-drag]')) return;
-          event.preventDefault();
-          if (event.dataTransfer) {
-            event.dataTransfer.dropEffect = 'move';
-          }
-        });
-
-        historyHead.addEventListener('drop', (event) => {
-          const targetCell = event.target.closest('[data-repair-drag]');
-          if (!targetCell || !event.dataTransfer) return;
-          event.preventDefault();
-          const sourceKey = event.dataTransfer.getData('text/plain');
-          const targetKey = targetCell.dataset.repairDrag;
-          if (!sourceKey || !targetKey || sourceKey === targetKey) return;
-          const nextOrder = repairColumnOrder.length ? [...repairColumnOrder] : [];
-          const fromIndex = nextOrder.indexOf(sourceKey);
-          const toIndex = nextOrder.indexOf(targetKey);
-          if (fromIndex === -1 || toIndex === -1) return;
-          nextOrder.splice(fromIndex, 1);
-          nextOrder.splice(toIndex, 0, sourceKey);
-          repairColumnOrder = nextOrder;
-          saveRepairColumnOrder();
-          renderRepairHistory(repairCache);
-        });
-
-        historyHead.addEventListener('mousedown', (event) => {
-          const resizer = event.target.closest('[data-repair-resize]');
-          if (!resizer) return;
-          event.preventDefault();
-          const columnKey = resizer.dataset.repairResize;
-          const headerCell = historyHead.querySelector(`[data-repair-column="${columnKey}"]`);
-          if (!headerCell) return;
-          const startX = event.clientX;
-          const startWidth = headerCell.getBoundingClientRect().width;
-
-          const onMouseMove = (moveEvent) => {
-            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
-            repairColumnWidths[columnKey] = Math.round(nextWidth);
-            renderRepairTableHead();
-            renderRepairHistory(repairCache);
-          };
-
-          const onMouseUp = () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-          };
-
-          document.addEventListener('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
-        });
-
         historyHead.addEventListener('click', (event) => {
           const button = event.target.closest('[data-repair-sort]');
           if (!button) return;
@@ -4146,11 +4016,6 @@
         historyBody.addEventListener('click', async (event) => {
           const notesButton = event.target.closest('[data-repair-notes]');
           if (notesButton) {
-            const notesCell = notesButton.closest('td');
-            if (notesCell) {
-              notesCell.classList.toggle('whitespace-nowrap');
-              notesCell.classList.toggle('whitespace-normal');
-            }
             notesButton.classList.toggle('truncate');
             notesButton.classList.toggle('whitespace-normal');
             notesButton.classList.toggle('break-words');
@@ -4321,12 +4186,11 @@
           const stopLoading = startLoading('Saving...');
 
           try {
-            const client = getSupabaseClient();
-            if (!client || !headerKey || vehicle?.id === undefined) {
+            if (!supabaseClient || !headerKey || vehicle?.id === undefined) {
               throw new Error('Supabase unavailable');
             }
 
-            const { error } = await client
+            const { error } = await supabaseClient
               .from(TABLES.vehicles)
               .update({ [headerKey]: newValue })
               .eq('id', vehicle.id);
