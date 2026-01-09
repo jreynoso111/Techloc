@@ -8,9 +8,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="../assets/scripts/supabaseClient.js"></script>
-  <script type="module" src="../assets/scripts/authManager.js"></script>
-  <script type="module" src="../assets/scripts/admin-auth.js"></script>
+  <script type="module" src="../../assets/js/supabaseClient.js"></script>
+  <script type="module" src="../../assets/scripts/authManager.js"></script>
+  <script type="module" src="../../assets/scripts/admin-auth.js"></script>
   
   <script type="module">
     tailwind.config = {
@@ -22,13 +22,13 @@
       },
     };
   </script>
-  <link rel="stylesheet" href="../assets/visuals/theme.css" />
+  <link rel="stylesheet" href="../../assets/visuals/theme.css" />
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50 relative">
   <div class="sticky top-0 z-50 space-y-px">
     <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur">
       <div class="flex items-center justify-between px-6 py-4 lg:px-10">
-        <a href="../index.html" class="flex items-center gap-3">
+        <a href="../../index.html" class="flex items-center gap-3">
           <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
             <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
           </div>
@@ -39,13 +39,14 @@
         </a>
         <div class="flex flex-wrap items-center justify-end gap-3">
           <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-            <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+            <a id="nav-home" href="../../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
             <a id="nav-control-view" href="../vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control Map</a>
           <a id="nav-dashboard" href="./index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
           <a id="nav-inventory-control" href="../inventory-control.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Inventory Control</a>
         </nav>
           <div class="flex items-center gap-2">
-            <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+            <a id="nav-login" href="../login.html" class="hidden rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+          <button id="nav-logout" data-admin-logout="true" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
           </div>
         </div>
       </div>
@@ -175,13 +176,13 @@
   </main>
 
   <script type="module">
-    import { setupBackgroundManager } from '../assets/scripts/backgroundManager.js';
+    import { setupBackgroundManager } from '../../assets/scripts/backgroundManager.js';
     import {
       loadPreferredBackgroundMode,
       persistBackgroundMode,
-    } from '../assets/scripts/backgroundPreference.js';
-    import { supabase as supabaseClient } from '../assets/scripts/supabaseClient.js';
-    import { logAdminEvent } from '../assets/scripts/adminAudit.js';
+    } from '../../assets/scripts/backgroundPreference.js';
+    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
+    import { logAdminEvent } from '../../assets/scripts/adminAudit.js';
 
     const supabase = supabaseClient;
     let profiles = [];
@@ -476,6 +477,19 @@
       );
       fetchProfiles();
     });
+  </script>
+  <script type="module">
+    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
+
+    const redirectToLogin = async () => {
+      if (!supabaseClient?.auth?.getSession) return;
+      const { data } = await supabaseClient.auth.getSession();
+      if (!data?.session) {
+        window.location.href = '../login.html';
+      }
+    };
+
+    redirectToLogin();
   </script>
 </body>
 </html>

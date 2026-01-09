@@ -1,9 +1,9 @@
 import { SUPABASE_KEY, SUPABASE_URL } from './env.js';
-import { supabase as sharedSupabaseClient } from './supabaseClient.js';
+import { supabase as sharedSupabaseClient } from '../js/supabaseClient.js';
 
-const LOGIN_PAGE = new URL('../../login.html', import.meta.url).toString();
-const ADMIN_HOME = new URL('../../Admin/index.html', import.meta.url).toString();
-const CONTROL_VIEW = new URL('../../vehicles.html', import.meta.url).toString();
+const LOGIN_PAGE = new URL('../../pages/login.html', import.meta.url).toString();
+const ADMIN_HOME = new URL('../../pages/admin/index.html', import.meta.url).toString();
+const CONTROL_VIEW = new URL('../../pages/vehicles.html', import.meta.url).toString();
 
 
 const supabaseClient =

@@ -1,4 +1,4 @@
-import { supabase as sharedSupabase } from './supabaseClient.js';
+import { supabase as sharedSupabase } from '../js/supabaseClient.js';
 
 const CHANGE_LOG_TABLE = 'admin_change_log';
 const CACHE_TTL_MS = 5 * 60 * 1000;
