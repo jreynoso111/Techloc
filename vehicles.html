@@ -3449,7 +3449,7 @@
         lat: vehicle?.lat,
         long: vehicle?.long ?? vehicle?.lng,
         phys_loc: vehicle?.phys_loc ?? vehicle?.lastLocation,
-        vin: vehicle?.vin ?? vehicle?.VIN ?? vehicle?.details?.VIN,
+        vin: getRepairVehicleVin(vehicle),
         vehicle_status: vehicle?.vehicle_status ?? vehicle?.status,
         open_balance: vehicle?.open_balance ?? vehicle?.openBalance,
         days_stationary: vehicle?.days_stationary ?? vehicle?.daysStationary,
@@ -3467,7 +3467,7 @@
         const { data, error } = await supabaseClient
           .from(TABLES.repairHistory)
           .select('*')
-          .eq('vin', vin)
+          .ilike('vin', vin)
           .order('cs_contact_date', { ascending: false });
         if (error) throw error;
         return data || [];
