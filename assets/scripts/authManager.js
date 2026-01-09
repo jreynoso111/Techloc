@@ -176,7 +176,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     const isAdminPath = window.location.pathname.toLowerCase().includes('/admin/');
 
     if (!hasSession && isProtectedRoute()) {
-      window.location.replace(mapsTo('login.html'));
+      window.location.replace(mapsTo('pages/login.html'));
       return;
     }
 
@@ -192,7 +192,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
 
     if (window.currentUserStatus === 'suspended' && isProtectedRoute()) {
       supabaseClient?.auth.signOut();
-      window.location.replace(mapsTo('login.html'));
+      window.location.replace(mapsTo('pages/login.html'));
     }
   };
 
@@ -293,7 +293,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         }
 
         if (event === 'SIGNED_OUT' && isProtectedRoute()) {
-          window.location.replace(mapsTo('login.html'));
+          window.location.replace(mapsTo('pages/login.html'));
         }
       });
     } catch (error) {
