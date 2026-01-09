@@ -2835,7 +2835,8 @@
 
           const dealStatus = `${vehicle.dealStatus ?? vehicle.status ?? ''}`.trim();
           const prepStatus = `${vehicle.invPrepStatus ?? ''}`.trim();
-          const isDisabled = dealStatus.toLowerCase() === 'disabled';
+          const gpsStatus = `${vehicle.gpsFix ?? ''}`.trim();
+          const isGpsDisabled = gpsStatus.toLowerCase() === 'disabled';
           const isOutForRepo = prepStatus.toLowerCase() === 'out for repo';
           const isDealActive = dealStatus.toLowerCase() === 'active';
           const card = document.createElement('div');
@@ -2868,11 +2869,11 @@
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
+              <div class="rounded-lg border ${isGpsDisabled ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-950/70'} px-2 py-1.5 flex items-center gap-2 text-slate-200">
                 ${svgIcon('wifiOff', 'h-3 w-3 text-amber-300')}
                 <div class="text-left leading-tight">
-                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
-                  <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
+                  <p class="font-semibold ${isGpsDisabled ? 'text-rose-200' : ''}">${vehicle.gpsFix || 'GPS issue'}</p>
+                  <p class="text-[10px] ${isGpsDisabled ? 'text-rose-200/80' : 'text-slate-400'}">${vehicle.gpsReason || 'Pending'}</p>
                 </div>
               </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
@@ -2889,9 +2890,9 @@
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
                   <p class="text-[11px] font-semibold ${isDealActive ? 'text-emerald-200' : 'text-slate-100'}">${dealStatus || '—'}</p>
                 </div>
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                <div class="rounded border ${isOutForRepo ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-900'} px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.invPrepStatus || '—'}</p>
+                  <p class="text-[11px] font-semibold ${isOutForRepo ? 'text-rose-200' : 'text-slate-100'}">${vehicle.invPrepStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
