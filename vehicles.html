@@ -675,7 +675,7 @@
 
   <!-- Vehicle detail modal -->
   <div id="vehicle-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div class="flex w-[90vw] max-w-7xl flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden max-h-[85vh]">
+    <div class="flex w-auto max-w-[90vw] h-auto max-h-[85vh] flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
       <div class="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-4 py-3 backdrop-blur">
         <div>
           <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
@@ -3724,6 +3724,7 @@
       let repairSearchQuery = '';
       let repairSortKey = '';
       let repairSortDirection = 'desc';
+      let repairColumnWidths = {};
       const REPAIR_COLUMN_STORAGE_KEY = 'repairHistoryColumns';
 
       const DEFAULT_REPAIR_COLUMNS = [
@@ -3885,11 +3886,12 @@
         historyHead.innerHTML = `
           <tr>
             ${visibleColumns.map((col) => `
-              <th class="py-2 pr-3">
+              <th class="py-2 pr-3 relative" data-repair-column="${col.key}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">
                 <button type="button" class="group inline-flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.08em] text-slate-400 hover:text-slate-200 transition-colors" data-repair-sort="${col.key}">
                   <span>${escapeHTML(col.label)}</span>
                   <span class="text-[9px] text-slate-500 group-hover:text-slate-300">${repairSortKey === col.key ? (repairSortDirection === 'asc' ? '▲' : '▼') : ''}</span>
                 </button>
+                <span class="absolute right-0 top-0 h-full w-1.5 cursor-col-resize" data-repair-resize="${col.key}"></span>
               </th>
             `).join('')}
             <th class="py-2">Actions</th>
@@ -3944,7 +3946,7 @@
         historyBody.innerHTML = filteredRepairs.map((repair) => `
           <tr>
             ${visibleColumns.map((col) => `
-              <td class="py-2 pr-3 text-slate-300">${renderRepairCell(col.key, repair)}</td>
+              <td class="py-2 pr-3 text-slate-300" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">${renderRepairCell(col.key, repair)}</td>
             `).join('')}
             <td class="py-2">
               <div class="flex items-center gap-2">
@@ -3990,6 +3992,32 @@
       }
 
       if (historyHead) {
+        historyHead.addEventListener('mousedown', (event) => {
+          const resizer = event.target.closest('[data-repair-resize]');
+          if (!resizer) return;
+          event.preventDefault();
+          const columnKey = resizer.dataset.repairResize;
+          const headerCell = historyHead.querySelector(`[data-repair-column="${columnKey}"]`);
+          if (!headerCell) return;
+          const startX = event.clientX;
+          const startWidth = headerCell.getBoundingClientRect().width;
+
+          const onMouseMove = (moveEvent) => {
+            const nextWidth = Math.max(80, startWidth + moveEvent.clientX - startX);
+            repairColumnWidths[columnKey] = Math.round(nextWidth);
+            renderRepairTableHead();
+            renderRepairHistory(repairCache);
+          };
+
+          const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+          };
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        });
+
         historyHead.addEventListener('click', (event) => {
           const button = event.target.closest('[data-repair-sort]');
           if (!button) return;
