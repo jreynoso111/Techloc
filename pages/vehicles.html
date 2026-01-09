@@ -869,6 +869,32 @@
       repairHistory: 'repair_history'
     };
 
+    const SUPABASE_TIMEOUT_MS = 10000;
+    const runWithTimeout = (promise, timeoutMs, message) => new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(message));
+      }, timeoutMs);
+      promise
+        .then((result) => {
+          clearTimeout(timeoutId);
+          resolve(result);
+        })
+        .catch((error) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+    });
+
+    const ensureSupabaseSession = async () => {
+      const { data, error } = await supabaseClient.auth.getSession();
+      if (error || !data?.session) {
+        const { data: refreshed, error: refreshError } = await supabaseClient.auth.refreshSession();
+        if (refreshError || !refreshed?.session) {
+          throw refreshError || new Error('Supabase session unavailable');
+        }
+      }
+    };
+
     const serviceCategoryLabelsByType = new Map();
     const getServiceCategoryLabel = (type) => serviceCategoryLabelsByType.get(type) || '';
 
@@ -3493,47 +3519,66 @@
     async function fetchRepairs(VIN) {
       if (!supabaseClient || !VIN) return [];
       try {
-        const { data, error } = await supabaseClient
-          .from(TABLES.repairHistory)
-          .select('*')
-          .eq('VIN', VIN)
-          .order('created_at', { ascending: false });
+        await ensureSupabaseSession();
+        const { data, error } = await runWithTimeout(
+          supabaseClient
+            .from(TABLES.repairHistory)
+            .select('*')
+            .eq('VIN', VIN)
+            .order('created_at', { ascending: false }),
+          SUPABASE_TIMEOUT_MS,
+          'Repair history request timed out.'
+        );
         if (error) throw error;
         return data || [];
       } catch (error) {
-        console.warn('Repair history load warning:', error);
+        console.error('Failed to load repair history:', error);
         return [];
       }
     }
 
     async function saveRepair(vehicle, formData, editId) {
-      if (!supabaseClient) {
-        throw new Error('Supabase unavailable');
-      }
-      const cleanPrice = Number.parseFloat(`${formData.get('repair_price') || '0'}`.replace(/[$,]/g, '')) || 0;
-      const payload = {
-        ...buildRepairSnapshot(vehicle),
-        cs_contact_date: formData.get('cs_contact_date') || null,
-        status: formData.get('status') || null,
-        doc: formData.get('doc') || null,
-        shipping_date: formData.get('shipping_date') || null,
-        poc_name: formData.get('poc_name') || null,
-        poc_phone: formData.get('poc_phone') || null,
-        customer_availability: formData.get('customer_availability') || null,
-        installer_request_date: formData.get('installer_request_date') || null,
-        installation_company: formData.get('installation_company') || null,
-        technician_availability_date: formData.get('technician_availability_date') || null,
-        installation_place: formData.get('installation_place') || null,
-        repair_price: cleanPrice,
-        repair_notes: formData.get('repair_notes') || null
-      };
+      try {
+        if (!supabaseClient) {
+          throw new Error('Supabase unavailable');
+        }
+        await ensureSupabaseSession();
+        const cleanPrice = Number.parseFloat(`${formData.get('repair_price') || '0'}`.replace(/[$,]/g, '')) || 0;
+        const payload = {
+          ...buildRepairSnapshot(vehicle),
+          cs_contact_date: formData.get('cs_contact_date') || null,
+          status: formData.get('status') || null,
+          doc: formData.get('doc') || null,
+          shipping_date: formData.get('shipping_date') || null,
+          poc_name: formData.get('poc_name') || null,
+          poc_phone: formData.get('poc_phone') || null,
+          customer_availability: formData.get('customer_availability') || null,
+          installer_request_date: formData.get('installer_request_date') || null,
+          installation_company: formData.get('installation_company') || null,
+          technician_availability_date: formData.get('technician_availability_date') || null,
+          installation_place: formData.get('installation_place') || null,
+          repair_price: cleanPrice,
+          repair_notes: formData.get('repair_notes') || null
+        };
 
-      const query = supabaseClient.from(TABLES.repairHistory);
-      const { data, error } = editId
-        ? await query.update(payload).eq('id', editId).select('*')
-        : await query.insert(payload).select('*');
-      if (error) throw error;
-      return data || [];
+        const query = supabaseClient.from(TABLES.repairHistory);
+        const { data, error } = editId
+          ? await runWithTimeout(
+            query.update(payload).eq('id', editId).select('*'),
+            SUPABASE_TIMEOUT_MS,
+            'Repair update request timed out.'
+          )
+          : await runWithTimeout(
+            query.insert(payload).select('*'),
+            SUPABASE_TIMEOUT_MS,
+            'Repair create request timed out.'
+          );
+        if (error) throw error;
+        return data || [];
+      } catch (error) {
+        console.error('Failed to save repair entry:', error);
+        throw error;
+      }
     }
 
     function openVehicleModal(vehicle) {
@@ -3595,6 +3640,13 @@
       const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
       const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
       if (!modal || !title || !body) return;
+
+      if (modal.repairModalController) {
+        modal.repairModalController.abort();
+      }
+      const repairModalController = new AbortController();
+      modal.repairModalController = repairModalController;
+      const { signal } = repairModalController;
 
       const VIN = getRepairVehicleVin(vehicle);
       modal.dataset.vehicleId = vehicle.id;
@@ -3731,7 +3783,7 @@
       };
 
       tabButtons.forEach((button) => {
-        button.addEventListener('click', () => setActiveTab(button.dataset.tab));
+        button.addEventListener('click', () => setActiveTab(button.dataset.tab), { signal });
       });
 
       setActiveTab('history');
@@ -4007,7 +4059,7 @@
       if (repairColumnsToggle && repairColumnsPanel) {
         repairColumnsToggle.addEventListener('click', () => {
           repairColumnsPanel.classList.toggle('hidden');
-        });
+        }, { signal });
       }
 
       if (repairColumnsList) {
@@ -4015,7 +4067,7 @@
           const input = event.target;
           if (!input || input.tagName !== 'INPUT') return;
           toggleRepairColumn(input.value, input.checked);
-        });
+        }, { signal });
       }
 
       if (historyHead) {
@@ -4031,14 +4083,14 @@
             repairSortDirection = 'asc';
           }
           renderRepairHistory(repairCache);
-        });
+        }, { signal });
       }
 
       if (repairSearchInput) {
         repairSearchInput.addEventListener('input', (event) => {
           repairSearchQuery = event.target.value || '';
           renderRepairHistory(repairCache);
-        });
+        }, { signal });
       }
 
       if (historyBody) {
@@ -4095,7 +4147,7 @@
               console.warn('Failed to delete repair:', error);
             }
           }
-        });
+        }, { signal });
       }
 
       if (form) {
@@ -4142,7 +4194,7 @@
               submitBtn.textContent = submitLabel;
             }
           }
-        });
+        }, { signal });
       }
 
       modal.classList.remove('hidden');
@@ -4283,6 +4335,10 @@
     function closeVehicleModal() {
       const modal = document.getElementById('vehicle-modal');
       if (!modal) return;
+      if (modal.repairModalController) {
+        modal.repairModalController.abort();
+        modal.repairModalController = null;
+      }
       modal.classList.add('hidden');
       modal.classList.remove('flex');
       const panel = document.getElementById('vehicle-modal-columns-panel');
@@ -4781,6 +4837,15 @@
         document.getElementById('vehicle-modal')?.addEventListener('click', (e) => {
           if (e.target.id === 'vehicle-modal') closeVehicleModal();
         });
+
+        setInterval(async () => {
+          if (!supabaseClient) return;
+          try {
+            await supabaseClient.auth.getSession();
+          } catch (error) {
+            // Keep-alive failures are non-blocking.
+          }
+        }, 5 * 60 * 1000);
 
         window.addEventListener('auth:role-ready', () => renderVehicles());
       })();
