@@ -2833,8 +2833,16 @@
 
           if (idx >= VEHICLE_RENDER_LIMIT) return;
 
+          const dealStatus = `${vehicle.dealStatus ?? vehicle.status ?? ''}`.trim();
+          const prepStatus = `${vehicle.invPrepStatus ?? ''}`.trim();
+          const isDisabled = dealStatus.toLowerCase() === 'disabled';
+          const isOutForRepo = prepStatus.toLowerCase() === 'out for repo';
+          const isDealActive = dealStatus.toLowerCase() === 'active';
           const card = document.createElement('div');
-          card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
+          const dangerCardClass = isDisabled || isOutForRepo
+            ? 'border-rose-500/60 bg-rose-950/40 hover:border-rose-400/80 hover:shadow-rose-500/20'
+            : 'border-slate-800 bg-slate-900/80 hover:border-amber-500/80 hover:shadow-amber-500/20';
+          card.className = `p-3 rounded-lg border ${dangerCardClass} transition-all cursor-pointer shadow-sm backdrop-blur space-y-3`;
           card.dataset.id = vehicle.id;
           card.dataset.type = 'vehicle';
           card.innerHTML = `
@@ -2877,9 +2885,9 @@
             </div>
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
               <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                <div class="rounded border ${isDealActive ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-slate-800 bg-slate-900'} px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.status || '—'}</p>
+                  <p class="text-[11px] font-semibold ${isDealActive ? 'text-emerald-200' : 'text-slate-100'}">${dealStatus || '—'}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Prep</p>
@@ -3725,7 +3733,9 @@
       let repairSortKey = '';
       let repairSortDirection = 'desc';
       let repairColumnWidths = {};
+      let repairColumnOrder = [];
       const REPAIR_COLUMN_STORAGE_KEY = 'repairHistoryColumns';
+      const REPAIR_COLUMN_ORDER_KEY = 'repairHistoryColumnOrder';
 
       const DEFAULT_REPAIR_COLUMNS = [
         { key: 'cs_contact_date', label: 'Date' },
@@ -3830,6 +3840,32 @@
         localStorage.setItem(REPAIR_COLUMN_STORAGE_KEY, JSON.stringify(repairColumnVisibility));
       };
 
+      const loadRepairColumnOrder = () => {
+        try {
+          repairColumnOrder = JSON.parse(localStorage.getItem(REPAIR_COLUMN_ORDER_KEY) || '[]');
+        } catch (error) {
+          repairColumnOrder = [];
+        }
+      };
+
+      const saveRepairColumnOrder = () => {
+        localStorage.setItem(REPAIR_COLUMN_ORDER_KEY, JSON.stringify(repairColumnOrder));
+      };
+
+      loadRepairColumnOrder();
+
+      const applyRepairColumnOrder = (orderedKeys, columnMap) => {
+        if (!repairColumnOrder.length) {
+          repairColumnOrder = orderedKeys;
+          saveRepairColumnOrder();
+        }
+        repairColumnOrder = [
+          ...repairColumnOrder.filter((key) => orderedKeys.includes(key)),
+          ...orderedKeys.filter((key) => !repairColumnOrder.includes(key))
+        ];
+        repairColumns = repairColumnOrder.map((key) => columnMap.get(key)).filter(Boolean);
+      };
+
       const buildRepairColumns = (repairs) => {
         const columnMap = new Map(DEFAULT_REPAIR_COLUMNS.map((col) => [col.key, col]));
         repairs.forEach((repair) => {
@@ -3843,7 +3879,7 @@
           ...DEFAULT_REPAIR_COLUMNS.map((col) => col.key),
           ...[...columnMap.keys()].filter((key) => !DEFAULT_REPAIR_COLUMNS.some((col) => col.key === key))
         ];
-        repairColumns = orderedKeys.map((key) => columnMap.get(key)).filter(Boolean);
+        applyRepairColumnOrder(orderedKeys, columnMap);
         if (!Object.keys(repairColumnVisibility).length) {
           loadRepairColumnVisibility(repairColumns);
         } else {
@@ -3886,7 +3922,7 @@
         historyHead.innerHTML = `
           <tr>
             ${visibleColumns.map((col) => `
-              <th class="py-2 pr-3 relative" data-repair-column="${col.key}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">
+              <th class="group py-2 pr-3 relative cursor-move select-none whitespace-nowrap" draggable="true" data-repair-column="${col.key}" data-repair-drag="${col.key}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">
                 <button type="button" class="group inline-flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.08em] text-slate-400 hover:text-slate-200 transition-colors" data-repair-sort="${col.key}">
                   <span>${escapeHTML(col.label)}</span>
                   <span class="text-[9px] text-slate-500 group-hover:text-slate-300">${repairSortKey === col.key ? (repairSortDirection === 'asc' ? '▲' : '▼') : ''}</span>
@@ -3946,7 +3982,7 @@
         historyBody.innerHTML = filteredRepairs.map((repair) => `
           <tr>
             ${visibleColumns.map((col) => `
-              <td class="py-2 pr-3 text-slate-300" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">${renderRepairCell(col.key, repair)}</td>
+              <td class="py-2 pr-3 text-slate-300 whitespace-nowrap ${col.key === 'repair_notes' ? 'repair-notes-cell' : ''}" style="${repairColumnWidths[col.key] ? `width: ${repairColumnWidths[col.key]}px;` : ''}">${renderRepairCell(col.key, repair)}</td>
             `).join('')}
             <td class="py-2">
               <div class="flex items-center gap-2">
@@ -3992,6 +4028,39 @@
       }
 
       if (historyHead) {
+        historyHead.addEventListener('dragstart', (event) => {
+          const headerCell = event.target.closest('[data-repair-drag]');
+          if (!headerCell || !event.dataTransfer) return;
+          event.dataTransfer.setData('text/plain', headerCell.dataset.repairDrag);
+          event.dataTransfer.effectAllowed = 'move';
+        });
+
+        historyHead.addEventListener('dragover', (event) => {
+          if (!event.target.closest('[data-repair-drag]')) return;
+          event.preventDefault();
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'move';
+          }
+        });
+
+        historyHead.addEventListener('drop', (event) => {
+          const targetCell = event.target.closest('[data-repair-drag]');
+          if (!targetCell || !event.dataTransfer) return;
+          event.preventDefault();
+          const sourceKey = event.dataTransfer.getData('text/plain');
+          const targetKey = targetCell.dataset.repairDrag;
+          if (!sourceKey || !targetKey || sourceKey === targetKey) return;
+          const nextOrder = repairColumnOrder.length ? [...repairColumnOrder] : [];
+          const fromIndex = nextOrder.indexOf(sourceKey);
+          const toIndex = nextOrder.indexOf(targetKey);
+          if (fromIndex === -1 || toIndex === -1) return;
+          nextOrder.splice(fromIndex, 1);
+          nextOrder.splice(toIndex, 0, sourceKey);
+          repairColumnOrder = nextOrder;
+          saveRepairColumnOrder();
+          renderRepairHistory(repairCache);
+        });
+
         historyHead.addEventListener('mousedown', (event) => {
           const resizer = event.target.closest('[data-repair-resize]');
           if (!resizer) return;
@@ -4044,6 +4113,11 @@
         historyBody.addEventListener('click', async (event) => {
           const notesButton = event.target.closest('[data-repair-notes]');
           if (notesButton) {
+            const notesCell = notesButton.closest('td');
+            if (notesCell) {
+              notesCell.classList.toggle('whitespace-nowrap');
+              notesCell.classList.toggle('whitespace-normal');
+            }
             notesButton.classList.toggle('truncate');
             notesButton.classList.toggle('whitespace-normal');
             notesButton.classList.toggle('break-words');
