@@ -1,6 +1,8 @@
 (() => {
-  const isAdminRoute = window.location.pathname.toLowerCase().includes('/admin/');
-  const basePath = isAdminRoute ? '../assets/data/' : 'assets/data/';
+  const path = window.location.pathname.toLowerCase();
+  const isAdminRoute = path.includes('/admin/');
+  const isPagesRoute = path.includes('/pages/');
+  const basePath = isAdminRoute ? '../../assets/data/' : isPagesRoute ? '../assets/data/' : 'assets/data/';
   const csvPath = (name) => `${basePath}${name}.csv`;
 
   const paths = {

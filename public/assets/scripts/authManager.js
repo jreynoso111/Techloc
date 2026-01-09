@@ -1,4 +1,4 @@
-import { supabase as supabaseClient } from './supabaseClient.js';
+import { supabase as supabaseClient } from '../js/supabaseClient.js';
 
 (function () {
   if (!supabaseClient) {

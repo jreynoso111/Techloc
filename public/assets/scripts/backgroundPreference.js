@@ -1,4 +1,4 @@
-import { supabase as supabaseClient } from './supabaseClient.js';
+import { supabase as supabaseClient } from '../js/supabaseClient.js';
 import {
   BACKGROUND_STORAGE_KEY,
   normalizeBackgroundMode,
