@@ -714,6 +714,7 @@
     let customServices = [];
     let customCategories = new Map();
     let customToggleRef = null;
+    let mapManager = null;
     let uiManager = null;
     let selectedCustomCategoryKey = null;
     let serviceCacheByCategory = new Map();
@@ -1442,6 +1443,12 @@
         setServiceHeaders('technicians', data || []);
         renderedTechIds = '';
         document.getElementById('total-count').textContent = technicians.length;
+        mapManager.renderTechMarkers(technicians.filter(hasValidCoords), {
+          onMarkerClick: (tech) => {
+            mapManager.flyTo([tech.lat, tech.lng], { duration: 1.2 });
+            applySelection(null, tech.id);
+          }
+        });
         updateTechUI(technicians);
         renderVehicles();
       } catch (err) {
@@ -1470,6 +1477,11 @@
         if (error) throw error;
         vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords }));
         vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
+        mapManager.syncVehicleMarkers({
+          vehiclesWithCoords: vehicles.filter(hasValidCoords),
+          vehicleMarkers,
+          vehicleMarkersVisible
+        });
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
         renderVehicles();
@@ -1725,7 +1737,7 @@
       renderVisibleSidebars();
     }
 
-    const mapManager = initMapManager({
+    mapManager = initMapManager({
       data: {
         selectedServiceByType,
         customCategories
@@ -1806,61 +1818,6 @@
     };
 
     const getSelectedService = (type) => selectedServiceByType[type] || null;
-
-    uiManager = initUiManager({
-      data: {
-        get vehicles() { return vehicles; },
-        get technicians() { return technicians; },
-        get customCategories() { return customCategories; },
-        get customServices() { return customServices; },
-        get vehicleHeaders() { return vehicleHeaders; }
-      },
-      state: {
-        get selectedVehicleId() { return selectedVehicleId; },
-        set selectedVehicleId(value) { selectedVehicleId = value; },
-        get selectedTechId() { return selectedTechId; },
-        set selectedTechId(value) { selectedTechId = value; },
-        get techSidebarVisible() { return techSidebarVisible; },
-        set techSidebarVisible(value) { techSidebarVisible = value; },
-        get resellerSidebarVisible() { return resellerSidebarVisible; },
-        set resellerSidebarVisible(value) { resellerSidebarVisible = value; },
-        get repairSidebarVisible() { return repairSidebarVisible; },
-        set repairSidebarVisible(value) { repairSidebarVisible = value; },
-        get customSidebarVisible() { return customSidebarVisible; },
-        set customSidebarVisible(value) { customSidebarVisible = value; },
-        get lastCustomSidebarVisible() { return lastCustomSidebarVisible; },
-        set lastCustomSidebarVisible(value) { lastCustomSidebarVisible = value; },
-        get activeLeftPanel() { return activeLeftPanel; },
-        set activeLeftPanel(value) { activeLeftPanel = value; },
-        get customToggleRef() { return customToggleRef; },
-        get selectedCustomCategoryKey() { return selectedCustomCategoryKey; },
-        set selectedCustomCategoryKey(value) { selectedCustomCategoryKey = value; },
-        get defaultSidebarVisible() { return defaultSidebarVisible; }
-      },
-      utils: {
-        repairHistoryManager,
-        supabaseClient
-      },
-      config: {
-        VEHICLE_HEADER_LABELS,
-        EDITABLE_VEHICLE_FIELDS,
-        VEHICLE_MODAL_STORAGE_KEY,
-        TABLES,
-        SIDEBAR_TYPE_BY_KEY
-      },
-      callbacks: {
-        startLoading,
-        renderVehicles,
-        renderVisibleSidebars,
-        isAnyServiceSidebarOpen,
-        getCurrentOrigin,
-        getActivePartnerType,
-        isServiceSidebarVisible,
-        isServiceTypeEnabled,
-        renderCategorySidebar
-      },
-      mapManager
-    });
 
     function renderPartnerUI(partners = [], options) {
       const { containerId, layerKey, visible, accentColor, badgeLabel, type } = options;
