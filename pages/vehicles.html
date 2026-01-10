@@ -1778,6 +1778,35 @@
       }
     });
 
+    const updateServiceCount = (type, total, filteredTotal = total) => {
+      const countId = type === 'custom' ? 'dynamic-service-count' : `${type}-count`;
+      const el = document.getElementById(countId);
+      if (el) {
+        el.textContent = filteredTotal !== total ? `${filteredTotal}/${total}` : total;
+      }
+    };
+
+    const getCurrentOrigin = () => {
+      if (selectedVehicleId !== null) {
+        const vehicle = vehicles.find(v => v.id === selectedVehicleId && hasValidCoords(v));
+        if (vehicle) return vehicle;
+      }
+
+      if (selectedTechId !== null) {
+        const tech = technicians.find(t => t.id === selectedTechId && hasValidCoords(t));
+        if (tech) return tech;
+      }
+
+      const selectedPartner = Object.values(selectedServiceByType).find(Boolean);
+      if (selectedPartner && hasValidCoords(selectedPartner)) return selectedPartner;
+
+      if (lastOriginPoint) return lastOriginPoint;
+      if (lastClientLocation) return lastClientLocation;
+      return null;
+    };
+
+    const getSelectedService = (type) => selectedServiceByType[type] || null;
+
     uiManager = initUiManager({
       data: {
         get vehicles() { return vehicles; },
@@ -1832,35 +1861,6 @@
       },
       mapManager
     });
-
-    const updateServiceCount = (type, total, filteredTotal = total) => {
-      const countId = type === 'custom' ? 'dynamic-service-count' : `${type}-count`;
-      const el = document.getElementById(countId);
-      if (el) {
-        el.textContent = filteredTotal !== total ? `${filteredTotal}/${total}` : total;
-      }
-    };
-
-    const getCurrentOrigin = () => {
-      if (selectedVehicleId !== null) {
-        const vehicle = vehicles.find(v => v.id === selectedVehicleId && hasValidCoords(v));
-        if (vehicle) return vehicle;
-      }
-
-      if (selectedTechId !== null) {
-        const tech = technicians.find(t => t.id === selectedTechId && hasValidCoords(t));
-        if (tech) return tech;
-      }
-
-      const selectedPartner = Object.values(selectedServiceByType).find(Boolean);
-      if (selectedPartner && hasValidCoords(selectedPartner)) return selectedPartner;
-
-      if (lastOriginPoint) return lastOriginPoint;
-      if (lastClientLocation) return lastClientLocation;
-      return null;
-    };
-
-    const getSelectedService = (type) => selectedServiceByType[type] || null;
 
     function renderPartnerUI(partners = [], options) {
       const { containerId, layerKey, visible, accentColor, badgeLabel, type } = options;
