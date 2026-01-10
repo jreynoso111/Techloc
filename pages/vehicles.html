@@ -701,10 +701,11 @@
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../assets/scripts/geoUtils.js';
     import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../assets/scripts/dataMapper.js';
     import { createRepairHistoryManager } from '../assets/scripts/repairHistory.js';
+    import { initMapManager } from '../assets/scripts/mapManager.js';
+    import { initUiManager } from '../assets/scripts/uiManager.js';
     
     // --- Base Config ---
 
-    let map, techLayer, targetLayer, connectionLayer, serviceLayer, serviceConnectionLayer, vehicleLayer, highlightLayer, resellerLayer, repairLayer, customServiceLayer, hotspotLayer, blacklistLayer;
     let technicians = [];
     let blacklistSites = [];
     let hotspots = [];
@@ -713,6 +714,7 @@
     let customServices = [];
     let customCategories = new Map();
     let customToggleRef = null;
+    let uiManager = null;
     let selectedCustomCategoryKey = null;
     let serviceCacheByCategory = new Map();
     let serviceFetchPromise = null;
@@ -725,7 +727,6 @@
     let selectedVehicleId = null;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
-    let sidebarStateController = null;
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
     let repairSidebarVisible = false;
@@ -783,24 +784,6 @@
         timeoutId = setTimeout(() => fn(...args), delay);
       };
     };
-
-    const createPartnerClusterIcon = (cluster, color = '#334155') => {
-      const count = cluster.getChildCount();
-      return L.divIcon({
-        html: `<div class="relative text-xs font-semibold rounded-full flex items-center justify-center w-8 h-8 border-2 shadow-md bg-slate-900/90" style="color:${color}; border-color:${color}">${count}</div>`,
-        className: 'partner-cluster-icon',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-      });
-    };
-
-    const createPartnerClusterGroup = (color = '#334155') => L.markerClusterGroup({
-      maxClusterRadius: 45,
-      disableClusteringAtZoom: 17,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      iconCreateFunction: (cluster) => createPartnerClusterIcon(cluster, color)
-    });
 
     const debounceAsync = (fn, delay = 300) => {
       let timeoutId;
@@ -945,7 +928,7 @@
       const key = getCustomCategoryKey(normalizedLabel);
       if (!customCategories.has(key)) {
         const color = CUSTOM_COLOR_PALETTE[customCategories.size % CUSTOM_COLOR_PALETTE.length] || SERVICE_COLORS.custom;
-        const layer = createPartnerClusterGroup(color);
+        const layer = mapManager.createPartnerClusterGroup(color);
         customCategories.set(key, { key, label: normalizedLabel, color, layer });
       }
       return customCategories.get(key);
@@ -1014,14 +997,14 @@
         button.dataset.categoryKey = key || '';
         button.addEventListener('click', () => {
           selectedCustomCategoryKey = selectedCustomCategoryKey === key ? null : key;
-          sidebarStateController?.setState?.('custom', true);
+          uiManager?.getSidebarStateController?.()?.setState?.('custom', true);
           renderCategorySidebar(selectedCustomCategoryKey);
           updateCustomToggleStates();
 
           // Force recalculation when switching dynamic categories (e.g., Parking to Repo)
           const origin = getCurrentOrigin();
           if (origin && selectedCustomCategoryKey) {
-            showServicesFromOrigin(origin, { forceType: 'custom' });
+            mapManager.showServicesFromOrigin(origin, { forceType: 'custom' });
           }
         });
         slot.appendChild(button);
@@ -1040,7 +1023,7 @@
       customToggleRef = buttons[0] || null;
       slot.classList.remove('hidden');
       updateCustomToggleStates();
-      sidebarStateController?.updateTogglePositions?.();
+      uiManager?.getSidebarStateController?.()?.updateTogglePositions?.();
     }
 
     const isServiceTypeEnabled = (type) => enabledServiceTypes.has(type);
@@ -1188,67 +1171,6 @@
       formatDateTime
     });
 
-    const loadVehicleModalPrefs = () => {
-      try {
-        const raw = localStorage.getItem(VEHICLE_MODAL_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : {};
-        return {
-          order: Array.isArray(parsed.order) ? parsed.order : [],
-          hidden: Array.isArray(parsed.hidden) ? parsed.hidden : []
-        };
-      } catch (error) {
-        console.warn('Failed to load vehicle modal column preferences.', error);
-        return { order: [], hidden: [] };
-      }
-    };
-
-    const saveVehicleModalPrefs = (prefs) => {
-      localStorage.setItem(VEHICLE_MODAL_STORAGE_KEY, JSON.stringify(prefs));
-    };
-
-    const getVehicleModalHeaders = () => {
-      const baseHeaders = vehicleHeaders.filter((header) => header.toLowerCase() !== 'pt city');
-      const prefs = loadVehicleModalPrefs();
-      const ordered = prefs.order.filter((header) => baseHeaders.includes(header));
-      baseHeaders.forEach((header) => {
-        if (!ordered.includes(header)) ordered.push(header);
-      });
-      return { headers: ordered, hidden: new Set(prefs.hidden || []) };
-    };
-
-    const renderVehicleModalColumnsList = (headers, hiddenSet) => {
-      const list = document.getElementById('vehicle-modal-columns-list');
-      if (!list) return;
-      list.innerHTML = '';
-      headers.forEach((header) => {
-        const id = `vehicle-col-${header.replace(/\s+/g, '-').toLowerCase()}`;
-        const label = VEHICLE_HEADER_LABELS[header] || header;
-        const item = document.createElement('label');
-        item.className = 'flex items-center gap-2 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1';
-        item.innerHTML = `
-          <input type="checkbox" class="rounded border-slate-700 bg-slate-900 text-amber-400 focus:ring-amber-400" id="${id}">
-          <span class="text-[11px] text-slate-200">${label}</span>
-        `;
-        const checkbox = item.querySelector('input');
-        checkbox.checked = !hiddenSet.has(header);
-        checkbox.addEventListener('change', () => {
-          const prefs = loadVehicleModalPrefs();
-          const hidden = new Set(prefs.hidden || []);
-          if (checkbox.checked) {
-            hidden.delete(header);
-          } else {
-            hidden.add(header);
-          }
-          prefs.hidden = [...hidden];
-          saveVehicleModalPrefs(prefs);
-          const safeHeader = (window.CSS && CSS.escape) ? CSS.escape(header) : header.replace(/"/g, '\\"');
-          const row = document.querySelector(`tr[data-header="${safeHeader}"]`);
-          if (row) row.classList.toggle('hidden', !checkbox.checked);
-        });
-        list.appendChild(item);
-      });
-    };
-
     const normalizeHotspot = (row, idx = 0) => {
       const stateCode = toStateCode(getField(row, 'state', 'State')) || 'US';
       const city = getField(row, 'city', 'City');
@@ -1341,10 +1263,10 @@
     );
 
     const SERVICE_UI_CONFIG = {
-      tech: { sidebarId: 'left-sidebar', toggleId: 'open-left-sidebar', legendSelector: '[data-legend="tech"]', collapsedClass: 'collapsed-left', layer: () => techLayer },
-      reseller: { sidebarId: 'reseller-sidebar', toggleId: 'open-reseller-sidebar', legendSelector: '[data-legend="reseller"]', collapsedClass: 'collapsed-reseller', layer: () => resellerLayer },
-      repair: { sidebarId: 'repair-sidebar', toggleId: 'open-repair-sidebar', legendSelector: '[data-legend="repair"]', collapsedClass: 'collapsed-repair', layer: () => repairLayer },
-      custom: { sidebarId: 'dynamic-service-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-dynamic', layer: () => customServiceLayer }
+      tech: { sidebarId: 'left-sidebar', toggleId: 'open-left-sidebar', legendSelector: '[data-legend="tech"]', collapsedClass: 'collapsed-left' },
+      reseller: { sidebarId: 'reseller-sidebar', toggleId: 'open-reseller-sidebar', legendSelector: '[data-legend="reseller"]', collapsedClass: 'collapsed-reseller' },
+      repair: { sidebarId: 'repair-sidebar', toggleId: 'open-repair-sidebar', legendSelector: '[data-legend="repair"]', collapsedClass: 'collapsed-repair' },
+      custom: { sidebarId: 'dynamic-service-sidebar', toggleId: null, legendSelector: '#custom-legend-slot [data-legend]', collapsedClass: 'collapsed-dynamic' }
     };
 
     const PARTNER_SIDEBAR_CONFIGS = [
@@ -1489,40 +1411,6 @@
       return `${cityText}${stateText}${zipText}`.trim();
     };
 
-    const showServicePreviewCard = (partner) => {
-      if (!map || !partner) return;
-      const locationText = formatPartnerLocation(partner) || 'Location unavailable';
-      const zipText = partner.zip || 'N/A';
-      const noteText = partner.notes || partner.note || partner.details?.note || '';
-      const popup = L.popup({
-        className: 'service-mini-popup',
-        closeButton: true,
-        autoClose: true,
-        closeOnClick: true,
-        maxWidth: 220,
-        offset: [0, -6]
-      })
-        .setLatLng([partner.lat, partner.lng])
-        .setContent(`
-          <div class="service-mini-card">
-            <p class="service-mini-title">${escapeHTML(partner.company || partner.name || 'Service')}</p>
-            <p class="service-mini-location">${escapeHTML(locationText)}</p>
-            <p class="service-mini-meta"><span class="service-mini-label">ZIP</span><span>${escapeHTML(zipText)}</span></p>
-            ${noteText ? `<p class="service-mini-note"><span class="service-mini-label">Note</span> ${escapeHTML(noteText)}</p>` : ''}
-          </div>
-        `);
-
-      popup.openOn(map);
-    };
-
-    const createServiceIcon = (color, { unauthorized = false, checkPulseColor = null } = {}) => L.divIcon({
-      className: 'service-triangle-icon',
-      html: `<div class="service-icon-wrapper"><svg width="18" height="16" viewBox="0 0 18 16" fill="${color}" stroke="#0f172a" stroke-width="1.4" xmlns="http://www.w3.org/2000/svg"><path d="M9 1.1L17 14.8H1L9 1.1Z"/></svg>${unauthorized ? '<span class="service-cross">✕</span>' : ''}${checkPulseColor ? `<span class="service-check" style="--service-check-accent:${checkPulseColor}">✓</span>` : ''}</div>`,
-      iconSize: [18, 16],
-      iconAnchor: [9, 14],
-      popupAnchor: [0, -10]
-    });
-
     const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
 
     async function loadDatasetText({ key, path }) {
@@ -1531,151 +1419,6 @@
       const response = await fetch(path);
       if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
       return response.text();
-    }
-
-    // --- 1. Initialize map ---
-    function initMap() {
-      map = L.map('tech-map', {
-        renderer: L.canvas(),
-        zoomControl: false,
-        minZoom: 3,
-        zoomSnap: 0.25,
-        zoomDelta: 0.5
-      }).setView([39.8, -98.5], 5);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-      hotspotLayer = L.layerGroup().addTo(map);
-      blacklistLayer = L.layerGroup().addTo(map);
-      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
-      vehicleLayer = L.markerClusterGroup({
-        maxClusterRadius: 35,
-        disableClusteringAtZoom: 17,
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        iconCreateFunction(cluster) {
-          const count = cluster.getChildCount();
-          let sizeClass = 'w-8 h-8 text-xs';
-          let iconSize = [32, 32];
-
-          if (count > 100) {
-            sizeClass = 'w-10 h-10 text-sm';
-            iconSize = [40, 40];
-          } else if (count > 10) {
-            sizeClass = 'w-9 h-9 text-sm';
-            iconSize = [36, 36];
-          }
-
-          const childMarkers = typeof cluster.getAllChildMarkers === 'function' ? cluster.getAllChildMarkers() : [];
-          let hasRed = false;
-          let hasAmber = false;
-          let allGreen = true;
-          let hasStopped = false;
-
-          childMarkers.forEach((marker) => {
-            const markerColor = marker?.options?.markerColor || (marker?.options?.vehicleData ? getVehicleMarkerColor(marker.options.vehicleData) : null);
-            const isStopped = marker?.options?.isStopped || (marker?.options?.vehicleData ? isVehicleNotMoving(marker.options.vehicleData) : false);
-
-            if (isStopped) {
-              hasStopped = true;
-            }
-
-            if (markerColor) {
-              const colorValue = `${markerColor}`.toLowerCase();
-              if (colorValue === '#ef4444') {
-                hasRed = true;
-                allGreen = false;
-              } else if (colorValue === '#f59e0b' || colorValue === '#fbbf24') {
-                hasAmber = true;
-                allGreen = false;
-              } else if (colorValue !== '#22c55e') {
-                allGreen = false;
-              }
-            } else {
-              allGreen = false;
-            }
-          });
-
-          let clusterColor = '#f59e0b';
-          if (hasRed) {
-            clusterColor = '#ef4444';
-          } else if (hasAmber) {
-            clusterColor = '#f59e0b';
-          } else if (allGreen && childMarkers.length > 0) {
-            clusterColor = '#22c55e';
-          }
-
-          const badgeHtml = hasStopped ? '<span class="vehicle-cross-badge absolute inset-0 flex items-center justify-center pointer-events-none">✕</span>' : '';
-          const [width, height] = iconSize;
-          return L.divIcon({
-            html: `<div class="relative border-2 font-bold rounded-full flex items-center justify-center shadow-lg bg-slate-900/90 ${sizeClass}" style="color:${clusterColor}; border-color:${clusterColor}">${badgeHtml}<span>${count}</span></div>`,
-            className: 'vehicle-cluster-icon',
-            iconSize,
-            iconAnchor: [width / 2, height / 2]
-          });
-        }
-      }).addTo(map);
-      targetLayer = L.layerGroup().addTo(map);
-      connectionLayer = L.layerGroup().addTo(map);
-      serviceLayer = L.layerGroup().addTo(map);
-      serviceConnectionLayer = L.layerGroup().addTo(map);
-      highlightLayer = L.layerGroup().addTo(map);
-      resellerLayer = createPartnerClusterGroup(SERVICE_COLORS.reseller);
-      repairLayer = createPartnerClusterGroup(SERVICE_COLORS.repair);
-      customServiceLayer = createPartnerClusterGroup(SERVICE_COLORS.custom);
-
-      const invalidateMapSize = () => map?.invalidateSize();
-
-      const mapContainer = document.getElementById('tech-map');
-      if (mapContainer && typeof ResizeObserver !== 'undefined') {
-        const resizeObserver = new ResizeObserver(() => {
-          invalidateMapSize();
-        });
-        resizeObserver.observe(mapContainer);
-      }
-
-      const authBlock = document.querySelector('[data-auth-protected]');
-      if (authBlock && typeof MutationObserver !== 'undefined') {
-        const authObserver = new MutationObserver(() => {
-          if (!authBlock.classList.contains('hidden')) {
-            requestAnimationFrame(() => invalidateMapSize());
-          }
-        });
-        authObserver.observe(authBlock, { attributes: true, attributeFilter: ['class'] });
-      }
-
-      map.on('click', (e) => {
-        if (e.originalEvent?.handledByMarker) return;
-
-        const lat = parseFloat(e.latlng.lat.toFixed(6));
-        const lng = parseFloat(e.latlng.lng.toFixed(6));
-
-        const hasActiveMapSelection = selectedVehicleId !== null || lastClientLocation !== null || lastOriginPoint !== null;
-        if (hasActiveMapSelection) {
-          resetSelection();
-          lastOriginPoint = null;
-          lastClientLocation = null;
-          targetLayer?.clearLayers();
-          renderVisibleSidebars();
-          return;
-        }
-
-        resetSelection();
-        targetLayer?.clearLayers();
-        const locationPoint = { lat, lng, name: 'Pinned location' };
-        lastClientLocation = locationPoint;
-        lastOriginPoint = locationPoint;
-        const targetIcon = L.divIcon({
-          className: '',
-          html: `<div class="w-4 h-4 bg-red-600 rounded-full border-2 border-white animate-ping"></div>`
-        });
-        L.marker([lat, lng], { icon: targetIcon }).addTo(targetLayer);
-        const popup = L.marker([lat, lng]).addTo(targetLayer);
-        popup.bindPopup(`<b>Selected point</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`).openPopup();
-
-        showServicesFromOrigin(locationPoint, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
-        renderVisibleSidebars();
-      });
     }
 
     // --- 2. Load data from Supabase ---
@@ -1743,63 +1486,6 @@
       }
     }
 
-    function renderHotspots() {
-      if (!hotspotLayer) return;
-      hotspotLayer.clearLayers();
-
-      hotspots.filter(hasValidCoords).forEach((hotspot) => {
-        const circle = L.circle([hotspot.lat, hotspot.lng], {
-          radius: hotspot.radiusMiles * MILES_TO_METERS,
-          color: '#22c55e',
-          weight: 1.5,
-          fillColor: '#22c55e',
-          fillOpacity: 0.18,
-          opacity: 0.7,
-        }).addTo(hotspotLayer);
-
-        circle?.bringToBack?.();
-
-        const locationText = [hotspot.city, hotspot.state, hotspot.zip].filter(Boolean).join(', ');
-        circle.bindPopup(`
-          <div class="text-xs text-slate-100 space-y-1">
-            <p class="font-bold text-white text-sm">Hotspot</p>
-            <p class="text-[11px] text-slate-300">${locationText || 'Location unavailable'}</p>
-            <p class="text-[11px] text-emerald-300">Coverage radius: ${hotspot.radiusMiles} miles</p>
-          </div>
-        `);
-      });
-    }
-
-    const createBlacklistIcon = () => L.divIcon({
-      className: 'blacklist-triangle-icon',
-      html: `<div class="blacklist-marker">!</div>`,
-      iconSize: [18, 24],
-      iconAnchor: [9, 20],
-      popupAnchor: [0, -18]
-    });
-
-    function renderBlacklistSites() {
-      if (!blacklistLayer) return;
-      blacklistLayer.clearLayers();
-
-      blacklistSites.filter(hasValidCoords).forEach((entry) => {
-        const marker = L.marker([entry.lat, entry.lng], { icon: createBlacklistIcon() }).addTo(blacklistLayer);
-        marker.on('click', (e) => { e.originalEvent.handledByMarker = true; });
-
-        marker.bindPopup(`
-          <div class="text-xs text-slate-100 space-y-1">
-            <p class="font-bold text-amber-200 flex items-center gap-2 text-sm">
-              <span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/60">!</span>
-              Device removal location
-            </p>
-            <p class="text-[11px] text-slate-300"><span class="text-slate-400">Company:</span> ${escapeHTML(entry.company || 'Unknown')}</p>
-            ${entry.assocUnit ? `<p class="text-[11px] text-slate-300"><span class="text-slate-400">Assoc. Unit:</span> ${escapeHTML(entry.assocUnit)}</p>` : ''}
-            ${entry.note ? `<p class="text-[11px] text-amber-200 font-semibold">${escapeHTML(entry.note)}</p>` : ''}
-          </div>
-        `);
-      });
-    }
-
     async function loadHotspots() {
       if (!supabaseClient) {
         console.warn('Supabase unavailable: skipping hotspot load.');
@@ -1811,7 +1497,7 @@
         const { data, error } = await supabaseClient.from(TABLES.hotspots).select('*');
         if (error) throw error;
         hotspots = (data || []).map((row, idx) => normalizeHotspot(row, idx)).filter(hasValidCoords);
-        renderHotspots();
+        mapManager.renderHotspots(hotspots);
       } catch (err) {
         console.warn(`Hotspot load warning: ${err.message}`);
       } finally {
@@ -1830,7 +1516,7 @@
         const { data, error } = await supabaseClient.from(TABLES.blacklist).select('*');
         if (error) throw error;
         blacklistSites = (data || []).map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
-        renderBlacklistSites();
+        mapManager.renderBlacklistSites(blacklistSites);
       } catch (err) {
         console.warn(`Blacklist load warning: ${err.message}`);
       } finally {
@@ -1938,7 +1624,7 @@
     // --- 4. Update map and list ---
     function updateTechUI(techList, target = null, clientLocation = null) {
       if (!techSidebarVisible) {
-        techLayer?.clearLayers();
+        mapManager.renderTechMarkers([]);
         return;
       }
       const listContainer = document.getElementById('tech-list');
@@ -1966,34 +1652,16 @@
       const displayKey = displayList.map(t => t.id).join('|');
       const shouldRenderMarkers = techSidebarVisible && displayKey !== renderedTechIds;
 
-      if (shouldRenderMarkers) {
-        techLayer.clearLayers();
-      }
-
       if (displayList.length === 0) {
         listContainer.innerHTML = `<div class="text-center mt-10 text-slate-600 text-xs">No technicians match this selection.</div>`;
       }
 
       if (shouldRenderMarkers) {
-        displayList.forEach(tech => {
-          const marker = L.marker([tech.lat, tech.lng], {
-            icon: createServiceIcon(SERVICE_COLORS.tech)
-          }).addTo(techLayer);
-
-          marker.bindPopup(`
-            <div class="text-slate-900 p-1 font-sans">
-              <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
-              <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
-              <a href="tel:${tech.phoneDial || tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
-              <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
-            </div>
-          `);
-
-          marker.on('click', (e) => {
-            e.originalEvent.handledByMarker = true;
-            map.flyTo([tech.lat, tech.lng], 15, { duration: 1.2 });
+        mapManager.renderTechMarkers(displayList, {
+          onMarkerClick: (tech) => {
+            mapManager.flyTo([tech.lat, tech.lng], { duration: 1.2 });
             applySelection(null, tech.id);
-          });
+          }
         });
 
         renderedTechIds = displayKey;
@@ -2057,6 +1725,59 @@
       renderVisibleSidebars();
     }
 
+    const mapManager = initMapManager({
+      data: {
+        selectedServiceByType,
+        customCategories
+      },
+      state: {
+        get selectedVehicleId() { return selectedVehicleId; },
+        set selectedVehicleId(value) { selectedVehicleId = value; },
+        get selectedTechId() { return selectedTechId; },
+        set selectedTechId(value) { selectedTechId = value; },
+        get lastClientLocation() { return lastClientLocation; },
+        set lastClientLocation(value) { lastClientLocation = value; },
+        get lastOriginPoint() { return lastOriginPoint; },
+        set lastOriginPoint(value) { lastOriginPoint = value; },
+        get selectedCustomCategoryKey() { return selectedCustomCategoryKey; },
+        get sidebarStateController() { return uiManager?.getSidebarStateController?.(); }
+      },
+      utils: {
+        escapeHTML,
+        formatPartnerLocation,
+        getPartnerColor,
+        isUnauthorizedPartner,
+        isAuthorizedReseller,
+        isRepoAgentPartner,
+        isParkingStoragePartner,
+        hasSpAgentNote,
+        hasSpStorageNote,
+        getVehicleMarkerColor,
+        getVehicleMarkerBorderColor,
+        isVehicleNotMoving,
+        getDistance,
+        hasValidCoords,
+        MILES_TO_METERS
+      },
+      config: {
+        SERVICE_COLORS,
+        SERVICE_SIDEBAR_KEYS
+      },
+      callbacks: {
+        resetSelection,
+        renderVisibleSidebars,
+        isAnyServiceSidebarOpen,
+        getActivePartnerType,
+        getVisibleServiceTypes,
+        getPartnerListByType,
+        applyServiceFilter,
+        getSelectedService,
+        getNearestFromList,
+        filterSidebarForPartner,
+        isServiceSidebarVisible
+      }
+    });
+
     const updateServiceCount = (type, total, filteredTotal = total) => {
       const countId = type === 'custom' ? 'dynamic-service-count' : `${type}-count`;
       const el = document.getElementById(countId);
@@ -2086,8 +1807,64 @@
 
     const getSelectedService = (type) => selectedServiceByType[type] || null;
 
+    uiManager = initUiManager({
+      data: {
+        get vehicles() { return vehicles; },
+        get technicians() { return technicians; },
+        get customCategories() { return customCategories; },
+        get customServices() { return customServices; },
+        get vehicleHeaders() { return vehicleHeaders; }
+      },
+      state: {
+        get selectedVehicleId() { return selectedVehicleId; },
+        set selectedVehicleId(value) { selectedVehicleId = value; },
+        get selectedTechId() { return selectedTechId; },
+        set selectedTechId(value) { selectedTechId = value; },
+        get techSidebarVisible() { return techSidebarVisible; },
+        set techSidebarVisible(value) { techSidebarVisible = value; },
+        get resellerSidebarVisible() { return resellerSidebarVisible; },
+        set resellerSidebarVisible(value) { resellerSidebarVisible = value; },
+        get repairSidebarVisible() { return repairSidebarVisible; },
+        set repairSidebarVisible(value) { repairSidebarVisible = value; },
+        get customSidebarVisible() { return customSidebarVisible; },
+        set customSidebarVisible(value) { customSidebarVisible = value; },
+        get lastCustomSidebarVisible() { return lastCustomSidebarVisible; },
+        set lastCustomSidebarVisible(value) { lastCustomSidebarVisible = value; },
+        get activeLeftPanel() { return activeLeftPanel; },
+        set activeLeftPanel(value) { activeLeftPanel = value; },
+        get customToggleRef() { return customToggleRef; },
+        get selectedCustomCategoryKey() { return selectedCustomCategoryKey; },
+        set selectedCustomCategoryKey(value) { selectedCustomCategoryKey = value; },
+        get defaultSidebarVisible() { return defaultSidebarVisible; }
+      },
+      utils: {
+        repairHistoryManager,
+        supabaseClient
+      },
+      config: {
+        VEHICLE_HEADER_LABELS,
+        EDITABLE_VEHICLE_FIELDS,
+        VEHICLE_MODAL_STORAGE_KEY,
+        TABLES,
+        SIDEBAR_TYPE_BY_KEY
+      },
+      callbacks: {
+        startLoading,
+        renderVehicles,
+        renderVisibleSidebars,
+        isAnyServiceSidebarOpen,
+        getCurrentOrigin,
+        getActivePartnerType,
+        isServiceSidebarVisible,
+        isServiceTypeEnabled,
+        renderCategorySidebar
+      },
+      mapManager
+    });
+
     function renderPartnerUI(partners = [], options) {
-      const { containerId, layer, visible, accentColor, badgeLabel, type } = options;
+      const { containerId, layerKey, visible, accentColor, badgeLabel, type } = options;
+      const layer = mapManager.getLayers()[layerKey];
       if (!isServiceTypeEnabled(type)) return;
       const container = document.getElementById(containerId);
       if (!container) return;
@@ -2097,13 +1874,12 @@
         placeholder.className = 'text-center mt-10 text-slate-600 text-xs';
         placeholder.textContent = 'Open this sidebar to view nearby partners.';
         container.replaceChildren(placeholder);
-        layer?.clearLayers();
+        mapManager.renderPartnerMarkers({ partners: [], layer, type, accentColor, markerLimit: 0 });
         updateServiceCount(type, partners.length, applyServiceFilter(partners, type).length);
         return;
       }
 
       container.replaceChildren();
-      layer?.clearLayers();
 
       const totalPartners = partners.length;
       const filteredPartners = applyServiceFilter(partners, type);
@@ -2137,45 +1913,27 @@
         const markerLimit = Math.min(prioritized.length, 75);
         const cardLimit = Math.min(prioritized.length, PARTNER_CARD_LIMIT);
 
-        prioritized.forEach((partner, idx) => {
-          const unauthorized = isUnauthorizedPartner(partner);
-          const markerColor = getPartnerColor(partner, accentColor);
-          const checkPulseColor =
-            !unauthorized && type === 'reseller' && isAuthorizedReseller(partner)
-              ? markerColor
-              : null;
-
-          if (idx < markerLimit) {
-            const marker = L.marker([partner.lat, partner.lng], {
-              icon: createServiceIcon(markerColor, { unauthorized, checkPulseColor })
-            }).addTo(layer);
-
-            const locationText = formatPartnerLocation(partner);
-
-            marker.bindPopup(`
-              <div class="text-slate-900 p-1 font-sans">
-                <strong class="block text-sm font-bold mb-1">${partner.company}</strong>
-                <div class="text-xs text-slate-500 mb-2">${locationText || 'US'}</div>
-                <a href="tel:${partner.phoneDial || partner.phone}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${partner.phone || 'Contact'}</a>
-                <div class="text-[10px] text-slate-500">${partner.availability || ''}</div>
-              </div>
-            `);
-
-            marker.on('click', (e) => {
-              e.originalEvent.handledByMarker = true;
-              sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
-              selectedServiceByType[type] = partner;
-              filterSidebarForPartner(type, partner);
-              const originPoint = getCurrentOrigin() || partner;
-              if (originPoint) {
-                showServicesFromOrigin(originPoint, { forceType: type });
-              }
-              showServicePreviewCard(partner);
-              renderPartnerUI(partners, options);
-              map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
-            });
+        mapManager.renderPartnerMarkers({
+          partners: prioritized,
+          layer,
+          type,
+          accentColor,
+          markerLimit,
+          onMarkerClick: (partner) => {
+            uiManager?.getSidebarStateController?.()?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+            selectedServiceByType[type] = partner;
+            filterSidebarForPartner(type, partner);
+            const originPoint = getCurrentOrigin() || partner;
+            if (originPoint) {
+              mapManager.showServicesFromOrigin(originPoint, { forceType: type });
+            }
+            mapManager.showServicePreviewCard(partner);
+            renderPartnerUI(partners, options);
+            mapManager.flyTo([partner.lat, partner.lng], { duration: 1.2 });
           }
+        });
 
+        prioritized.forEach((partner, idx) => {
           if (idx >= cardLimit) return;
 
           const locationText = formatPartnerLocation(partner);
@@ -2219,11 +1977,11 @@
     }
 
     function updateResellerUI(list = resellers) {
-      renderPartnerUI(list, { containerId: 'reseller-list', layer: resellerLayer, visible: resellerSidebarVisible, accentColor: '#34d399', badgeLabel: 'Reseller', type: 'reseller', countId: 'reseller-count' });
+      renderPartnerUI(list, { containerId: 'reseller-list', layerKey: 'resellerLayer', visible: resellerSidebarVisible, accentColor: '#34d399', badgeLabel: 'Reseller', type: 'reseller', countId: 'reseller-count' });
     }
 
     function updateRepairUI(list = repairShops) {
-      renderPartnerUI(list, { containerId: 'repair-list', layer: repairLayer, visible: repairSidebarVisible, accentColor: '#fb923c', badgeLabel: 'Repair shop', type: 'repair', countId: 'repair-count' });
+      renderPartnerUI(list, { containerId: 'repair-list', layerKey: 'repairLayer', visible: repairSidebarVisible, accentColor: '#fb923c', badgeLabel: 'Repair shop', type: 'repair', countId: 'repair-count' });
     }
 
     function renderCategorySidebar(categoryKey = selectedCustomCategoryKey, list = customServices) {
@@ -2257,7 +2015,6 @@
         : sorted;
 
       const markersAllowed = customSidebarVisible && isServiceTypeEnabled('custom');
-      customCategories.forEach(({ layer }) => layer?.clearLayers?.());
 
       container.innerHTML = '';
 
@@ -2268,7 +2025,18 @@
       }
 
       const fragment = document.createDocumentFragment();
-      filtered.slice(0, PARTNER_CARD_LIMIT).forEach((partner) => {
+      const displayedPartners = filtered.slice(0, PARTNER_CARD_LIMIT);
+
+      mapManager.renderCustomServiceMarkers({
+        partners: displayedPartners,
+        customCategories,
+        markersAllowed,
+        onMarkerClick: (partner, meta) => {
+          showServicePopup(partner, meta.color);
+        }
+      });
+
+      displayedPartners.forEach((partner) => {
         const locationText = formatPartnerLocation(partner) || 'US';
         const card = document.createElement('article');
         card.className = 'rounded-xl border border-slate-800 bg-slate-900/70 p-3 shadow-sm hover:border-blue-500/70 transition-colors';
@@ -2293,26 +2061,6 @@
 
         fragment.appendChild(card);
 
-        if (markersAllowed && map && meta?.layer) {
-          if (!map.hasLayer(meta.layer)) {
-            meta.layer.addTo(map);
-          }
-
-          if (hasValidCoords(partner)) {
-            const checkPulseColor =
-              (isRepoAgentPartner(partner) && hasSpAgentNote(partner)) ||
-              (isParkingStoragePartner(partner) && hasSpStorageNote(partner))
-                ? meta.color
-                : null;
-            const icon = createServiceIcon(meta.color, { unauthorized: isUnauthorizedPartner(partner), checkPulseColor });
-            const marker = L.marker([partner.lat, partner.lng], { icon });
-            marker.on('click', (e) => {
-              e.originalEvent.handledByMarker = true;
-              showServicePopup(partner, meta.color);
-            });
-            marker.addTo(meta.layer);
-          }
-        }
       });
 
       container.appendChild(fragment);
@@ -2352,13 +2100,13 @@
 
       if (viewMoreBtn) {
         event.stopPropagation();
-        openVehicleModal(vehicle);
+        uiManager.openVehicleModal(vehicle);
         return;
       }
 
       if (repairHistoryBtn) {
         event.stopPropagation();
-        openRepairModal(vehicle);
+        uiManager.openRepairModal(vehicle);
         return;
       }
 
@@ -2374,7 +2122,7 @@
       const tech = findTechById(card.dataset.id);
       if (!tech) return;
 
-      map.flyTo([tech.lat, tech.lng], 15, { duration: 1.2 });
+      mapManager.flyTo([tech.lat, tech.lng], { duration: 1.2 });
       applySelection(null, tech.id);
     }
 
@@ -2386,15 +2134,15 @@
       const partner = findPartnerById(type, card.dataset.id);
       if (!partner) return;
 
-      sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
-      if (hasValidCoords(partner) && map) {
-        map.flyTo([partner.lat, partner.lng], 15, { duration: 1.2 });
+      uiManager?.getSidebarStateController?.()?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
+      if (hasValidCoords(partner)) {
+        mapManager.flyTo([partner.lat, partner.lng], { duration: 1.2 });
       }
       selectedServiceByType[type] = partner;
 
       const originPoint = type === 'custom' ? null : getCurrentOrigin() || partner;
       if (originPoint) {
-        showServicesFromOrigin(originPoint, { forceType: type });
+        mapManager.showServicesFromOrigin(originPoint, { forceType: type });
       }
 
       if (type === 'custom' && hasValidCoords(partner)) {
@@ -2432,14 +2180,12 @@
       hotspotsVisible = !!visible;
       updateHotspotToggle();
 
-      if (!hotspotLayer || !map) return;
-      if (!hotspotsVisible) {
-        if (map.hasLayer(hotspotLayer)) map.removeLayer(hotspotLayer);
-        return;
+      const { hotspotLayer } = mapManager.getLayers();
+      if (!hotspotLayer) return;
+      mapManager.setLayerVisible(hotspotLayer, hotspotsVisible);
+      if (hotspotsVisible) {
+        mapManager.renderHotspots(hotspots);
       }
-
-      if (!map.hasLayer(hotspotLayer)) hotspotLayer.addTo(map);
-      renderHotspots();
     }
 
     function setupHotspotToggle() {
@@ -2463,14 +2209,12 @@
       blacklistMarkersVisible = !!visible;
       updateBlacklistToggle();
 
-      if (!blacklistLayer || !map) return;
-      if (!blacklistMarkersVisible) {
-        if (map.hasLayer(blacklistLayer)) map.removeLayer(blacklistLayer);
-        return;
+      const { blacklistLayer } = mapManager.getLayers();
+      if (!blacklistLayer) return;
+      mapManager.setLayerVisible(blacklistLayer, blacklistMarkersVisible);
+      if (blacklistMarkersVisible) {
+        mapManager.renderBlacklistSites(blacklistSites);
       }
-
-      if (!map.hasLayer(blacklistLayer)) blacklistLayer.addTo(map);
-      renderBlacklistSites();
     }
 
     function setupBlacklistToggle() {
@@ -2494,19 +2238,16 @@
       vehicleMarkersVisible = !!visible;
       updateVehicleMarkerToggle();
 
+      const { vehicleLayer } = mapManager.getLayers();
+      if (!vehicleLayer) return;
       if (!vehicleMarkersVisible) {
-        if (vehicleLayer) {
-          vehicleLayer.clearLayers();
-          if (map?.hasLayer(vehicleLayer)) map.removeLayer(vehicleLayer);
-        }
+        mapManager.setLayerVisible(vehicleLayer, false);
         vehicleMarkers.clear();
-        highlightLayer?.clearLayers();
+        mapManager.clearHighlightLayer();
         return;
       }
 
-      if (vehicleLayer && map && !map.hasLayer(vehicleLayer)) {
-        vehicleLayer.addTo(map);
-      }
+      mapManager.setLayerVisible(vehicleLayer, true);
 
       renderVehicles();
     }
@@ -2519,72 +2260,16 @@
       updateVehicleMarkerToggle();
     }
 
-    function createVehicleMarkerIcon(markerColor, borderColor, isStopped) {
-      return L.divIcon({
-        className: 'vehicle-marker-wrapper',
-        html: `<div class="vehicle-marker-icon"><span class="vehicle-marker-dot" style="background:${markerColor}; border-color:${borderColor}"></span>${isStopped ? '<span class="vehicle-cross-badge">✕</span>' : ''}</div>`,
-        iconSize: [18, 18],
-        iconAnchor: [9, 9]
-      });
-    }
-
-    function syncVehicleMarkers(vehiclesWithCoords) {
-      if (!vehicleLayer) return;
-
-      if (!vehicleMarkersVisible) {
-        vehicleLayer.clearLayers();
-        vehicleMarkers.clear();
-        return;
-      }
-
-      const activeIds = new Set();
-
-      vehiclesWithCoords.forEach(({ vehicle, coords, focusHandler }) => {
-        if (!coords) return;
-
-        const markerColor = getVehicleMarkerColor(vehicle);
-        const borderColor = getVehicleMarkerBorderColor(markerColor);
-        const isStopped = isVehicleNotMoving(vehicle);
-        const icon = createVehicleMarkerIcon(markerColor, borderColor, isStopped);
-
-        const stored = vehicleMarkers.get(vehicle.id);
-        let marker = stored?.marker;
-
-        if (marker) {
-          marker.setLatLng([coords.lat, coords.lng]);
-          marker.setIcon(icon);
-          marker.setZIndexOffset(isStopped ? 500 : 0);
-          marker.options.vehicleData = vehicle;
-          marker.options.markerColor = markerColor;
-          marker.options.isStopped = isStopped;
-        } else {
-          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0, vehicleData: vehicle, markerColor, isStopped }).addTo(vehicleLayer);
-          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
-        }
-
-        vehicleMarkers.set(vehicle.id, { marker });
-        activeIds.add(vehicle.id);
-      });
-
-      [...vehicleMarkers.keys()].forEach((id) => {
-        if (activeIds.has(id)) return;
-        const stored = vehicleMarkers.get(id);
-        if (stored?.marker) vehicleLayer.removeLayer(stored.marker);
-        vehicleMarkers.delete(id);
-      });
-    }
-
     function renderVehicles() {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
 
-      if (map) map.closePopup();
+      mapManager.closePopup();
       container.replaceChildren();
 
-      if (!vehicleMarkersVisible && map?.hasLayer(vehicleLayer)) {
-        map.removeLayer(vehicleLayer);
-      } else if (vehicleMarkersVisible && map && vehicleLayer && !map.hasLayer(vehicleLayer)) {
-        vehicleLayer.addTo(map);
+      const { vehicleLayer } = mapManager.getLayers();
+      if (vehicleLayer) {
+        mapManager.setLayerVisible(vehicleLayer, vehicleMarkersVisible);
       }
 
       const searchBox = document.getElementById('vehicle-search');
@@ -2596,7 +2281,7 @@
         empty.className = 'text-center mt-10 text-slate-600 text-xs';
         empty.textContent = 'No vehicles match your search.';
         container.replaceChildren(empty);
-        syncVehicleMarkers([]);
+        mapManager.syncVehicleMarkers({ vehiclesWithCoords: [], vehicleMarkers, vehicleMarkersVisible });
         return;
       }
 
@@ -2727,49 +2412,24 @@
 
         container.replaceChildren(fragment);
 
-        syncVehicleMarkers(vehiclesForMarkers);
+        mapManager.syncVehicleMarkers({ vehiclesWithCoords: vehiclesForMarkers, vehicleMarkers, vehicleMarkersVisible });
       }
 
     function focusVehicle(vehicle) {
       if (!vehicle) return;
       if (!hasValidCoords(vehicle)) return;
       if (!vehicleMarkersVisible) return;
-      highlightLayer.clearLayers();
-
-      const storedMarker = vehicleMarkers.get(vehicle.id)?.marker;
-      const markerColor = getVehicleMarkerColor(vehicle);
-      const anchorMarker = storedMarker || L.circleMarker([vehicle.lat, vehicle.lng], {
-        radius: 9,
-        color: '#0b1220',
-        weight: 2.8,
-        fillColor: markerColor,
-        fillOpacity: 0.95,
-        opacity: 0.98,
-        className: 'vehicle-dot'
-      }).addTo(highlightLayer);
-
-      const halo = L.circleMarker([vehicle.lat, vehicle.lng], { radius: 12, color: markerColor, weight: 1.2, fillColor: markerColor, fillOpacity: 0.18 }).addTo(highlightLayer);
-      halo.bringToBack();
-
-      if (isVehicleNotMoving(vehicle)) {
-        L.marker([vehicle.lat, vehicle.lng], {
-          icon: L.divIcon({ className: 'vehicle-cross', html: '<div class="vehicle-cross-badge">✕</div>', iconSize: [16, 16], iconAnchor: [8, 8] }),
-          interactive: false,
-          zIndexOffset: 500
-        }).addTo(highlightLayer);
-      }
-
-      anchorMarker.bindPopup(vehicleCard(vehicle), {
-        className: 'vehicle-popup',
-        autoPan: false,
-        keepInView: false,
-      }).openPopup();
-
-      setTimeout(attachPopupHandlers, 50);
-
-      showServicesFromOrigin(vehicle, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
-
-      applySelection(vehicle.id, null);
+      mapManager.focusVehicle({
+        vehicle,
+        vehicleMarkers,
+        vehicleMarkersVisible,
+        vehicleCardHtml: vehicleCard(vehicle),
+        onAttachPopupHandlers: uiManager.attachPopupHandlers,
+        onAfterFocus: () => {
+          mapManager.showServicesFromOrigin(vehicle, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
+          applySelection(vehicle.id, null);
+        }
+      });
     }
 
     function vehicleCard(vehicle) {
@@ -2888,7 +2548,7 @@
     }
 
     function getVehiclesForTech(tech) {
-      if (!tech || !map) return [];
+      if (!tech) return [];
       const withDistance = vehicles
         .filter(hasValidCoords)
         .map(v => ({
@@ -3041,12 +2701,13 @@
     }
 
     function findNearestTechnician(point, maxDistanceMeters = 40000) {
-      if (!technicians.length || !map) return null;
+      if (!technicians.length) return null;
       let closest = null;
       let closestDistance = Infinity;
 
       technicians.forEach((tech) => {
-        const dist = map.distance([point.lat, point.lng], [tech.lat, tech.lng]);
+        const dist = mapManager.distanceBetween(point, tech);
+        if (dist === null) return;
         if (dist < closestDistance) {
           closestDistance = dist;
           closest = tech;
@@ -3086,60 +2747,41 @@
       return movingValue === -1;
     }
 
-    function toggleSelectionBanner() {
-      const banner = document.getElementById('selection-banner');
-      const text = document.getElementById('selection-text');
-      if (!banner || !text) return;
-
-      if (selectedVehicleId === null && selectedTechId === null) {
-        banner.classList.add('hidden');
-        return;
-      }
-
-      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-      const tech = technicians.find(t => t.id === selectedTechId);
-      const parts = [];
-      if (vehicle) parts.push(`Vehicle ${vehicle.vin || vehicle.model}`);
-      if (tech) parts.push(`Technician ${tech.company}`);
-      text.textContent = `Filtered by ${parts.join(' & ')}`;
-      banner.classList.remove('hidden');
-    }
-
     function applySelection(vehicleId = null, techId = null) {
       selectedVehicleId = vehicleId;
       selectedTechId = techId;
       if (vehicleId !== null) {
-        sidebarStateController?.setState?.('right', true);
+        uiManager?.getSidebarStateController?.()?.setState?.('right', true);
       }
       renderVehicles();
       renderVisibleSidebars();
-      toggleSelectionBanner();
+      uiManager.toggleSelectionBanner();
     }
 
     function resetSelection() {
       selectedVehicleId = null;
       selectedTechId = null;
       Object.keys(selectedServiceByType).forEach(key => delete selectedServiceByType[key]);
-      highlightLayer?.clearLayers();
-      connectionLayer?.clearLayers();
-      serviceLayer?.clearLayers();
-      serviceConnectionLayer?.clearLayers();
+      mapManager.clearHighlightLayer();
+      mapManager.clearConnections();
+      mapManager.clearServiceLayers();
       lastOriginPoint = null;
       lastClientLocation = null;
       renderVehicles();
       renderVisibleSidebars();
-      toggleSelectionBanner();
-      sidebarStateController?.setState?.('right', false);
+      uiManager.toggleSelectionBanner();
+      uiManager?.getSidebarStateController?.()?.setState?.('right', false);
     }
 
     function findNearestVehicle(point, maxDistanceMeters = 80000) {
-      if (!vehicles.length || !map) return null;
+      if (!vehicles.length) return null;
       let closest = null;
       let closestDistance = Infinity;
 
       vehicles.forEach((vehicle) => {
         if (!hasValidCoords(vehicle)) return;
-        const dist = map.distance([point.lat, point.lng], [vehicle.lat, vehicle.lng]);
+        const dist = mapManager.distanceBetween(point, vehicle);
+        if (dist === null) return;
         if (dist < closestDistance) {
           closestDistance = dist;
           closest = vehicle;
@@ -3173,17 +2815,10 @@
         document.getElementById('address-input').value = label;
       }
 
-      targetLayer.clearLayers();
-      connectionLayer.clearLayers();
-      serviceLayer?.clearLayers();
-      serviceConnectionLayer?.clearLayers();
-      const targetIcon = L.divIcon({
-        className: '',
-        html: `<div class="w-4 h-4 bg-red-600 rounded-full border-2 border-white animate-ping"></div>`
-      });
-      L.marker([location.lat, location.lng], { icon: targetIcon }).addTo(targetLayer);
-      const popup = L.marker([location.lat, location.lng]).addTo(targetLayer);
-      popup.bindPopup(`<b>Client</b><br>${label || location.name || ''}`).openPopup();
+      mapManager.clearTargetLayer();
+      mapManager.clearConnections();
+      mapManager.clearServiceLayers();
+      mapManager.addTargetLocation({ location, label: label || location.name || '', title: 'Client' });
       lastClientLocation = location;
 
       const partnerType = partnerTypeOverride || (isAnyServiceSidebarOpen() ? getActivePartnerType() : null);
@@ -3198,8 +2833,8 @@
         }
       }
 
-      showServicesFromOrigin(location, { forceType: partnerType });
-      map.flyTo([location.lat, location.lng], 13, { duration: 1.5 });
+      mapManager.showServicesFromOrigin(location, { forceType: partnerType });
+      mapManager.flyTo([location.lat, location.lng], { duration: 1.5, zoom: 13 });
     }
 
     function setupAddressSearch({ formId, inputId, buttonId, statusId, partnerType }) {
@@ -3264,379 +2899,6 @@
       partnerType: 'repair'
     });
 
-    function openVehicleModal(vehicle) {
-      const modal = document.getElementById('vehicle-modal');
-      const title = document.getElementById('vehicle-modal-title');
-      const vinDisplay = document.getElementById('vehicle-modal-vin');
-      const body = document.getElementById('vehicle-modal-body');
-      const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
-      const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
-      if (!modal || !title || !body) return;
-
-      const VIN = repairHistoryManager.getRepairVehicleVin(vehicle);
-      modal.dataset.vehicleId = vehicle.id;
-      columnsToggle?.classList.remove('hidden');
-      columnsPanel?.classList.add('hidden');
-      title.textContent = `${vehicle.model || 'Vehicle'} ${vehicle.year || ''} • ${vehicle.vin || ''}`;
-      if (vinDisplay) {
-        vinDisplay.textContent = VIN ? `VIN: ${VIN}` : '';
-      }
-      const { headers, hidden } = getVehicleModalHeaders();
-      const detailRows = headers.map(header => {
-        const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
-        const fieldKey = EDITABLE_VEHICLE_FIELDS[header.toLowerCase()];
-        const isEditable = Boolean(fieldKey);
-        const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
-        return `
-          <tr class="border-b border-slate-800/80 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${header}">
-            <th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">
-              <span class="inline-flex items-center gap-2">
-                <span class="text-slate-600 text-sm">⋮⋮</span>
-                ${displayHeader}
-              </span>
-            </th>
-            <td class="text-xs text-slate-100 py-2">
-              <div class="flex items-center justify-between gap-2">
-                <span data-field-value>${value || '—'}</span>
-                ${isEditable ? `
-                  <button type="button" class="rounded border border-amber-400/40 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}">Edit</button>
-                ` : ''}
-              </div>
-            </td>
-          </tr>
-        `;
-      }).join('');
-      body.innerHTML = `<table class="w-full text-left">${detailRows}</table>`;
-
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      renderVehicleModalColumnsList(headers, hidden);
-      attachVehicleModalRowDrag();
-      attachVehicleModalEditors(vehicle);
-    }
-
-    function openRepairModal(vehicle) {
-      const modal = document.getElementById('vehicle-modal');
-      const title = document.getElementById('vehicle-modal-title');
-      const vinDisplay = document.getElementById('vehicle-modal-vin');
-      const body = document.getElementById('vehicle-modal-body');
-      const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
-      const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
-      if (!modal || !title || !body) return;
-
-      if (modal.repairModalController) {
-        modal.repairModalController.abort();
-      }
-      const repairModalController = new AbortController();
-      modal.repairModalController = repairModalController;
-      const { signal } = repairModalController;
-
-      const VIN = repairHistoryManager.getRepairVehicleVin(vehicle);
-      modal.dataset.vehicleId = vehicle.id;
-      title.textContent = 'Repair Management';
-      if (vinDisplay) {
-        vinDisplay.textContent = VIN ? `VIN: ${VIN}` : '';
-      }
-      columnsToggle?.classList.add('hidden');
-      columnsPanel?.classList.add('hidden');
-      body.innerHTML = `
-        <div class="space-y-4">
-          <div class="sticky top-0 z-10 -mx-4 border-b border-slate-800 bg-slate-950/95 px-4 pb-3 pt-1 backdrop-blur">
-            <div class="inline-flex rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-[11px] font-semibold text-slate-300">
-              <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-white bg-slate-800/80" data-tab="history">History</button>
-              <button type="button" class="repair-tab-btn rounded-md px-3 py-1.5 text-slate-400 hover:text-white" data-tab="new-entry">New Entry</button>
-            </div>
-          </div>
-          <div class="repair-tab-panel" data-tab-panel="history">
-            <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
-              <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Repair History</p>
-                <div class="flex flex-wrap items-center gap-2">
-                  <input type="text" class="w-48 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 placeholder-slate-500" placeholder="Search notes, status, company" data-repair-search />
-                  <div class="relative">
-                  <button type="button" class="rounded border border-slate-700 bg-slate-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 hover:border-slate-500" data-repair-columns-toggle>
-                    Columns
-                  </button>
-                  <div class="absolute right-0 z-10 mt-2 hidden w-64 rounded-lg border border-slate-800 bg-slate-950/95 p-3 text-[11px] text-slate-200 shadow-xl" data-repair-columns-panel>
-                    <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
-                    <div class="mt-2 grid gap-2" data-repair-columns-list></div>
-                  </div>
-                  </div>
-                </div>
-              </div>
-              <table class="w-full text-left text-[11px] text-slate-200">
-                <thead class="text-[10px] uppercase text-slate-500" data-repair-history-head></thead>
-                <tbody class="divide-y divide-slate-800/80" data-repair-history-body>
-                  <tr data-repair-empty>
-                    <td class="py-2 pr-3 text-slate-400" colspan="1">Loading history...</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div class="repair-tab-panel hidden" data-tab-panel="new-entry">
-            <form class="space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-4 text-[11px] text-slate-200" data-repair-form>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Status</span>
-                  <input type="text" name="status" placeholder="Pending" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">DOC</span>
-                  <input type="text" name="doc" placeholder="DOC-12345" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Date</span>
-                  <input type="date" name="cs_contact_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Shipping Date</span>
-                  <input type="date" name="shipping_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">POC Name</span>
-                  <input type="text" name="poc_name" placeholder="Primary contact" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">POC Phone</span>
-                  <input type="tel" name="poc_phone" placeholder="(555) 555-5555" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Customer Availability</span>
-                  <input type="text" name="customer_availability" placeholder="Mon-Fri afternoons" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Installer Request Date</span>
-                  <input type="date" name="installer_request_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Installation Company</span>
-                  <input type="text" name="installation_company" placeholder="Techloc Installers" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Technician Availability</span>
-                  <input type="date" name="technician_availability_date" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Installation Place</span>
-                  <input type="text" name="installation_place" placeholder="123 Main St" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="grid gap-3 md:grid-cols-2">
-                <label class="space-y-1 block">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Cost</span>
-                  <input type="text" name="repair_price" placeholder="$0.00" class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-                <label class="space-y-1 block">
-                  <span class="text-[10px] uppercase text-slate-500 font-semibold">Notes</span>
-                  <input type="text" name="repair_notes" placeholder="Internal notes..." class="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-100" />
-                </label>
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <p class="text-[10px] text-slate-400" data-repair-status></p>
-                <button type="submit" data-repair-submit class="rounded-lg border border-blue-400/50 bg-blue-500/20 px-4 py-1.5 text-[11px] font-semibold text-blue-100 hover:bg-blue-500/30 transition-colors">Save entry</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      `;
-
-      const tabButtons = body.querySelectorAll('.repair-tab-btn');
-      const tabPanels = body.querySelectorAll('.repair-tab-panel');
-      const setActiveTab = (tabKey) => {
-        tabButtons.forEach((button) => {
-          const isActive = button.dataset.tab === tabKey;
-          button.classList.toggle('bg-slate-800/80', isActive);
-          button.classList.toggle('text-white', isActive);
-          button.classList.toggle('text-slate-400', !isActive);
-        });
-        tabPanels.forEach((panel) => {
-          panel.classList.toggle('hidden', panel.dataset.tabPanel !== tabKey);
-        });
-      };
-
-      tabButtons.forEach((button) => {
-        button.addEventListener('click', () => setActiveTab(button.dataset.tab), { signal });
-      });
-
-      setActiveTab('history');
-
-      repairHistoryManager.setupRepairHistoryUI({
-        vehicle,
-        body,
-        signal,
-        setActiveTab
-      });
-
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
-
-    function attachVehicleModalRowDrag() {
-      const modal = document.getElementById('vehicle-modal');
-      if (!modal) return;
-      const rows = modal.querySelectorAll('tr[data-header]');
-      let draggedRow = null;
-
-      rows.forEach((row) => {
-        row.addEventListener('dragstart', (event) => {
-          draggedRow = row;
-          row.classList.add('opacity-50');
-          event.dataTransfer.effectAllowed = 'move';
-          event.dataTransfer.setData('text/plain', row.dataset.header || '');
-        });
-
-        row.addEventListener('dragend', () => {
-          row.classList.remove('opacity-50');
-          draggedRow = null;
-        });
-
-        row.addEventListener('dragover', (event) => {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = 'move';
-        });
-
-        row.addEventListener('drop', (event) => {
-          event.preventDefault();
-          if (!draggedRow || draggedRow === row) return;
-          const tbody = row.parentElement;
-          if (!tbody) return;
-          const rowList = [...tbody.querySelectorAll('tr[data-header]')];
-          const draggedIndex = rowList.indexOf(draggedRow);
-          const targetIndex = rowList.indexOf(row);
-          if (draggedIndex < targetIndex) {
-            tbody.insertBefore(draggedRow, row.nextSibling);
-          } else {
-            tbody.insertBefore(draggedRow, row);
-          }
-          const prefs = loadVehicleModalPrefs();
-          prefs.order = [...tbody.querySelectorAll('tr[data-header]')].map((entry) => entry.dataset.header);
-          saveVehicleModalPrefs(prefs);
-        });
-      });
-    }
-
-    async function attachVehicleModalEditors(vehicle) {
-      const modal = document.getElementById('vehicle-modal');
-      if (!modal) return;
-      const editButtons = modal.querySelectorAll('[data-edit-field]');
-      editButtons.forEach((button) => {
-        let saveInProgress = false;
-        const saveEdit = async () => {
-          if (saveInProgress) return;
-          const fieldKey = button.dataset.editField;
-          const headerKey = button.dataset.editHeader;
-          const cell = button.closest('td');
-          const valueNode = cell?.querySelector('[data-field-value]');
-          if (!cell || !valueNode) return;
-
-          const input = cell.querySelector('input[data-edit-input]');
-          const newValue = input ? input.value.trim() : '';
-          saveInProgress = true;
-          button.disabled = true;
-          button.textContent = 'Saving...';
-          const stopLoading = startLoading('Saving...');
-
-          try {
-            if (!supabaseClient || !headerKey || vehicle?.id === undefined) {
-              throw new Error('Supabase unavailable');
-            }
-
-            const { error } = await supabaseClient
-              .from(TABLES.vehicles)
-              .update({ [headerKey]: newValue })
-              .eq('id', vehicle.id);
-
-            if (error) throw error;
-
-            valueNode.textContent = newValue || '—';
-            button.dataset.editing = 'false';
-            if (input) input.remove();
-
-            if (vehicle?.details) {
-              vehicle.details[headerKey] = newValue;
-            }
-            if (fieldKey && vehicle) {
-              vehicle[fieldKey] = newValue;
-            }
-            renderVehicles();
-            return;
-          } catch (error) {
-            console.warn('Failed to update vehicle field:', error);
-            alert(error?.message || 'Failed to save vehicle update.');
-          } finally {
-            stopLoading();
-            saveInProgress = false;
-            button.disabled = false;
-            button.textContent = button.dataset.editing === 'true' ? 'Save' : 'Edit';
-          }
-        };
-
-        button.onclick = async () => {
-          const cell = button.closest('td');
-          const valueNode = cell?.querySelector('[data-field-value]');
-          if (!cell || !valueNode) return;
-
-          if (button.dataset.editing === 'true') {
-            await saveEdit();
-            return;
-          }
-
-          const currentValue = valueNode.textContent === '—' ? '' : valueNode.textContent;
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.value = currentValue;
-          input.dataset.editInput = 'true';
-          input.className = 'flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-100';
-          valueNode.textContent = '';
-          valueNode.appendChild(input);
-          button.dataset.editing = 'true';
-          button.textContent = 'Save';
-          input.focus();
-          input.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              saveEdit();
-            }
-          });
-        };
-      });
-    }
-
-    function closeVehicleModal() {
-      const modal = document.getElementById('vehicle-modal');
-      if (!modal) return;
-      if (modal.repairModalController) {
-        modal.repairModalController.abort();
-        modal.repairModalController = null;
-      }
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-      const panel = document.getElementById('vehicle-modal-columns-panel');
-      panel?.classList.add('hidden');
-    }
-
-    function attachPopupHandlers() {
-      const btn = document.querySelector('.vehicle-popup button[data-view-more-popup]');
-      if (btn) {
-        btn.addEventListener('click', () => {
-          const vehicleId = selectedVehicleId;
-          const vehicle = vehicles.find(v => v.id === vehicleId);
-          if (vehicle) openVehicleModal(vehicle);
-        });
-      }
-    }
-
     function getPartnerListByType(type) {
       if (type === 'reseller') return resellers;
       if (type === 'repair') return repairShops;
@@ -3689,374 +2951,13 @@
       return getNearestFromList(vehicle, list, type);
     }
 
-    function addLabeledConnection(layer, start, end, distance, color, options = {}) {
-      if (!layer || !start || !end) return null;
-      const { dashArray = '6 4', weight = 3, opacity = 0.85 } = options;
-
-      L.polyline(
-        [
-          [start.lat, start.lng],
-          [end.lat, end.lng]
-        ],
-        { color, weight, opacity, dashArray }
-      ).addTo(layer);
-
-      const midLat = (start.lat + end.lat) / 2;
-      const midLng = (start.lng + end.lng) / 2;
-      const label = L.marker([midLat, midLng], {
-        icon: L.divIcon({
-          className: 'distance-label-wrapper',
-          html: `<div class="distance-label" style="--line-color:${color}">${distance.toFixed(1)} mi</div>`,
-          iconSize: [0, 0],
-          iconAnchor: [0, 0]
-        }),
-        interactive: false
-      });
-
-      label.addTo(layer);
-      return label;
-    }
-
-    function showServicesFromOrigin(origin, { forceType = null } = {}) {
-      serviceLayer?.clearLayers();
-      serviceConnectionLayer?.clearLayers();
-      const hasSidebarOpen = isAnyServiceSidebarOpen();
-      const hasExplicitType = !!forceType;
-      if (!origin || (!hasSidebarOpen && !hasExplicitType)) return;
-
-      lastOriginPoint = { lat: origin.lat, lng: origin.lng, name: origin.name || origin.customer || '' };
-
-      const visibleTypes = getVisibleServiceTypes();
-      const activeTypes = forceType
-        ? [forceType]
-        : visibleTypes;
-
-      activeTypes.forEach((type) => {
-        const baseList = getPartnerListByType(type);
-        if (!baseList.length) return;
-        const filtered = applyServiceFilter(baseList, type);
-        const selectedPartner = getSelectedService(type);
-        const chosen = selectedPartner || getNearestFromList(origin, filtered, type)?.entry;
-        if (!chosen) return;
-
-        const unauthorized = isUnauthorizedPartner(chosen);
-        let color = SERVICE_COLORS[type] || '#38bdf8';
-
-        if (type === 'custom' || type.startsWith('custom-')) {
-          const categoryKey = chosen.categoryKey || selectedCustomCategoryKey;
-          const meta = customCategories.get(categoryKey);
-          if (meta) color = meta.color;
-        } else {
-          color = getPartnerColor(chosen, color);
-        }
-        const marker = L.marker([chosen.lat, chosen.lng], {
-          icon: createServiceIcon(color, { unauthorized })
-        }).addTo(serviceLayer);
-
-        marker.on('click', (e) => {
-          e.originalEvent.handledByMarker = true;
-          sidebarStateController?.setState?.(SERVICE_SIDEBAR_KEYS[type] || 'left', true);
-          selectedServiceByType[type] = chosen;
-          filterSidebarForPartner(type, chosen);
-          showServicePreviewCard(chosen);
-          map.flyTo([chosen.lat, chosen.lng], 15, { duration: 1.2 });
-        });
-
-        const distance = getDistance(origin.lat, origin.lng, chosen.lat, chosen.lng);
-        addLabeledConnection(
-          serviceConnectionLayer,
-          origin,
-          chosen,
-          Math.max(distance, 0),
-          color,
-          { dashArray: '6 4', weight: 3, opacity: 0.85 }
-        );
-      });
-    }
-
-    function drawConnection(origin, partnerInfo) {
-      const type = partnerInfo?.type || getActivePartnerType();
-      const target = partnerInfo?.entry || partnerInfo;
-      const isVisible = isServiceSidebarVisible(type);
-      if (!target || !origin || !isVisible) return;
-      const baseColor = SERVICE_COLORS[type] || '#818cf8';
-      const color = getPartnerColor(target, baseColor);
-      connectionLayer.clearLayers();
-      const miles = getDistance(origin.lat, origin.lng, target.lat, target.lng);
-      addLabeledConnection(
-        connectionLayer,
-        origin,
-        target,
-        miles,
-        color,
-        { dashArray: '6 6', weight: 3, opacity: 0.8 }
-      );
-    }
-
-    function setupResizableSidebars() {
-      const layout = document.getElementById('map-layout');
-      const leftSidebar = document.getElementById('left-sidebar');
-      const rightSidebar = document.getElementById('right-sidebar');
-      if (!layout || !leftSidebar || !rightSidebar) return;
-
-      const rootStyle = document.documentElement.style;
-      const minWidth = 260;
-      const maxWidth = 720;
-      let activeDrag = null;
-      let resizePending = false;
-
-      const clampWidth = (value) => Math.min(Math.max(value, minWidth), maxWidth);
-
-      const applyWidth = (side, width) => {
-        rootStyle.setProperty(side === 'left' ? '--left-sidebar-width' : '--right-sidebar-width', `${width}px`);
-        if (map && !resizePending) {
-          resizePending = true;
-          requestAnimationFrame(() => {
-            map.invalidateSize();
-            resizePending = false;
-          });
-        }
-      };
-
-      const handleMove = (clientX) => {
-        if (!activeDrag) return;
-        const bounds = layout.getBoundingClientRect();
-
-        if (activeDrag === 'left') {
-          const newWidth = clampWidth(clientX - bounds.left);
-          applyWidth('left', newWidth);
-        }
-
-        if (activeDrag === 'right') {
-          const newWidth = clampWidth(bounds.right - clientX);
-          applyWidth('right', newWidth);
-        }
-      };
-
-      const onMouseMove = (event) => handleMove(event.clientX);
-      const onTouchMove = (event) => {
-        const touch = event.touches?.[0];
-        if (!touch) return;
-        handleMove(touch.clientX);
-      };
-
-      const stopDrag = () => {
-        activeDrag = null;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', stopDrag);
-        document.removeEventListener('touchmove', onTouchMove);
-        document.removeEventListener('touchend', stopDrag);
-      };
-
-      const startDrag = (side, event) => {
-        event.preventDefault();
-        activeDrag = side;
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', stopDrag);
-        document.addEventListener('touchmove', onTouchMove, { passive: false });
-        document.addEventListener('touchend', stopDrag);
-      };
-
-      const attachHandle = (element, side) => {
-        const handle = element.querySelector('.resize-handle');
-        if (!handle) return;
-
-        handle.addEventListener('mousedown', (e) => startDrag(side, e));
-        handle.addEventListener('touchstart', (e) => startDrag(side, e), { passive: false });
-      };
-
-      attachHandle(leftSidebar, 'left');
-      attachHandle(rightSidebar, 'right');
-    }
-
     const isControlViewRoute = window.location.pathname.toLowerCase().includes('vehicles.html');
     const defaultSidebarVisible = !isControlViewRoute;
-
-    function setupSidebarToggles() {
-      const leftSidebar = document.getElementById('left-sidebar');
-      const rightSidebar = document.getElementById('right-sidebar');
-      const resellerSidebar = document.getElementById('reseller-sidebar');
-      const repairSidebar = document.getElementById('repair-sidebar');
-      const customSidebar = document.getElementById('dynamic-service-sidebar');
-      const openLeft = document.getElementById('open-left-sidebar');
-      const openRight = document.getElementById('open-right-sidebar');
-      const openReseller = document.getElementById('open-reseller-sidebar');
-      const openRepair = document.getElementById('open-repair-sidebar');
-      const openCustom = customToggleRef || document.querySelector('#custom-category-toggles .sidebar-toggle-btn');
-      const collapseLeft = document.getElementById('collapse-left');
-      const collapseRight = document.getElementById('collapse-right');
-      const collapseReseller = document.getElementById('collapse-reseller');
-      const collapseRepair = document.getElementById('collapse-repair');
-      const collapseCustom = document.getElementById('collapse-dynamic');
-
-      const defaultLeftOffset = 12;
-      const defaultRightOffset = 12;
-      const syncSidebarVisibility = () => {
-        const previousCustomVisible = customSidebarVisible;
-        techSidebarVisible = isServiceSidebarVisible('tech');
-        resellerSidebarVisible = isServiceSidebarVisible('reseller');
-        repairSidebarVisible = isServiceSidebarVisible('repair');
-        customSidebarVisible = isServiceSidebarVisible('custom');
-
-        if (!techSidebarVisible) {
-          if (map?.hasLayer(techLayer)) map.removeLayer(techLayer);
-          connectionLayer?.clearLayers();
-        } else if (techLayer && map && !map.hasLayer(techLayer)) {
-          techLayer.addTo(map);
-        }
-
-        if (!resellerSidebarVisible) {
-          resellerLayer?.clearLayers();
-        } else if (resellerLayer && map && !map.hasLayer(resellerLayer)) {
-          resellerLayer.addTo(map);
-        }
-
-        if (!repairSidebarVisible) {
-          repairLayer?.clearLayers();
-        } else if (repairLayer && map && !map.hasLayer(repairLayer)) {
-          repairLayer.addTo(map);
-        }
-
-        if (!customSidebarVisible) {
-          customServiceLayer?.clearLayers?.();
-          customCategories.forEach(({ layer }) => layer?.clearLayers?.());
-        } else if (customServiceLayer && map && !map.hasLayer(customServiceLayer)) {
-          customServiceLayer.addTo(map);
-          customCategories.forEach(({ layer }) => layer && !map.hasLayer(layer) && layer.addTo(map));
-        }
-
-        if (customSidebarVisible !== previousCustomVisible) {
-          lastCustomSidebarVisible = customSidebarVisible;
-          if (customSidebarVisible) renderCategorySidebar(selectedCustomCategoryKey, customServices);
-        }
-
-          activeLeftPanel = leftSideKeys.find(key => {
-            const cfg = configs[key];
-            return cfg?.sidebar && !cfg.sidebar.classList.contains(cfg.collapsedClass);
-        }) || null;
-
-        renderVisibleSidebars();
-
-        if (!isAnyServiceSidebarOpen()) {
-          serviceLayer?.clearLayers();
-          serviceConnectionLayer?.clearLayers();
-        } else {
-          const origin = getCurrentOrigin();
-          if (origin) {
-            showServicesFromOrigin(origin, { forceType: getActivePartnerType() });
-          }
-        }
-      };
-
-        const getSidebarWidth = (sidebar) => sidebar?.getBoundingClientRect().width || 0;
-
-        const rawConfigs = {
-          left: { sidebar: leftSidebar, toggle: openLeft, collapse: collapseLeft, collapsedClass: 'collapsed-left', group: 'left' },
-          reseller: { sidebar: resellerSidebar, toggle: openReseller, collapse: collapseReseller, collapsedClass: 'collapsed-reseller', group: 'left', type: 'reseller' },
-          repair: { sidebar: repairSidebar, toggle: openRepair, collapse: collapseRepair, collapsedClass: 'collapsed-repair', group: 'left', type: 'repair' },
-          custom: { sidebar: customSidebar, toggle: openCustom, collapse: collapseCustom, collapsedClass: 'collapsed-dynamic', group: 'left', type: 'custom' },
-          right: { sidebar: rightSidebar, toggle: openRight, collapse: collapseRight, collapsedClass: 'collapsed-right', group: 'right' }
-        };
-
-        const configs = Object.fromEntries(
-          Object.entries(rawConfigs).filter(([, cfg]) => {
-            if (!cfg.sidebar || !cfg.toggle) return false;
-            if (!cfg.type) return true;
-            return isServiceTypeEnabled(cfg.type);
-          })
-        );
-
-        const syncMap = () => { if (map) setTimeout(() => map.invalidateSize(), 320); };
-
-        const leftSideKeys = Object.keys(configs).filter((key) => configs[key]?.group === 'left');
-
-        const updateTogglePositions = () => {
-        const expandedEntry = leftSideKeys
-          .map((key) => configs[key])
-          .find(cfg => cfg?.sidebar && !cfg.sidebar.classList.contains(cfg.collapsedClass));
-
-        const anchorLeft = expandedEntry
-          ? getSidebarWidth(expandedEntry.sidebar) + defaultLeftOffset
-          : defaultLeftOffset;
-
-        leftSideKeys.forEach(key => {
-          const toggle = configs[key]?.toggle;
-          if (toggle) toggle.style.left = `${anchorLeft}px`;
-        });
-
-        const customSlot = document.getElementById('custom-toggle-slot');
-        if (customSlot) customSlot.style.left = `${anchorLeft}px`;
-        document.querySelectorAll('#custom-category-toggles .sidebar-toggle-btn').forEach((btn) => {
-          btn.style.left = `${anchorLeft}px`;
-        });
-
-        const rightSidebarIsCollapsed = configs.right?.sidebar?.classList.contains(configs.right.collapsedClass);
-        const anchorRight = rightSidebarIsCollapsed
-          ? defaultRightOffset
-          : getSidebarWidth(configs.right.sidebar) + defaultRightOffset;
-
-        const rightToggleGroup = document.getElementById('right-toggle-group');
-        if (rightToggleGroup) {
-          rightToggleGroup.style.right = `${anchorRight}px`;
-        }
-      };
-
-      const applyState = (side, expanded) => {
-        const config = configs[side];
-        if (!config?.sidebar || !config?.toggle) return false;
-        const wasCollapsed = config.sidebar.classList.contains(config.collapsedClass);
-        const shouldCollapse = !expanded;
-        if (shouldCollapse && !wasCollapsed) {
-          config.sidebar.classList.add(config.collapsedClass);
-          config.toggle.classList.remove('active');
-          config.toggle.setAttribute('aria-pressed', 'false');
-        } else if (!shouldCollapse && wasCollapsed) {
-          config.sidebar.classList.remove(config.collapsedClass);
-          config.toggle.classList.add('active');
-          config.toggle.setAttribute('aria-pressed', 'true');
-        }
-        return wasCollapsed !== shouldCollapse;
-      };
-
-      const setState = (side, expanded) => {
-        const changed = applyState(side, expanded);
-        if (!changed) return;
-
-        if (expanded && configs[side]?.group === 'left') {
-          leftSideKeys.forEach(key => {
-            if (key !== side) applyState(key, false);
-          });
-
-          const origin = getCurrentOrigin();
-          if (origin) {
-            const newType = configs[side].type || SIDEBAR_TYPE_BY_KEY[side];
-            setTimeout(() => {
-              showServicesFromOrigin(origin, { forceType: newType });
-            }, 50);
-          }
-        }
-
-        updateTogglePositions();
-        syncSidebarVisibility();
-        syncMap();
-      };
-
-      sidebarStateController = { setState, updateTogglePositions };
-
-      Object.entries(configs).forEach(([side, config]) => {
-        if (config.toggle) config.toggle.addEventListener('click', () => setState(side, true));
-        if (config.collapse) config.collapse.addEventListener('click', () => setState(side, false));
-        setState(side, defaultSidebarVisible);
-      });
-
-      updateTogglePositions();
-      window.addEventListener('resize', updateTogglePositions);
-    }
 
     document.addEventListener('DOMContentLoaded', () => {
       (async () => {
         await loadStateCenters();
-        initMap();
+        mapManager.initMap();
         await syncAvailableServiceTypes();
         updateServiceVisibilityUI();
         if (isServiceTypeEnabled('tech')) loadTechnicians();
@@ -4064,8 +2965,8 @@
         loadBlacklistSites();
         loadVehicles();
         await loadAllServices();
-        setupResizableSidebars();
-        setupSidebarToggles();
+        uiManager.setupResizableSidebars();
+        uiManager.setupSidebarToggles();
         setupHotspotToggle();
         setupBlacklistToggle();
         setupVehicleMarkerToggle();
@@ -4086,7 +2987,7 @@
             renderVisibleSidebars();
             const origin = getCurrentOrigin();
             if (origin) {
-              showServicesFromOrigin(origin, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
+              mapManager.showServicesFromOrigin(origin, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
             }
           });
         });
@@ -4100,15 +3001,7 @@
         });
 
         document.getElementById('clear-selection')?.addEventListener('click', () => resetSelection());
-        document.getElementById('vehicle-modal-close')?.addEventListener('click', closeVehicleModal);
-        document.getElementById('vehicle-modal-columns-toggle')?.addEventListener('click', () => {
-          const panel = document.getElementById('vehicle-modal-columns-panel');
-          if (!panel) return;
-          panel.classList.toggle('hidden');
-        });
-        document.getElementById('vehicle-modal')?.addEventListener('click', (e) => {
-          if (e.target.id === 'vehicle-modal') closeVehicleModal();
-        });
+        uiManager.bindModalEvents();
 
         setInterval(async () => {
           if (!supabaseClient) return;
