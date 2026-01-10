@@ -2958,6 +2958,60 @@
       (async () => {
         await loadStateCenters();
         mapManager.initMap();
+        uiManager = initUiManager({
+          data: {
+            get vehicles() { return vehicles; },
+            get technicians() { return technicians; },
+            get customCategories() { return customCategories; },
+            get customServices() { return customServices; },
+            get vehicleHeaders() { return vehicleHeaders; }
+          },
+          state: {
+            get selectedVehicleId() { return selectedVehicleId; },
+            set selectedVehicleId(value) { selectedVehicleId = value; },
+            get selectedTechId() { return selectedTechId; },
+            set selectedTechId(value) { selectedTechId = value; },
+            get techSidebarVisible() { return techSidebarVisible; },
+            set techSidebarVisible(value) { techSidebarVisible = value; },
+            get resellerSidebarVisible() { return resellerSidebarVisible; },
+            set resellerSidebarVisible(value) { resellerSidebarVisible = value; },
+            get repairSidebarVisible() { return repairSidebarVisible; },
+            set repairSidebarVisible(value) { repairSidebarVisible = value; },
+            get customSidebarVisible() { return customSidebarVisible; },
+            set customSidebarVisible(value) { customSidebarVisible = value; },
+            get lastCustomSidebarVisible() { return lastCustomSidebarVisible; },
+            set lastCustomSidebarVisible(value) { lastCustomSidebarVisible = value; },
+            get activeLeftPanel() { return activeLeftPanel; },
+            set activeLeftPanel(value) { activeLeftPanel = value; },
+            get customToggleRef() { return customToggleRef; },
+            get selectedCustomCategoryKey() { return selectedCustomCategoryKey; },
+            set selectedCustomCategoryKey(value) { selectedCustomCategoryKey = value; },
+            get defaultSidebarVisible() { return defaultSidebarVisible; }
+          },
+          utils: {
+            repairHistoryManager,
+            supabaseClient
+          },
+          config: {
+            VEHICLE_HEADER_LABELS,
+            EDITABLE_VEHICLE_FIELDS,
+            VEHICLE_MODAL_STORAGE_KEY,
+            TABLES,
+            SIDEBAR_TYPE_BY_KEY
+          },
+          callbacks: {
+            startLoading,
+            renderVehicles,
+            renderVisibleSidebars,
+            isAnyServiceSidebarOpen,
+            getCurrentOrigin,
+            getActivePartnerType,
+            isServiceSidebarVisible,
+            isServiceTypeEnabled,
+            renderCategorySidebar
+          },
+          mapManager
+        });
         await syncAvailableServiceTypes();
         updateServiceVisibilityUI();
         if (isServiceTypeEnabled('tech')) loadTechnicians();
