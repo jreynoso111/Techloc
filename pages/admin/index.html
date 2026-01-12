@@ -398,8 +398,8 @@
       'Lat',
       'Long',
     ];
-    const PT_PING_BATCH_SIZE = 200;
-    const PT_PING_BATCH_DELAY_MS = 50;
+    const PT_PING_BATCH_SIZE = 50;
+    const PT_PING_BATCH_DELAY_MS = 150;
     const PT_PING_HEADER_MAP = (() => {
       const map = new Map();
       PT_PING_COLUMNS.forEach((col) => {
@@ -1578,14 +1578,17 @@
 
       const dedupedRows = deduplicateValidRows(validRows);
       const totalBatches = Math.ceil(dedupedRows.length / PT_PING_BATCH_SIZE);
-      const serialsForRecalc = Array.from(
-        new Set(dedupedRows.map((row) => row?.['Serial']).filter(Boolean))
-      );
+      const serialsForRecalc = new Set();
 
       for (let i = 0; i < dedupedRows.length; i += PT_PING_BATCH_SIZE) {
         const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
         const sliceEnd = i + PT_PING_BATCH_SIZE;
-        const batch = dedupedRows.slice(i, sliceEnd).map(buildSlimPtPayload);
+        const batchRows = dedupedRows.slice(i, sliceEnd);
+        batchRows.forEach((row) => {
+          const serial = row?.['Serial'];
+          if (serial) serialsForRecalc.add(serial);
+        });
+        const batch = batchRows.map(buildSlimPtPayload);
 
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
         const { data, error } = await supabaseClient
@@ -1614,7 +1617,7 @@
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
-      await recalcPtMovedForSerials(serialsForRecalc);
+      await recalcPtMovedForSerials(Array.from(serialsForRecalc));
 
       const summary =
         'Completed.' +
