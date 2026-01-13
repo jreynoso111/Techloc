@@ -3534,16 +3534,22 @@
         let saveInProgress = false;
         const saveEdit = async () => {
           if (saveInProgress) return;
+          saveInProgress = true;
+          button.disabled = true;
+          button.textContent = 'Verifying...';
           const fieldKey = button.dataset.editField;
           const headerKey = button.dataset.editHeader;
           const cell = button.closest('td');
           const valueNode = cell?.querySelector('[data-field-value]');
-          if (!cell || !valueNode) return;
+          if (!cell || !valueNode) {
+            saveInProgress = false;
+            button.disabled = false;
+            button.textContent = button.dataset.editing === 'true' ? 'Save' : 'Edit';
+            return;
+          }
 
           const input = cell.querySelector('input[data-edit-input]');
           const newValue = input ? input.value.trim() : '';
-          saveInProgress = true;
-          button.disabled = true;
           button.textContent = 'Saving...';
           const stopLoading = startLoading('Saving...');
 
@@ -3552,10 +3558,22 @@
               throw new Error('Supabase unavailable');
             }
 
-            const { error } = await supabaseClient
-              .from(TABLES.vehicles)
-              .update({ [headerKey]: newValue })
-              .eq('id', vehicle.id);
+            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+            if (sessionError || !sessionData?.session) {
+              const { data: refreshed, error: refreshError } = await supabaseClient.auth.refreshSession();
+              if (refreshError || !refreshed?.session) {
+                throw refreshError || new Error('Supabase session unavailable');
+              }
+            }
+
+            const { error } = await runWithTimeout(
+              supabaseClient
+                .from(TABLES.vehicles)
+                .update({ [headerKey]: newValue })
+                .eq('id', vehicle.id),
+              8000,
+              'Error de comunicación con la base de datos.'
+            );
 
             if (error) throw error;
 
@@ -3572,8 +3590,20 @@
             renderVehicles();
             return;
           } catch (error) {
-            console.warn('Failed to update vehicle field:', error);
-            alert(error?.message || 'Failed to save vehicle update.');
+            const message = error?.message || '';
+            const loweredMessage = message.toLowerCase();
+            const isConnectionIssue = loweredMessage.includes('timeout') || loweredMessage.includes('network');
+            if (isConnectionIssue) {
+              console.warn('Reconnect warning: timeout/network error while updating vehicle field.', error);
+              if (input) input.focus();
+            } else {
+              console.warn('Failed to update vehicle field:', error);
+            }
+            if (message.includes('comunicación')) {
+              alert('Error de comunicación con la base de datos.');
+            } else {
+              alert(message || 'Failed to save vehicle update.');
+            }
           } finally {
             stopLoading();
             saveInProgress = false;
@@ -4113,11 +4143,11 @@
         setInterval(async () => {
           if (!supabaseClient) return;
           try {
-            await supabaseClient.auth.getSession();
+            await supabaseClient.from(TABLES.vehicles).select('id').limit(1);
           } catch (error) {
             // Keep-alive failures are non-blocking.
           }
-        }, 5 * 60 * 1000);
+        }, 4 * 60 * 1000);
 
         window.addEventListener('auth:role-ready', () => renderVehicles());
       })();
