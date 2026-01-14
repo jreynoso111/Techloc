@@ -605,6 +605,17 @@
       return mapped;
     };
 
+    const fetchTableColumns = async (tableName) => {
+      if (!supabaseClient) throw new Error('Supabase client unavailable.');
+      const { data, error } = await supabaseClient
+        .from(tableName)
+        .select('*')
+        .limit(1);
+      if (error) throw error;
+      if (!data || data.length === 0) return new Set();
+      return new Set(Object.keys(data[0]));
+    };
+
     const isRlsBlocked = (error) => {
       const message = (error?.message || '').toLowerCase();
       return message.includes('row-level') || message.includes('rls') || message.includes('permission');
@@ -767,6 +778,22 @@
         return;
       }
 
+      setProgress(0, 'Reading live Deal columns...');
+
+      let dealTableColumns = new Set();
+      try {
+        dealTableColumns = await fetchTableColumns(DEALS_TABLE);
+      } catch (err) {
+        console.error('Supabase fetch error (Deals columns):', err);
+        showToast('Unable to read Deals columns from Supabase.', 'error');
+        setProgress(0, 'Failed to read Deals columns.');
+        return;
+      }
+
+      if (!dealTableColumns.size) {
+        dealTableColumns = new Set(columnMap.values());
+      }
+
       setProgress(0, 'Preparing & deduplicating rows...');
       
       // 1. DEDUPLICACIÓN PARA EVITAR ERROR 'ON CONFLICT'
@@ -806,12 +833,19 @@
           const columnName = columnMap.get(key);
           const cleanedValue = cleanValue(value);
           if (!columnName || cleanedValue == null) return;
+          if (!dealTableColumns.has(columnName)) return;
           mapped[columnName] = cleanedValue;
         });
 
-        mapped[conflictColumn] = stockNumber;
-        mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
-        mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
+        if (dealTableColumns.has(conflictColumn)) {
+          mapped[conflictColumn] = stockNumber;
+        }
+        if (dealTableColumns.has(dealStatusColumn)) {
+          mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
+        }
+        if (dealTableColumns.has(vehicleStatusColumn)) {
+          mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
+        }
 
         // LLAVE UNICA: VIN + Current Stock No
         const uniqueKey = `${vin}_${stockNumber}`;
@@ -831,7 +865,7 @@
         return;
       }
 
-      const BATCH_SIZE = 500;
+      const BATCH_SIZE = 40;
       let totalUpserted = 0;
       const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
       let processed = 0;
@@ -944,6 +978,22 @@
         return;
       }
 
+      setProgress(0, 'Reading live Invoice columns...');
+
+      let invoiceTableColumns = new Set();
+      try {
+        invoiceTableColumns = await fetchTableColumns(NS_INVOICES_TABLE);
+      } catch (err) {
+        console.error('Supabase fetch error (Invoice columns):', err);
+        showToast('Unable to read Invoice columns from Supabase.', 'error');
+        setProgress(0, 'Failed to read Invoice columns.');
+        return;
+      }
+
+      if (!invoiceTableColumns.size) {
+        invoiceTableColumns = new Set(columnMap.values());
+      }
+
       setProgress(5, 'Clearing previous invoice data...');
 
       const { error: truncateError } = await supabaseClient.rpc('truncate_ns_invoices');
@@ -978,9 +1028,19 @@
         }
 
         const mapped = mapInvoiceRow(normalizedRow, columnMap);
-        if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
+        Object.keys(mapped).forEach((columnName) => {
+          if (!invoiceTableColumns.has(columnName) || mapped[columnName] === undefined) {
+            delete mapped[columnName];
+          }
+        });
+        if (!mapped[conflictColumn] && invoiceTableColumns.has(conflictColumn)) {
+          mapped[conflictColumn] = documentNumber;
+        }
         if (columnMap.has('stock no') && normalizedStockNo) {
-          mapped[columnMap.get('stock no')] = normalizedStockNo;
+          const stockColumn = columnMap.get('stock no');
+          if (invoiceTableColumns.has(stockColumn)) {
+            mapped[stockColumn] = normalizedStockNo;
+          }
         }
 
         const uniqueKey = `${documentNumber}_${normalizedStockNo}`;
@@ -998,7 +1058,7 @@
         return;
       }
 
-      const BATCH_SIZE = 1000;
+      const BATCH_SIZE = 80;
       let totalUpserted = 0;
       const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
       let processed = 0;
@@ -1650,10 +1710,29 @@
     initBackground().catch((error) =>
       console.error('Unable to initialize background manager', error)
     );
-    mount();
-    wireDealsUpload();
-    wireInvoicesUpload();
-    wirePtPingUpload();
+
+    const waitForAdminReady = () =>
+      new Promise((resolve) => {
+        if (window.adminAuthReady) {
+          resolve();
+          return;
+        }
+        let resolved = false;
+        const handleReady = () => {
+          if (resolved) return;
+          resolved = true;
+          resolve();
+        };
+        window.addEventListener('admin:auth-ready', handleReady, { once: true });
+        setTimeout(handleReady, 2000);
+      });
+
+    waitForAdminReady().then(() => {
+      mount();
+      wireDealsUpload();
+      wireInvoicesUpload();
+      wirePtPingUpload();
+    });
   </script>
   <script type="module">
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
