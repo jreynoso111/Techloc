@@ -1003,6 +1003,22 @@
         return;
       }
 
+      setProgress(0, 'Reading live Invoice columns...');
+
+      let invoiceTableColumns = new Set();
+      try {
+        invoiceTableColumns = await fetchTableColumns(NS_INVOICES_TABLE);
+      } catch (err) {
+        console.error('Supabase fetch error (Invoice columns):', err);
+        showToast('Unable to read Invoice columns from Supabase.', 'error');
+        setProgress(0, 'Failed to read Invoice columns.');
+        return;
+      }
+
+      if (!invoiceTableColumns.size) {
+        invoiceTableColumns = new Set(columnMap.values());
+      }
+
       setProgress(5, 'Preparing invoice rows...');
 
       const uniqueInvoices = new Map();
