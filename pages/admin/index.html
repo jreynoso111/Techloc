@@ -588,6 +588,49 @@
       return map;
     };
 
+    const tableColumnCache = new Map();
+
+    const fetchTableColumns = async (tableName) => {
+      if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
+      const emptySet = new Set();
+      if (!supabaseClient) return emptySet;
+      let columns = [];
+      try {
+        const { data, error } = await supabaseClient
+          .from('information_schema.columns')
+          .select('column_name')
+          .eq('table_schema', 'public')
+          .eq('table_name', tableName);
+        if (!error && data?.length) {
+          columns = data.map((row) => row.column_name).filter(Boolean);
+        }
+      } catch (err) {
+        console.warn('Unable to query information_schema.columns:', err);
+      }
+      if (!columns.length) {
+        try {
+          const { data, error } = await supabaseClient
+            .from(tableName)
+            .select('*')
+            .limit(1);
+          if (!error && data?.length) columns = Object.keys(data[0]);
+        } catch (err) {
+          console.warn('Unable to infer columns from sample row:', err);
+        }
+      }
+      const columnSet = new Set(columns);
+      tableColumnCache.set(tableName, columnSet);
+      return columnSet;
+    };
+
+    const filterColumnMapByTable = (columnMap, columnSet) => {
+      const filtered = new Map();
+      columnMap.forEach((columnName, normalizedKey) => {
+        if (columnSet.has(columnName)) filtered.set(normalizedKey, columnName);
+      });
+      return filtered;
+    };
+
     const mapInvoiceRow = (normalizedRow = {}, columnMap) => {
       const mapped = {};
       columnMap.forEach((originalHeader, normalizedKey) => {
@@ -749,9 +792,15 @@
       };
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
-      const conflictColumn = columnMap.get('current stock no'); 
-      const dealStatusColumn = columnMap.get('deal status');
-      const vehicleStatusColumn = columnMap.get('vehicle status');
+      const tableColumns = await fetchTableColumns(DEALS_TABLE);
+      if (!tableColumns.size) {
+        showToast('No database columns detected for Deals. Upload stopped.', 'error');
+        return;
+      }
+      const allowedColumnMap = filterColumnMapByTable(columnMap, tableColumns);
+      const conflictColumn = allowedColumnMap.get('current stock no');
+      const dealStatusColumn = allowedColumnMap.get('deal status');
+      const vehicleStatusColumn = allowedColumnMap.get('vehicle status');
 
       const normalizeFinanceSalesChannel = (value) => {
         if (typeof value !== 'string') return '';
@@ -762,8 +811,8 @@
         return '';
       };
 
-      if (!conflictColumn || !dealStatusColumn || !vehicleStatusColumn) {
-        showToast('Local configuration error: missing required Deal columns.', 'error');
+      if (!conflictColumn) {
+        showToast('Deals table missing required column: Current Stock No.', 'error');
         return;
       }
 
@@ -803,15 +852,15 @@
 
         const mapped = {};
         Object.entries(normalizedRow).forEach(([key, value]) => {
-          const columnName = columnMap.get(key);
+          const columnName = allowedColumnMap.get(key);
           const cleanedValue = cleanValue(value);
           if (!columnName || cleanedValue == null) return;
           mapped[columnName] = cleanedValue;
         });
 
         mapped[conflictColumn] = stockNumber;
-        mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
-        mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
+        if (dealStatusColumn) mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
+        if (vehicleStatusColumn) mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
 
         // LLAVE UNICA: VIN + Current Stock No
         const uniqueKey = `${vin}_${stockNumber}`;
@@ -918,7 +967,13 @@
       };
 
       const columnMap = buildColumnMap(NS_INVOICES_COLUMNS);
-      const conflictColumn = columnMap.get('document number');
+      const tableColumns = await fetchTableColumns(NS_INVOICES_TABLE);
+      if (!tableColumns.size) {
+        showToast('No database columns detected for NS Invoices. Upload stopped.', 'error');
+        return;
+      }
+      const allowedColumnMap = filterColumnMapByTable(columnMap, tableColumns);
+      const conflictColumn = allowedColumnMap.get('document number');
       const conflictColumns = 'Stock No,Document Number,Date';
 
       if (!conflictColumn) {
@@ -977,10 +1032,10 @@
           return;
         }
 
-        const mapped = mapInvoiceRow(normalizedRow, columnMap);
+        const mapped = mapInvoiceRow(normalizedRow, allowedColumnMap);
         if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
-        if (columnMap.has('stock no') && normalizedStockNo) {
-          mapped[columnMap.get('stock no')] = normalizedStockNo;
+        if (allowedColumnMap.has('stock no') && normalizedStockNo) {
+          mapped[allowedColumnMap.get('stock no')] = normalizedStockNo;
         }
 
         const uniqueKey = `${documentNumber}_${normalizedStockNo}`;
