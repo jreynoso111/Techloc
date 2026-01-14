@@ -975,11 +975,7 @@
       };
 
       const columnMap = buildColumnMap(NS_INVOICES_COLUMNS);
-      const tableColumns = await fetchTableColumns(NS_INVOICES_TABLE);
-      if (!tableColumns.size) {
-        showToast('No database columns detected for NS Invoices. Upload stopped.', 'error');
-        return;
-      }
+      const tableColumns = new Set(NS_INVOICES_COLUMNS);
       const allowedColumnMap = filterColumnMapByTable(columnMap, tableColumns);
       const conflictColumn = allowedColumnMap.get('document number');
       const conflictColumns = 'Stock No,Document Number,Date';
@@ -1080,8 +1076,7 @@
 
         const { data, error } = await supabaseClient
           .from(NS_INVOICES_TABLE)
-          .upsert(batch, { onConflict: conflictColumns, ignoreDuplicates: true })
-          .select();
+          .upsert(batch, { onConflict: conflictColumns, ignoreDuplicates: true });
 
         if (error) {
           console.error('Supabase upsert error:', error);
