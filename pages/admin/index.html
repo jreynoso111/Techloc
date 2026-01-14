@@ -1726,10 +1726,29 @@
     initBackground().catch((error) =>
       console.error('Unable to initialize background manager', error)
     );
-    mount();
-    wireDealsUpload();
-    wireInvoicesUpload();
-    wirePtPingUpload();
+
+    const waitForAdminReady = () =>
+      new Promise((resolve) => {
+        if (window.adminAuthReady) {
+          resolve();
+          return;
+        }
+        let resolved = false;
+        const handleReady = () => {
+          if (resolved) return;
+          resolved = true;
+          resolve();
+        };
+        window.addEventListener('admin:auth-ready', handleReady, { once: true });
+        setTimeout(handleReady, 2000);
+      });
+
+    waitForAdminReady().then(() => {
+      mount();
+      wireDealsUpload();
+      wireInvoicesUpload();
+      wirePtPingUpload();
+    });
   </script>
   <script type="module">
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
