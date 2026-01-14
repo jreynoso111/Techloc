@@ -26,12 +26,6 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
 
   const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
   const roleAllowsServiceRequests = (role) => String(role || '').toLowerCase() === 'administrator';
-  const broadcastRoleStatus = (role, status) =>
-    window.dispatchEvent(
-      new CustomEvent('auth:role-updated', {
-        detail: { role: role ?? null, status: status ?? null },
-      }),
-    );
 
   // Rutas protegidas
   const protectedRoutes = [
@@ -217,7 +211,6 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
             window.currentUserStatus = null;
             document.body.removeAttribute('data-user-role');
             document.body.removeAttribute('data-user-status');
-            broadcastRoleStatus(null, null);
           } catch (error) {
             console.error('Error during Supabase sign out', error);
           }
@@ -245,7 +238,6 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         // Opcional: Añadir al body para usar CSS (ej: body[data-role="admin"] .delete-btn { display: block; })
         document.body.setAttribute('data-user-role', userRole);
         document.body.setAttribute('data-user-status', userStatus);
-        broadcastRoleStatus(userRole, userStatus);
 
         // Disparamos un evento para avisar a otros scripts que el rol está listo
         window.dispatchEvent(
@@ -256,7 +248,6 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         window.currentUserStatus = null;
         document.body.removeAttribute('data-user-role');
         document.body.removeAttribute('data-user-status');
-        broadcastRoleStatus(null, null);
       }
 
       const isLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
@@ -283,13 +274,11 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
            window.currentUserStatus = updatedStatus;
            document.body.setAttribute('data-user-role', updatedRole);
            document.body.setAttribute('data-user-status', updatedStatus);
-           broadcastRoleStatus(updatedRole, updatedStatus);
         } else {
            window.currentUserRole = null;
            window.currentUserStatus = null;
            document.body.removeAttribute('data-user-role');
            document.body.removeAttribute('data-user-status');
-           broadcastRoleStatus(null, null);
         }
 
         const onLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
