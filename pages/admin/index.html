@@ -774,7 +774,7 @@
     };
 
     // --- UPLOAD DEALS: AHORA ROBUSTO Y NORMALIZADO (CON FILTRO DE DUPLICADOS) ---
-    const uploadDealsRows = async (rows, parseErrors = 0) => {
+    const uploadDealsRows = async (rows, parseErrors = 0, rawHeaders = []) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload deals data.');
 
@@ -801,6 +801,10 @@
       const conflictColumn = allowedColumnMap.get('current stock no');
       const dealStatusColumn = allowedColumnMap.get('deal status');
       const vehicleStatusColumn = allowedColumnMap.get('vehicle status');
+      const normalizedHeaders = new Set(rawHeaders.map((header) => cleanHeaderKey(header)));
+      const hasStockHeader = normalizedHeaders.has('current stock no');
+      const hasDealStatusHeader = normalizedHeaders.has('deal status');
+      const hasVehicleStatusHeader = normalizedHeaders.has('vehicle status');
 
       const normalizeFinanceSalesChannel = (value) => {
         if (typeof value !== 'string') return '';
@@ -811,7 +815,7 @@
         return '';
       };
 
-      if (!conflictColumn) {
+      if (!conflictColumn || !hasStockHeader) {
         showToast('Deals table missing required column: Current Stock No.', 'error');
         return;
       }
@@ -859,8 +863,12 @@
         });
 
         mapped[conflictColumn] = stockNumber;
-        if (dealStatusColumn) mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
-        if (vehicleStatusColumn) mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
+        if (dealStatusColumn && hasDealStatusHeader) {
+          mapped[dealStatusColumn] = cleanValue(normalizedRow['deal status']) ?? null;
+        }
+        if (vehicleStatusColumn && hasVehicleStatusHeader) {
+          mapped[vehicleStatusColumn] = cleanValue(normalizedRow['vehicle status']) ?? null;
+        }
 
         // LLAVE UNICA: VIN + Current Stock No
         const uniqueKey = `${vin}_${stockNumber}`;
@@ -949,7 +957,7 @@
       return stockNumberSet;
     };
 
-    const uploadInvoicesRows = async (rows, parseErrors = 0) => {
+    const uploadInvoicesRows = async (rows, parseErrors = 0, rawHeaders = []) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
       if (!isAdminUser()) throw new Error('Only administrators can upload invoice data.');
 
@@ -975,8 +983,11 @@
       const allowedColumnMap = filterColumnMapByTable(columnMap, tableColumns);
       const conflictColumn = allowedColumnMap.get('document number');
       const conflictColumns = 'Stock No,Document Number,Date';
+      const normalizedHeaders = new Set(rawHeaders.map((header) => cleanHeaderKey(header)));
+      const hasDocumentNumberHeader = normalizedHeaders.has('document number');
+      const hasStockNoHeader = normalizedHeaders.has('stock no');
 
-      if (!conflictColumn) {
+      if (!conflictColumn || !hasDocumentNumberHeader) {
         showToast('Local configuration error: "Document Number" missing from invoice columns.', 'error');
         return;
       }
@@ -1034,7 +1045,7 @@
 
         const mapped = mapInvoiceRow(normalizedRow, allowedColumnMap);
         if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
-        if (allowedColumnMap.has('stock no') && normalizedStockNo) {
+        if (allowedColumnMap.has('stock no') && normalizedStockNo && hasStockNoHeader) {
           mapped[allowedColumnMap.get('stock no')] = normalizedStockNo;
         }
 
@@ -1138,7 +1149,7 @@
             try {
               const parseErrors = results.errors?.length || 0;
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadDealsRows(results.data || [], parseErrors);
+              await uploadDealsRows(results.data || [], parseErrors, results.meta?.fields || []);
             } catch (err) {
               console.error('Upload failed:', err);
               showToast('Upload failed: ' + err.message, 'error');
@@ -1198,7 +1209,7 @@
             try {
               const parseErrors = results.errors?.length || 0;
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadInvoicesRows(results.data || [], parseErrors);
+              await uploadInvoicesRows(results.data || [], parseErrors, results.meta?.fields || []);
             } catch (err) {
               console.error('Upload failed:', err);
               showToast('Upload failed: ' + err.message, 'error');
