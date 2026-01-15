@@ -1091,6 +1091,13 @@
         setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
       }
 
+      setProgress(95, 'Recalculating open balances...');
+      const { error: recalcError } = await supabaseClient.rpc('recalc_open_balance_all_ns_invoices');
+      if (recalcError) {
+        console.error('Supabase open balance recalculation error:', recalcError);
+        showToast('Open balance recalculation failed: ' + recalcError.message, 'error');
+      }
+
       const summary =
         'Completed.' +
         '\nProcessed (Unique): ' + filteredRows.length +
