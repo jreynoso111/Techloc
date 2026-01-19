@@ -69,6 +69,19 @@
       touch-action: none;
     }
 
+    .chart-legend {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      max-width: 110px;
+      padding: 0.15rem 0.35rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(148, 163, 184, 0.55);
+      background: rgba(2, 6, 23, 0.9);
+      color: inherit;
+      text-shadow: 0 1px 6px rgba(15, 23, 42, 0.85);
+    }
+
     body.select-none {
       user-select: none;
     }
@@ -93,7 +106,7 @@
     #inventory-table-scroll-top {
       position: sticky;
       top: 0;
-      z-index: 5;
+      z-index: 30;
       height: 12px;
       background: rgba(2, 6, 23, 0.85);
       backdrop-filter: blur(10px);
@@ -110,6 +123,26 @@
       grid-auto-columns: minmax(var(--chart-col-min, 88px), 1fr);
       grid-template-columns: none;
       overflow-x: auto;
+    }
+
+    .column-resizer {
+      position: absolute;
+      top: 0;
+      right: -6px;
+      height: 100%;
+      width: 12px;
+      cursor: col-resize;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.45), transparent);
+      opacity: 0.4;
+      z-index: 10;
+      pointer-events: auto;
+      transition: opacity 0.2s ease;
+    }
+
+    th:hover .column-resizer,
+    th:focus-within .column-resizer {
+      opacity: 0.9;
     }
   </style>
 
@@ -130,41 +163,31 @@
     </div>
   </div>
 
-  <header class="relative z-20 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
-    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:gap-4">
-      <div class="flex items-center justify-between gap-4 md:flex-none">
-        <a href="../index.html" class="flex items-center gap-3">
-          <div class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-            <span class="text-xs font-black uppercase tracking-[0.18em] text-white">TL</span>
-          </div>
-          <div>
-            <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-200">TechLoc Network</p>
-            <h1 class="text-base font-black leading-tight text-white">Inventory Control</h1>
-          </div>
-        </a>
-
-        <button id="mobile-menu-toggle" class="inline-flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 p-2 text-slate-200 transition hover:border-blue-500 hover:text-white md:hidden" aria-label="Toggle navigation" aria-expanded="false">
-          <i data-lucide="menu" class="h-5 w-5"></i>
-        </button>
-      </div>
-
-      <div id="primary-nav" class="hidden flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/90 p-4 text-sm font-semibold text-slate-200 shadow-lg shadow-blue-900/20 md:flex md:flex-1 md:flex-row md:items-center md:gap-4 md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-        <nav class="flex flex-col gap-2 md:flex-row md:items-center md:justify-center md:flex-1 md:gap-2">
-          <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-          <a id="nav-control-view" href="vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">Control Map</a>
-          <a id="nav-inventory-control" href="inventory-control.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Inventory Control</a>
-          <a id="nav-services" href="admin/services.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Services</a>
-          <a id="nav-dashboard" href="admin/index.html" data-dashboard-link aria-hidden="true" tabindex="-1"
-             class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800 md:inline-flex">
-            Dashboard
-          </a>
-          <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About</a>
-          <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
-        </nav>
-
-        <div class="flex flex-col gap-3 border-t border-slate-800 pt-3 md:flex-row md:items-center md:gap-3 md:border-0 md:pt-0 md:flex-none md:justify-end" data-admin-actions>
-          <a id="nav-login" href="login.html" class="rounded-full border border-blue-500 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
-          <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+  <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-50">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4 lg:flex-nowrap lg:gap-6">
+      <a href="../index.html" class="flex items-center gap-3">
+        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+          <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
+        </div>
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
+          <h1 class="text-lg font-black leading-tight text-white">Inventory Control</h1>
+        </div>
+      </a>
+      <nav class="hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
+        <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
+        <a id="nav-control-view" href="vehicles.html" class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Control Map</a>
+        <a id="nav-inventory-control" href="inventory-control.html" class="rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Inventory Control</a>
+        <a id="nav-services" href="admin/services.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Services</a>
+        <a id="nav-dashboard" href="admin/index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
+        <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About</a>
+        <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
+      </nav>
+      <div class="flex items-center gap-3">
+        <a id="nav-login" href="login.html" class="hidden rounded-full border border-blue-500 px-3 py-1 text-sm font-semibold text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
+        <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-sm font-semibold text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
+        <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex" data-admin-actions>
+          <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span> Live coverage
         </div>
       </div>
     </div>
@@ -1779,7 +1802,7 @@
           const dimClass = isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : '';
           const hoverClass = isDisabled ? '' : 'hover:bg-slate-900/60';
           const countClass = isDisabled ? 'text-slate-500' : 'text-slate-200';
-          const labelClass = isDisabled ? 'text-slate-500' : 'text-slate-400';
+          const labelClass = isDisabled ? 'text-slate-500' : 'text-slate-100';
           const disabledAttr = isDisabled ? 'disabled aria-disabled="true"' : '';
           return `
           <button type="button" data-status="${item.status}" data-segment-key="${segmentKey}" data-chart-id="${chartId}" class="group flex h-full flex-col items-center justify-end rounded-2xl px-1 py-1 transition ${hoverClass} ${activeClass} ${dimClass}" ${disabledAttr}>
@@ -1787,7 +1810,7 @@
             <div class="flex h-full min-h-[140px] w-8 items-end rounded-full bg-slate-800/70">
               <div class="bar-fill w-full rounded-full bg-gradient-to-t ${item.color}" style="height: 0%;" data-height="${item.percentage}%"></div>
             </div>
-            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] transition duration-200 ease-out group-hover:scale-110 group-hover:text-slate-100 ${labelClass}">${item.status}</span>
+            <span class="mt-2 text-[10px] uppercase tracking-[0.2em] transition duration-200 ease-out group-hover:scale-110 ${labelClass} chart-legend">${item.status}</span>
           </button>
         `;
         }).join('');
@@ -1867,11 +1890,12 @@
             const values = getUniqueValues(dataset, c.key).slice(0, 50);
             const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
             DashboardState.filters.columnFilters[c.key] = entry;
+            const headerLabel = c.label === 'Calc- End' ? 'Calc-<br>End' : c.label;
             return `
               <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
                 <div class="flex items-center gap-2">
                   <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                    <span class="whitespace-normal break-words">${c.label}</span>
+                    <span class="whitespace-normal break-words">${headerLabel}</span>
                     <span class="text-[10px] text-blue-300">${indicator}</span>
                   </button>
                   <button type="button" data-column-filter-toggle="${c.key}" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-800 bg-slate-950/70 text-slate-300 transition hover:text-white" aria-label="Filter ${c.label}">
@@ -1888,7 +1912,7 @@
                     <input type="search" data-column-search="${c.key}" value="${entry.search || ''}" placeholder="Search" class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" />
                   </div>
                 </div>
-                <span class="column-resizer absolute right-0 top-2 h-4 w-2 cursor-col-resize rounded-full bg-slate-800/60 transition hover:bg-slate-500/80" data-resize-handle="${c.key}"></span>
+                <span class="column-resizer" data-resize-handle="${c.key}" aria-hidden="true"></span>
               </th>
             `;
           }).join('')
@@ -2478,7 +2502,7 @@
       const onResizeMove = (event) => {
         if (!resizing) return;
         const delta = event.clientX - resizing.startX;
-        const nextWidth = Math.max(60, resizing.startWidth + delta);
+        const nextWidth = Math.max(36, resizing.startWidth + delta);
         resizing.currentWidth = nextWidth;
         if (resizing.col) resizing.col.style.width = `${nextWidth}px`;
       };
@@ -2500,23 +2524,29 @@
       };
 
       addListener(tableHead, 'pointerdown', (event) => {
-        const handle = event.target.closest('[data-resize-handle]');
-        if (!handle) return;
+        const explicitHandle = event.target.closest('[data-resize-handle]');
+        const th = event.target.closest('th[data-col-key]');
+        if (!explicitHandle && !th) return;
+        if (!explicitHandle && th) {
+          const bounds = th.getBoundingClientRect();
+          const nearEdge = event.clientX >= bounds.right - 8;
+          if (!nearEdge) return;
+        }
         event.preventDefault();
         event.stopPropagation();
-        const key = handle.dataset.resizeHandle;
-        const th = handle.closest('th');
+        const key = explicitHandle?.dataset.resizeHandle || th?.dataset.colKey;
         if (!key || !th) return;
         const colgroup = document.getElementById('inventory-table-cols');
         const col = colgroup?.querySelector(`col[data-col-key="${key}"]`);
         if (!col) return;
-        handle.setPointerCapture(event.pointerId);
+        const captureTarget = explicitHandle || th;
+        captureTarget.setPointerCapture(event.pointerId);
         resizing = {
           key,
           startX: event.clientX,
           startWidth: col.getBoundingClientRect().width,
           currentWidth: col.getBoundingClientRect().width,
-          handle,
+          handle: captureTarget,
           pointerId: event.pointerId,
           col,
         };
