@@ -2,7 +2,7 @@ import { DashboardState } from '../core/state.js';
 
 export const getSupabaseClient = async ({ supabaseUrl, supabaseAnonKey, showDebug }) => {
   try {
-    const mod = await import('../js/supabaseClient.js');
+    const mod = await import('../../js/supabaseClient.js');
     const supabaseClient = mod.supabase || mod.default || null;
     if (supabaseClient?.from) return supabaseClient;
     throw new Error('supabaseClient.js loaded but did not export a Supabase client (expected export const supabase = createClient(...)).');
