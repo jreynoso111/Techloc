@@ -14,7 +14,7 @@ import {
   getInvPrepStatusRowClass,
   detectInvPrepStatusKey,
   getUniqueValues,
-} from './stateManager.js';
+} from '../core/state.js';
 
 export const initDashboardUI = ({
   applyFilters,
