@@ -2025,12 +2025,20 @@
           let stringValue = String(value ?? '');
           const isLong = stringValue !== '--' && stringValue.length > 24;
           const isVinColumn = col.key?.toLowerCase() === 'vin' || col.label?.toLowerCase() === 'vin';
+          const resolvedWidth = typeof width === 'number' ? width : 160;
+          const shouldWrap = resolvedWidth <= 120;
           if (isVinColumn && stringValue !== '--' && stringValue.length > 9) {
             stringValue = stringValue.replace(/(.{8})/g, '$1\u200b');
           }
-          const classes = ['px-3', 'py-2', 'w-px', 'table-cell-wrap'];
-          if (isVinColumn && stringValue.length > 9) {
-            classes.push('break-all');
+          const classes = ['px-3', 'py-2', 'w-px'];
+          if (shouldWrap) {
+            classes.push('table-cell-wrap');
+            if (isVinColumn && stringValue.length > 9) {
+              classes.push('break-all');
+            }
+          } else {
+            classes.push('whitespace-nowrap');
+            if (isLong) classes.push('max-w-[200px]', 'truncate');
           }
           return `<td class="${classes.join(' ')}"${style}>${stringValue}</td>`;
         }).join('');
