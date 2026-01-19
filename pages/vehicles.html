@@ -622,35 +622,23 @@
           <div class="grid grid-cols-2 gap-1.5 text-[10px]">
             <label class="space-y-0.5">
               <span class="block text-slate-400 font-semibold">Inv. Prep. Stat</span>
-              <select id="filter-invprep" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white text-[10px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
-                <option value="all">All</option>
-              </select>
+              <div id="filter-invprep" class="space-y-1"></div>
             </label>
             <label class="space-y-0.5">
               <span class="block text-slate-400 font-semibold">GPS Fix</span>
-              <select id="filter-gps" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white text-[10px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
-                <option value="all">All</option>
-              </select>
+              <div id="filter-gps" class="space-y-1"></div>
             </label>
             <label class="space-y-0.5">
               <span class="block text-slate-400 font-semibold">Moving</span>
-              <select id="filter-moving" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white text-[10px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
-                <option value="all">All</option>
-                <option value="moving">Moving</option>
-                <option value="stopped">Not moving</option>
-              </select>
+              <div id="filter-moving" class="space-y-1"></div>
             </label>
             <label class="space-y-0.5">
               <span class="block text-slate-400 font-semibold">Deal status</span>
-              <select id="filter-deal-status" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white text-[10px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
-                <option value="all">All</option>
-              </select>
+              <div id="filter-deal-status" class="space-y-1"></div>
             </label>
             <label class="space-y-0.5">
               <span class="block text-slate-400 font-semibold">PT Status</span>
-              <select id="filter-pt" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white text-[10px] focus:border-amber-400 focus:ring-1 focus:ring-amber-400">
-                <option value="all">All</option>
-              </select>
+              <div id="filter-pt" class="space-y-1"></div>
             </label>
             <label class="space-y-0.5">
               <span class="block text-slate-400 font-semibold">Deal completion %</span>
@@ -742,11 +730,11 @@
       custom: ''
     };
     const vehicleFilters = {
-      invPrep: 'all',
-      gpsFix: 'all',
-      moving: 'all',
-      dealStatus: 'all',
-      ptStatus: 'all',
+      invPrep: [],
+      gpsFix: [],
+      moving: [],
+      dealStatus: [],
+      ptStatus: [],
       dealMin: 0,
       dealMax: 100,
     };
@@ -2863,22 +2851,24 @@
       if (q && !vehicle._searchBlob.includes(q)) return false;
 
       const invPrep = normalizeFilterValue(vehicle.invPrepStatus);
-      if (vehicleFilters.invPrep !== 'all' && invPrep !== vehicleFilters.invPrep) return false;
+      if (vehicleFilters.invPrep.length && !vehicleFilters.invPrep.includes(invPrep)) return false;
 
       const gpsFix = normalizeFilterValue(vehicle.gpsFix);
-      if (vehicleFilters.gpsFix !== 'all' && gpsFix !== vehicleFilters.gpsFix) return false;
+      if (vehicleFilters.gpsFix.length && !vehicleFilters.gpsFix.includes(gpsFix)) return false;
 
       const dealStatus = normalizeFilterValue(vehicle.status);
-      if (vehicleFilters.dealStatus !== 'all' && dealStatus !== vehicleFilters.dealStatus) return false;
+      if (vehicleFilters.dealStatus.length && !vehicleFilters.dealStatus.includes(dealStatus)) return false;
 
       const ptStatus = normalizeFilterValue(vehicle.ptStatus);
-      if (vehicleFilters.ptStatus !== 'all' && ptStatus !== vehicleFilters.ptStatus) return false;
+      if (vehicleFilters.ptStatus.length && !vehicleFilters.ptStatus.includes(ptStatus)) return false;
 
       if (!matchesRange(vehicle.dealCompletion, vehicleFilters.dealMin, vehicleFilters.dealMax)) return false;
 
       const isStopped = isVehicleNotMoving(vehicle);
-      if (vehicleFilters.moving === 'moving' && isStopped) return false;
-      if (vehicleFilters.moving === 'stopped' && !isStopped) return false;
+      if (vehicleFilters.moving.length) {
+        if (isStopped && !vehicleFilters.moving.includes('stopped')) return false;
+        if (!isStopped && !vehicleFilters.moving.includes('moving')) return false;
+      }
 
       return true;
     }
@@ -2908,53 +2898,108 @@
         .sort();
     }
 
-    function setSelectOptions(selectId, values) {
-      const select = document.getElementById(selectId);
-      if (!select) return;
-      const previous = select.value;
-      select.innerHTML = '<option value="all">All</option>';
-      values.forEach((val) => {
-        const option = document.createElement('option');
-        option.value = val;
-        option.textContent = val;
-        select.appendChild(option);
+    function getMovingOptions() {
+      const values = new Set();
+      vehicles.forEach((vehicle) => {
+        if (isVehicleNotMoving(vehicle)) values.add('stopped');
+        else values.add('moving');
       });
-      if (values.includes(previous)) {
-        select.value = previous;
+      return Array.from(values).sort();
+    }
+
+    function getMovingLabel(value) {
+      if (value === 'moving') return 'Moving';
+      if (value === 'stopped') return 'Not moving';
+      return value;
+    }
+
+    function normalizeFilterSelections(values, selections) {
+      if (!Array.isArray(selections)) return [];
+      return selections.filter((value) => values.includes(value));
+    }
+
+    function renderCheckboxOptions(containerId, values, selections, labelResolver = (value) => value) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+      if (!values.length) {
+        const empty = document.createElement('p');
+        empty.className = 'text-[10px] text-slate-600';
+        empty.textContent = 'No options';
+        container.appendChild(empty);
+        return;
       }
+
+      values.forEach((value) => {
+        const label = document.createElement('label');
+        label.className = 'flex items-center gap-1.5 text-[10px] text-slate-200';
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = value;
+        input.checked = selections.includes(value);
+        input.className = 'h-3 w-3 rounded border border-slate-700 bg-slate-950 text-amber-400 focus:ring-1 focus:ring-amber-400';
+
+        const span = document.createElement('span');
+        span.textContent = labelResolver(value);
+
+        label.appendChild(input);
+        label.appendChild(span);
+        container.appendChild(label);
+      });
     }
 
     function updateVehicleFilterOptions() {
-      setSelectOptions('filter-invprep', getUniqueVehicleValues('invPrepStatus'));
-      setSelectOptions('filter-gps', getUniqueVehicleValues('gpsFix'));
-      setSelectOptions('filter-deal-status', getUniqueVehicleValues('status'));
-      setSelectOptions('filter-pt', getUniqueVehicleValues('ptStatus'));
+      const invPrepValues = getUniqueVehicleValues('invPrepStatus');
+      const gpsValues = getUniqueVehicleValues('gpsFix');
+      const dealStatusValues = getUniqueVehicleValues('status');
+      const ptValues = getUniqueVehicleValues('ptStatus');
+      const movingValues = getMovingOptions();
+
+      vehicleFilters.invPrep = normalizeFilterSelections(invPrepValues, vehicleFilters.invPrep);
+      vehicleFilters.gpsFix = normalizeFilterSelections(gpsValues, vehicleFilters.gpsFix);
+      vehicleFilters.dealStatus = normalizeFilterSelections(dealStatusValues, vehicleFilters.dealStatus);
+      vehicleFilters.ptStatus = normalizeFilterSelections(ptValues, vehicleFilters.ptStatus);
+      vehicleFilters.moving = normalizeFilterSelections(movingValues, vehicleFilters.moving);
+
+      renderCheckboxOptions('filter-invprep', invPrepValues, vehicleFilters.invPrep);
+      renderCheckboxOptions('filter-gps', gpsValues, vehicleFilters.gpsFix);
+      renderCheckboxOptions('filter-deal-status', dealStatusValues, vehicleFilters.dealStatus);
+      renderCheckboxOptions('filter-pt', ptValues, vehicleFilters.ptStatus);
+      renderCheckboxOptions('filter-moving', movingValues, vehicleFilters.moving, getMovingLabel);
     }
 
     function syncVehicleFilterInputs() {
-      const invPrepSelect = document.getElementById('filter-invprep');
-      const gpsSelect = document.getElementById('filter-gps');
-      const movingSelect = document.getElementById('filter-moving');
-      const dealStatusSelect = document.getElementById('filter-deal-status');
-      const ptSelect = document.getElementById('filter-pt');
+      const invPrepContainer = document.getElementById('filter-invprep');
+      const gpsContainer = document.getElementById('filter-gps');
+      const movingContainer = document.getElementById('filter-moving');
+      const dealStatusContainer = document.getElementById('filter-deal-status');
+      const ptContainer = document.getElementById('filter-pt');
       const minInput = document.getElementById('filter-deal-min');
       const maxInput = document.getElementById('filter-deal-max');
 
-      if (invPrepSelect) invPrepSelect.value = vehicleFilters.invPrep;
-      if (gpsSelect) gpsSelect.value = vehicleFilters.gpsFix;
-      if (movingSelect) movingSelect.value = vehicleFilters.moving;
-      if (dealStatusSelect) dealStatusSelect.value = vehicleFilters.dealStatus;
-      if (ptSelect) ptSelect.value = vehicleFilters.ptStatus;
+      const syncCheckboxes = (container, selections) => {
+        if (!container) return;
+        container.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+          input.checked = selections.includes(input.value);
+        });
+      };
+
+      syncCheckboxes(invPrepContainer, vehicleFilters.invPrep);
+      syncCheckboxes(gpsContainer, vehicleFilters.gpsFix);
+      syncCheckboxes(movingContainer, vehicleFilters.moving);
+      syncCheckboxes(dealStatusContainer, vehicleFilters.dealStatus);
+      syncCheckboxes(ptContainer, vehicleFilters.ptStatus);
       if (minInput) minInput.value = vehicleFilters.dealMin;
       if (maxInput) maxInput.value = vehicleFilters.dealMax;
     }
 
     function resetVehicleFilters() {
-      vehicleFilters.invPrep = 'all';
-      vehicleFilters.gpsFix = 'all';
-      vehicleFilters.moving = 'all';
-      vehicleFilters.dealStatus = 'all';
-      vehicleFilters.ptStatus = 'all';
+      vehicleFilters.invPrep = [];
+      vehicleFilters.gpsFix = [];
+      vehicleFilters.moving = [];
+      vehicleFilters.dealStatus = [];
+      vehicleFilters.ptStatus = [];
       vehicleFilters.dealMin = 0;
       vehicleFilters.dealMax = 100;
       syncVehicleFilterInputs();
@@ -2962,7 +3007,7 @@
     }
 
     function bindVehicleFilterHandlers() {
-      const selectHandlers = [
+      const checkboxHandlers = [
         { id: 'filter-invprep', key: 'invPrep' },
         { id: 'filter-gps', key: 'gpsFix' },
         { id: 'filter-moving', key: 'moving' },
@@ -2970,11 +3015,14 @@
         { id: 'filter-pt', key: 'ptStatus' }
       ];
 
-      selectHandlers.forEach(({ id, key }) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('change', () => {
-          vehicleFilters[key] = el.value || 'all';
+      const getCheckedValues = (container) => Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map((input) => input.value);
+
+      checkboxHandlers.forEach(({ id, key }) => {
+        const container = document.getElementById(id);
+        if (!container) return;
+        container.addEventListener('change', () => {
+          vehicleFilters[key] = getCheckedValues(container);
           renderVehicles();
         });
       });
