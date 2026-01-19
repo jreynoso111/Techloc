@@ -1,4 +1,4 @@
-import { DashboardState } from './stateManager.js';
+import { DashboardState } from '../core/state.js';
 
 export const getSupabaseClient = async ({ supabaseUrl, supabaseAnonKey, showDebug }) => {
   try {

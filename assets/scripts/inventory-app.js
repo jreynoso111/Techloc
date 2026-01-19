@@ -1,4 +1,4 @@
-import { createConstellationBackground } from './constellation.js';
+import { createConstellationBackground } from './ui/components/constellation.js';
 createConstellationBackground();
 
 import {
@@ -24,13 +24,13 @@ import {
   detectTruthyColumnValue,
   detectCategoryKeys,
   normalizeBoolean,
-} from './stateManager.js';
-import { initDashboardUI } from './uiController.js';
+} from './core/state.js';
+import { initDashboardUI } from './ui/uiController.js';
 import {
   getSupabaseClient,
   hydrateVehiclesFromSupabase,
   initializeSupabaseRealtime,
-} from './dataService.js';
+} from './api/supabase.js';
 
 // ==========================================================
 // 1) SUPABASE CLIENT (robusto)

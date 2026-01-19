@@ -1,4 +1,4 @@
-import { createConstellationBackground } from './constellation.js';
+import { createConstellationBackground } from './ui/components/constellation.js';
 import { createSnowBackground } from './snow.js';
 import { createRainBackground } from './rain.js';
 import { getCoordsIpFirst } from './geoResolver.js';
