@@ -1,9 +1,32 @@
-import { DashboardState } from './stateManager.js';
+import { DashboardState } from '../core/state.js';
+
+const resolveSupabaseModule = async () => {
+  const moduleUrls = [
+    new URL('../../js/supabaseClient.js', import.meta.url),
+    new URL('../js/supabaseClient.js', import.meta.url),
+    new URL('/assets/js/supabaseClient.js', window.location.origin),
+  ];
+
+  for (const moduleUrl of moduleUrls) {
+    try {
+      return await import(moduleUrl.href);
+    } catch (error) {
+      if (moduleUrl === moduleUrls[moduleUrls.length - 1]) {
+        throw error;
+      }
+    }
+  }
+
+  return null;
+};
 
 export const getSupabaseClient = async ({ supabaseUrl, supabaseAnonKey, showDebug }) => {
   try {
-    const mod = await import('../js/supabaseClient.js');
-    const supabaseClient = mod.supabase || mod.default || null;
+    const existingClient = typeof window !== 'undefined' ? window.supabaseClient : null;
+    if (existingClient?.from) return existingClient;
+
+    const mod = await resolveSupabaseModule();
+    const supabaseClient = mod?.supabase || mod?.default || null;
     if (supabaseClient?.from) return supabaseClient;
     throw new Error('supabaseClient.js loaded but did not export a Supabase client (expected export const supabase = createClient(...)).');
   } catch (error) {
