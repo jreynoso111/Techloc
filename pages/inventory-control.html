@@ -128,21 +128,21 @@
     .column-resizer {
       position: absolute;
       top: 0;
-      right: 0;
+      right: -6px;
       height: 100%;
       width: 12px;
       cursor: col-resize;
       border-radius: 9999px;
-      background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
-      opacity: 0.2;
+      background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.45), transparent);
+      opacity: 0.4;
       z-index: 10;
       pointer-events: auto;
-      transform: translateX(50%);
       transition: opacity 0.2s ease;
     }
 
-    th:hover .column-resizer {
-      opacity: 0.8;
+    th:hover .column-resizer,
+    th:focus-within .column-resizer {
+      opacity: 0.9;
     }
   </style>
 
@@ -1890,11 +1890,12 @@
             const values = getUniqueValues(dataset, c.key).slice(0, 50);
             const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
             DashboardState.filters.columnFilters[c.key] = entry;
+            const headerLabel = c.label === 'Calc- End' ? 'Calc-<br>End' : c.label;
             return `
               <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
                 <div class="flex items-center gap-2">
                   <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
-                    <span class="whitespace-normal break-words">${c.label}</span>
+                    <span class="whitespace-normal break-words">${headerLabel}</span>
                     <span class="text-[10px] text-blue-300">${indicator}</span>
                   </button>
                   <button type="button" data-column-filter-toggle="${c.key}" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-800 bg-slate-950/70 text-slate-300 transition hover:text-white" aria-label="Filter ${c.label}">
@@ -2523,23 +2524,29 @@
       };
 
       addListener(tableHead, 'pointerdown', (event) => {
-        const handle = event.target.closest('[data-resize-handle]');
-        if (!handle) return;
+        const explicitHandle = event.target.closest('[data-resize-handle]');
+        const th = event.target.closest('th[data-col-key]');
+        if (!explicitHandle && !th) return;
+        if (!explicitHandle && th) {
+          const bounds = th.getBoundingClientRect();
+          const nearEdge = event.clientX >= bounds.right - 8;
+          if (!nearEdge) return;
+        }
         event.preventDefault();
         event.stopPropagation();
-        const key = handle.dataset.resizeHandle;
-        const th = handle.closest('th');
+        const key = explicitHandle?.dataset.resizeHandle || th?.dataset.colKey;
         if (!key || !th) return;
         const colgroup = document.getElementById('inventory-table-cols');
         const col = colgroup?.querySelector(`col[data-col-key="${key}"]`);
         if (!col) return;
-        handle.setPointerCapture(event.pointerId);
+        const captureTarget = explicitHandle || th;
+        captureTarget.setPointerCapture(event.pointerId);
         resizing = {
           key,
           startX: event.clientX,
           startWidth: col.getBoundingClientRect().width,
           currentWidth: col.getBoundingClientRect().width,
-          handle,
+          handle: captureTarget,
           pointerId: event.pointerId,
           col,
         };
