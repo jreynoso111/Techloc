@@ -507,7 +507,7 @@
           <div id="inventory-table-scroll-top-inner"></div>
         </div>
         <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
-          <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+          <table class="w-auto table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
           <colgroup id="inventory-table-cols"></colgroup>
           <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
           <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
@@ -1890,9 +1890,9 @@
             const values = getUniqueValues(dataset, c.key).slice(0, 50);
             const entry = DashboardState.filters.columnFilters[c.key] || { select: 'all', search: '' };
             DashboardState.filters.columnFilters[c.key] = entry;
-            const headerLabel = c.label === 'Calc- End' ? 'Calc-<br>End' : c.label;
+            const headerLabel = /calc\. end/i.test(c.label) ? 'Calc.<br><br>End' : c.label;
             return `
-              <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
+              <th class="relative px-3 py-2 leading-tight" data-col-key="${c.key}" draggable="true"${style}>
                 <div class="flex items-center gap-2">
                   <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
                     <span class="whitespace-normal break-words">${headerLabel}</span>
@@ -2013,7 +2013,20 @@
 
           const width = DashboardState.table.columnWidths[col.key];
           const style = typeof width === 'number' ? ` style="width: ${width}px"` : '';
-          return `<td class="px-3 py-2 whitespace-normal break-words"${style}>${value}</td>`;
+          let stringValue = String(value ?? '');
+          const isLong = stringValue !== '--' && stringValue.length > 24;
+          const isVinColumn = col.key?.toLowerCase() === 'vin' || col.label?.toLowerCase() === 'vin';
+          if (isVinColumn && stringValue !== '--' && stringValue.length > 9) {
+            stringValue = stringValue.replace(/(.{8})/g, '$1\u200b');
+          }
+          const classes = ['px-3', 'py-2', 'w-px'];
+          if (isVinColumn && stringValue.length > 9) {
+            classes.push('whitespace-normal', 'break-all');
+          } else {
+            classes.push('whitespace-nowrap');
+            if (isLong) classes.push('max-w-[200px]', 'truncate');
+          }
+          return `<td class="${classes.join(' ')}"${style}>${stringValue}</td>`;
         }).join('');
 
         return `<tr class="text-xs ${prepClass} hover:bg-slate-900/60 cursor-pointer transition" data-row-key="${getVehicleKey(item)}">${cells}</tr>`;
