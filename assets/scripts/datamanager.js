@@ -2,9 +2,9 @@
   const supabase = window.supabaseClient;
   
   // Configuración: Mapea el nombre de tu archivo HTML con la tabla de Supabase
-  // Ejemplo: si estás en 'vehicles.html', buscará datos en la tabla 'vehicles'
+  // Ejemplo: si estás en 'control-map.html', buscará datos en la tabla 'vehicles'
   const tableMapping = {
-    'vehicles.html': 'vehicles',
+    'control-map.html': 'vehicles',
     'locksmiths.html': 'Services',
     'inspectors.html': 'Services',
     'dispatchers.html': 'Services',
@@ -15,8 +15,8 @@
   // Función principal para cargar datos
   window.loadSupabaseTable = async function (containerId) {
     // 1. Identificar en qué página estamos y qué tabla toca
-    const path = window.location.pathname.split('/').pop(); // ej: vehicles.html
-    const tableName = tableMapping[path] || tableMapping['vehicles.html']; // Default fallback
+    const path = window.location.pathname.split('/').pop(); // ej: control-map.html
+    const tableName = tableMapping[path] || tableMapping['control-map.html']; // Default fallback
 
     if (!tableName) {
       console.error('No se encontró una tabla configurada para esta página:', path);

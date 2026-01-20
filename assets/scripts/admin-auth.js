@@ -3,7 +3,7 @@ import { supabase as sharedSupabaseClient } from '../js/supabaseClient.js';
 
 const LOGIN_PAGE = new URL('../../pages/login.html', import.meta.url).toString();
 const ADMIN_HOME = new URL('../../pages/admin/index.html', import.meta.url).toString();
-const CONTROL_VIEW = new URL('../../pages/vehicles.html', import.meta.url).toString();
+const CONTROL_VIEW = new URL('../../pages/control-map.html', import.meta.url).toString();
 
 
 const supabaseClient =
@@ -138,7 +138,7 @@ const routeInfo = (() => {
     isAdminRoute: path.includes('/admin/'),
     isAdminDashboard:
       path.endsWith('/admin/index.html') || path.endsWith('/admin/') || path.endsWith('admin/index.html'),
-    isControlView: path.endsWith('/vehicles.html') || path.endsWith('vehicles.html'),
+    isControlView: path.endsWith('/control-map.html') || path.endsWith('control-map.html'),
     isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
     isProfilesPage: path.includes('/admin/profiles.html'),
   };
