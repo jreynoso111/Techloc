@@ -165,13 +165,11 @@ const fetchAlertsDealCount = async () => {
   }
   const { data, error } = await supabaseClient
     .from('DealsJP1')
-    .select('VIN, Vehicle Status, Current Stock No, Physical Location');
-  if (error) {
-    setAlertsDealCount(0);
-    setAlertsDealsList([]);
+    .select('*');
+  if (error || !Array.isArray(data)) {
     return;
   }
-  const onlineRows = (data || []).filter((row) => {
+  const onlineRows = data.filter((row) => {
     if (!row?.VIN) return false;
     const status = String(row['Vehicle Status'] || '').trim().toUpperCase();
     return ['ACTIVE', 'STOCK', 'STOLEN'].includes(status);
