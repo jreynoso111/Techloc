@@ -101,6 +101,84 @@ const setConnectionStatus = (status) => {
 };
 
 let supabaseClient = null;
+const setAlertsDealCount = (count) => {
+  const badge = document.getElementById('alerts-deals-count');
+  const modalCount = document.querySelector('[data-alerts-deals-count]');
+  const row = document.getElementById('alerts-deals-row');
+  const rowCount = document.getElementById('alerts-deals-row-count');
+  if (!badge) return;
+  const safeCount = Number(count) || 0;
+  if (safeCount <= 0) {
+    badge.classList.add('hidden');
+    badge.textContent = '';
+    if (modalCount) modalCount.textContent = '0';
+    if (rowCount) rowCount.textContent = '0';
+    row?.classList.remove('hidden');
+    return;
+  }
+  badge.textContent = String(safeCount);
+  if (modalCount) modalCount.textContent = String(safeCount);
+  badge.classList.remove('hidden');
+  row?.classList.remove('hidden');
+  if (rowCount) rowCount.textContent = String(safeCount);
+};
+
+const setAlertsDealsList = (rows) => {
+  const list = document.getElementById('alerts-deals-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!rows?.length) {
+    list.innerHTML = '<p class="text-xs text-slate-400">No matching deals found.</p>';
+    return;
+  }
+  rows.forEach((row) => {
+    const vin = row.VIN || '';
+    const vinQuery = encodeURIComponent(vin);
+    const item = document.createElement('div');
+    item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
+    item.innerHTML = `
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+            <span>${row['Vehicle Status'] || 'Unknown'}</span>
+            <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
+          </div>
+          <div class="mt-2 grid gap-1 text-xs text-slate-200">
+            <p><span class="text-slate-400">VIN:</span> ${vin ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=${vinQuery}" target="_blank" rel="noreferrer">${vin}</a>` : '—'}</p>
+            <p><span class="text-slate-400">Stock No:</span> ${row['Current Stock No'] || '—'}</p>
+            <p><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</p>
+            <p><span class="text-slate-400">Inv. Prep. Stat.:</span> ${row['Inventory Preparation Status'] || '—'}</p>
+          </div>
+        </div>
+        ${vin ? `
+        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=${vinQuery}" target="_blank" rel="noreferrer">Google</a>
+        ` : ''}
+      </div>
+    `;
+    list.appendChild(item);
+  });
+};
+
+const fetchAlertsDealCount = async () => {
+  if (!supabaseClient?.from) {
+    setAlertsDealCount(0);
+    setAlertsDealsList([]);
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from('DealsJP1')
+    .select('*');
+  if (error || !Array.isArray(data)) {
+    return;
+  }
+  const onlineRows = data.filter((row) => {
+    if (!row?.VIN) return false;
+    const status = String(row['Vehicle Status'] || '').trim().toUpperCase();
+    return ['ACTIVE', 'STOCK', 'STOLEN'].includes(status);
+  });
+  setAlertsDealCount(onlineRows.length);
+  setAlertsDealsList(onlineRows);
+};
 
 // ==========================================================
 // 2) DASHBOARD STATE + HELPERS (tu lógica con mejoras mínimas)
@@ -781,6 +859,10 @@ const bindFilterEvents = () => {
   const alertsList = document.getElementById('alerts-list');
   const alertsBadges = document.getElementById('alerts-badges');
   const alertsPanel = document.getElementById('alerts-panel');
+  const alertsDealsBadge = document.getElementById('alerts-deals-count');
+  const alertsDealsModal = document.getElementById('alerts-deals-modal');
+  const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
+  const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -839,6 +921,26 @@ const bindFilterEvents = () => {
       alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
       const icon = alertsToggle.querySelector('[data-lucide]');
       updateLucideIcon(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
+    });
+  }
+
+  if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
+    const openModal = () => {
+      alertsDealsModal.classList.remove('hidden');
+      alertsDealsModal.classList.add('flex');
+      alertsDealsModal.setAttribute('aria-hidden', 'false');
+    };
+    const closeModal = () => {
+      alertsDealsModal.classList.add('hidden');
+      alertsDealsModal.classList.remove('flex');
+      alertsDealsModal.setAttribute('aria-hidden', 'true');
+    };
+
+    addListener(alertsDealsBadge, 'click', openModal);
+    addListener(alertsDealsRowButton, 'click', openModal);
+    addListener(alertsDealsModalClose, 'click', closeModal);
+    addListener(alertsDealsModal, 'click', (event) => {
+      if (event.target === alertsDealsModal) closeModal();
     });
   }
 
@@ -1697,10 +1799,15 @@ mobileToggle?.addEventListener('click', () => {
     setConnectionStatus('Offline');
     DashboardState.ui.isLoading = false;
     renderDashboard();
+    setAlertsDealCount(0);
     return;
   }
 
   // If RLS blocks, debug banner will show exact error
+  await fetchAlertsDealCount();
+  setInterval(() => {
+    fetchAlertsDealCount();
+  }, 60 * 60 * 1000);
   await hydrateVehiclesFromSupabase({
     supabaseClient,
     setConnectionStatus,
