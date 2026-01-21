@@ -110,6 +110,8 @@ const ALERTS_COLUMNS_LABELS_KEY = `${ALERTS_STORAGE_PREFIX}:columnLabels`;
 let alertsDealsColumns = [];
 let alertsDealsColumnLabels = {};
 let alertsDealsAvailableColumns = [];
+let alertsDealsSortKey = '';
+let alertsDealsSortDirection = 'asc';
 const setAlertsDealCount = (count) => {
   const badge = document.getElementById('alerts-deals-count');
   const modalCount = document.querySelector('[data-alerts-deals-count]');
@@ -204,6 +206,18 @@ const renderAlertsDealsList = (rows) => {
   });
 };
 
+const sortAlertsDealsRows = (rows) => {
+  if (!alertsDealsSortKey) return rows;
+  const direction = alertsDealsSortDirection === 'desc' ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const valueA = String(a?.[alertsDealsSortKey] ?? '').toLowerCase();
+    const valueB = String(b?.[alertsDealsSortKey] ?? '').toLowerCase();
+    if (valueA < valueB) return -1 * direction;
+    if (valueA > valueB) return 1 * direction;
+    return 0;
+  });
+};
+
 const getFilteredAlertsDealsRows = () => {
   if (alertsDealsFilter === 'all') return alertsDealsRows;
   return alertsDealsRows.filter((row) => {
@@ -230,6 +244,22 @@ const renderAlertsDealsFilters = () => {
   });
 };
 
+const renderAlertsDealsColumnHeaders = () => {
+  const container = document.getElementById('alerts-deals-column-headers');
+  if (!container) return;
+  container.innerHTML = '';
+  alertsDealsColumns.forEach((key) => {
+    const label = getAlertsColumnLabel(key);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.alertsDealsSortKey = key;
+    button.className = 'rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white';
+    const sortSuffix = alertsDealsSortKey === key ? (alertsDealsSortDirection === 'asc' ? ' ↑' : ' ↓') : '';
+    button.textContent = `${label}${sortSuffix}`;
+    container.appendChild(button);
+  });
+};
+
 const renderAlertsDealsColumns = () => {
   const list = document.getElementById('alerts-deals-columns-list');
   if (!list) return;
@@ -246,7 +276,7 @@ const renderAlertsDealsColumns = () => {
 };
 
 const updateAlertsDealsList = () => {
-  renderAlertsDealsList(getFilteredAlertsDealsRows());
+  renderAlertsDealsList(sortAlertsDealsRows(getFilteredAlertsDealsRows()));
 };
 
 const formatAlertsTimestamp = (date) => {
@@ -319,6 +349,7 @@ const fetchAlertsDealCount = async () => {
   }
   renderAlertsDealsFilters();
   renderAlertsDealsColumns();
+  renderAlertsDealsColumnHeaders();
   updateAlertsDealsList();
 };
 
@@ -1010,6 +1041,7 @@ const bindFilterEvents = () => {
   const alertsDealsColumnsToggle = document.getElementById('alerts-deals-columns-toggle');
   const alertsDealsColumnsPanel = document.getElementById('alerts-deals-columns-panel');
   const alertsDealsColumnsList = document.getElementById('alerts-deals-columns-list');
+  const alertsDealsColumnHeaders = document.getElementById('alerts-deals-column-headers');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -1143,6 +1175,24 @@ const bindFilterEvents = () => {
       if (!key) return;
       alertsDealsColumnLabels[key] = input.value.trim() || formatColumnLabel(key);
       localStorage.setItem(ALERTS_COLUMNS_LABELS_KEY, JSON.stringify(alertsDealsColumnLabels));
+      renderAlertsDealsColumnHeaders();
+      updateAlertsDealsList();
+    });
+  }
+
+  if (alertsDealsColumnHeaders) {
+    addListener(alertsDealsColumnHeaders, 'click', (event) => {
+      const button = event.target.closest('[data-alerts-deals-sort-key]');
+      if (!button) return;
+      const key = button.dataset.alertsDealsSortKey;
+      if (!key) return;
+      if (alertsDealsSortKey === key) {
+        alertsDealsSortDirection = alertsDealsSortDirection === 'asc' ? 'desc' : 'asc';
+      } else {
+        alertsDealsSortKey = key;
+        alertsDealsSortDirection = 'asc';
+      }
+      renderAlertsDealsColumnHeaders();
       updateAlertsDealsList();
     });
   }
