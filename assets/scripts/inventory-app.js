@@ -137,21 +137,23 @@ const setAlertsDealsList = (rows) => {
     const item = document.createElement('div');
     item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
     item.innerHTML = `
-      <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-        <span>${row['Vehicle Status'] || 'Unknown'}</span>
-        <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+            <span>${row['Vehicle Status'] || 'Unknown'}</span>
+            <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
+          </div>
+          <div class="mt-2 grid gap-1 text-xs text-slate-200">
+            <p><span class="text-slate-400">VIN:</span> ${vin ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=${vinQuery}" target="_blank" rel="noreferrer">${vin}</a>` : '—'}</p>
+            <p><span class="text-slate-400">Stock No:</span> ${row['Current Stock No'] || '—'}</p>
+            <p><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</p>
+            <p><span class="text-slate-400">Inv. Prep. Stat.:</span> ${row['Inventory Preparation Status'] || '—'}</p>
+          </div>
+        </div>
+        ${vin ? `
+        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=${vinQuery}" target="_blank" rel="noreferrer">Google</a>
+        ` : ''}
       </div>
-      <div class="mt-2 grid gap-1 text-xs text-slate-200">
-        <p><span class="text-slate-400">VIN:</span> ${vin ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=${vinQuery}" target="_blank" rel="noreferrer">${vin}</a>` : '—'}</p>
-        <p><span class="text-slate-400">Stock No:</span> ${row['Current Stock No'] || '—'}</p>
-        <p><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</p>
-      </div>
-      ${vin ? `
-      <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em]">
-        <a class="rounded-full border border-slate-700 bg-slate-950/70 px-2 py-1 text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.copart.com/lotSearchResults?free=true&query=${vinQuery}" target="_blank" rel="noreferrer">Copart</a>
-        <a class="rounded-full border border-slate-700 bg-slate-950/70 px-2 py-1 text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.iaai.com/Search?keyword=${vinQuery}" target="_blank" rel="noreferrer">IAAI</a>
-      </div>
-      ` : ''}
     `;
     list.appendChild(item);
   });
