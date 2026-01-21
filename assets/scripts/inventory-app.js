@@ -101,6 +101,8 @@ const setConnectionStatus = (status) => {
 };
 
 let supabaseClient = null;
+let alertsDealsRows = [];
+let alertsDealsFilter = 'all';
 const setAlertsDealCount = (count) => {
   const badge = document.getElementById('alerts-deals-count');
   const modalCount = document.querySelector('[data-alerts-deals-count]');
@@ -123,7 +125,7 @@ const setAlertsDealCount = (count) => {
   if (rowCount) rowCount.textContent = String(safeCount);
 };
 
-const setAlertsDealsList = (rows) => {
+const renderAlertsDealsList = (rows) => {
   const list = document.getElementById('alerts-deals-list');
   if (!list) return;
   list.innerHTML = '';
@@ -158,10 +160,23 @@ const setAlertsDealsList = (rows) => {
   });
 };
 
+const getFilteredAlertsDealsRows = () => {
+  if (alertsDealsFilter === 'all') return alertsDealsRows;
+  return alertsDealsRows.filter((row) => {
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim().toLowerCase();
+    return prepStatus === alertsDealsFilter;
+  });
+};
+
+const updateAlertsDealsList = () => {
+  renderAlertsDealsList(getFilteredAlertsDealsRows());
+};
+
 const fetchAlertsDealCount = async () => {
   if (!supabaseClient?.from) {
     setAlertsDealCount(0);
-    setAlertsDealsList([]);
+    alertsDealsRows = [];
+    updateAlertsDealsList();
     return;
   }
   const { data, error } = await supabaseClient
@@ -185,7 +200,8 @@ const fetchAlertsDealCount = async () => {
     ].includes(prepStatus);
   });
   setAlertsDealCount(onlineRows.length);
-  setAlertsDealsList(onlineRows);
+  alertsDealsRows = onlineRows;
+  updateAlertsDealsList();
 };
 
 // ==========================================================
@@ -871,6 +887,7 @@ const bindFilterEvents = () => {
   const alertsDealsModal = document.getElementById('alerts-deals-modal');
   const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
   const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+  const alertsDealsFilters = document.querySelectorAll('[data-alerts-deals-filter]');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -950,6 +967,23 @@ const bindFilterEvents = () => {
     addListener(alertsDealsModal, 'click', (event) => {
       if (event.target === alertsDealsModal) closeModal();
     });
+  }
+
+  if (alertsDealsFilters.length) {
+    const setActiveFilter = (value) => {
+      alertsDealsFilter = value;
+      alertsDealsFilters.forEach((button) => {
+        const isActive = button.dataset.alertsDealsFilter === value;
+        button.classList.toggle('border-blue-400', isActive);
+        button.classList.toggle('text-white', isActive);
+      });
+      updateAlertsDealsList();
+    };
+
+    alertsDealsFilters.forEach((button) => {
+      addListener(button, 'click', () => setActiveFilter(button.dataset.alertsDealsFilter));
+    });
+    setActiveFilter(alertsDealsFilter);
   }
 
   if (builder) {
