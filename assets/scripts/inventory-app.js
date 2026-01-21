@@ -104,17 +104,23 @@ let supabaseClient = null;
 const setAlertsDealCount = (count) => {
   const badge = document.getElementById('alerts-deals-count');
   const modalCount = document.querySelector('[data-alerts-deals-count]');
+  const row = document.getElementById('alerts-deals-row');
+  const rowCount = document.getElementById('alerts-deals-row-count');
   if (!badge) return;
   const safeCount = Number(count) || 0;
   if (safeCount <= 0) {
     badge.classList.add('hidden');
     badge.textContent = '';
+    row?.classList.add('hidden');
     if (modalCount) modalCount.textContent = '0';
+    if (rowCount) rowCount.textContent = '0';
     return;
   }
   badge.textContent = String(safeCount);
   if (modalCount) modalCount.textContent = String(safeCount);
   badge.classList.remove('hidden');
+  row?.classList.remove('hidden');
+  if (rowCount) rowCount.textContent = String(safeCount);
 };
 
 const setAlertsDealsList = (rows) => {
@@ -852,6 +858,7 @@ const bindFilterEvents = () => {
   const alertsDealsBadge = document.getElementById('alerts-deals-count');
   const alertsDealsModal = document.getElementById('alerts-deals-modal');
   const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
+  const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -913,7 +920,7 @@ const bindFilterEvents = () => {
     });
   }
 
-  if (alertsDealsBadge && alertsDealsModal) {
+  if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
     const openModal = () => {
       alertsDealsModal.classList.remove('hidden');
       alertsDealsModal.classList.add('flex');
@@ -926,6 +933,7 @@ const bindFilterEvents = () => {
     };
 
     addListener(alertsDealsBadge, 'click', openModal);
+    addListener(alertsDealsRowButton, 'click', openModal);
     addListener(alertsDealsModalClose, 'click', closeModal);
     addListener(alertsDealsModal, 'click', (event) => {
       if (event.target === alertsDealsModal) closeModal();
