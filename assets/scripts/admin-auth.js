@@ -138,7 +138,7 @@ const routeInfo = (() => {
     isAdminRoute: path.includes('/admin/'),
     isAdminDashboard:
       path.endsWith('/admin/index.html') || path.endsWith('/admin/') || path.endsWith('admin/index.html'),
-    isControlView: path.endsWith('/control-map.html') || path.endsWith('control-map.html'),
+    isControlView: path.endsWith('/pages/control-map.html') || path.endsWith('pages/control-map.html'),
     isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
     isProfilesPage: path.includes('/admin/profiles.html'),
   };
