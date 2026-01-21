@@ -101,6 +101,108 @@ const setConnectionStatus = (status) => {
 };
 
 let supabaseClient = null;
+let alertsDealsRows = [];
+let alertsDealsFilter = 'all';
+const setAlertsDealCount = (count) => {
+  const badge = document.getElementById('alerts-deals-count');
+  const modalCount = document.querySelector('[data-alerts-deals-count]');
+  const row = document.getElementById('alerts-deals-row');
+  const rowCount = document.getElementById('alerts-deals-row-count');
+  if (!badge) return;
+  const safeCount = Number(count) || 0;
+  if (safeCount <= 0) {
+    badge.classList.add('hidden');
+    badge.textContent = '';
+    if (modalCount) modalCount.textContent = '0';
+    if (rowCount) rowCount.textContent = '0';
+    row?.classList.remove('hidden');
+    return;
+  }
+  badge.textContent = String(safeCount);
+  if (modalCount) modalCount.textContent = String(safeCount);
+  badge.classList.remove('hidden');
+  row?.classList.remove('hidden');
+  if (rowCount) rowCount.textContent = String(safeCount);
+};
+
+const renderAlertsDealsList = (rows) => {
+  const list = document.getElementById('alerts-deals-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!rows?.length) {
+    list.innerHTML = '<p class="text-xs text-slate-400">No matching deals found.</p>';
+    return;
+  }
+  rows.forEach((row) => {
+    const vin = row.VIN || '';
+    const vinQuery = encodeURIComponent(vin);
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim();
+    const item = document.createElement('div');
+    item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
+    item.innerHTML = `
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <span>${row['Vehicle Status'] || 'Unknown'}</span>
+          <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
+        </div>
+        ${vin ? `
+        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer">Google</a>
+        ` : ''}
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200">
+        <span><span class="text-slate-400">VIN:</span> ${vin ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer">${vin}</a>` : '—'}</span>
+        <span><span class="text-slate-400">Stock:</span> ${row['Current Stock No'] || '—'}</span>
+        <span><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</span>
+        <span><span class="text-slate-400">Inv. Prep. Stat.:</span> ${prepStatus || '—'}</span>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+};
+
+const getFilteredAlertsDealsRows = () => {
+  if (alertsDealsFilter === 'all') return alertsDealsRows;
+  return alertsDealsRows.filter((row) => {
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim().toLowerCase();
+    return prepStatus === alertsDealsFilter;
+  });
+};
+
+const updateAlertsDealsList = () => {
+  renderAlertsDealsList(getFilteredAlertsDealsRows());
+};
+
+const fetchAlertsDealCount = async () => {
+  if (!supabaseClient?.from) {
+    setAlertsDealCount(0);
+    alertsDealsRows = [];
+    updateAlertsDealsList();
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from('DealsJP1')
+    .select('*');
+  if (error || !Array.isArray(data)) {
+    return;
+  }
+  const onlineRows = data.filter((row) => {
+    if (!row?.VIN) return false;
+    const status = String(row['Vehicle Status'] || '').trim().toUpperCase();
+    if (!['ACTIVE', 'STOCK', 'STOLEN'].includes(status)) return false;
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim().toLowerCase();
+    return [
+      'out for repo',
+      'stolen',
+      'accidented',
+      'accident',
+      'stolen vehicle',
+      'third party repair shop',
+    ].includes(prepStatus);
+  });
+  setAlertsDealCount(onlineRows.length);
+  alertsDealsRows = onlineRows;
+  updateAlertsDealsList();
+};
 
 // ==========================================================
 // 2) DASHBOARD STATE + HELPERS (tu lógica con mejoras mínimas)
@@ -781,6 +883,11 @@ const bindFilterEvents = () => {
   const alertsList = document.getElementById('alerts-list');
   const alertsBadges = document.getElementById('alerts-badges');
   const alertsPanel = document.getElementById('alerts-panel');
+  const alertsDealsBadge = document.getElementById('alerts-deals-count');
+  const alertsDealsModal = document.getElementById('alerts-deals-modal');
+  const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
+  const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+  const alertsDealsFilters = document.querySelectorAll('[data-alerts-deals-filter]');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -840,6 +947,43 @@ const bindFilterEvents = () => {
       const icon = alertsToggle.querySelector('[data-lucide]');
       updateLucideIcon(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
     });
+  }
+
+  if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
+    const openModal = () => {
+      alertsDealsModal.classList.remove('hidden');
+      alertsDealsModal.classList.add('flex');
+      alertsDealsModal.setAttribute('aria-hidden', 'false');
+    };
+    const closeModal = () => {
+      alertsDealsModal.classList.add('hidden');
+      alertsDealsModal.classList.remove('flex');
+      alertsDealsModal.setAttribute('aria-hidden', 'true');
+    };
+
+    addListener(alertsDealsBadge, 'click', openModal);
+    addListener(alertsDealsRowButton, 'click', openModal);
+    addListener(alertsDealsModalClose, 'click', closeModal);
+    addListener(alertsDealsModal, 'click', (event) => {
+      if (event.target === alertsDealsModal) closeModal();
+    });
+  }
+
+  if (alertsDealsFilters.length) {
+    const setActiveFilter = (value) => {
+      alertsDealsFilter = value;
+      alertsDealsFilters.forEach((button) => {
+        const isActive = button.dataset.alertsDealsFilter === value;
+        button.classList.toggle('border-blue-400', isActive);
+        button.classList.toggle('text-white', isActive);
+      });
+      updateAlertsDealsList();
+    };
+
+    alertsDealsFilters.forEach((button) => {
+      addListener(button, 'click', () => setActiveFilter(button.dataset.alertsDealsFilter));
+    });
+    setActiveFilter(alertsDealsFilter);
   }
 
   if (builder) {
@@ -1697,10 +1841,15 @@ mobileToggle?.addEventListener('click', () => {
     setConnectionStatus('Offline');
     DashboardState.ui.isLoading = false;
     renderDashboard();
+    setAlertsDealCount(0);
     return;
   }
 
   // If RLS blocks, debug banner will show exact error
+  await fetchAlertsDealCount();
+  setInterval(() => {
+    fetchAlertsDealCount();
+  }, 60 * 60 * 1000);
   await hydrateVehiclesFromSupabase({
     supabaseClient,
     setConnectionStatus,
