@@ -101,6 +101,159 @@ const setConnectionStatus = (status) => {
 };
 
 let supabaseClient = null;
+let alertsDealsRows = [];
+let alertsDealsFilter = 'all';
+let alertsDealsFilterOptions = [];
+const setAlertsDealCount = (count) => {
+  const badge = document.getElementById('alerts-deals-count');
+  const modalCount = document.querySelector('[data-alerts-deals-count]');
+  const row = document.getElementById('alerts-deals-row');
+  const rowCount = document.getElementById('alerts-deals-row-count');
+  if (!badge) return;
+  const safeCount = Number(count) || 0;
+  if (safeCount <= 0) {
+    badge.classList.add('hidden');
+    badge.textContent = '';
+    if (modalCount) modalCount.textContent = '0';
+    if (rowCount) rowCount.textContent = '0';
+    row?.classList.remove('hidden');
+    return;
+  }
+  badge.textContent = String(safeCount);
+  if (modalCount) modalCount.textContent = String(safeCount);
+  badge.classList.remove('hidden');
+  row?.classList.remove('hidden');
+  if (rowCount) rowCount.textContent = String(safeCount);
+};
+
+const renderAlertsDealsList = (rows) => {
+  const list = document.getElementById('alerts-deals-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!rows?.length) {
+    list.innerHTML = '<p class="text-xs text-slate-400">No matching deals found.</p>';
+    return;
+  }
+  rows.forEach((row) => {
+    const vin = row.VIN || '';
+    const vinQuery = encodeURIComponent(vin);
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim();
+    const item = document.createElement('div');
+    item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
+    const lastClickLabel = `alerts-google-last-${vinQuery}`;
+    item.innerHTML = `
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <span>${row['Vehicle Status'] || 'Unknown'}</span>
+          <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
+        </div>
+        ${vin ? `
+        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer" data-alerts-google-button data-alerts-google-target="${lastClickLabel}">Google</a>
+        ` : ''}
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200">
+        <span><span class="text-slate-400">VIN:</span> ${vin ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer">${vin}</a>` : '—'}</span>
+        <span><span class="text-slate-400">Stock:</span> ${row['Current Stock No'] || '—'}</span>
+        <span><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</span>
+        <span><span class="text-slate-400">Inv. Prep. Stat.:</span> ${prepStatus || '—'}</span>
+        <span class="text-slate-400" data-alerts-google-last="${lastClickLabel}">Last Google click: —</span>
+      </div>
+      <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-200">
+        <label class="flex items-center gap-2 text-slate-200">
+          <input type="checkbox" class="h-3 w-3 rounded border-slate-600 bg-slate-950/70 text-blue-400" data-alerts-google-found>
+          <span>Google found result</span>
+        </label>
+        <label class="flex min-w-[220px] flex-1 items-center gap-2 text-slate-200">
+          <span class="text-slate-400">Notes:</span>
+          <input type="text" class="h-7 w-full rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-xs text-slate-200" placeholder="Add notes" data-alerts-google-notes>
+        </label>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+};
+
+const getFilteredAlertsDealsRows = () => {
+  if (alertsDealsFilter === 'all') return alertsDealsRows;
+  return alertsDealsRows.filter((row) => {
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim().toLowerCase();
+    return prepStatus === alertsDealsFilter;
+  });
+};
+
+const renderAlertsDealsFilters = () => {
+  const container = document.getElementById('alerts-deals-filters');
+  if (!container) return;
+  container.innerHTML = '';
+  const options = ['all', ...alertsDealsFilterOptions];
+  options.forEach((option) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.alertsDealsFilter = option;
+    button.className = 'rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-slate-200 transition hover:border-blue-400 hover:text-white';
+    if (option === alertsDealsFilter) {
+      button.classList.add('border-blue-400', 'text-white');
+    }
+    button.textContent = option === 'all' ? 'All' : option.replace(/\b\w/g, (char) => char.toUpperCase());
+    container.appendChild(button);
+  });
+};
+
+const updateAlertsDealsList = () => {
+  renderAlertsDealsList(getFilteredAlertsDealsRows());
+};
+
+const formatAlertsTimestamp = (date) => {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${month}/${day}/${year} ${hours}:${minutes}`;
+};
+
+const fetchAlertsDealCount = async () => {
+  if (!supabaseClient?.from) {
+    setAlertsDealCount(0);
+    alertsDealsRows = [];
+    updateAlertsDealsList();
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from('DealsJP1')
+    .select('*');
+  if (error || !Array.isArray(data)) {
+    return;
+  }
+  const onlineRows = data.filter((row) => {
+    if (!row?.VIN) return false;
+    const status = String(row['Vehicle Status'] || '').trim().toUpperCase();
+    if (!['ACTIVE', 'STOCK', 'STOLEN'].includes(status)) return false;
+    const prepStatus = String(row['Inventory Preparation Status'] || '').trim().toLowerCase();
+    return [
+      'out for repo',
+      'stolen',
+      'accidented',
+      'accident',
+      'stolen vehicle',
+      'third party repair shop',
+    ].includes(prepStatus);
+  });
+  setAlertsDealCount(onlineRows.length);
+  alertsDealsRows = onlineRows;
+  alertsDealsFilterOptions = Array.from(
+    new Set(
+      onlineRows
+        .map((row) => String(row['Inventory Preparation Status'] || '').trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ).sort();
+  if (alertsDealsFilter !== 'all' && !alertsDealsFilterOptions.includes(alertsDealsFilter)) {
+    alertsDealsFilter = 'all';
+  }
+  renderAlertsDealsFilters();
+  updateAlertsDealsList();
+};
 
 // ==========================================================
 // 2) DASHBOARD STATE + HELPERS (tu lógica con mejoras mínimas)
@@ -781,6 +934,12 @@ const bindFilterEvents = () => {
   const alertsList = document.getElementById('alerts-list');
   const alertsBadges = document.getElementById('alerts-badges');
   const alertsPanel = document.getElementById('alerts-panel');
+  const alertsDealsBadge = document.getElementById('alerts-deals-count');
+  const alertsDealsModal = document.getElementById('alerts-deals-modal');
+  const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
+  const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+  const alertsDealsFilters = document.getElementById('alerts-deals-filters');
+  const alertsDealsList = document.getElementById('alerts-deals-list');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -839,6 +998,61 @@ const bindFilterEvents = () => {
       alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
       const icon = alertsToggle.querySelector('[data-lucide]');
       updateLucideIcon(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
+    });
+  }
+
+  if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
+    const openModal = () => {
+      alertsDealsModal.classList.remove('hidden');
+      alertsDealsModal.classList.add('flex');
+      alertsDealsModal.setAttribute('aria-hidden', 'false');
+    };
+    const closeModal = () => {
+      alertsDealsModal.classList.add('hidden');
+      alertsDealsModal.classList.remove('flex');
+      alertsDealsModal.setAttribute('aria-hidden', 'true');
+    };
+
+    addListener(alertsDealsBadge, 'click', openModal);
+    addListener(alertsDealsRowButton, 'click', openModal);
+    addListener(alertsDealsModalClose, 'click', closeModal);
+    addListener(alertsDealsModal, 'click', (event) => {
+      if (event.target === alertsDealsModal) closeModal();
+    });
+  }
+
+  const setActiveFilter = (value) => {
+    alertsDealsFilter = value;
+    if (alertsDealsFilters) {
+      alertsDealsFilters.querySelectorAll('[data-alerts-deals-filter]').forEach((button) => {
+        const isActive = button.dataset.alertsDealsFilter === value;
+        button.classList.toggle('border-blue-400', isActive);
+        button.classList.toggle('text-white', isActive);
+      });
+    }
+    updateAlertsDealsList();
+  };
+
+  if (alertsDealsFilters) {
+    addListener(alertsDealsFilters, 'click', (event) => {
+      const button = event.target.closest('[data-alerts-deals-filter]');
+      if (!button) return;
+      setActiveFilter(button.dataset.alertsDealsFilter);
+    });
+  }
+
+  setActiveFilter(alertsDealsFilter);
+
+  if (alertsDealsList) {
+    addListener(alertsDealsList, 'click', (event) => {
+      const target = event.target.closest('[data-alerts-google-button]');
+      if (!target) return;
+      const labelKey = target.dataset.alertsGoogleTarget;
+      if (!labelKey) return;
+      const label = alertsDealsList.querySelector(`[data-alerts-google-last="${labelKey}"]`);
+      if (!label) return;
+      const timestamp = formatAlertsTimestamp(new Date());
+      label.textContent = `Last Google click: ${timestamp}`;
     });
   }
 
@@ -1697,10 +1911,15 @@ mobileToggle?.addEventListener('click', () => {
     setConnectionStatus('Offline');
     DashboardState.ui.isLoading = false;
     renderDashboard();
+    setAlertsDealCount(0);
     return;
   }
 
   // If RLS blocks, debug banner will show exact error
+  await fetchAlertsDealCount();
+  setInterval(() => {
+    fetchAlertsDealCount();
+  }, 60 * 60 * 1000);
   await hydrateVehiclesFromSupabase({
     supabaseClient,
     setConnectionStatus,
