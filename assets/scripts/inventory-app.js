@@ -140,6 +140,7 @@ const renderAlertsDealsList = (rows) => {
     const prepStatus = String(row['Inventory Preparation Status'] || '').trim();
     const item = document.createElement('div');
     item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
+    const lastClickLabel = `alerts-google-last-${vinQuery}`;
     item.innerHTML = `
       <div class="flex items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -147,7 +148,7 @@ const renderAlertsDealsList = (rows) => {
           <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
         </div>
         ${vin ? `
-        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer">Google</a>
+        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer" data-alerts-google-button data-alerts-google-target="${lastClickLabel}">Google</a>
         ` : ''}
       </div>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200">
@@ -155,6 +156,7 @@ const renderAlertsDealsList = (rows) => {
         <span><span class="text-slate-400">Stock:</span> ${row['Current Stock No'] || '—'}</span>
         <span><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</span>
         <span><span class="text-slate-400">Inv. Prep. Stat.:</span> ${prepStatus || '—'}</span>
+        <span class="text-slate-400" data-alerts-google-last="${lastClickLabel}">Last Google click: —</span>
       </div>
     `;
     list.appendChild(item);
@@ -918,6 +920,7 @@ const bindFilterEvents = () => {
   const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
   const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
   const alertsDealsFilters = document.getElementById('alerts-deals-filters');
+  const alertsDealsList = document.getElementById('alerts-deals-list');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -1020,6 +1023,19 @@ const bindFilterEvents = () => {
   }
 
   setActiveFilter(alertsDealsFilter);
+
+  if (alertsDealsList) {
+    addListener(alertsDealsList, 'click', (event) => {
+      const target = event.target.closest('[data-alerts-google-button]');
+      if (!target) return;
+      const labelKey = target.dataset.alertsGoogleTarget;
+      if (!labelKey) return;
+      const label = alertsDealsList.querySelector(`[data-alerts-google-last="${labelKey}"]`);
+      if (!label) return;
+      const timestamp = new Date().toLocaleString();
+      label.textContent = `Last Google click: ${timestamp}`;
+    });
+  }
 
   if (builder) {
     addListener(builder, 'change', (event) => {
