@@ -158,6 +158,16 @@ const renderAlertsDealsList = (rows) => {
         <span><span class="text-slate-400">Inv. Prep. Stat.:</span> ${prepStatus || '—'}</span>
         <span class="text-slate-400" data-alerts-google-last="${lastClickLabel}">Last Google click: —</span>
       </div>
+      <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-200">
+        <label class="flex items-center gap-2 text-slate-200">
+          <input type="checkbox" class="h-3 w-3 rounded border-slate-600 bg-slate-950/70 text-blue-400" data-alerts-google-found>
+          <span>Google found result</span>
+        </label>
+        <label class="flex min-w-[220px] flex-1 items-center gap-2 text-slate-200">
+          <span class="text-slate-400">Notes:</span>
+          <input type="text" class="h-7 w-full rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-xs text-slate-200" placeholder="Add notes" data-alerts-google-notes>
+        </label>
+      </div>
     `;
     list.appendChild(item);
   });
@@ -191,6 +201,15 @@ const renderAlertsDealsFilters = () => {
 
 const updateAlertsDealsList = () => {
   renderAlertsDealsList(getFilteredAlertsDealsRows());
+};
+
+const formatAlertsTimestamp = (date) => {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${month}/${day}/${year} ${hours}:${minutes}`;
 };
 
 const fetchAlertsDealCount = async () => {
@@ -1032,7 +1051,7 @@ const bindFilterEvents = () => {
       if (!labelKey) return;
       const label = alertsDealsList.querySelector(`[data-alerts-google-last="${labelKey}"]`);
       if (!label) return;
-      const timestamp = new Date().toLocaleString();
+      const timestamp = formatAlertsTimestamp(new Date());
       label.textContent = `Last Google click: ${timestamp}`;
     });
   }
