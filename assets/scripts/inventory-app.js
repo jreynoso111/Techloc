@@ -103,6 +103,7 @@ const setConnectionStatus = (status) => {
 let supabaseClient = null;
 let alertsDealsRows = [];
 let alertsDealsFilter = 'all';
+let alertsDealsFilterOptions = [];
 const setAlertsDealCount = (count) => {
   const badge = document.getElementById('alerts-deals-count');
   const modalCount = document.querySelector('[data-alerts-deals-count]');
@@ -168,6 +169,24 @@ const getFilteredAlertsDealsRows = () => {
   });
 };
 
+const renderAlertsDealsFilters = () => {
+  const container = document.getElementById('alerts-deals-filters');
+  if (!container) return;
+  container.innerHTML = '';
+  const options = ['all', ...alertsDealsFilterOptions];
+  options.forEach((option) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.alertsDealsFilter = option;
+    button.className = 'rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-slate-200 transition hover:border-blue-400 hover:text-white';
+    if (option === alertsDealsFilter) {
+      button.classList.add('border-blue-400', 'text-white');
+    }
+    button.textContent = option === 'all' ? 'All' : option.replace(/\b\w/g, (char) => char.toUpperCase());
+    container.appendChild(button);
+  });
+};
+
 const updateAlertsDealsList = () => {
   renderAlertsDealsList(getFilteredAlertsDealsRows());
 };
@@ -201,6 +220,17 @@ const fetchAlertsDealCount = async () => {
   });
   setAlertsDealCount(onlineRows.length);
   alertsDealsRows = onlineRows;
+  alertsDealsFilterOptions = Array.from(
+    new Set(
+      onlineRows
+        .map((row) => String(row['Inventory Preparation Status'] || '').trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  ).sort();
+  if (alertsDealsFilter !== 'all' && !alertsDealsFilterOptions.includes(alertsDealsFilter)) {
+    alertsDealsFilter = 'all';
+  }
+  renderAlertsDealsFilters();
   updateAlertsDealsList();
 };
 
@@ -887,7 +917,7 @@ const bindFilterEvents = () => {
   const alertsDealsModal = document.getElementById('alerts-deals-modal');
   const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
   const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
-  const alertsDealsFilters = document.querySelectorAll('[data-alerts-deals-filter]');
+  const alertsDealsFilters = document.getElementById('alerts-deals-filters');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -969,22 +999,27 @@ const bindFilterEvents = () => {
     });
   }
 
-  if (alertsDealsFilters.length) {
-    const setActiveFilter = (value) => {
-      alertsDealsFilter = value;
-      alertsDealsFilters.forEach((button) => {
+  const setActiveFilter = (value) => {
+    alertsDealsFilter = value;
+    if (alertsDealsFilters) {
+      alertsDealsFilters.querySelectorAll('[data-alerts-deals-filter]').forEach((button) => {
         const isActive = button.dataset.alertsDealsFilter === value;
         button.classList.toggle('border-blue-400', isActive);
         button.classList.toggle('text-white', isActive);
       });
-      updateAlertsDealsList();
-    };
+    }
+    updateAlertsDealsList();
+  };
 
-    alertsDealsFilters.forEach((button) => {
-      addListener(button, 'click', () => setActiveFilter(button.dataset.alertsDealsFilter));
+  if (alertsDealsFilters) {
+    addListener(alertsDealsFilters, 'click', (event) => {
+      const button = event.target.closest('[data-alerts-deals-filter]');
+      if (!button) return;
+      setActiveFilter(button.dataset.alertsDealsFilter);
     });
-    setActiveFilter(alertsDealsFilter);
   }
+
+  setActiveFilter(alertsDealsFilter);
 
   if (builder) {
     addListener(builder, 'change', (event) => {
