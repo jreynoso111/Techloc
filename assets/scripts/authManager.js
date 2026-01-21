@@ -27,9 +27,9 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
   const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
   const roleAllowsServiceRequests = (role) => String(role || '').toLowerCase() === 'administrator';
 
-  // Rutas protegidas
+  // Rutas protegidas (control map served from /pages/control-map.html; root redirect removed)
   const protectedRoutes = [
-    (path) => path.endsWith('/control-map.html') || path.endsWith('control-map.html'),
+    (path) => path.endsWith('/pages/control-map.html') || path.endsWith('pages/control-map.html'),
     (path) => path.endsWith('/services-request.html') || path.endsWith('services-request.html'),
     (path) => path.includes('/admin/'),
   ];
