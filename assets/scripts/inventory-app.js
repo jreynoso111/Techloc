@@ -104,6 +104,7 @@ let supabaseClient = null;
 let alertsDealsRows = [];
 let alertsDealsFilter = 'all';
 let alertsDealsFilterOptions = [];
+const ALERTS_STORAGE_PREFIX = 'alertsDeals';
 const setAlertsDealCount = (count) => {
   const badge = document.getElementById('alerts-deals-count');
   const modalCount = document.querySelector('[data-alerts-deals-count]');
@@ -138,9 +139,12 @@ const renderAlertsDealsList = (rows) => {
     const vin = row.VIN || '';
     const vinQuery = encodeURIComponent(vin);
     const prepStatus = String(row['Inventory Preparation Status'] || '').trim();
+    const storageKey = vin ? `${ALERTS_STORAGE_PREFIX}:${vin}` : '';
+    const storedNote = storageKey ? localStorage.getItem(`${storageKey}:note`) : '';
+    const storedClick = storageKey ? localStorage.getItem(`${storageKey}:lastClick`) : '';
     const item = document.createElement('div');
     item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
-    const lastClickLabel = `alerts-google-last-${vinQuery}`;
+    const lastClickLabel = `alerts-google-last-${vin}`;
     item.innerHTML = `
       <div class="flex items-center justify-between gap-3">
         <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -148,7 +152,7 @@ const renderAlertsDealsList = (rows) => {
           <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
         </div>
         ${vin ? `
-        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer" data-alerts-google-button data-alerts-google-target="${lastClickLabel}">Google</a>
+        <a class="shrink-0 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer" data-alerts-google-button data-alerts-google-target="${vin}">Google</a>
         ` : ''}
       </div>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200">
@@ -156,12 +160,12 @@ const renderAlertsDealsList = (rows) => {
         <span><span class="text-slate-400">Stock:</span> ${row['Current Stock No'] || '—'}</span>
         <span><span class="text-slate-400">Location:</span> ${row['Physical Location'] || '—'}</span>
         <span><span class="text-slate-400">Inv. Prep. Stat.:</span> ${prepStatus || '—'}</span>
-        <span class="text-slate-400" data-alerts-google-last="${lastClickLabel}">Last Click: —</span>
+        <span class="text-slate-400" data-alerts-google-last="${vin}">Last Click: ${storedClick || '—'}</span>
       </div>
       <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-200">
         <label class="flex min-w-[220px] flex-1 items-center gap-2 text-slate-200">
           <span class="text-slate-400">Notes:</span>
-          <input type="text" class="h-7 w-full rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-xs text-slate-200" placeholder="Add notes" data-alerts-google-notes>
+          <input type="text" class="h-7 w-full rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-xs text-slate-200" placeholder="Add notes" data-alerts-google-notes data-alerts-notes-key="${storageKey}" value="${storedNote || ''}">
         </label>
       </div>
     `;
@@ -1043,12 +1047,21 @@ const bindFilterEvents = () => {
     addListener(alertsDealsList, 'click', (event) => {
       const target = event.target.closest('[data-alerts-google-button]');
       if (!target) return;
-      const labelKey = target.dataset.alertsGoogleTarget;
-      if (!labelKey) return;
-      const label = alertsDealsList.querySelector(`[data-alerts-google-last="${labelKey}"]`);
+      const vinKey = target.dataset.alertsGoogleTarget;
+      if (!vinKey) return;
+      const label = alertsDealsList.querySelector(`[data-alerts-google-last="${vinKey}"]`);
       if (!label) return;
       const timestamp = formatAlertsTimestamp(new Date());
       label.textContent = `Last Click: ${timestamp}`;
+      localStorage.setItem(`${ALERTS_STORAGE_PREFIX}:${vinKey}:lastClick`, timestamp);
+    });
+
+    addListener(alertsDealsList, 'input', (event) => {
+      const input = event.target.closest('[data-alerts-notes-key]');
+      if (!input) return;
+      const key = input.dataset.alertsNotesKey;
+      if (!key) return;
+      localStorage.setItem(`${key}:note`, input.value);
     });
   }
 
