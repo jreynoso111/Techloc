@@ -138,7 +138,7 @@ const setAlertsDealsList = (rows) => {
     item.className = 'rounded-xl border border-slate-800 bg-slate-950/40 p-3';
     item.innerHTML = `
       <div class="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-        <span>${row['Vehicle Status'] || 'Unknown'}</span>
+        <span>${row['Deal Status'] || 'Unknown'}</span>
         <span class="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-rose-200">alert</span>
       </div>
       <div class="mt-2 grid gap-1 text-xs text-slate-200">
@@ -165,8 +165,8 @@ const fetchAlertsDealCount = async () => {
   }
   const { data, count, error } = await supabaseClient
     .from('DealsJP1')
-    .select('VIN, Vehicle Status, Current Stock No, Physical Location', { count: 'exact' })
-    .in('Vehicle Status', ['ACTIVE', 'STOCK', 'STOLEN']);
+    .select('VIN, Deal Status, Current Stock No, Physical Location', { count: 'exact' })
+    .in('Deal Status', ['ACTIVE', 'STOCK', 'STOLEN']);
   if (error) {
     setAlertsDealCount(0);
     setAlertsDealsList([]);
