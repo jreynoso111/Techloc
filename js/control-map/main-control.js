@@ -1,4 +1,6 @@
-import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
+import '../../assets/scripts/authManager.js';
+    import { createConstellationBackground } from '../../assets/scripts/constellation.js';
+    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../assets/scripts/geoUtils.js';
     import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../assets/scripts/dataMapper.js';
     import { createRepairHistoryManager } from '../../assets/scripts/repairHistory.js';
@@ -7,7 +9,10 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
     import { startLoading } from './utils/loading.js';
     import { escapeHTML, formatDateTime, normalizeKey, toStateCode } from './utils/formatters.js';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js';
+    import { initializeControlMapRealtime, startSupabaseKeepAlive } from './services/realtime.js';
     import { getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
+    import { createLayerToggle } from './utils/layer-toggles.js';
+    import { syncVehicleMarkers } from './utils/vehicle-markers.js';
     
     // --- Base Config ---
 
@@ -1512,158 +1517,67 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
       });
     }
 
-    function updateHotspotToggle() {
-      const toggle = document.getElementById('toggle-hotspots');
-      if (!toggle) return;
-
-      toggle.textContent = hotspotsVisible ? 'Hide Hotspot Areas' : 'Show Hotspot Areas';
-      toggle.classList.toggle('active', hotspotsVisible);
-      toggle.setAttribute('aria-pressed', hotspotsVisible ? 'true' : 'false');
-    }
-
-    function setHotspotsVisible(visible) {
-      hotspotsVisible = !!visible;
-      updateHotspotToggle();
-
-      if (!hotspotLayer || !map) return;
-      if (!hotspotsVisible) {
-        if (map.hasLayer(hotspotLayer)) map.removeLayer(hotspotLayer);
-        return;
-      }
-
-      if (!map.hasLayer(hotspotLayer)) hotspotLayer.addTo(map);
-      renderHotspots();
-    }
-
-    function setupHotspotToggle() {
-      const toggle = document.getElementById('toggle-hotspots');
-      if (!toggle) return;
-
-      toggle.addEventListener('click', () => setHotspotsVisible(!hotspotsVisible));
-      updateHotspotToggle();
-    }
-
-    function updateBlacklistToggle() {
-      const toggle = document.getElementById('toggle-blacklist');
-      if (!toggle) return;
-
-      toggle.textContent = blacklistMarkersVisible ? 'Hide Blacklist Marks' : 'Show Blacklist Marks';
-      toggle.classList.toggle('active', blacklistMarkersVisible);
-      toggle.setAttribute('aria-pressed', blacklistMarkersVisible ? 'true' : 'false');
-    }
-
-    function setBlacklistVisible(visible) {
-      blacklistMarkersVisible = !!visible;
-      updateBlacklistToggle();
-
-      if (!blacklistLayer || !map) return;
-      if (!blacklistMarkersVisible) {
-        if (map.hasLayer(blacklistLayer)) map.removeLayer(blacklistLayer);
-        return;
-      }
-
-      if (!map.hasLayer(blacklistLayer)) blacklistLayer.addTo(map);
-      renderBlacklistSites();
-    }
-
-    function setupBlacklistToggle() {
-      const toggle = document.getElementById('toggle-blacklist');
-      if (!toggle) return;
-
-      toggle.addEventListener('click', () => setBlacklistVisible(!blacklistMarkersVisible));
-      updateBlacklistToggle();
-    }
-
-    function updateVehicleMarkerToggle() {
-      const toggle = document.getElementById('toggle-vehicle-markers');
-      if (!toggle) return;
-
-      toggle.textContent = vehicleMarkersVisible ? 'Hide Vehicles Marks' : 'Show Vehicles Marks';
-      toggle.classList.toggle('active', vehicleMarkersVisible);
-      toggle.setAttribute('aria-pressed', vehicleMarkersVisible ? 'true' : 'false');
-    }
-
-    function setVehicleMarkersVisible(visible) {
-      vehicleMarkersVisible = !!visible;
-      updateVehicleMarkerToggle();
-
-      if (!vehicleMarkersVisible) {
-        if (vehicleLayer) {
-          vehicleLayer.clearLayers();
-          if (map?.hasLayer(vehicleLayer)) map.removeLayer(vehicleLayer);
+    function setupLayerToggles() {
+      createLayerToggle({
+        toggleId: 'toggle-hotspots',
+        labelOn: 'Hide Hotspot Areas',
+        labelOff: 'Show Hotspot Areas',
+        getVisible: () => hotspotsVisible,
+        setVisible: (value) => {
+          hotspotsVisible = value;
+        },
+        onShow: () => {
+          if (!hotspotLayer || !map) return;
+          if (!map.hasLayer(hotspotLayer)) hotspotLayer.addTo(map);
+          renderHotspots();
+        },
+        onHide: () => {
+          if (!hotspotLayer || !map) return;
+          if (map.hasLayer(hotspotLayer)) map.removeLayer(hotspotLayer);
         }
-        vehicleMarkers.clear();
-        highlightLayer?.clearLayers();
-        return;
-      }
-
-      if (vehicleLayer && map && !map.hasLayer(vehicleLayer)) {
-        vehicleLayer.addTo(map);
-      }
-
-      renderVehicles();
-    }
-
-    function setupVehicleMarkerToggle() {
-      const toggle = document.getElementById('toggle-vehicle-markers');
-      if (!toggle) return;
-
-      toggle.addEventListener('click', () => setVehicleMarkersVisible(!vehicleMarkersVisible));
-      updateVehicleMarkerToggle();
-    }
-
-    function createVehicleMarkerIcon(markerColor, borderColor, isStopped) {
-      return L.divIcon({
-        className: 'vehicle-marker-wrapper',
-        html: `<div class="vehicle-marker-icon"><span class="vehicle-marker-dot" style="background:${markerColor}; border-color:${borderColor}"></span>${isStopped ? '<span class="vehicle-cross-badge">✕</span>' : ''}</div>`,
-        iconSize: [18, 18],
-        iconAnchor: [9, 9]
-      });
-    }
-
-    function syncVehicleMarkers(vehiclesWithCoords) {
-      if (!vehicleLayer) return;
-
-      if (!vehicleMarkersVisible) {
-        vehicleLayer.clearLayers();
-        vehicleMarkers.clear();
-        return;
-      }
-
-      const activeIds = new Set();
-
-      vehiclesWithCoords.forEach(({ vehicle, coords, focusHandler }) => {
-        if (!coords) return;
-
-        const markerColor = getVehicleMarkerColor(vehicle);
-        const borderColor = getVehicleMarkerBorderColor(markerColor);
-        const isStopped = isVehicleNotMoving(vehicle);
-        const icon = createVehicleMarkerIcon(markerColor, borderColor, isStopped);
-
-        const stored = vehicleMarkers.get(vehicle.id);
-        let marker = stored?.marker;
-
-        if (marker) {
-          marker.setLatLng([coords.lat, coords.lng]);
-          marker.setIcon(icon);
-          marker.setZIndexOffset(isStopped ? 500 : 0);
-          marker.options.vehicleData = vehicle;
-          marker.options.markerColor = markerColor;
-          marker.options.isStopped = isStopped;
-        } else {
-          marker = L.marker([coords.lat, coords.lng], { icon, zIndexOffset: isStopped ? 500 : 0, vehicleData: vehicle, markerColor, isStopped }).addTo(vehicleLayer);
-          marker.on('click', (e) => { e.originalEvent.handledByMarker = true; focusHandler(); });
-        }
-
-        vehicleMarkers.set(vehicle.id, { marker });
-        activeIds.add(vehicle.id);
       });
 
-      [...vehicleMarkers.keys()].forEach((id) => {
-        if (activeIds.has(id)) return;
-        const stored = vehicleMarkers.get(id);
-        if (stored?.marker) vehicleLayer.removeLayer(stored.marker);
-        vehicleMarkers.delete(id);
+      createLayerToggle({
+        toggleId: 'toggle-blacklist',
+        labelOn: 'Hide Blacklist Marks',
+        labelOff: 'Show Blacklist Marks',
+        getVisible: () => blacklistMarkersVisible,
+        setVisible: (value) => {
+          blacklistMarkersVisible = value;
+        },
+        onShow: () => {
+          if (!blacklistLayer || !map) return;
+          if (!map.hasLayer(blacklistLayer)) blacklistLayer.addTo(map);
+          renderBlacklistSites();
+        },
+        onHide: () => {
+          if (!blacklistLayer || !map) return;
+          if (map.hasLayer(blacklistLayer)) map.removeLayer(blacklistLayer);
+        }
+      });
+
+      createLayerToggle({
+        toggleId: 'toggle-vehicle-markers',
+        labelOn: 'Hide Vehicles Marks',
+        labelOff: 'Show Vehicles Marks',
+        getVisible: () => vehicleMarkersVisible,
+        setVisible: (value) => {
+          vehicleMarkersVisible = value;
+        },
+        onShow: () => {
+          if (vehicleLayer && map && !map.hasLayer(vehicleLayer)) {
+            vehicleLayer.addTo(map);
+          }
+          renderVehicles();
+        },
+        onHide: () => {
+          if (vehicleLayer) {
+            vehicleLayer.clearLayers();
+            if (map?.hasLayer(vehicleLayer)) map.removeLayer(vehicleLayer);
+          }
+          vehicleMarkers.clear();
+          highlightLayer?.clearLayers();
+        }
       });
     }
 
@@ -1689,7 +1603,15 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
         empty.className = 'text-center mt-10 text-slate-600 text-xs';
         empty.textContent = 'No vehicles match your search.';
         container.replaceChildren(empty);
-        syncVehicleMarkers([]);
+        syncVehicleMarkers({
+          vehiclesWithCoords: [],
+          vehicleLayer,
+          vehicleMarkers,
+          visible: vehicleMarkersVisible,
+          getVehicleMarkerColor,
+          getVehicleMarkerBorderColor,
+          isVehicleNotMoving
+        });
         return;
       }
 
@@ -1820,7 +1742,15 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
 
         container.replaceChildren(fragment);
 
-        syncVehicleMarkers(vehiclesForMarkers);
+        syncVehicleMarkers({
+          vehiclesWithCoords: vehiclesForMarkers,
+          vehicleLayer,
+          vehicleMarkers,
+          visible: vehicleMarkersVisible,
+          getVehicleMarkerColor,
+          getVehicleMarkerBorderColor,
+          isVehicleNotMoving
+        });
       }
 
     function focusVehicle(vehicle) {
@@ -3299,6 +3229,7 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
 
     document.addEventListener('DOMContentLoaded', () => {
       (async () => {
+        createConstellationBackground();
         await loadStateCenters();
         initMap();
         await syncAvailableServiceTypes();
@@ -3310,9 +3241,7 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
         await loadAllServices();
         setupResizableSidebars();
         setupSidebarToggles();
-        setupHotspotToggle();
-        setupBlacklistToggle();
-        setupVehicleMarkerToggle();
+        setupLayerToggles();
         bindVehicleFilterHandlers();
         syncVehicleFilterInputs();
         const filterConfigs = [
@@ -3354,14 +3283,29 @@ import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
           if (e.target.id === 'vehicle-modal') closeVehicleModal();
         });
 
-        setInterval(async () => {
-          if (!supabaseClient) return;
-          try {
-            await supabaseClient.from(TABLES.vehicles).select('id').limit(1);
-          } catch (error) {
-            // Keep-alive failures are non-blocking.
-          }
-        }, 4 * 60 * 1000);
+        const refreshVehicles = debounceAsync(async () => {
+          await loadVehicles();
+        }, 600);
+        const refreshHotspots = debounceAsync(async () => {
+          await loadHotspots();
+        }, 600);
+        const refreshBlacklist = debounceAsync(async () => {
+          await loadBlacklistSites();
+        }, 600);
+        const refreshServices = debounceAsync(async () => {
+          await loadAllServices();
+        }, 800);
+
+        initializeControlMapRealtime({
+          supabaseClient,
+          tables: TABLES,
+          onVehiclesChange: refreshVehicles,
+          onHotspotsChange: refreshHotspots,
+          onBlacklistChange: refreshBlacklist,
+          onServicesChange: refreshServices
+        });
+
+        startSupabaseKeepAlive({ supabaseClient, table: TABLES.vehicles });
 
         window.addEventListener('auth:role-ready', () => renderVehicles());
       })();
