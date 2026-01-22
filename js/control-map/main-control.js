@@ -7,7 +7,21 @@ import '../../assets/scripts/authManager.js';
     import { createPartnerClusterGroup } from './utils/cluster.js';
     import { attachDistances, debounce, debounceAsync, getOriginKey, runWithTimeout } from './utils/helpers.js';
     import { startLoading } from './utils/loading.js';
-    import { escapeHTML, formatDateTime, normalizeKey, toStateCode } from './utils/formatters.js';
+    import {
+      escapeHTML,
+      formatDateTime,
+      getGpsFixLabel,
+      getMovingLabel,
+      getMovingMeta,
+      getStatusCardStyles,
+      getVehicleMarkerBorderColor,
+      getVehicleMarkerColor,
+      isVehicleNotMoving,
+      normalizeFilterValue,
+      normalizeKey,
+      parseDealCompletion,
+      toStateCode
+    } from '../../assets/js/utils/formatters.js';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js';
     import { initializeControlMapRealtime, startSupabaseKeepAlive } from './services/realtime.js';
     import { getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
@@ -1834,15 +1848,6 @@ import '../../assets/scripts/authManager.js';
       `;
     }
 
-    function parseDealCompletion(value) {
-      if (value === null || value === undefined) return null;
-      const raw = String(value).replace(/%/g, '').trim();
-      const num = parseFloat(raw);
-      if (!Number.isFinite(num)) return null;
-      if (num <= 1) return num * 100;
-      return num;
-    }
-
     function matchesRange(value, min, max) {
       const pct = parseDealCompletion(value);
       if (!Number.isFinite(pct)) return min <= 0; // allow unknowns only when the range starts at 0
@@ -1850,37 +1855,6 @@ import '../../assets/scripts/authManager.js';
     }
 
     const EMPTY_FILTER_VALUE = '__empty__';
-    const normalizeFilterValue = (value) => (value ?? '').toString().trim().toLowerCase();
-
-    function getStatusCardStyles(value, type) {
-      const normalized = normalizeFilterValue(value);
-      if (type === 'deal' && normalized === 'active') {
-        return {
-          card: 'border-emerald-500/60 bg-emerald-500/15 text-emerald-100',
-          label: 'text-emerald-200/80',
-          value: 'text-emerald-50'
-        };
-      }
-      if (type === 'prep' && normalized === 'out for repo') {
-        return {
-          card: 'border-red-500/60 bg-red-500/15 text-red-100',
-          label: 'text-red-200/80',
-          value: 'text-red-50'
-        };
-      }
-      if (type === 'pt' && normalized === 'disabled') {
-        return {
-          card: 'border-red-500/60 bg-red-500/15 text-red-100',
-          label: 'text-red-200/80',
-          value: 'text-red-50'
-        };
-      }
-      return {
-        card: 'border-slate-800 bg-slate-900 text-slate-200',
-        label: 'text-slate-500',
-        value: 'text-slate-100'
-      };
-    }
 
     function matchesVehicleFilters(vehicle, query) {
       const q = (query || '').toLowerCase();
@@ -1954,17 +1928,6 @@ import '../../assets/scripts/authManager.js';
       return Array.from(values).sort();
     }
 
-    function getMovingLabel(value) {
-      if (value === 'moving') return 'Moving';
-      if (value === 'stopped') return 'Not moving';
-      return value;
-    }
-
-    function getGpsFixLabel(value) {
-      if (value === EMPTY_FILTER_VALUE) return 'Empty';
-      return value;
-    }
-
     function normalizeFilterSelections(values, selections) {
       if (!Array.isArray(selections)) return [];
       return selections.filter((value) => values.includes(value));
@@ -2015,7 +1978,7 @@ import '../../assets/scripts/authManager.js';
       vehicleFilters.moving = normalizeFilterSelections(movingValues, vehicleFilters.moving);
 
       renderCheckboxOptions('filter-invprep', invPrepValues, vehicleFilters.invPrep);
-      renderCheckboxOptions('filter-gps', gpsValues, vehicleFilters.gpsFix, getGpsFixLabel);
+      renderCheckboxOptions('filter-gps', gpsValues, vehicleFilters.gpsFix, (value) => getGpsFixLabel(value, EMPTY_FILTER_VALUE));
       renderCheckboxOptions('filter-deal-status', dealStatusValues, vehicleFilters.dealStatus);
       renderCheckboxOptions('filter-pt', ptValues, vehicleFilters.ptStatus);
       renderCheckboxOptions('filter-moving', movingValues, vehicleFilters.moving, getMovingLabel);
@@ -2199,36 +2162,6 @@ import '../../assets/scripts/authManager.js';
       });
 
       return closestDistance <= maxDistanceMeters ? closest : null;
-    }
-
-    function getVehicleMarkerColor(vehicle) {
-      const fix = (vehicle.gpsFix || '').trim().toLowerCase();
-      if (fix.includes('fully working')) return '#22c55e';
-      if (fix === 'all' || fix.includes('all')) return '#ef4444';
-      return '#f59e0b';
-    }
-
-    function getVehicleMarkerBorderColor(fillColor) {
-      const color = (fillColor || '').toLowerCase();
-      if (color === '#22c55e') return '#166534';
-      if (color === '#f59e0b') return '#92400e';
-      return '#991b1b';
-    }
-
-    function getMovingMeta(vehicle) {
-      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
-      if (movingValue === 1) {
-        return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
-      }
-      if (movingValue === -1) {
-        return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
-      }
-      return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
-    }
-
-    function isVehicleNotMoving(vehicle) {
-      const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
-      return movingValue === -1;
     }
 
     function toggleSelectionBanner() {
