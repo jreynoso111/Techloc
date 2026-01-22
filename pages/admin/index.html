@@ -922,6 +922,17 @@
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
+      setProgress(100, 'Running DealsJP1 vehicle sync...');
+
+      const { data: syncData, error: syncError } = await supabaseClient.rpc('sync_vehicles_from_dealsjp1_lastdeal');
+      if (syncError) {
+        console.error('Supabase DealsJP1 sync error:', syncError);
+        showToast('DealsJP1 vehicle sync failed: ' + formatSupabaseError(syncError), 'error');
+        throw syncError;
+      }
+
+      console.info('DealsJP1 vehicle sync updated rows:', syncData);
+
       const summary =
         'Completed.' +
         '\nTotal rows processed: ' + rows.length +
