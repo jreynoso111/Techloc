@@ -31,6 +31,7 @@ import {
   hydrateVehiclesFromSupabase,
   initializeSupabaseRealtime,
 } from './api/supabase.js';
+import { getVehicles } from './services/fleetService.js';
 
 // ==========================================================
 // 1) SUPABASE CLIENT (robusto)
@@ -665,7 +666,7 @@ const schedulePersistPreferences = () => {
   }, 500);
 };
 
-const getCurrentDataset = () => Array.from(DashboardState.vehiclesRaw.values());
+const getCurrentDataset = () => getVehicles(DashboardState.vehiclesRaw);
 const setVehiclesFromArray = (vehicles) => {
   DashboardState.vehiclesRaw.clear();
   vehicles.forEach((vehicle) => {
