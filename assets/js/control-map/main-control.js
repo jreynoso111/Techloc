@@ -29,6 +29,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
     import { createLayerToggle } from './utils/layer-toggles.js';
     import { syncVehicleMarkers } from './utils/vehicle-markers.js';
+    import { bindStorageListener, getSelectedVehicle, setSelectedVehicle, subscribeSelectedVehicle } from '../shared/selectedVehicleStore.js';
     
     // --- Base Config ---
 
@@ -51,6 +52,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     let blacklistMarkersVisible = true;
     const serviceHeadersByCategory = {};
     let selectedVehicleId = null;
+    let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
     let sidebarStateController = null;
@@ -86,6 +88,52 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     };
 
     const ensureSupabaseSession = () => ensureSupabaseSessionBase(supabaseClient);
+
+    const areDepsEqual = (next = [], prev = []) =>
+      next.length === prev.length && next.every((value, index) => Object.is(value, prev[index]));
+
+    const createCallbackMemo = () => {
+      const cache = new Map();
+      return (key, factory, deps = []) => {
+        const previous = cache.get(key);
+        if (previous && areDepsEqual(deps, previous.deps)) return previous.fn;
+        const fn = factory();
+        cache.set(key, { deps: [...deps], fn });
+        return fn;
+      };
+    };
+
+    const useCallback = createCallbackMemo();
+
+    const normalizeSelectionValue = (value) => `${value ?? ''}`.trim().toLowerCase();
+    const matchesVehicleSelection = (vehicle, selection) => {
+      if (!vehicle || !selection) return false;
+      if (selection.id !== null && selection.id !== undefined && `${vehicle.id}` === `${selection.id}`) return true;
+      const selectionVin = normalizeSelectionValue(selection.vin);
+      const vehicleVin = normalizeSelectionValue(vehicle.vin);
+      if (selectionVin && vehicleVin && selectionVin === vehicleVin) return true;
+      const selectionCustomer = normalizeSelectionValue(selection.customerId);
+      const vehicleCustomer = normalizeSelectionValue(vehicle.customerId);
+      return !!(selectionCustomer && vehicleCustomer && selectionCustomer === vehicleCustomer);
+    };
+
+    const syncVehicleSelectionFromStore = (selection, { shouldFocus = true } = {}) => {
+      if (!selection) {
+        if (selectedVehicleId === null) return;
+        syncingVehicleSelection = true;
+        applySelection(null, selectedTechId);
+        syncingVehicleSelection = false;
+        return;
+      }
+
+      const match = vehicles.find((vehicle) => matchesVehicleSelection(vehicle, selection));
+      if (!match || selectedVehicleId === match.id) return;
+
+      syncingVehicleSelection = true;
+      applySelection(match.id, null);
+      syncingVehicleSelection = false;
+      if (shouldFocus) focusVehicle(match);
+    };
 
     const serviceCategoryLabelsByType = new Map();
     const getServiceCategoryLabel = (type) => serviceCategoryLabelsByType.get(type) || '';
@@ -844,6 +892,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
         renderVehicles();
+        syncVehicleSelectionFromStore(getSelectedVehicle(), { shouldFocus: true });
       } catch (err) {
         console.warn("Vehicle load warning: " + err.message);
         document.getElementById('vehicle-list').innerHTML = `
@@ -1644,14 +1693,20 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
       filtered.forEach((vehicle, idx) => {
         const movingMeta = getMovingMeta(vehicle);
 
-          const focusHandler = () => {
-            if (!hasValidCoords(vehicle)) {
-              console.warn(`No coordinates available for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
-              return;
-            }
-            applySelection(vehicle.id, null);
-            focusVehicle(vehicle);
-          };
+          const focusHandler = useCallback(
+            `vehicle-focus-${vehicle.id}`,
+            () => () => {
+              const currentVehicle = vehicles.find((item) => item.id === vehicle.id);
+              if (!currentVehicle) return;
+              if (!hasValidCoords(currentVehicle)) {
+                console.warn(`No coordinates available for vehicle ${currentVehicle.vin || currentVehicle.id || 'unknown'}`);
+                return;
+              }
+              applySelection(currentVehicle.id, null);
+              focusVehicle(currentVehicle);
+            },
+            [vehicle.id]
+          );
 
           let coords = null;
           if (hasValidCoords(vehicle)) {
@@ -2188,6 +2243,16 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     function applySelection(vehicleId = null, techId = null) {
       selectedVehicleId = vehicleId;
       selectedTechId = techId;
+      if (vehicleId !== null && !syncingVehicleSelection) {
+        const selectedVehicle = vehicles.find((vehicle) => `${vehicle.id}` === `${vehicleId}`);
+        setSelectedVehicle({
+          id: selectedVehicle?.id ?? vehicleId,
+          vin: selectedVehicle?.vin || '',
+          customerId: selectedVehicle?.customerId || ''
+        });
+      } else if (vehicleId === null && !syncingVehicleSelection) {
+        setSelectedVehicle(null);
+      }
       if (vehicleId !== null) {
         sidebarStateController?.setState?.('right', true);
       }
@@ -2206,6 +2271,9 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
       serviceConnectionLayer?.clearLayers();
       lastOriginPoint = null;
       lastClientLocation = null;
+      if (!syncingVehicleSelection) {
+        setSelectedVehicle(null);
+      }
       renderVehicles();
       renderVisibleSidebars();
       toggleSelectionBanner();
@@ -3163,6 +3231,11 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      bindStorageListener();
+      subscribeSelectedVehicle((selection) => {
+        if (!vehicles.length) return;
+        syncVehicleSelectionFromStore(selection);
+      });
       (async () => {
         createConstellationBackground();
         await loadStateCenters();

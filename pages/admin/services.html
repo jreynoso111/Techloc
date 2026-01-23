@@ -874,6 +874,11 @@
       filterPopover.appendChild(optionsWrapper);
 
       const selected = new Set(filterState.values);
+      let searchTimer;
+      const applyFilterUpdate = (closeAfter = false) => {
+        setColumnFilter(colId, { values: Array.from(selected), query: searchInput.value.trim() });
+        if (closeAfter) closePopover();
+      };
       const renderOptions = (term = '') => {
         const normalizedTerm = getText(term);
         optionsWrapper.innerHTML = '';
@@ -904,6 +909,7 @@
             } else {
               selected.delete(value);
             }
+            applyFilterUpdate();
           });
           const text = document.createElement('span');
           text.className = 'truncate';
@@ -951,19 +957,19 @@
 
       searchInput.addEventListener('input', () => {
         renderOptions(searchInput.value);
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => applyFilterUpdate(), 150);
       });
 
       applyBtn.addEventListener('click', () => {
-        setColumnFilter(colId, { values: Array.from(selected), query: searchInput.value.trim() });
-        closePopover();
+        applyFilterUpdate(true);
       });
 
       clearBtn.addEventListener('click', () => {
         selected.clear();
         searchInput.value = '';
         renderOptions('');
-        setColumnFilter(colId, { values: [], query: '' });
-        closePopover();
+        applyFilterUpdate(true);
       });
 
       filterWrapper.appendChild(filterBtn);
@@ -1716,7 +1722,10 @@
     const makeChartOptions = () => ({
       responsive: true,
       maintainAspectRatio: false,
-      animation: false,
+      animation: {
+        duration: 650,
+        easing: 'easeOutQuart'
+      },
       plugins: {
         legend: { labels: { color: 'rgba(226,232,240,.85)', boxWidth: 10, boxHeight: 10, usePointStyle: true } },
         tooltip: {
@@ -1769,7 +1778,10 @@
           responsive: true,
           maintainAspectRatio: false,
           cutout: '62%',
-          animation: false,
+          animation: {
+            duration: 650,
+            easing: 'easeOutQuart'
+          },
           plugins: { legend: { position: 'right', labels: { color: 'rgba(226,232,240,.85)', boxWidth: 10, boxHeight: 10, usePointStyle: true } }, tooltip: makeChartOptions().plugins.tooltip },
         }
       });

@@ -326,8 +326,11 @@
     } from '../../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
     import { logAdminEvent } from '../../assets/scripts/adminAudit.js';
+    import { bindStorageListener, setSelectedVehicle } from '../../assets/js/shared/selectedVehicleStore.js';
 
 
+
+    bindStorageListener();
 
     const setupDashboardDropdown = () => {
 
@@ -788,6 +791,7 @@
             } else {
               selected.delete(value);
             }
+            setColumnFilter(header, Array.from(selected));
           });
           const text = document.createElement('span');
           text.textContent = value ? value.toUpperCase() : 'N/A';
@@ -805,7 +809,6 @@
         applyBtn.className = 'flex-1 rounded-md bg-blue-600 px-3 py-2 text-white hover:bg-blue-500';
         applyBtn.textContent = 'Apply';
         applyBtn.addEventListener('click', () => {
-          setColumnFilter(header, Array.from(selected));
           closePopover();
         });
 
@@ -958,6 +961,17 @@
         const tr = document.createElement('tr');
 
         tr.className = 'transition hover:bg-slate-800/40';
+        const vinValue = getValue(row, 'VIN', 'vin', 'ShortVIN', 'shortvin');
+        const customerValue = getValue(row, 'Customer ID', 'customer_id', 'customer');
+        tr.addEventListener('click', (event) => {
+          if (state.inlineEdit.td) return;
+          if (event.target.closest('button, a, input, select, textarea')) return;
+          setSelectedVehicle({
+            id: row?.id ?? null,
+            vin: vinValue || '',
+            customerId: customerValue || '',
+          });
+        });
 
         getVisibleHeaders().forEach((header, idx) => {
           const td = document.createElement('td');

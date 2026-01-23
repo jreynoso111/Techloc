@@ -332,6 +332,22 @@
         return '';
     };
 
+    const areDepsEqual = (next = [], prev = []) =>
+      next.length === prev.length && next.every((value, index) => Object.is(value, prev[index]));
+
+    const createMemo = () => {
+      let lastDeps = null;
+      let lastValue = null;
+      return (factory, deps = []) => {
+        if (lastDeps && areDepsEqual(deps, lastDeps)) return lastValue;
+        lastDeps = [...deps];
+        lastValue = factory();
+        return lastValue;
+      };
+    };
+
+    const useMemo = createMemo();
+
     const normalizeRow = (row, type) => {
         if (type === 'vehicle') {
             return {
@@ -367,11 +383,49 @@
 
     // --- RENDER DASHBOARD ---
     const renderDashboard = (serviceRows, vehicleRows) => {
+        const analytics = useMemo(() => {
+          const catCounts = serviceRows.reduce((acc, row) => {
+            acc[row.category] = (acc[row.category] || 0) + 1;
+            return acc;
+          }, {});
+          const sortedCats = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+          const regionCounts = serviceRows.reduce((acc, row) => {
+            if (row.state) acc[row.state] = (acc[row.state] || 0) + 1;
+            return acc;
+          }, {});
+          const topRegions = Object.entries(regionCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8);
+          const movingCount = vehicleRows.filter(row => row.moving).length;
+          const stoppedCount = vehicleRows.length - movingCount;
+          const movingPct = vehicleRows.length
+            ? Math.round((movingCount / vehicleRows.length) * 100)
+            : 0;
+          const totalCompletion = vehicleRows.reduce((acc, row) => acc + row.completion, 0);
+          const avgCompletion = vehicleRows.length ? (totalCompletion / vehicleRows.length).toFixed(1) : 0;
+          const unitTypes = vehicleRows.reduce((acc, row) => {
+            acc[row.category] = (acc[row.category] || 0) + 1;
+            return acc;
+          }, {});
+          const ratedServices = serviceRows.filter(row => row.rating > 0);
+          const averageRating = ratedServices.length
+            ? (ratedServices.reduce((acc, row) => acc + row.rating, 0) / ratedServices.length).toFixed(1)
+            : '-';
+          return {
+            sortedCats,
+            topRegions,
+            movingCount,
+            stoppedCount,
+            movingPct,
+            avgCompletion,
+            unitTypes,
+            averageRating
+          };
+        }, [serviceRows, vehicleRows]);
+
         // 1. SERVICES: Category Bars
-        const catCounts = {};
-        serviceRows.forEach(r => catCounts[r.category] = (catCounts[r.category] || 0) + 1);
         els.categoryBars.innerHTML = '';
-        const sortedCats = Object.entries(catCounts).sort((a,b) => b[1] - a[1]);
+        const sortedCats = analytics.sortedCats;
 
         if (!sortedCats.length) els.categoryBars.innerHTML = '<p class="text-sm text-slate-500">No services found.</p>';
 
@@ -397,9 +451,7 @@
 
         // 2. SERVICES: Top Regions
         els.topRegions.innerHTML = '';
-        const regionCounts = {};
-        serviceRows.forEach(r => { if(r.state) regionCounts[r.state] = (regionCounts[r.state]||0)+1; });
-        const topRegions = Object.entries(regionCounts).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+        const topRegions = analytics.topRegions;
         
         if (!topRegions.length) els.topRegions.innerHTML = '<p class="text-sm text-slate-500">No region data available.</p>';
         
@@ -415,22 +467,18 @@
         });
 
         // 3. VEHICLES: Charts
-        const movingCount = vehicleRows.filter(r => r.moving).length;
-        const stoppedCount = vehicleRows.length - movingCount;
-        const movingPct = vehicleRows.length ? Math.round((movingCount / vehicleRows.length) * 100) : 0;
+        const { movingCount, stoppedCount, movingPct } = analytics;
         
         els.movingPct.textContent = `${movingPct}%`;
         els.countMoving.textContent = movingCount;
         els.countStopped.textContent = stoppedCount;
         setTimeout(() => els.movingCircle.setAttribute('stroke-dasharray', `${movingPct}, 100`), 100);
 
-        const totalCompletion = vehicleRows.reduce((acc, r) => acc + r.completion, 0);
-        const avgCompletion = vehicleRows.length ? (totalCompletion / vehicleRows.length).toFixed(1) : 0;
+        const avgCompletion = analytics.avgCompletion;
         els.avgCompletionText.textContent = `${avgCompletion}%`;
         setTimeout(() => els.avgCompletionBar.style.width = `${avgCompletion}%`, 200);
 
-        const unitTypes = {};
-        vehicleRows.forEach(r => unitTypes[r.category] = (unitTypes[r.category]||0)+1);
+        const unitTypes = analytics.unitTypes;
         els.unitTypesList.innerHTML = '';
         Object.entries(unitTypes).forEach(([type, count]) => {
              const pct = ((count / vehicleRows.length) * 100).toFixed(0);
@@ -446,8 +494,7 @@
         els.kpiVehicles.textContent = vehicleRows.length;
         els.kpiServices.textContent = serviceRows.length;
         els.kpiMoving.textContent = movingCount;
-        const ratedServices = serviceRows.filter(r => r.rating > 0);
-        els.kpiRating.textContent = ratedServices.length ? (ratedServices.reduce((a,b)=>a+b.rating,0)/ratedServices.length).toFixed(1) : '-';
+        els.kpiRating.textContent = analytics.averageRating;
         
         setTimeout(() => document.querySelectorAll('[data-width]').forEach(el => el.style.width = el.getAttribute('data-width')), 100);
     };
