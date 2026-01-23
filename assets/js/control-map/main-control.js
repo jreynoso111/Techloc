@@ -25,6 +25,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js';
     import { createControlMapApiService } from './services/apiService.js';
     import { startSupabaseKeepAlive } from './services/realtime.js';
+    import { createVehicleService } from './services/vehicleService.js';
     import { vehiclePopupTemplate } from '../templates/vehiclePopup.js';
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
     import { createLayerToggle } from './utils/layer-toggles.js';
@@ -88,6 +89,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     };
 
     const ensureSupabaseSession = () => ensureSupabaseSessionBase(supabaseClient);
+    const vehicleService = createVehicleService({ client: supabaseClient, tableName: TABLES.vehicles });
 
     const areDepsEqual = (next = [], prev = []) =>
       next.length === prev.length && next.every((value, index) => Object.is(value, prev[index]));
@@ -879,21 +881,20 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
 
     async function loadVehicles() {
       if (vehicles.length) return;
-      if (!supabaseClient) {
-        console.warn('Supabase unavailable: skipping vehicle load.');
-        return;
-      }
       const stopLoading = startLoading('Loading Vehicles…');
       try {
-        const { data, error } = await supabaseClient.from(TABLES.vehicles).select('*');
-        if (error) throw error;
-        vehicles = (data || []).map((row, idx) => normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords }));
-        vehicleHeaders = data?.length ? Object.keys(data[0]) : [];
+        const data = await vehicleService.listVehicles();
+        vehicles = data.map((row, idx) => normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords }));
+        vehicleHeaders = data.length ? Object.keys(data[0]) : [];
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
         renderVehicles();
         syncVehicleSelectionFromStore(getSelectedVehicle(), { shouldFocus: true });
       } catch (err) {
+        if (err?.message === 'Vehicle data provider unavailable.') {
+          console.warn('Vehicle data provider unavailable: skipping vehicle load.');
+          return;
+        }
         console.warn("Vehicle load warning: " + err.message);
         document.getElementById('vehicle-list').innerHTML = `
           <div class="text-center mt-10 px-6">
