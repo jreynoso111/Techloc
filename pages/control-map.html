@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TechLoc • Control Map</title>
 
-  <!-- Styles & Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -33,37 +32,14 @@
       --right-sidebar-width: 360px;
       --reseller-sidebar-width: 320px;
       --repair-sidebar-width: 320px;
-      --custom-sidebar-width: 320px;
-      --dynamic-sidebar-width: 320px;
     }
 
-    @media (max-width: 1280px) {
-      :root {
-        --left-sidebar-width: 320px;
-        --right-sidebar-width: 320px;
-        --reseller-sidebar-width: 280px;
-        --repair-sidebar-width: 280px;
-        --custom-sidebar-width: 280px;
-        --dynamic-sidebar-width: 280px;
-      }
-    }
-
-    @media (max-width: 1024px) {
-      :root {
-        --left-sidebar-width: 260px;
-        --right-sidebar-width: 260px;
-        --reseller-sidebar-width: 240px;
-        --repair-sidebar-width: 240px;
-        --custom-sidebar-width: 240px;
-        --dynamic-sidebar-width: 240px;
-      }
-
-      header .max-w-7xl { row-gap: 1rem; }
-    }
-
-    /* Map */
+    /* Map Layout Fixes */
+    #map-layout { position: relative; flex: 1; overflow: hidden; background-color: #020617; }
     #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; position: absolute; inset: 0; }
-    .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
+    
+    .leaflet-control-container .leaflet-top, 
+    .leaflet-control-container .leaflet-bottom { z-index: 500; }
 
     .resizable-sidebar {
       position: absolute;
@@ -72,658 +48,163 @@
       backdrop-filter: blur(12px);
       background: rgba(15, 23, 42, 0.9);
       transition: transform 0.3s ease;
+      z-index: 550; /* Por encima del mapa y controles de Leaflet */
     }
 
     .collapsed-left { transform: translateX(calc(-1 * var(--left-sidebar-width))); }
     .collapsed-right { transform: translateX(var(--right-sidebar-width)); }
-    .collapsed-reseller { transform: translateX(calc(-1 * var(--reseller-sidebar-width))); }
-    .collapsed-repair { transform: translateX(calc(-1 * var(--repair-sidebar-width))); }
-    .collapsed-custom { transform: translateX(calc(-1 * var(--custom-sidebar-width))); }
-    .collapsed-dynamic { transform: translateX(calc(-1 * var(--dynamic-sidebar-width))); }
 
-    .resize-handle {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 10px;
-      cursor: col-resize;
-      z-index: 60;
-      background: linear-gradient(90deg, transparent 30%, rgba(148, 163, 184, 0.12), transparent 70%);
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .resizable-sidebar:hover .resize-handle { opacity: 1; }
-    .resize-handle::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 2px;
-      height: 28px;
-      background: rgba(226, 232, 240, 0.35);
-      border-radius: 9999px;
-      transform: translate(-50%, -50%);
-    }
-
-    /* Legend */
-    .legend-heading {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 10px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-weight: 800;
-      color: #cbd5e1;
-    }
-
-    .legend-heading::before {
-      content: '';
-      display: inline-block;
-      width: 18px;
-      height: 1px;
-      border-radius: 9999px;
-      background: linear-gradient(90deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.6));
-    }
-
-    .legend-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 6px 10px;
-      border-radius: 9999px;
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(148, 163, 184, 0.25);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      color: #e2e8f0;
-      font-weight: 600;
-      font-size: 11px;
-    }
-
-    .legend-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 9999px;
-      border: 1px solid rgba(226, 232, 240, 0.65);
-    }
-
-    .legend-hotspot {
-      position: relative;
-      display: inline-flex;
-      height: 14px;
-      width: 14px;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .legend-hotspot::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      border-radius: 9999px;
-      border: 1px solid rgba(52, 211, 153, 0.7);
-      background: rgba(16, 185, 129, 0.2);
-    }
-
-    .legend-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 6px;
-      background: rgba(248, 113, 113, 0.12);
-      color: #fda4af;
-      font-weight: 800;
-      font-size: 12px;
-      border: 1px solid rgba(248, 113, 113, 0.4);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    }
-
-    /* Vehicle popup styling */
-    .vehicle-popup .leaflet-popup-content-wrapper {
-      background: #0b1120ee;
-      color: #e2e8f0;
-      border: 1px solid #1f2937;
-      border-radius: 14px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.45);
-      overflow: hidden;
-      width: min(260px, calc(100vw - 80px));
-      max-width: min(260px, calc(100vw - 80px));
-    }
-    .vehicle-popup .leaflet-popup-content { margin: 0; width: 100%; }
-    .vehicle-popup .leaflet-popup-tip { background: #0b1120; border: 1px solid #1f2937; }
-
-    .service-mini-popup .leaflet-popup-content-wrapper {
-      background: #0b1120f0;
-      color: #e2e8f0;
-      border: 1px solid #1f2937;
-      border-radius: 10px;
-      box-shadow: 0 18px 34px rgba(0,0,0,0.4);
-      padding: 4px 6px;
-      width: min(220px, calc(100vw - 80px));
-      max-width: min(220px, calc(100vw - 80px));
-    }
-
-    .service-mini-popup .leaflet-popup-content { margin: 2px 4px; width: 100%; }
-    .service-mini-popup .leaflet-popup-tip { background: #0b1120; border: 1px solid #1f2937; }
-
-    .service-mini-card { font-family: 'Inter', sans-serif; min-width: 0; }
-    .service-mini-title { margin: 0; font-size: 13px; font-weight: 800; color: #fff; line-height: 1.2; }
-    .service-mini-location { margin: 2px 0 0; font-size: 11px; color: #cbd5e1; line-height: 1.3; }
-    .service-mini-meta { margin: 6px 0 0; font-size: 11px; color: #e2e8f0; line-height: 1.3; display: flex; gap: 6px; align-items: baseline; }
-    .service-mini-label { font-weight: 700; color: #cbd5e1; letter-spacing: 0.02em; text-transform: uppercase; font-size: 10px; }
-    .service-mini-note { margin: 4px 0 0; font-size: 11px; color: #fef3c7; line-height: 1.35; font-weight: 600; }
+    /* Legend & UI Elements */
+    .legend-heading { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 800; color: #cbd5e1; }
+    .legend-heading::before { content: ''; display: inline-block; width: 18px; height: 1px; background: linear-gradient(90deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.6)); }
+    .legend-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 6px 10px; border-radius: 9999px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.25); color: #e2e8f0; font-weight: 600; font-size: 11px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 9999px; border: 1px solid rgba(226, 232, 240, 0.65); }
+    
+    .sidebar-toggle-btn { position: relative; z-index: 500; padding: 0.5rem 0.75rem; font-size: 12px; font-weight: 700; border-radius: 9999px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: #e2e8f0; backdrop-filter: blur(8px); transition: all 0.2s ease; pointer-events: auto; }
+    .sidebar-toggle-group { position: absolute; top: 50%; transform: translateY(-50%); z-index: 500; display: flex; flex-direction: column; gap: 0.75rem; pointer-events: none; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #0f172a; }
     ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 
-    .vehicle-cross-badge {
-      color: #facc15;
-      font-size: 12px;
-      font-weight: 900;
-      text-shadow: 0 2px 5px rgba(15, 23, 42, 0.35);
-      line-height: 1;
-      width: 16px;
-      height: 16px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      animation: vehicle-cross-shift 2.6s ease-in-out infinite alternate;
-    }
-
-    @keyframes vehicle-cross-shift {
-      0% { color: #f59e0b; text-shadow: 0 2px 5px rgba(15, 23, 42, 0.35); }
-      100% { color: #fef3c7; text-shadow: 0 2px 5px rgba(15, 23, 42, 0.35); }
-    }
-
-    .hotspot-pin {
-      display: inline-flex;
-      width: 16px;
-      height: 16px;
-      border-radius: 9999px;
-      background: #ef4444;
-      border: 2px solid #fff;
-      box-shadow: 0 0 0 6px rgba(248, 113, 113, 0.2), 0 14px 24px rgba(0, 0, 0, 0.45);
-    }
-
-    .vehicle-dot {
-      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .vehicle-marker-icon {
-      position: relative;
-      width: 18px;
-      height: 18px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
-    }
-
-    .vehicle-marker-dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 9999px;
-      border: 2.6px solid #0f172a;
-      background: #38bdf8;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-    }
-
-    .vehicle-marker-icon .vehicle-cross-badge {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
-
-    .blacklist-marker {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: #ef4444;
-      font-size: 18px;
-      font-weight: 900;
-      line-height: 1;
-      text-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
-      animation: blacklist-pulse 1.2s ease-in-out infinite alternate;
-      transform: translateY(-2px);
-    }
-
-    @keyframes blacklist-pulse {
-      0% { color: #ef4444; text-shadow: 0 6px 16px rgba(239, 68, 68, 0.35); }
-      100% { color: #facc15; text-shadow: 0 6px 16px rgba(250, 204, 21, 0.35); }
-    }
-
-    .service-icon-wrapper {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .service-cross {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #ef4444;
-      font-size: 11px;
-      font-weight: 900;
-      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
-      pointer-events: none;
-    }
-
-    .service-check {
-      position: absolute;
-      top: -6px;
-      right: -6px;
-      font-size: 11px;
-      font-weight: 900;
-      color: #22c55e;
-      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
-      pointer-events: none;
-      animation: service-check-pulse 1.1s ease-in-out infinite alternate;
-    }
-
-    @keyframes service-check-pulse {
-      0% { color: #22c55e; }
-      100% { color: var(--service-check-accent, #22c55e); }
-    }
-
-    .distance-label-wrapper { pointer-events: none; }
-
-    .distance-label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.02em;
-      color: var(--line-color, #e2e8f0);
-      background: rgba(10, 14, 26, 0.95);
-      border: 1px solid color-mix(in srgb, var(--line-color, #e2e8f0) 70%, transparent);
-      border-radius: 9999px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
-    }
-
-    .sidebar-toggle-btn {
-      position: relative;
-      z-index: 500;
-      padding: 0.5rem 0.75rem;
-      font-size: 12px;
-      font-weight: 700;
-      border-radius: 9999px;
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(148, 163, 184, 0.4);
-      color: #e2e8f0;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
-      transition: all 0.2s ease;
-    }
-
-    .sidebar-toggle-btn:hover { border-color: rgba(251, 191, 36, 0.7); color: #fef9c3; }
-
-    .sidebar-toggle-btn.active {
-      border-color: rgba(59, 130, 246, 0.8);
-      color: #e0f2fe;
-      background: linear-gradient(120deg, rgba(59, 130, 246, 0.25), rgba(14, 165, 233, 0.25));
-      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.35);
-    }
-
-    .sidebar-toggle-group {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      z-index: 500;
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-      pointer-events: none;
-      align-items: flex-start;
-    }
-
-    .sidebar-toggle-group.items-end { align-items: flex-end; }
-
-    .sidebar-toggle-group .sidebar-toggle-btn { position: relative; pointer-events: auto; align-self: flex-start; width: auto; }
-    .sidebar-toggle-group.items-end .sidebar-toggle-btn { align-self: flex-end; }
-
-    .sidebar-toggle-pill { padding: 0.4rem 0.85rem; font-size: 11px; }
-
-    #loading-overlay { transition: opacity 0.2s ease; }
-    #loading-overlay .spinner { border-top-color: transparent; }
-    body.loading, body.loading * { cursor: progress !important; }
+    .vehicle-cross-badge { color: #facc15; font-size: 12px; font-weight: 900; animation: vehicle-cross-shift 2.6s ease-in-out infinite alternate; }
+    @keyframes vehicle-cross-shift { 0% { color: #f59e0b; } 100% { color: #fef3c7; } }
   </style>
-  <link rel="stylesheet" href="../assets/visuals/theme.css" />
 </head>
+
 <body class="h-screen bg-slate-950 font-sans text-slate-50 text-sm overflow-hidden flex flex-col">
-  <div class="pointer-events-none fixed inset-0 -z-10 opacity-80 mix-blend-screen" aria-hidden="true">
-    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
-  </div>
-  <div data-auth-loading class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950">
-    <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-3 shadow-xl shadow-slate-900/60">
+
+  <div data-auth-loading class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950">
+    <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-3 shadow-xl">
       <span class="h-3 w-3 animate-pulse rounded-full bg-blue-400"></span>
       <p class="text-sm font-semibold text-slate-200">Validating secure session…</p>
     </div>
   </div>
 
-  <div id="loading-overlay" class="hidden fixed inset-0 z-40 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm pointer-events-none">
-    <div class="flex items-center gap-3 rounded-xl border border-slate-800/70 bg-slate-900/90 px-4 py-2 text-sm font-semibold text-slate-100 shadow-lg shadow-slate-900/50">
-      <span class="spinner h-5 w-5 animate-spin rounded-full border-2 border-slate-500"></span>
-      <span id="loading-text">Loading…</span>
-    </div>
-  </div>
+  <div data-auth-protected class="hidden h-full flex flex-col relative">
 
-  <div data-auth-protected class="hidden h-full flex flex-col">
-
-  <!-- App Header -->
-  <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-50">
-    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-start gap-4 px-6 py-4 lg:flex-nowrap lg:gap-6">
-      <a href="../index.html" class="flex items-center gap-3">
-        <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-          <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
-        </div>
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
-          <h1 class="text-lg font-black leading-tight text-white">Control Map</h1>
-        </div>
-      </a>
-      <nav class="ml-auto hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-        <a id="nav-home" href="../index.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Home</a>
-        <a id="nav-control-view" href="control-map.html" class="hidden rounded-full px-3 py-1 bg-blue-600 text-white shadow shadow-blue-500/20">Control Map</a>
-        <a id="nav-inventory-control" href="inventory-control.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Inventory Control</a>
-        <a id="nav-services" href="admin/services.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Services</a>
-        <a id="nav-dashboard" href="admin/index.html" data-dashboard-link class="hidden rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Dashboard</a>
-        <a id="nav-about" href="about.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">About</a>
-        <a id="nav-contact" href="contact.html" class="rounded-full px-3 py-1 transition-colors hover:text-white hover:bg-slate-800">Contact</a>
-      </nav>
-      <div class="ml-auto flex items-center gap-3 md:ml-4">
-        <a id="nav-login" href="login.html" class="hidden rounded-full border border-blue-500 px-3 py-1 text-sm font-semibold text-blue-100 transition hover:bg-blue-600 hover:text-white">Login</a>
-        <button id="nav-logout" type="button" class="hidden rounded-full border border-red-700 px-3 py-1 text-sm font-semibold text-red-100 transition hover:border-red-400 hover:text-white">Logout</button>
-        <div class="hidden items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-300 md:flex" data-admin-actions>
-          <span class="flex h-2 w-2 rounded-full bg-emerald-400"></span> Live coverage
-        </div>
+    <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-[600]">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-start gap-4 px-6 py-4 lg:flex-nowrap lg:gap-6">
+        <a href="../index.html" class="flex items-center gap-3">
+          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
+            <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
+            <h1 class="text-lg font-black leading-tight text-white">Control Map</h1>
+          </div>
+        </a>
+        <nav class="ml-auto hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
+          <a href="../index.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800">Home</a>
+          <a href="inventory-control.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800">Inventory</a>
+          <button id="nav-logout" class="rounded-full border border-red-900/50 px-3 py-1 text-xs text-red-200 hover:bg-red-900/20">Logout</button>
+        </nav>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <main id="map-layout" class="relative flex-1 overflow-hidden bg-slate-950">
-
-    <div class="absolute inset-0">
+    <main id="map-layout">
       <div id="tech-map"></div>
-    </div>
 
-    <div id="selection-banner" class="pointer-events-auto absolute bottom-4 right-4 z-[450] hidden rounded-full border border-amber-400/60 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 shadow-lg shadow-amber-500/20 backdrop-blur">
-      <span id="selection-text">Filtered by selection</span>
-      <button id="clear-selection" class="ml-3 rounded-full bg-amber-400/20 px-3 py-1 text-[11px] font-bold text-amber-50 hover:bg-amber-400/30 border border-amber-300/70">Clear</button>
-    </div>
-
-    <div class="sidebar-toggle-group left-3">
-      <button id="open-left-sidebar" class="sidebar-toggle-btn">GPS Technicians</button>
-      <button id="open-reseller-sidebar" class="sidebar-toggle-btn">Resellers</button>
-      <button id="open-repair-sidebar" class="sidebar-toggle-btn">Repair Shops</button>
-      <div id="custom-toggle-slot" class="flex flex-col gap-2 items-start self-start">
-        <div id="custom-category-toggles" class="flex flex-col gap-2 items-start self-start"></div>
+      <div class="sidebar-toggle-group left-3">
+        <button id="open-left-sidebar" class="sidebar-toggle-btn">GPS Technicians</button>
+        <button id="open-reseller-sidebar" class="sidebar-toggle-btn">Resellers</button>
+        <button id="open-repair-sidebar" class="sidebar-toggle-btn">Repair Shops</button>
       </div>
-    </div>
-    <div id="map-visibility-group" class="pointer-events-none absolute top-4 left-1/2 z-[500] -translate-x-1/2 transform flex flex-wrap justify-center gap-2">
-      <button id="toggle-hotspots" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Hotspot Areas</button>
-      <button id="toggle-blacklist" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Blacklist Marks</button>
-      <button id="toggle-vehicle-markers" class="sidebar-toggle-btn sidebar-toggle-pill pointer-events-auto active" aria-pressed="true">Hide Vehicles Marks</button>
-    </div>
-    <div id="right-toggle-group" class="sidebar-toggle-group right-3 items-end">
-      <button id="open-right-sidebar" class="sidebar-toggle-btn text-[11px]">Show Vehicles</button>
-    </div>
 
-    <!-- Floating Legend -->
+      <div id="right-toggle-group" class="sidebar-toggle-group right-3 items-end">
+        <button id="open-right-sidebar" class="sidebar-toggle-btn">Show Vehicles</button>
+      </div>
+
       <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] w-[min(95vw,1100px)] rounded-2xl border border-slate-800 bg-slate-950/85 px-4 py-3 text-[11px] text-slate-200 shadow-xl backdrop-blur">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-8">
           <div class="flex-1 space-y-2">
             <p class="legend-heading">Services</p>
             <div class="flex flex-wrap items-center gap-2">
-              <div class="legend-pill" data-legend="tech">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#3b82f6" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Tech
-              </div>
-              <div class="legend-pill" data-legend="reseller">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#34d399" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Reseller
-              </div>
-              <div class="legend-pill" data-legend="repair">
-                <span class="inline-flex items-center justify-center"><svg class="h-3 w-3" viewBox="0 0 18 16" fill="#fb923c" stroke="#0f172a" stroke-width="1.2"><path d="M9 1.2L16.2 14.5H1.8L9 1.2Z"></path></svg></span>
-                Repair
-              </div>
-              <div id="custom-legend-slot" class="flex flex-wrap gap-2"></div>
+              <div class="legend-pill"><span class="legend-dot bg-blue-500"></span> Tech</div>
+              <div class="legend-pill"><span class="legend-dot bg-emerald-400"></span> Reseller</div>
+              <div class="legend-pill"><span class="legend-dot bg-orange-400"></span> Repair</div>
             </div>
           </div>
           <div class="flex-1 space-y-2 md:text-right">
-            <p class="legend-heading md:justify-end">Vehicles</p>
+            <p class="legend-heading md:justify-end">Vehicles Status</p>
             <div class="flex flex-wrap items-center gap-2 md:justify-end">
-              <div class="legend-pill">
-                <span class="legend-dot bg-red-500"></span>
-                GPS Fix: All
-              </div>
-              <div class="legend-pill">
-                <span class="legend-dot bg-emerald-400"></span>
-                Fully Working
-              </div>
-              <div class="legend-pill">
-                <span class="legend-dot bg-amber-500"></span>
-                Other states
-              </div>
-              <div class="legend-pill">
-                <span class="vehicle-cross-badge">✕</span>
-                Not moving
-              </div>
-            </div>
-            <div class="flex flex-wrap items-center gap-2 md:justify-end">
-              <div class="legend-pill">
-                <span class="legend-dot bg-red-500 border-white/90"></span>
-                Client location
-              </div>
-              <div class="legend-pill">
-                <span class="legend-hotspot"></span>
-                Hotspot Area
-              </div>
-              <div class="legend-pill">
-                <span class="legend-badge">!</span>
-                Blacklist
-              </div>
+              <div class="legend-pill"><span class="legend-dot bg-emerald-400"></span> Fully Working</div>
+              <div class="legend-pill"><span class="legend-dot bg-red-500"></span> GPS Fix Needed</div>
+              <div class="legend-pill"><span class="vehicle-cross-badge">✕</span> Not Moving</div>
             </div>
           </div>
         </div>
       </div>
-    <!-- Sidebar: Control Panel -->
-    <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col z-30 shadow-2xl collapsed-left" style="width: var(--left-sidebar-width)">
-      <div class="resize-handle right-0"></div>
 
-      <!-- Search -->
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10 space-y-4">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-slate-400 mb-1">Client starting point</p>
-            <h2 class="text-xl font-black text-white leading-tight">Find the nearest installer</h2>
+      <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col collapsed-left" style="width: var(--left-sidebar-width)">
+        <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md">
+          <div class="flex items-start justify-between gap-3 mb-4">
+            <h2 class="text-xl font-black text-white">Find Installer</h2>
+            <button id="collapse-left" class="h-8 w-8 rounded-full bg-slate-800 text-slate-200">✕</button>
           </div>
-          <div class="flex items-center gap-3">
-            <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Installers</p>
-              <p id="total-count" class="text-2xl font-black text-white leading-none">0</p>
-            </div>
-            <button id="collapse-left" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize sidebar">-</button>
-          </div>
+          <input id="address-input" type="text" placeholder="Zip code, City..." class="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-blue-500">
         </div>
-        <form id="search-form" class="relative">
-          <input
-            id="address-input"
-            type="text"
-            class="block w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-24 py-3 text-sm text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
-            placeholder="Ex: 33101, Phoenix, AZ..."
-            autocomplete="off"
-          >
-          <button type="submit" id="search-btn" class="absolute inset-y-1.5 right-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 text-xs font-bold transition-colors flex items-center justify-center min-w-[90px]">
-            CALCULATE
-          </button>
-        </form>
-
-        <div class="flex justify-between items-end">
-          <div id="search-status" class="hidden text-xs text-blue-400 animate-pulse font-medium">Locating address...</div>
-          <div id="file-error" class="hidden text-xs text-red-300">Unable to read installer partner data.</div>
+        <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900">
+          <div class="text-center mt-10 text-slate-600 text-xs">Waiting for data...</div>
         </div>
-      </div>
+      </aside>
 
-      <!-- Technicians List -->
-      <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for installer data...</div>
-      </div>
-    </aside>
-
-    <div id="partner-sidebars"></div>
-
-    <!-- Vehicles Sidebar -->
-    <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col z-30 shadow-2xl collapsed-right" style="width: var(--right-sidebar-width)">
-      <div class="resize-handle left-0"></div>
-      <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-[10px] font-bold uppercase text-amber-300 mb-1">Control Map</p>
-            <h2 class="text-xl font-black text-white leading-tight">GPS issues around the network</h2>
-          </div>
-          <div class="flex items-center gap-3">
+      <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col collapsed-right" style="width: var(--right-sidebar-width)">
+        <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-black text-white leading-tight">GPS Fleet</h2>
             <div class="text-right">
               <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
               <p id="vehicles-count" class="text-2xl font-black text-white leading-none">0</p>
             </div>
-            <button id="collapse-right" class="h-8 w-8 rounded-full border border-slate-700 bg-slate-800/80 text-lg font-bold text-slate-200 hover:border-amber-400 hover:text-amber-200" aria-label="Minimize vehicles sidebar">-</button>
           </div>
-        </div>
-        <div class="mt-4 relative">
-          <input id="vehicle-search" type="text" placeholder="Search by VIN, model, city..." class="w-full rounded-xl border border-slate-700 bg-slate-800 pl-4 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400 outline-none transition-all">
-          <svg class="h-4 w-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-        </div>
-        <div class="mt-2 space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-2.5">
-          <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
-            <span>Vehicle filters</span>
-            <button id="vehicle-filters-reset" class="text-amber-300 hover:text-amber-200 text-[10px] font-bold">Reset</button>
-          </div>
-          <div class="grid grid-cols-2 gap-1.5 text-[10px]">
-            <div class="space-y-0.5">
-              <span class="block text-slate-400 font-semibold">Inv. Prep. Stat</span>
-              <div class="relative">
-                <button id="filter-invprep-toggle" type="button" class="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300" aria-expanded="false">
-                  <span>Select</span>
-                  <span class="text-slate-500">▾</span>
-                </button>
-                <div id="filter-invprep-panel" class="absolute left-0 right-0 z-30 mt-1 hidden max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950/95 p-2 shadow-lg">
-                  <div id="filter-invprep" class="grid gap-1.5"></div>
-                </div>
-              </div>
-            </div>
-            <div class="space-y-0.5">
-              <span class="block text-slate-400 font-semibold">GPS Fix</span>
-              <div class="relative">
-                <button id="filter-gps-toggle" type="button" class="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300" aria-expanded="false">
-                  <span>Select</span>
-                  <span class="text-slate-500">▾</span>
-                </button>
-                <div id="filter-gps-panel" class="absolute left-0 right-0 z-30 mt-1 hidden max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950/95 p-2 shadow-lg">
-                  <div id="filter-gps" class="grid gap-1.5"></div>
-                </div>
-              </div>
-            </div>
-            <div class="space-y-0.5">
-              <span class="block text-slate-400 font-semibold">Moving</span>
-              <div class="relative">
-                <button id="filter-moving-toggle" type="button" class="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300" aria-expanded="false">
-                  <span>Select</span>
-                  <span class="text-slate-500">▾</span>
-                </button>
-                <div id="filter-moving-panel" class="absolute left-0 right-0 z-30 mt-1 hidden max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950/95 p-2 shadow-lg">
-                  <div id="filter-moving" class="grid gap-1.5"></div>
-                </div>
-              </div>
-            </div>
-            <div class="space-y-0.5">
-              <span class="block text-slate-400 font-semibold">Deal status</span>
-              <div class="relative">
-                <button id="filter-deal-status-toggle" type="button" class="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300" aria-expanded="false">
-                  <span>Select</span>
-                  <span class="text-slate-500">▾</span>
-                </button>
-                <div id="filter-deal-status-panel" class="absolute left-0 right-0 z-30 mt-1 hidden max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950/95 p-2 shadow-lg">
-                  <div id="filter-deal-status" class="grid gap-1.5"></div>
-                </div>
-              </div>
-            </div>
-            <div class="space-y-0.5">
-              <span class="block text-slate-400 font-semibold">PT Status</span>
-              <div class="relative">
-                <button id="filter-pt-toggle" type="button" class="flex w-full items-center justify-between rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-semibold text-slate-300" aria-expanded="false">
-                  <span>Select</span>
-                  <span class="text-slate-500">▾</span>
-                </button>
-                <div id="filter-pt-panel" class="absolute left-0 right-0 z-30 mt-1 hidden max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950/95 p-2 shadow-lg">
-                  <div id="filter-pt" class="grid gap-1.5"></div>
-                </div>
-              </div>
-            </div>
-            <label class="space-y-0.5">
-              <span class="block text-slate-400 font-semibold">Deal completion %</span>
-              <div class="flex items-center gap-1.5 text-[10px] text-slate-300">
-                <input id="filter-deal-min" type="number" min="0" max="100" step="1" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400" placeholder="0">
-                <span class="text-slate-500">to</span>
-                <input id="filter-deal-max" type="number" min="0" max="100" step="1" class="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400" placeholder="100">
-              </div>
-            </label>
-          </div>
-        </div>
-      </div>
-      <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900 scroll-smooth relative">
-        <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
-      </div>
-    </aside>
-  </main>
+          
+          <input id="vehicle-search" type="text" placeholder="VIN, Model, City..." class="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white outline-none focus:border-amber-400 mb-4">
 
-  <!-- Vehicle detail modal -->
-  <div id="vehicle-modal" class="fixed inset-0 z-[500] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-    <div class="flex w-[90vw] max-w-7xl flex-col border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden max-h-[85vh]">
-      <div class="sticky top-0 z-20 flex items-center justify-between border-b border-slate-800 bg-slate-900/80 px-4 py-3 backdrop-blur">
-        <div>
-          <p class="text-[10px] font-black uppercase tracking-[0.18em] text-amber-300">Vehicle details</p>
-          <h3 id="vehicle-modal-title" class="text-lg font-bold text-white"></h3>
-          <p id="vehicle-modal-vin" class="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400"></p>
+          <div class="space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
+             <div class="flex justify-between text-[11px] font-bold text-slate-300">
+               <span>Filters</span>
+               <button id="vehicle-filters-reset" class="text-amber-300">Reset</button>
+             </div>
+             <div class="grid grid-cols-2 gap-2">
+                <div class="relative">
+                  <button id="filter-gps-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-left">GPS Fix ▾</button>
+                  <div id="filter-gps-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1">
+                    <div id="filter-gps" class="grid gap-1"></div>
+                  </div>
+                </div>
+                <div class="relative">
+                  <button id="filter-pt-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-left">PT Status ▾</button>
+                  <div id="filter-pt-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1">
+                    <div id="filter-pt" class="grid gap-1"></div>
+                  </div>
+                </div>
+             </div>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <button id="vehicle-modal-columns-toggle" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Columns</button>
-          <button id="vehicle-modal-close" class="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400 hover:text-amber-200 transition-colors">Close</button>
+        
+        <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900">
+          <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
         </div>
-      </div>
-      <div id="vehicle-modal-columns-panel" class="hidden border-b border-slate-800 bg-slate-950/70 px-4 py-3">
-        <div class="flex items-center justify-between gap-4">
+      </aside>
+    </main>
+
+    <div id="vehicle-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div class="flex w-[95vw] max-w-6xl flex-col border border-slate-800 bg-slate-950 shadow-2xl rounded-2xl overflow-hidden max-h-[85vh]">
+        <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
           <div>
-            <p class="text-xs font-semibold text-slate-200">Choose columns</p>
-            <p class="text-[10px] text-slate-400">Drag rows in the table to reorder columns.</p>
+            <h3 id="vehicle-modal-title" class="text-lg font-bold text-white uppercase">Vehicle Details</h3>
+            <p id="vehicle-modal-vin" class="text-[10px] font-semibold text-slate-400 tracking-widest"></p>
           </div>
+          <button id="vehicle-modal-close" class="text-slate-400 hover:text-white font-black text-sm">CLOSE</button>
         </div>
-        <div id="vehicle-modal-columns-list" class="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-200"></div>
+        <div id="vehicle-modal-body" class="flex-1 overflow-y-auto p-6 bg-slate-950 text-slate-300"></div>
       </div>
-      <div class="flex-1 overflow-y-auto p-4" id="vehicle-modal-body"></div>
     </div>
-  </div>
 
-  <script type="module" src="../js/control-map/main-control.js"></script>
-</div>
+    <script type="module" src="../js/control-map/main-control.js"></script>
+
+  </div>
 </body>
 </html>
