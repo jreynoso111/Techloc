@@ -1,5 +1,5 @@
 import '../../assets/scripts/authManager.js';
-    import { createConstellationBackground } from '../../assets/scripts/constellation.js';
+import { createConstellationBackground } from '../../assets/scripts/ui/components/constellation.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../assets/scripts/geoUtils.js';
     import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../assets/scripts/dataMapper.js';
