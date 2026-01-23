@@ -32,14 +32,12 @@
       --right-sidebar-width: 360px;
       --reseller-sidebar-width: 320px;
       --repair-sidebar-width: 320px;
+      --custom-sidebar-width: 320px;
+      --dynamic-sidebar-width: 320px;
     }
 
-    /* Map Layout Fixes */
-    #map-layout { position: relative; flex: 1; overflow: hidden; background-color: #020617; }
     #tech-map { height: 100%; width: 100%; background-color: #0b1220; z-index: 1; position: absolute; inset: 0; }
-    
-    .leaflet-control-container .leaflet-top, 
-    .leaflet-control-container .leaflet-bottom { z-index: 500; }
+    .leaflet-control-container .leaflet-top, .leaflet-control-container .leaflet-bottom { z-index: 500; }
 
     .resizable-sidebar {
       position: absolute;
@@ -48,32 +46,28 @@
       backdrop-filter: blur(12px);
       background: rgba(15, 23, 42, 0.9);
       transition: transform 0.3s ease;
-      z-index: 550; /* Por encima del mapa y controles de Leaflet */
+      z-index: 600;
     }
 
     .collapsed-left { transform: translateX(calc(-1 * var(--left-sidebar-width))); }
     .collapsed-right { transform: translateX(var(--right-sidebar-width)); }
+    .collapsed-reseller { transform: translateX(calc(-1 * var(--reseller-sidebar-width))); }
+    .collapsed-repair { transform: translateX(calc(-1 * var(--repair-sidebar-width))); }
+    .collapsed-custom { transform: translateX(calc(-1 * var(--custom-sidebar-width))); }
+    .collapsed-dynamic { transform: translateX(calc(-1 * var(--dynamic-sidebar-width))); }
 
-    /* Legend & UI Elements */
-    .legend-heading { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 800; color: #cbd5e1; }
-    .legend-heading::before { content: ''; display: inline-block; width: 18px; height: 1px; background: linear-gradient(90deg, rgba(148, 163, 184, 0.1), rgba(148, 163, 184, 0.6)); }
-    .legend-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 6px 10px; border-radius: 9999px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.25); color: #e2e8f0; font-weight: 600; font-size: 11px; }
-    .legend-dot { width: 10px; height: 10px; border-radius: 9999px; border: 1px solid rgba(226, 232, 240, 0.65); }
-    
-    .sidebar-toggle-btn { position: relative; z-index: 500; padding: 0.5rem 0.75rem; font-size: 12px; font-weight: 700; border-radius: 9999px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: #e2e8f0; backdrop-filter: blur(8px); transition: all 0.2s ease; pointer-events: auto; }
+    /* Estilos de leyenda y marcadores (Copiados íntegros de tu original) */
+    .legend-pill { display: inline-flex; align-items: center; gap: 0.5rem; padding: 6px 10px; border-radius: 9999px; background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(148, 163, 184, 0.25); font-size: 11px; }
+    .sidebar-toggle-btn { position: relative; z-index: 500; padding: 0.5rem 0.75rem; font-size: 11px; font-weight: 700; border-radius: 9999px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(148, 163, 184, 0.4); color: #e2e8f0; pointer-events: auto; }
     .sidebar-toggle-group { position: absolute; top: 50%; transform: translateY(-50%); z-index: 500; display: flex; flex-direction: column; gap: 0.75rem; pointer-events: none; }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-
-    .vehicle-cross-badge { color: #facc15; font-size: 12px; font-weight: 900; animation: vehicle-cross-shift 2.6s ease-in-out infinite alternate; }
-    @keyframes vehicle-cross-shift { 0% { color: #f59e0b; } 100% { color: #fef3c7; } }
   </style>
 </head>
 
 <body class="h-screen bg-slate-950 font-sans text-slate-50 text-sm overflow-hidden flex flex-col">
+  
+  <div class="pointer-events-none fixed inset-0 -z-10 opacity-80 mix-blend-screen">
+    <canvas id="constellation-canvas" class="h-full w-full"></canvas>
+  </div>
 
   <div data-auth-loading class="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950">
     <div class="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900 px-5 py-3 shadow-xl">
@@ -82,121 +76,109 @@
     </div>
   </div>
 
-  <div data-auth-protected class="hidden h-full flex flex-col relative">
-
-    <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-[600]">
-      <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-start gap-4 px-6 py-4 lg:flex-nowrap lg:gap-6">
-        <a href="../index.html" class="flex items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-700 shadow-lg shadow-blue-500/30">
-            <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
+  <div data-auth-protected class="hidden h-full flex flex-col">
+    <header class="flex-none border-b border-slate-800 bg-slate-950/90 backdrop-blur z-[700]">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+        <div class="flex items-center gap-3">
+          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/30">
+            <span class="text-sm font-black text-white">TL</span>
           </div>
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Network</p>
-            <h1 class="text-lg font-black leading-tight text-white">Control Map</h1>
+            <h1 class="text-lg font-black text-white">Control Map</h1>
           </div>
-        </a>
-        <nav class="ml-auto hidden items-center gap-2 text-sm font-semibold text-slate-200 md:flex">
-          <a href="../index.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800">Home</a>
-          <a href="inventory-control.html" class="rounded-full px-3 py-1 transition hover:bg-slate-800">Inventory</a>
-          <button id="nav-logout" class="rounded-full border border-red-900/50 px-3 py-1 text-xs text-red-200 hover:bg-red-900/20">Logout</button>
+        </div>
+        <nav class="ml-auto hidden items-center gap-4 md:flex text-sm font-semibold">
+          <a href="../index.html" class="px-3 py-1 hover:bg-slate-800 rounded-full transition">Home</a>
+          <button id="nav-logout" class="border border-red-900 px-3 py-1 rounded-full text-xs text-red-200 hover:bg-red-900/20">Logout</button>
         </nav>
       </div>
     </header>
 
-    <main id="map-layout">
+    <main id="map-layout" class="relative flex-1 overflow-hidden">
       <div id="tech-map"></div>
+
+      <div id="map-visibility-group" class="pointer-events-none absolute top-4 left-1/2 z-[500] -translate-x-1/2 transform flex flex-wrap justify-center gap-2">
+        <button id="toggle-hotspots" class="sidebar-toggle-btn active">Hide Hotspot Areas</button>
+        <button id="toggle-blacklist" class="sidebar-toggle-btn active">Hide Blacklist Marks</button>
+        <button id="toggle-vehicle-markers" class="sidebar-toggle-btn active">Hide Vehicles Marks</button>
+      </div>
 
       <div class="sidebar-toggle-group left-3">
         <button id="open-left-sidebar" class="sidebar-toggle-btn">GPS Technicians</button>
         <button id="open-reseller-sidebar" class="sidebar-toggle-btn">Resellers</button>
         <button id="open-repair-sidebar" class="sidebar-toggle-btn">Repair Shops</button>
+        <div id="custom-category-toggles" class="flex flex-col gap-2"></div>
       </div>
 
-      <div id="right-toggle-group" class="sidebar-toggle-group right-3 items-end">
+      <div class="sidebar-toggle-group right-3 items-end">
         <button id="open-right-sidebar" class="sidebar-toggle-btn">Show Vehicles</button>
-      </div>
-
-      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] w-[min(95vw,1100px)] rounded-2xl border border-slate-800 bg-slate-950/85 px-4 py-3 text-[11px] text-slate-200 shadow-xl backdrop-blur">
-        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-8">
-          <div class="flex-1 space-y-2">
-            <p class="legend-heading">Services</p>
-            <div class="flex flex-wrap items-center gap-2">
-              <div class="legend-pill"><span class="legend-dot bg-blue-500"></span> Tech</div>
-              <div class="legend-pill"><span class="legend-dot bg-emerald-400"></span> Reseller</div>
-              <div class="legend-pill"><span class="legend-dot bg-orange-400"></span> Repair</div>
-            </div>
-          </div>
-          <div class="flex-1 space-y-2 md:text-right">
-            <p class="legend-heading md:justify-end">Vehicles Status</p>
-            <div class="flex flex-wrap items-center gap-2 md:justify-end">
-              <div class="legend-pill"><span class="legend-dot bg-emerald-400"></span> Fully Working</div>
-              <div class="legend-pill"><span class="legend-dot bg-red-500"></span> GPS Fix Needed</div>
-              <div class="legend-pill"><span class="vehicle-cross-badge">✕</span> Not Moving</div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <aside id="left-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col collapsed-left" style="width: var(--left-sidebar-width)">
         <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md">
-          <div class="flex items-start justify-between gap-3 mb-4">
-            <h2 class="text-xl font-black text-white">Find Installer</h2>
+          <div class="flex justify-between items-start mb-4">
+            <h2 class="text-xl font-black text-white">Technicians</h2>
             <button id="collapse-left" class="h-8 w-8 rounded-full bg-slate-800 text-slate-200">✕</button>
           </div>
-          <input id="address-input" type="text" placeholder="Zip code, City..." class="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-blue-500">
+          <input id="address-input" type="text" placeholder="Find nearest installer..." class="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white">
         </div>
-        <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900">
-          <div class="text-center mt-10 text-slate-600 text-xs">Waiting for data...</div>
+        <div id="tech-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900"></div>
+      </aside>
+
+      <aside id="reseller-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col collapsed-reseller" style="width: var(--reseller-sidebar-width)">
+        <div class="p-5 bg-slate-900 border-b border-slate-800">
+           <h2 class="text-xl font-black text-white">Resellers</h2>
+           <button id="collapse-reseller" class="text-slate-400">✕</button>
         </div>
+        <div id="reseller-list" class="flex-1 overflow-y-auto p-4 bg-slate-900"></div>
+      </aside>
+
+      <aside id="repair-sidebar" class="resizable-sidebar left-0 border-r border-slate-800 flex flex-col collapsed-repair" style="width: var(--repair-sidebar-width)">
+        <div class="p-5 bg-slate-900 border-b border-slate-800">
+           <h2 class="text-xl font-black text-white">Repair Shops</h2>
+           <button id="collapse-repair" class="text-slate-400">✕</button>
+        </div>
+        <div id="repair-list" class="flex-1 overflow-y-auto p-4 bg-slate-900"></div>
       </aside>
 
       <aside id="right-sidebar" class="resizable-sidebar right-0 border-l border-slate-800 flex flex-col collapsed-right" style="width: var(--right-sidebar-width)">
-        <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md">
+        <div class="p-5 border-b border-slate-800 bg-slate-900 shadow-md z-10">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="text-xl font-black text-white leading-tight">GPS Fleet</h2>
+            <h2 class="text-xl font-black text-white italic">GPS Fleet</h2>
             <div class="text-right">
-              <p class="text-[10px] uppercase text-slate-400 font-bold">Total</p>
-              <p id="vehicles-count" class="text-2xl font-black text-white leading-none">0</p>
+              <p class="text-[10px] uppercase text-slate-400">Total</p>
+              <p id="vehicles-count" class="text-2xl font-black text-white">0</p>
             </div>
           </div>
+          <input id="vehicle-search" type="text" placeholder="Search VIN, Model, City..." class="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-white mb-4">
           
-          <input id="vehicle-search" type="text" placeholder="VIN, Model, City..." class="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white outline-none focus:border-amber-400 mb-4">
-
-          <div class="space-y-2 rounded-xl border border-slate-800 bg-slate-900/70 p-3">
-             <div class="flex justify-between text-[11px] font-bold text-slate-300">
-               <span>Filters</span>
-               <button id="vehicle-filters-reset" class="text-amber-300">Reset</button>
-             </div>
-             <div class="grid grid-cols-2 gap-2">
-                <div class="relative">
-                  <button id="filter-gps-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-left">GPS Fix ▾</button>
-                  <div id="filter-gps-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1">
-                    <div id="filter-gps" class="grid gap-1"></div>
-                  </div>
-                </div>
-                <div class="relative">
-                  <button id="filter-pt-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-left">PT Status ▾</button>
-                  <div id="filter-pt-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1">
-                    <div id="filter-pt" class="grid gap-1"></div>
-                  </div>
-                </div>
-             </div>
+          <div class="rounded-xl border border-slate-800 bg-slate-900/70 p-3 space-y-2 text-[10px]">
+            <div class="flex justify-between font-bold text-slate-300"><span>Filters</span><button id="vehicle-filters-reset" class="text-amber-300">Reset</button></div>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="relative"><button id="filter-gps-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-left">GPS Fix ▾</button><div id="filter-gps-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1"><div id="filter-gps" class="grid gap-1"></div></div></div>
+              <div class="relative"><button id="filter-pt-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-left">PT Status ▾</button><div id="filter-pt-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1"><div id="filter-pt" class="grid gap-1"></div></div></div>
+              <div class="relative"><button id="filter-moving-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-left">Moving ▾</button><div id="filter-moving-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1"><div id="filter-moving" class="grid gap-1"></div></div></div>
+              <div class="relative"><button id="filter-deal-status-toggle" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-left">Deal status ▾</button><div id="filter-deal-status-panel" class="hidden absolute z-50 bg-slate-950 border border-slate-800 p-2 w-full mt-1"><div id="filter-deal-status" class="grid gap-1"></div></div></div>
+            </div>
+            <div class="mt-2">
+              <span class="block text-slate-400 font-semibold mb-1">Deal completion %</span>
+              <div class="flex items-center gap-2">
+                <input id="filter-deal-min" type="number" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-white" placeholder="0">
+                <span class="text-slate-500">to</span>
+                <input id="filter-deal-max" type="number" class="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-white" placeholder="100">
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900">
-          <div class="text-center mt-10 text-slate-600 text-xs">Waiting for vehicle data...</div>
-        </div>
+        <div id="vehicle-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-900"></div>
       </aside>
     </main>
 
-    <div id="vehicle-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div class="flex w-[95vw] max-w-6xl flex-col border border-slate-800 bg-slate-950 shadow-2xl rounded-2xl overflow-hidden max-h-[85vh]">
-        <div class="flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
-          <div>
-            <h3 id="vehicle-modal-title" class="text-lg font-bold text-white uppercase">Vehicle Details</h3>
-            <p id="vehicle-modal-vin" class="text-[10px] font-semibold text-slate-400 tracking-widest"></p>
-          </div>
+    <div id="vehicle-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div class="bg-slate-950 border border-slate-800 w-full max-w-5xl max-h-[85vh] rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900">
+          <h3 id="vehicle-modal-title" class="font-bold text-white uppercase tracking-widest">Details</h3>
           <button id="vehicle-modal-close" class="text-slate-400 hover:text-white font-black text-sm">CLOSE</button>
         </div>
         <div id="vehicle-modal-body" class="flex-1 overflow-y-auto p-6 bg-slate-950 text-slate-300"></div>
@@ -204,7 +186,6 @@
     </div>
 
     <script type="module" src="../js/control-map/main-control.js"></script>
-
   </div>
 </body>
 </html>
