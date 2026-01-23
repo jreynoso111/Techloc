@@ -1456,22 +1456,29 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
 
     function handleVehicleListClick(event) {
       const container = event.currentTarget;
-      const card = event.target.closest('[data-type="vehicle"]');
-      const viewMoreBtn = event.target.closest('[data-action="vehicle-view-more"]');
-      const repairHistoryBtn = event.target.closest('[data-action="repair-history"]');
+      const target = event.target instanceof Element ? event.target : null;
+      const composedPath = typeof event.composedPath === 'function' ? event.composedPath() : [];
+      const findInPath = (action) => composedPath.find((node) => node?.dataset?.action === action);
+      const card = target?.closest('[data-type="vehicle"]') || composedPath.find((node) => node?.dataset?.type === 'vehicle');
+      const viewMoreBtn = target?.closest('[data-action="vehicle-view-more"]') || findInPath('vehicle-view-more');
+      const repairHistoryBtn = target?.closest('[data-action="repair-history"]') || findInPath('repair-history');
       if (!card || !container.contains(card)) return;
 
       const vehicle = findVehicleById(card.dataset.id);
       if (!vehicle) return;
 
       if (viewMoreBtn) {
+        event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         openVehicleModal(vehicle);
         return;
       }
 
       if (repairHistoryBtn) {
+        event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         openRepairModal(vehicle);
         return;
       }
@@ -1738,11 +1745,11 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
               </div>
             </div>
             <div class="pt-1 flex items-center justify-end gap-2">
-              <button data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+              <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 ${svgIcon('info', 'h-3.5 w-3.5')}
                 See more
               </button>
-              <button data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">History</button>
+              <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">History</button>
             </div>
           `;
 
