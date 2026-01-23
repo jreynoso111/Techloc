@@ -255,6 +255,7 @@
     } from '../../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
     import { logAdminEvent } from '../../assets/scripts/adminAudit.js';
+    import { setServiceFilterIds } from '../../assets/js/shared/navigationStore.js';
 
     const READ_TABLE = 'Services';
     const WRITE_TABLE = 'Services';
@@ -714,6 +715,15 @@
       return result;
     };
 
+    const hasActiveFilters = () => {
+      const filters = state.filters.columnFilters || {};
+      return Object.values(filters).some((filter) => {
+        const values = Array.isArray(filter.values) ? filter.values : [];
+        const query = typeof filter.query === 'string' ? filter.query.trim() : '';
+        return values.length > 0 || query.length > 0;
+      });
+    };
+
     const applySort = (rows) => {
       const { key, dir } = state.sort;
       if (!key) return rows;
@@ -1166,6 +1176,11 @@
       renderColumnsPopover();
       syncTopScrollbar();
       renderCharts(sorted);
+      if (hasActiveFilters()) {
+        setServiceFilterIds('tech', filtered.map((row) => row.id));
+      } else {
+        setServiceFilterIds('tech', null);
+      }
       lucide.createIcons();
     };
 

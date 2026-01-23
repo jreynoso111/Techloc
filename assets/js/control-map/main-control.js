@@ -30,7 +30,18 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
     import { createLayerToggle } from './utils/layer-toggles.js';
     import { syncVehicleMarkers } from './utils/vehicle-markers.js';
-    import { bindStorageListener, getSelectedVehicle, setSelectedVehicle, subscribeSelectedVehicle } from '../shared/selectedVehicleStore.js';
+    import {
+      bindNavigationStorageListener,
+      getSelectedVehicle,
+      getServiceFilterIds,
+      getServiceFilters,
+      setSelectedVehicle,
+      setServiceFilter,
+      setServiceFilters,
+      subscribeSelectedVehicle,
+      subscribeServiceFilters,
+      subscribeServiceFilterIds,
+    } from '../shared/navigationStore.js';
     
     // --- Base Config ---
 
@@ -66,12 +77,8 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     let lastClientLocation = null;
     let renderedTechIds = '';
     let lastOriginPoint = null;
-    const serviceFilters = {
-      tech: '',
-      reseller: '',
-      repair: '',
-      custom: ''
-    };
+    const serviceFilters = { ...getServiceFilters() };
+    const serviceFilterIds = { ...getServiceFilterIds() };
     const vehicleFilters = {
       invPrep: [],
       gpsFix: [],
@@ -1202,8 +1209,10 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
 
     const applyServiceFilter = (list = [], type = 'tech') => {
       const query = getPartnerFilterValue(type);
-      if (!query) return list;
-      return list.filter((partner) => {
+      const allowedIds = Array.isArray(serviceFilterIds[type]) ? new Set(serviceFilterIds[type].map((id) => `${id}`)) : null;
+      const baseList = allowedIds ? list.filter((partner) => allowedIds.has(`${partner.id}`)) : list;
+      if (!query) return baseList;
+      return baseList.filter((partner) => {
         return [partner.company, partner.contact, partner.city, partner.state, partner.zip, partner.region]
           .some(value => `${value || ''}`.toLowerCase().includes(query));
       });
@@ -1213,6 +1222,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
       if (!type || !partner) return;
       const filterValue = partner.company || partner.name || partner.zip || '';
       serviceFilters[type] = filterValue;
+      setServiceFilter(type, filterValue);
       const inputId = type === 'custom' ? 'dynamic-service-filter' : `${type}-filter`;
       const input = document.getElementById(inputId);
       if (input) {
@@ -1249,6 +1259,24 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     };
 
     const getSelectedService = (type) => selectedServiceByType[type] || null;
+
+    const syncServiceFilterInputs = () => {
+      const inputConfigs = [
+        { id: 'tech-filter', type: 'tech' },
+        { id: 'reseller-filter', type: 'reseller' },
+        { id: 'repair-filter', type: 'repair' },
+        { id: 'dynamic-service-filter', type: 'custom' },
+      ];
+
+      inputConfigs.forEach(({ id, type }) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        const value = serviceFilters[type] || '';
+        if (input.value !== value) {
+          input.value = value;
+        }
+      });
+    };
 
     function renderPartnerUI(partners = [], options) {
       const { containerId, layer, visible, accentColor, badgeLabel, type } = options;
@@ -1406,9 +1434,13 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
       if (descEl) descEl.textContent = `Showing ${label} partners detected in Supabase.`;
 
       const normalizedList = list.filter((item) => !categoryKey || item?.categoryKey === categoryKey);
+      const allowedIds = Array.isArray(serviceFilterIds.custom) ? new Set(serviceFilterIds.custom.map((id) => `${id}`)) : null;
+      const constrainedList = allowedIds
+        ? normalizedList.filter((partner) => allowedIds.has(`${partner.id}`))
+        : normalizedList;
       const filterValue = `${serviceFilters.custom || filterInput?.value || ''}`.toLowerCase();
       const origin = getCurrentOrigin();
-      const withDistances = attachDistances(normalizedList, origin, distanceCaches.partners, (partner) => {
+      const withDistances = attachDistances(constrainedList, origin, distanceCaches.partners, (partner) => {
         if (!origin) return 0;
         return getDistance(origin.lat, origin.lng, partner.lat, partner.lng);
       });
@@ -3232,10 +3264,27 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      bindStorageListener();
+      bindNavigationStorageListener();
       subscribeSelectedVehicle((selection) => {
         if (!vehicles.length) return;
         syncVehicleSelectionFromStore(selection);
+      });
+      subscribeServiceFilters((filters) => {
+        Object.assign(serviceFilters, filters);
+        syncServiceFilterInputs();
+        renderVisibleSidebars();
+        const origin = getCurrentOrigin();
+        if (origin) {
+          showServicesFromOrigin(origin, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
+        }
+      });
+      subscribeServiceFilterIds((filters) => {
+        Object.assign(serviceFilterIds, filters);
+        renderVisibleSidebars();
+        const origin = getCurrentOrigin();
+        if (origin) {
+          showServicesFromOrigin(origin, { forceType: isAnyServiceSidebarOpen() ? getActivePartnerType() : null });
+        }
       });
       (async () => {
         createConstellationBackground();
@@ -3265,6 +3314,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
           if (!input) return;
           input.addEventListener('input', () => {
             serviceFilters[type] = input.value;
+            setServiceFilter(type, input.value);
             renderVisibleSidebars();
             const origin = getCurrentOrigin();
             if (origin) {
@@ -3272,6 +3322,8 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
             }
           });
         });
+
+        syncServiceFilterInputs();
 
         setupEventDelegation();
 
