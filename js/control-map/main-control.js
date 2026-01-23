@@ -23,7 +23,8 @@ import '../../assets/scripts/authManager.js';
       toStateCode
     } from '../../assets/js/utils/formatters.js';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js';
-    import { initializeControlMapRealtime, startSupabaseKeepAlive } from './services/realtime.js';
+    import { createControlMapApiService } from './services/apiService.js';
+    import { startSupabaseKeepAlive } from './services/realtime.js';
     import { getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
     import { createLayerToggle } from './utils/layer-toggles.js';
     import { syncVehicleMarkers } from './utils/vehicle-markers.js';
@@ -3229,13 +3230,15 @@ import '../../assets/scripts/authManager.js';
           await loadAllServices();
         }, 800);
 
-        initializeControlMapRealtime({
+        createControlMapApiService({
           supabaseClient,
           tables: TABLES,
-          onVehiclesChange: refreshVehicles,
-          onHotspotsChange: refreshHotspots,
-          onBlacklistChange: refreshBlacklist,
-          onServicesChange: refreshServices
+          handlers: {
+            vehicles: refreshVehicles,
+            hotspots: refreshHotspots,
+            blacklist: refreshBlacklist,
+            services: refreshServices
+          }
         });
 
         startSupabaseKeepAlive({ supabaseClient, table: TABLES.vehicles });
