@@ -1456,22 +1456,29 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
 
     function handleVehicleListClick(event) {
       const container = event.currentTarget;
-      const card = event.target.closest('[data-type="vehicle"]');
-      const viewMoreBtn = event.target.closest('[data-action="vehicle-view-more"]');
-      const repairHistoryBtn = event.target.closest('[data-action="repair-history"]');
+      const target = event.target instanceof Element ? event.target : null;
+      const composedPath = typeof event.composedPath === 'function' ? event.composedPath() : [];
+      const findInPath = (action) => composedPath.find((node) => node?.dataset?.action === action);
+      const card = target?.closest('[data-type="vehicle"]') || composedPath.find((node) => node?.dataset?.type === 'vehicle');
+      const viewMoreBtn = target?.closest('[data-action="vehicle-view-more"]') || findInPath('vehicle-view-more');
+      const repairHistoryBtn = target?.closest('[data-action="repair-history"]') || findInPath('repair-history');
       if (!card || !container.contains(card)) return;
 
       const vehicle = findVehicleById(card.dataset.id);
       if (!vehicle) return;
 
       if (viewMoreBtn) {
+        event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         openVehicleModal(vehicle);
         return;
       }
 
       if (repairHistoryBtn) {
+        event.preventDefault();
         event.stopPropagation();
+        event.stopImmediatePropagation?.();
         openRepairModal(vehicle);
         return;
       }
