@@ -1,4 +1,4 @@
-const VEHICLE_HEADER_LABELS = {
+export const VEHICLE_HEADER_LABELS = {
   days_stationary: 'Days Parked',
   short_location: 'GPS City'
 };
