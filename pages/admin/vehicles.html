@@ -248,10 +248,6 @@
               <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                 <div class="flex flex-wrap items-center gap-2">
                   <span id="dataset-status" class="rounded-full border border-slate-700/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Supabase table</span>
-                  <a id="template-download" href="../../assets/data/vehicles.csv" download class="inline-flex items-center gap-2 rounded-full border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
-                    <i data-lucide="download" class="h-4 w-4"></i>
-                    Download data
-                  </a>
                   <div class="relative">
                     <button id="column-selector-toggle" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
                       <i data-lucide="columns" class="h-4 w-4"></i>
@@ -409,12 +405,6 @@
     const CHANGE_LOG_TABLE = 'admin_change_log';
 
     const actor = { id: 'anon', email: '' };
-    const FALLBACK_DATASET_PATH = '../../assets/data/vehicles.csv';
-    const EMBEDDED_VEHICLE_CSV = `Deal Status,Customer ID,Unit Type,Model Year,Model,ShortVIN,Inv. Prep. Stat.,Deal Completion,GPS Fix,GPS Fix Reason,PT Status,PT Serial ,Encore Serial,Moving,PT Last Read,State Loc,PT City,PT ZipCode,Lat,Long
-ACTIVE,101726 ,Truck,2023,579 Sleeper Truck,855486,  Available,68.33%,1x passtime,Driving disabled,Enabled,66762231,82190469,1,2025-12-05 09:27:00,TX,Terrell, 75161,35.057052,-96.244518
-ACTIVE,107759 ,Truck,2022,Cascadia PT126SLP,NE7518,  Available,86.36%,2x encores,"1x discharged
-1x never installed",Enabled,26317444,82152780,1,2025-12-04 22:25:00,LA,Lela, 79079,35.226762,-100.32775
-ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x uninstalled,"",,84230110,-1,2025-12-05 01:12:00,CA,San Bernardino County, 92407,34.169125,-117.305093`;
 
     const normalizeHeader = (header = '') => {
       const aliases = {
@@ -691,26 +681,6 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
       return { headers, rows };
     };
 
-    const fetchVehiclesFromCsv = async () => {
-      const response = await fetch(FALLBACK_DATASET_PATH);
-      const text = await response.text();
-      const { rows } = parseCsvText(text);
-      const mapped = mapVehicleRows(rows);
-      const headerSet = new Set();
-      mapped.forEach((row) => Object.keys(row).forEach((key) => headerSet.add(key)));
-      const headers = Array.from(headerSet);
-      return { headers, rows: mapped };
-    };
-
-    const fetchVehiclesFromEmbedded = () => {
-      const { rows } = parseCsvText(EMBEDDED_VEHICLE_CSV);
-      const mapped = mapVehicleRows(rows);
-      const headerSet = new Set();
-      mapped.forEach((row) => Object.keys(row).forEach((key) => headerSet.add(key)));
-      const headers = Array.from(headerSet);
-      return { headers, rows: mapped };
-    };
-
     const loadVehiclesData = async () => {
       let fetchedHeaders = [];
       let fetchedRows = [];
@@ -723,27 +693,11 @@ ACTIVE,108129 ,Trailer,2022,DVHDHPC 53',264779,  Out for Repo,66.57%,All,2x unin
         setDatasetStatus('Supabase table');
       } catch (error) {
         console.error('Error loading vehicles from Supabase', error);
+        setDatasetStatus('Supabase unavailable');
+        showToast('Supabase data unavailable. Please verify the connection.', 'error');
       }
-
       if (!fetchedHeaders.length || !fetchedRows.length) {
-        try {
-          const { headers, rows } = await fetchVehiclesFromCsv();
-          fetchedHeaders = headers;
-          fetchedRows = rows;
-          usedSupabase = false;
-          setDatasetStatus('Fallback CSV');
-        } catch (csvError) {
-          console.error('Error loading fallback CSV', csvError);
-          try {
-            const { headers, rows } = fetchVehiclesFromEmbedded();
-            fetchedHeaders = headers;
-            fetchedRows = rows;
-            setDatasetStatus('Embedded sample');
-          } catch (embeddedError) {
-            console.error('Error loading embedded fallback', embeddedError);
-            setDatasetStatus('No data available');
-          }
-        }
+        setDatasetStatus('No data available');
       }
 
       state.headers = fetchedHeaders;
