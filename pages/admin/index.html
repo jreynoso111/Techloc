@@ -749,6 +749,12 @@
         if (progressLabel) progressLabel.textContent = label;
         if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
       };
+      const formatPercent = (processedCount, totalCount) =>
+        totalCount ? Math.round((processedCount / totalCount) * 100) : 0;
+      const formatProgressLabel = (prefix, processedCount, totalCount) => {
+        const percent = formatPercent(processedCount, totalCount);
+        return `${prefix} (${percent}%) - ${processedCount} of ${totalCount} rows`;
+      };
       
       const columnMap = buildColumnMap(KNOWN_DEALS_COLUMNS);
       const tableColumns = await fetchTableColumns(DEALS_TABLE);
@@ -856,10 +862,17 @@
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
+        const startRow = processed + 1;
+        const endRow = Math.min(processed + batch.length, filteredRows.length);
         if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
+          submitBtn.innerHTML =
+            `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches} ` +
+            `(${formatPercent(processed, filteredRows.length)}%)...</span>`;
         }
-        setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
+        setProgress(
+          formatPercent(processed, filteredRows.length),
+          formatProgressLabel(`Uploading batch ${currentBatch} of ${totalBatches}`, processed, filteredRows.length),
+        );
 
         // UPSERT
         const { data, error } = await supabaseClient
@@ -873,11 +886,25 @@
             showToast('Upload blocked by security policy (RLS).', 'error');
             return;
           }
-          throw error;
+          const percent = formatPercent(processed, filteredRows.length);
+          showToast(
+            `Upload stopped at batch ${currentBatch}/${totalBatches} ` +
+              `(rows ${startRow}-${endRow}). ` +
+              `Uploaded ${processed} of ${filteredRows.length} rows (${percent}%).`,
+            'error',
+          );
+          setProgress(
+            percent,
+            `Stopped at batch ${currentBatch}/${totalBatches} (${percent}%) - uploaded ${processed} of ${filteredRows.length} rows.`,
+          );
+          return;
         }
         totalUpserted += (data ? data.length : 0);
         processed += batch.length;
-        setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
+        setProgress(
+          formatPercent(processed, filteredRows.length),
+          formatProgressLabel('Uploaded', Math.min(processed, filteredRows.length), filteredRows.length),
+        );
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
@@ -942,6 +969,12 @@
         if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
         if (progressLabel) progressLabel.textContent = label;
         if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
+      };
+      const formatPercent = (processedCount, totalCount) =>
+        totalCount ? Math.round((processedCount / totalCount) * 100) : 0;
+      const formatProgressLabel = (prefix, processedCount, totalCount) => {
+        const percent = formatPercent(processedCount, totalCount);
+        return `${prefix} (${percent}%) - ${processedCount} of ${totalCount} rows`;
       };
 
       const columnMap = buildColumnMap(NS_INVOICES_COLUMNS);
@@ -1039,10 +1072,17 @@
         const batch = filteredRows.slice(i, i + BATCH_SIZE);
         const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
+        const startRow = processed + 1;
+        const endRow = Math.min(processed + batch.length, filteredRows.length);
         if (submitBtn) {
-          submitBtn.innerHTML = `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches}...</span>`;
+          submitBtn.innerHTML =
+            `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches} ` +
+            `(${formatPercent(processed, filteredRows.length)}%)...</span>`;
         }
-        setProgress((processed / filteredRows.length) * 100, `Uploading batch ${currentBatch} of ${totalBatches}...`);
+        setProgress(
+          formatPercent(processed, filteredRows.length),
+          formatProgressLabel(`Uploading batch ${currentBatch} of ${totalBatches}`, processed, filteredRows.length),
+        );
 
         const { data, error } = await supabaseClient
           .from(NS_INVOICES_TABLE)
@@ -1054,11 +1094,25 @@
             showToast('Upload blocked by security policy (RLS).', 'error');
             return;
           }
-          throw error;
+          const percent = formatPercent(processed, filteredRows.length);
+          showToast(
+            `Upload stopped at batch ${currentBatch}/${totalBatches} ` +
+              `(rows ${startRow}-${endRow}). ` +
+              `Uploaded ${processed} of ${filteredRows.length} rows (${percent}%).`,
+            'error',
+          );
+          setProgress(
+            percent,
+            `Stopped at batch ${currentBatch}/${totalBatches} (${percent}%) - uploaded ${processed} of ${filteredRows.length} rows.`,
+          );
+          return;
         }
         totalUpserted += (data ? data.length : 0);
         processed += batch.length;
-        setProgress((processed / filteredRows.length) * 100, `Uploaded ${Math.min(processed, filteredRows.length)} of ${filteredRows.length} rows...`);
+        setProgress(
+          formatPercent(processed, filteredRows.length),
+          formatProgressLabel('Uploaded', Math.min(processed, filteredRows.length), filteredRows.length),
+        );
       }
 
       setProgress(95, 'Recalculating open balances...');
