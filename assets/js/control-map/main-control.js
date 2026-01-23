@@ -26,7 +26,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
     import { createControlMapApiService } from './services/apiService.js';
     import { startSupabaseKeepAlive } from './services/realtime.js';
     import { vehiclePopupTemplate } from '../templates/vehiclePopup.js';
-    import { getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
+    import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
     import { createLayerToggle } from './utils/layer-toggles.js';
     import { syncVehicleMarkers } from './utils/vehicle-markers.js';
     
