@@ -244,9 +244,9 @@ const ensureLogoutButton = () => {
 
   if (!logoutButton) {
     const headerActions =
-      document.querySelector('[data-admin-actions]') ||
-      document.querySelector('header .md\\:flex') ||
-      document.querySelector('header .flex.items-center.justify-between');
+      document.querySelector('[data-site-header] [data-admin-actions]') ||
+      document.querySelector('[data-site-header] .md\\:flex') ||
+      document.querySelector('[data-site-header] .flex.items-center.justify-between');
     if (!headerActions) return null;
 
     logoutButton = document.createElement('button');
