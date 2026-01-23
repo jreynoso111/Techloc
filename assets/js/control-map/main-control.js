@@ -1,9 +1,9 @@
-import '../../assets/scripts/authManager.js';
-import { createConstellationBackground } from '../../assets/scripts/ui/components/constellation.js';
-    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
-    import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../assets/scripts/geoUtils.js';
-    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../assets/scripts/dataMapper.js';
-    import { createRepairHistoryManager } from '../../assets/scripts/repairHistory.js';
+import '../../scripts/authManager.js';
+import { createConstellationBackground } from '../../scripts/ui/components/constellation.js';
+    import { supabase as supabaseClient } from '../supabaseClient.js';
+    import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js';
+    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js';
+    import { createRepairHistoryManager } from '../../scripts/repairHistory.js';
     import { createPartnerClusterGroup } from './utils/cluster.js';
     import { attachDistances, debounce, debounceAsync, getOriginKey, runWithTimeout } from './utils/helpers.js';
     import { startLoading } from './utils/loading.js';
@@ -21,11 +21,11 @@ import { createConstellationBackground } from '../../assets/scripts/ui/component
       normalizeKey,
       parseDealCompletion,
       toStateCode
-    } from '../../assets/js/utils/formatters.js';
+    } from '../utils/formatters.js';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js';
     import { createControlMapApiService } from './services/apiService.js';
     import { startSupabaseKeepAlive } from './services/realtime.js';
-    import { vehiclePopupTemplate } from '../../assets/js/templates/vehiclePopup.js';
+    import { vehiclePopupTemplate } from '../templates/vehiclePopup.js';
     import { getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js';
     import { createLayerToggle } from './utils/layer-toggles.js';
     import { syncVehicleMarkers } from './utils/vehicle-markers.js';
