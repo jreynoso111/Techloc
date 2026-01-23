@@ -1738,13 +1738,29 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
               </div>
             </div>
             <div class="pt-1 flex items-center justify-end gap-2">
-              <button data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+              <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                 ${svgIcon('info', 'h-3.5 w-3.5')}
                 See more
               </button>
-              <button data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">History</button>
+              <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">History</button>
             </div>
           `;
+
+          const viewMoreButton = card.querySelector('[data-action="vehicle-view-more"]');
+          if (viewMoreButton) {
+            viewMoreButton.addEventListener('click', (event) => {
+              event.stopPropagation();
+              openVehicleModal(vehicle);
+            });
+          }
+
+          const repairHistoryButton = card.querySelector('[data-action="repair-history"]');
+          if (repairHistoryButton) {
+            repairHistoryButton.addEventListener('click', (event) => {
+              event.stopPropagation();
+              openRepairModal(vehicle);
+            });
+          }
 
           fragment.appendChild(card);
         });
