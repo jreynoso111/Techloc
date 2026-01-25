@@ -1,5 +1,5 @@
-import { createConstellationBackground } from './ui/components/constellation.js';
-createConstellationBackground();
+import { setupBackgroundManager } from './backgroundManager.js';
+setupBackgroundManager();
 
 import {
   DashboardState,
