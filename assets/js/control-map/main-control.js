@@ -1,5 +1,5 @@
 import '../../scripts/authManager.js';
-import { createConstellationBackground } from '../../scripts/ui/components/constellation.js';
+import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     import { supabase as supabaseClient } from '../supabaseClient.js';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js';
     import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js';
@@ -3287,7 +3287,7 @@ import { createConstellationBackground } from '../../scripts/ui/components/const
         }
       });
       (async () => {
-        createConstellationBackground();
+        setupBackgroundManager();
         await loadStateCenters();
         initMap();
         await syncAvailableServiceTypes();
