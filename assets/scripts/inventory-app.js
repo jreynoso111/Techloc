@@ -738,6 +738,7 @@ const getSegmentLabel = (value) => {
   }
   if (normalizedLoose.includes('third party repair shop')) return 'REPAIR SHOP';
   if (normalizedLoose.includes('available for deals')) return 'Available';
+  if (normalizedLoose.includes('m&t repo title in process')) return 'TITLE IN PROCESS';
   return trimmed;
 };
 const getSegmentOptions = () => {
