@@ -13,7 +13,7 @@ import { deleteRow as deleteServiceRow, duplicateRow as duplicateServiceRow, ref
 import { renderCharts as renderChartsUI, resizeCharts } from './services-charts.js';
 import { commitInlineEdit as commitInlineEditUI, startInlineEdit as startInlineEditUI } from './services-editor.js';
 import { attachResizeHandles, attachScrollSync } from './services-events.js';
-import { ALL_COLUMNS, DB_FIELD_BY_COL_ID, state } from './services-state.js';
+import { ALL_COLUMNS, DB_FIELD_BY_COL_ID, loadPrefs, savePrefs, state } from './services-state.js';
 import { renderBody as renderBodyUI, renderHeader as renderHeaderUI, renderTable as renderTableUI } from './services-ui.js';
 
 const READ_TABLE = 'Services';
@@ -93,79 +93,6 @@ const els = {
   colsAll: document.getElementById('cols-all'),
   colsNone: document.getElementById('cols-none'),
   analyticsWrap: document.getElementById('analytics-wrap'),
-};
-
-// ================== PERSISTENCE ==================
-const STORAGE_PREFIX = 'techloc_services_table_prefs_v1';
-const storageKey = () => `${STORAGE_PREFIX}:${state.currentUserId}`;
-const safeParse = (raw) => { try { return JSON.parse(raw); } catch { return null; } };
-
-const savePrefs = () => {
-  localStorage.setItem(storageKey(), JSON.stringify({
-    columnOrder: state.columnOrder,
-    columnVisibility: state.columnVisibility,
-    columnWidths: state.columnWidths,
-    columnLabels: state.columnLabels,
-    filters: state.filters,
-    pagination: state.pagination,
-  }));
-};
-
-const loadPrefs = () => {
-  const prefs = safeParse(localStorage.getItem(storageKey()) || '');
-  if (!prefs) return;
-
-  const validCols = new Set(['actions', ...ALL_COLUMNS.map(c => c.id)]);
-
-  if (Array.isArray(prefs.columnOrder)) {
-    const cleaned = prefs.columnOrder.filter(c => validCols.has(c));
-    const missing = [...validCols].filter(c => !cleaned.includes(c));
-    state.columnOrder = [...cleaned, ...missing];
-  }
-
-  if (prefs.columnVisibility && typeof prefs.columnVisibility === 'object') {
-    const next = { ...state.columnVisibility };
-    for (const [k, v] of Object.entries(prefs.columnVisibility)) {
-      if (validCols.has(k)) next[k] = !!v;
-    }
-    next.actions = true;
-    state.columnVisibility = next;
-  }
-
-  if (prefs.columnWidths && typeof prefs.columnWidths === 'object') {
-    const next = { ...state.columnWidths };
-    for (const [k, v] of Object.entries(prefs.columnWidths)) {
-      if (validCols.has(k) && Number.isFinite(+v)) next[k] = +v;
-    }
-    state.columnWidths = next;
-  }
-
-  if (prefs.columnLabels && typeof prefs.columnLabels === 'object') {
-    const next = {};
-    for (const [k, v] of Object.entries(prefs.columnLabels)) {
-      if (validCols.has(k) && typeof v === 'string') next[k] = v;
-    }
-    state.columnLabels = next;
-  }
-
-  if (prefs.filters && typeof prefs.filters === 'object') {
-    const nextFilters = { columnFilters: {} };
-    if (prefs.filters.columnFilters && typeof prefs.filters.columnFilters === 'object') {
-      for (const [colId, filter] of Object.entries(prefs.filters.columnFilters)) {
-        if (!validCols.has(colId)) continue;
-        const values = Array.isArray(filter?.values) ? filter.values : [];
-        const query = typeof filter?.query === 'string' ? filter.query : '';
-        if (values.length || query) nextFilters.columnFilters[colId] = { values, query };
-      }
-    }
-    state.filters = nextFilters;
-  }
-
-  if (prefs.pagination && typeof prefs.pagination === 'object') {
-    const page = Number.isFinite(+prefs.pagination.page) ? +prefs.pagination.page : 1;
-    state.pagination.page = Math.max(1, page);
-    if (Number.isFinite(+prefs.pagination.pageSize)) state.pagination.pageSize = +prefs.pagination.pageSize;
-  }
 };
 
 // ---------------- AUTH ----------------
@@ -1089,61 +1016,74 @@ const deleteRow = async (row) => deleteServiceRow({
 });
 
 // ---------------- EVENTS ----------------
-els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; savePrefs(); renderTable(); } });
-els.nextPage.addEventListener('click', () => {
-  const total = applySort(applyFilters()).length;
-  const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
-  if (state.pagination.page < totalPages) { state.pagination.page += 1; savePrefs(); renderTable(); }
-});
-
-els.refresh.addEventListener('click', refresh);
-
-// Create new record inline (adds blank row in DB, then you edit cells)
-els.addRecord?.addEventListener('click', async () => {
-  if (state.currentUserRole !== 'administrator') return;
-  try {
-    const payload = {
-      company_name: '',
-      authorization: '',
-      category: '',
-      verified: null,
-      phone: '',
-      contact: '',
-      address: '',
-      city: '',
-      state: '',
-      zip: '',
-      email: '',
-      notes: '',
-      website: '',
-      availability: '',
-      lat: null,
-      long: null,
-    };
-    const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
-    if (error) throw error;
-    const normalized = normalizeRow(data);
-    if (normalized?.id === undefined || normalized?.id === null || normalized.id === '') {
-      console.error('Insert returned row without a valid id', data);
-      showToast('Error creating record: missing ID from server. Please refresh and try again.', 'error');
-      return;
+const attachButtonEvents = () => {
+  els.prevPage.addEventListener('click', () => {
+    if (state.pagination.page > 1) {
+      state.pagination.page -= 1;
+      savePrefs();
+      renderTable();
     }
+  });
 
-    state.rows.unshift(normalized);
-    state.pagination.page = 1;
-    renderTable();
-    savePrefs();
+  els.nextPage.addEventListener('click', () => {
+    const total = applySort(applyFilters()).length;
+    const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
+    if (state.pagination.page < totalPages) {
+      state.pagination.page += 1;
+      savePrefs();
+      renderTable();
+    }
+  });
 
-    logChange({
-      action: 'insert',
-      summary: `Created new service record (#${normalized.id})`,
-      recordId: normalized.id,
-    });
-  } catch (err) {
-    console.error(err);
-    showToast('Error creating record: ' + (err?.message || JSON.stringify(err)), 'error');
-  }
-});
+  els.refresh.addEventListener('click', refresh);
+
+  // Create new record inline (adds blank row in DB, then you edit cells)
+  els.addRecord?.addEventListener('click', async () => {
+    if (state.currentUserRole !== 'administrator') return;
+    try {
+      const payload = {
+        company_name: '',
+        authorization: '',
+        category: '',
+        verified: null,
+        phone: '',
+        contact: '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        email: '',
+        notes: '',
+        website: '',
+        availability: '',
+        lat: null,
+        long: null,
+      };
+      const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
+      if (error) throw error;
+      const normalized = normalizeRow(data);
+      if (normalized?.id === undefined || normalized?.id === null || normalized.id === '') {
+        console.error('Insert returned row without a valid id', data);
+        showToast('Error creating record: missing ID from server. Please refresh and try again.', 'error');
+        return;
+      }
+
+      state.rows.unshift(normalized);
+      state.pagination.page = 1;
+      renderTable();
+      savePrefs();
+
+      logChange({
+        action: 'insert',
+        summary: `Created new service record (#${normalized.id})`,
+        recordId: normalized.id,
+      });
+    } catch (err) {
+      console.error(err);
+      showToast('Error creating record: ' + (err?.message || JSON.stringify(err)), 'error');
+    }
+  });
+};
 
 // ---------------- INIT ----------------
 const initBackground = async () => {
@@ -1159,6 +1099,7 @@ const init = async () => {
   await initBackground();
   const session = await requireSession();
   await applySessionState(session);
+  attachButtonEvents();
   attachResizeHandles({ els, state, setColWidth });
   attachScrollSync({ els, syncTopScrollbar, resizeCharts });
   attachAnalyticsResizeObserver();

@@ -17,6 +17,14 @@ const renderHeader = ({
   fragment.appendChild(tr);
   els.thead.replaceChildren(fragment);
 
+  els.thead.querySelectorAll('th[data-col]').forEach((th) => {
+    const colId = th.getAttribute('data-col');
+    const width = state.columnWidths[colId];
+    if (!width) return;
+    th.style.width = `${width}px`;
+    th.style.minWidth = `${width}px`;
+  });
+
   els.thead.querySelectorAll('th[draggable="true"]').forEach((th) => {
     th.addEventListener('dragstart', (e) => {
       if (state.drag.resizing) {
@@ -102,6 +110,10 @@ const renderBody = ({
     cols.forEach((colId) => {
       const td = document.createElement('td');
       td.className = 'align-top text-slate-200 compact-td';
+      if (state.columnWidths[colId]) {
+        td.style.width = `${state.columnWidths[colId]}px`;
+        td.style.minWidth = `${state.columnWidths[colId]}px`;
+      }
 
       if (colId === 'actions') {
         td.className = 'text-center align-top compact-td';
