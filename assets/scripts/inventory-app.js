@@ -314,14 +314,14 @@ const isBlackListRow = (row) => {
   const vin = row?.vin || row?.VIN || getField(row, 'VIN');
   if (!vin) return false;
   const dealStatus = String(getField(row, 'Deal Status', 'dealStatus') || '').trim().toUpperCase();
-  if (dealStatus !== 'ACTIVE') return false;
+  const isActive = dealStatus === 'ACTIVE';
   const prepStatus = String(getField(row, 'Inventory Preparation Status', 'inventory_preparation_status') || '').trim().toLowerCase();
   const repoMatch = ['out for repo', 'repoed on hold'].includes(prepStatus);
   const openBalance = parseCurrencyValue(getField(row, 'Open Balance', 'open_balance'));
   const oldestInvoiceValue = getField(row, 'Oldest Invoice (Open)', 'Oldest invoice (Open)', 'oldest_invoice_open');
   const oldestInvoiceString = String(oldestInvoiceValue ?? '').trim();
   let oldestInvoiceMatch = false;
-  if (openBalance > 0 && oldestInvoiceString) {
+  if (isActive && openBalance > 0 && oldestInvoiceString) {
     const parsed = new Date(oldestInvoiceString);
     if (!Number.isNaN(parsed.getTime())) {
       const cutoff = Date.now() - (10 * 24 * 60 * 60 * 1000);
