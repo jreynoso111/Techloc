@@ -26,7 +26,8 @@ const hydrateAlertsPanel = async () => {
     window.dispatchEvent(new Event('alerts:ready'));
   } catch (error) {
     console.error('Alerts module failed to load:', error);
+    window.dispatchEvent(new Event('alerts:ready'));
   }
 };
 
-await hydrateAlertsPanel();
+hydrateAlertsPanel();
