@@ -1,4 +1,4 @@
-import { supabase as supabaseClient } from '../../js/supabaseClient.js';
+import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
 import { logAdminEvent } from '../adminAudit.js';
 
 const logChange = async ({
@@ -24,7 +24,7 @@ const logChange = async ({
   });
 };
 
-const refreshServices = async ({
+const refresh = async ({
   skeleton,
   state,
   normalizeRow,
@@ -59,7 +59,7 @@ const refreshServices = async ({
   }
 };
 
-const duplicateServiceRow = async ({
+const duplicateRow = async ({
   row,
   state,
   buildInsertPayload,
@@ -111,7 +111,7 @@ const duplicateServiceRow = async ({
   }
 };
 
-const deleteServiceRow = async ({
+const deleteRow = async ({
   row,
   state,
   showToast,
@@ -143,4 +143,4 @@ const deleteServiceRow = async ({
   await refresh();
 };
 
-export { deleteServiceRow, duplicateServiceRow, refreshServices };
+export { deleteRow, duplicateRow, refresh };

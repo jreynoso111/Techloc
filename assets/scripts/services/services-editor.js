@@ -217,6 +217,34 @@ const startInlineEdit = ({
     inputEl = inp;
     state.inlineEdit.inputEl = inputEl;
     td.appendChild(inputEl);
+
+    const validatePhone = (value) => {
+      const digits = String(value ?? '').replace(/\D/g, '');
+      if (digits.length === 0) return '';
+      return digits.length === 10 ? '' : 'Phone numbers must include exactly 10 digits.';
+    };
+
+    const validateEmail = (value) => {
+      if (!value) return '';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(value) ? '' : 'Please enter a valid email address.';
+    };
+
+    const updateValidity = () => {
+      let message = '';
+      if (colId === 'phone') message = validatePhone(inputEl.value);
+      if (colId === 'email') message = validateEmail(inputEl.value.trim());
+      inputEl.setCustomValidity(message);
+      td.classList.toggle('failed', Boolean(message));
+      if (message) inputEl.title = message;
+      else inputEl.removeAttribute('title');
+    };
+
+    if (colId === 'phone' || colId === 'email') {
+      inputEl.addEventListener('input', updateValidity);
+      inputEl.addEventListener('blur', updateValidity);
+      updateValidity();
+    }
   }
 
   setTimeout(() => {
