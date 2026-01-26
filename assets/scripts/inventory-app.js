@@ -1115,22 +1115,7 @@ const bindFilterEvents = () => {
   const vehicleStatusSummary = document.getElementById('vehicle-status-summary');
   const vehicleStatusLabel = document.getElementById('vehicle-status-label');
   const lastDealSelect = document.getElementById('last-deal-select');
-  const alertsToggle = document.getElementById('alerts-toggle');
-  const alertsList = document.getElementById('alerts-list');
-  const alertsBadges = document.getElementById('alerts-badges');
   const alertsPanel = document.getElementById('alerts-panel');
-  const alertsDealsBadge = document.getElementById('alerts-deals-count');
-  const alertsDealsModal = document.getElementById('alerts-deals-modal');
-  const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
-  const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
-  const alertsDealsFilters = document.getElementById('alerts-deals-filters');
-  const alertsDealsList = document.getElementById('alerts-deals-list');
-  const alertsDealsColumnsToggle = document.getElementById('alerts-deals-columns-toggle');
-  const alertsDealsColumnsPanel = document.getElementById('alerts-deals-columns-panel');
-  const alertsDealsColumnsList = document.getElementById('alerts-deals-columns-list');
-  const alertsDealsColumnHeaders = document.getElementById('alerts-deals-column-headers');
-  const alertsGpsOfflineRow = document.getElementById('alerts-gps-offline-row');
-  const alertsBlackListRow = document.getElementById('alerts-blacklist-row');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -1152,6 +1137,185 @@ const bindFilterEvents = () => {
   const resetPagination = () => (DashboardState.table.page = 1);
   let activeDragKey = null;
   let resizing = null;
+  let alertsEventsBound = false;
+
+  const bindAlertsEvents = () => {
+    if (alertsEventsBound) return;
+    const alertsToggle = document.getElementById('alerts-toggle');
+    const alertsList = document.getElementById('alerts-list');
+    const alertsBadges = document.getElementById('alerts-badges');
+    const alertsPanelEl = document.getElementById('alerts-panel');
+    const alertsDealsBadge = document.getElementById('alerts-deals-count');
+    const alertsDealsModal = document.getElementById('alerts-deals-modal');
+    const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
+    const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+    const alertsDealsFilters = document.getElementById('alerts-deals-filters');
+    const alertsDealsList = document.getElementById('alerts-deals-list');
+    const alertsDealsColumnsToggle = document.getElementById('alerts-deals-columns-toggle');
+    const alertsDealsColumnsPanel = document.getElementById('alerts-deals-columns-panel');
+    const alertsDealsColumnsList = document.getElementById('alerts-deals-columns-list');
+    const alertsDealsColumnHeaders = document.getElementById('alerts-deals-column-headers');
+    const alertsGpsOfflineRow = document.getElementById('alerts-gps-offline-row');
+    const alertsBlackListRow = document.getElementById('alerts-blacklist-row');
+
+    if (!alertsPanelEl) return;
+
+    if (alertsToggle && alertsList && alertsBadges) {
+      addListener(alertsToggle, 'click', () => {
+        const isCollapsed = alertsPanelEl.dataset.collapsed === 'true';
+        const nextCollapsed = !isCollapsed;
+        alertsPanelEl.dataset.collapsed = String(nextCollapsed);
+        alertsList.classList.toggle('hidden', nextCollapsed);
+        alertsBadges.classList.toggle('hidden', !nextCollapsed);
+        alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
+        const icon = alertsToggle.querySelector('[data-lucide]');
+        if (icon) icon.setAttribute('data-lucide', nextCollapsed ? 'chevron-down' : 'chevron-up');
+      });
+    }
+
+    if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
+      const openModal = () => {
+        alertsDealsModal.classList.remove('hidden');
+        alertsDealsModal.classList.add('flex');
+        alertsDealsModal.setAttribute('aria-hidden', 'false');
+      };
+      const closeModal = () => {
+        alertsDealsModal.classList.add('hidden');
+        alertsDealsModal.classList.remove('flex');
+        alertsDealsModal.setAttribute('aria-hidden', 'true');
+      };
+      addListener(alertsDealsBadge, 'click', openModal);
+      addListener(alertsDealsRowButton, 'click', openModal);
+      addListener(alertsDealsModalClose, 'click', closeModal);
+      addListener(alertsDealsModal, 'click', (event) => {
+        if (event.target === alertsDealsModal) closeModal();
+      });
+    }
+
+    const setActiveFilter = (value) => {
+      alertsDealsFilter = value;
+      if (alertsDealsFilters) {
+        alertsDealsFilters.querySelectorAll('[data-alerts-deals-filter]').forEach((button) => {
+          const isActive = button.dataset.alertsDealsFilter === value;
+          button.classList.toggle('border-blue-400', isActive);
+          button.classList.toggle('text-white', isActive);
+        });
+      }
+      updateAlertsDealsList();
+    };
+
+    if (alertsDealsFilters) {
+      addListener(alertsDealsFilters, 'click', (event) => {
+        const button = event.target.closest('[data-alerts-deals-filter]');
+        if (!button) return;
+        setActiveFilter(button.dataset.alertsDealsFilter);
+      });
+    }
+    setActiveFilter(alertsDealsFilter);
+
+    if (alertsDealsColumnsToggle && alertsDealsColumnsPanel) {
+      addListener(alertsDealsColumnsToggle, 'click', () => {
+        const isHidden = alertsDealsColumnsPanel.classList.toggle('hidden');
+        alertsDealsColumnsToggle.setAttribute('aria-expanded', String(!isHidden));
+      });
+    }
+
+    if (alertsDealsColumnsList) {
+      addListener(alertsDealsColumnsList, 'change', (event) => {
+        const input = event.target;
+        if (!input.matches('[data-alerts-column-key]')) return;
+        const key = input.dataset.alertsColumnKey;
+        if (!key) return;
+        if (input.checked) {
+          if (!alertsDealsColumns.includes(key)) alertsDealsColumns.push(key);
+        } else {
+          alertsDealsColumns = alertsDealsColumns.filter((value) => value !== key);
+        }
+        localStorage.setItem(ALERTS_COLUMNS_STORAGE_KEY, JSON.stringify(alertsDealsColumns));
+        renderAlertsDealsColumnHeaders();
+        updateAlertsDealsList();
+      });
+      addListener(alertsDealsColumnsList, 'input', (event) => {
+        const input = event.target;
+        if (!input.matches('[data-alerts-column-label]')) return;
+        const key = input.dataset.alertsColumnLabel;
+        if (!key) return;
+        alertsDealsColumnLabels[key] = input.value.trim() || formatColumnLabel(key);
+        localStorage.setItem(ALERTS_COLUMNS_LABELS_KEY, JSON.stringify(alertsDealsColumnLabels));
+        renderAlertsDealsColumnHeaders();
+        updateAlertsDealsList();
+      });
+    }
+
+    if (alertsDealsColumnHeaders) {
+      addListener(alertsDealsColumnHeaders, 'click', (event) => {
+        const button = event.target.closest('[data-alerts-deals-sort-key]');
+        if (!button) return;
+        const key = button.dataset.alertsDealsSortKey;
+        if (!key) return;
+        if (alertsDealsSortKey === key) {
+          alertsDealsSortDirection = alertsDealsSortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+          alertsDealsSortKey = key;
+          alertsDealsSortDirection = 'asc';
+        }
+        renderAlertsDealsColumnHeaders();
+        updateAlertsDealsList();
+      });
+    }
+
+    if (alertsDealsList) {
+      addListener(alertsDealsList, 'click', (event) => {
+        const googleButton = event.target.closest('[data-alerts-google-button]');
+        if (!googleButton) return;
+        const vinKey = googleButton.dataset.alertsGoogleTarget;
+        if (!vinKey) return;
+        const storageKey = `${ALERTS_STORAGE_PREFIX}:${vinKey}`;
+        const nowValue = formatAlertsTimestamp(new Date());
+        localStorage.setItem(`${storageKey}:lastClick`, nowValue);
+        const label = alertsDealsList.querySelector(`[data-alerts-google-last="${vinKey}"]`);
+        if (label) label.textContent = `Last Click: ${nowValue}`;
+      });
+      addListener(alertsDealsList, 'input', (event) => {
+        const input = event.target;
+        if (!input.matches('[data-alerts-google-notes]')) return;
+        const storageKey = input.dataset.alertsNotesKey;
+        if (!storageKey) return;
+        localStorage.setItem(`${storageKey}:note`, input.value.trim());
+      });
+    }
+
+    addListener(alertsGpsOfflineRow, 'click', () => {
+      DashboardState.filters.gpsOfflineOnly = !DashboardState.filters.gpsOfflineOnly;
+      resetPagination();
+      renderDashboard();
+      schedulePersistPreferences();
+    });
+    addListener(alertsGpsOfflineRow, 'keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      DashboardState.filters.gpsOfflineOnly = !DashboardState.filters.gpsOfflineOnly;
+      resetPagination();
+      renderDashboard();
+      schedulePersistPreferences();
+    });
+    addListener(alertsBlackListRow, 'click', () => {
+      DashboardState.filters.blackListOnly = !DashboardState.filters.blackListOnly;
+      resetPagination();
+      renderDashboard();
+      schedulePersistPreferences();
+    });
+    addListener(alertsBlackListRow, 'keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      DashboardState.filters.blackListOnly = !DashboardState.filters.blackListOnly;
+      resetPagination();
+      renderDashboard();
+      schedulePersistPreferences();
+    });
+
+    alertsEventsBound = true;
+  };
 
   if (tableScroll && tableScrollTop && tableScrollTopInner) {
     const tableElement = tableScroll.querySelector('table');
@@ -1179,134 +1343,8 @@ const bindFilterEvents = () => {
     addListener(tableScrollTop, 'scroll', () => syncScroll(tableScrollTop, tableScroll));
   }
 
-  if (alertsToggle && alertsList && alertsBadges && alertsPanel) {
-    addListener(alertsToggle, 'click', () => {
-      const isCollapsed = alertsPanel.dataset.collapsed === 'true';
-      const nextCollapsed = !isCollapsed;
-      alertsPanel.dataset.collapsed = String(nextCollapsed);
-      alertsList.classList.toggle('hidden', nextCollapsed);
-      alertsBadges.classList.toggle('hidden', !nextCollapsed);
-      alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
-      const icon = alertsToggle.querySelector('[data-lucide]');
-      updateLucideIcon(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
-    });
-  }
-
-  if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
-    const openModal = () => {
-      alertsDealsModal.classList.remove('hidden');
-      alertsDealsModal.classList.add('flex');
-      alertsDealsModal.setAttribute('aria-hidden', 'false');
-    };
-    const closeModal = () => {
-      alertsDealsModal.classList.add('hidden');
-      alertsDealsModal.classList.remove('flex');
-      alertsDealsModal.setAttribute('aria-hidden', 'true');
-    };
-
-    addListener(alertsDealsBadge, 'click', openModal);
-    addListener(alertsDealsRowButton, 'click', openModal);
-    addListener(alertsDealsModalClose, 'click', closeModal);
-    addListener(alertsDealsModal, 'click', (event) => {
-      if (event.target === alertsDealsModal) closeModal();
-    });
-  }
-
-  const setActiveFilter = (value) => {
-    alertsDealsFilter = value;
-    if (alertsDealsFilters) {
-      alertsDealsFilters.querySelectorAll('[data-alerts-deals-filter]').forEach((button) => {
-        const isActive = button.dataset.alertsDealsFilter === value;
-        button.classList.toggle('border-blue-400', isActive);
-        button.classList.toggle('text-white', isActive);
-      });
-    }
-    updateAlertsDealsList();
-  };
-
-  if (alertsDealsFilters) {
-    addListener(alertsDealsFilters, 'click', (event) => {
-      const button = event.target.closest('[data-alerts-deals-filter]');
-      if (!button) return;
-      setActiveFilter(button.dataset.alertsDealsFilter);
-    });
-  }
-
-  setActiveFilter(alertsDealsFilter);
-
-  if (alertsDealsColumnsToggle && alertsDealsColumnsPanel) {
-    addListener(alertsDealsColumnsToggle, 'click', () => {
-      const isHidden = alertsDealsColumnsPanel.classList.toggle('hidden');
-      alertsDealsColumnsToggle.setAttribute('aria-expanded', String(!isHidden));
-    });
-  }
-
-  if (alertsDealsColumnsList) {
-    addListener(alertsDealsColumnsList, 'change', (event) => {
-      const checkbox = event.target.closest('[data-alerts-column-key]');
-      if (!checkbox) return;
-      const key = checkbox.dataset.alertsColumnKey;
-      if (!key) return;
-      if (checkbox.checked) {
-        if (!alertsDealsColumns.includes(key)) alertsDealsColumns.push(key);
-      } else {
-        alertsDealsColumns = alertsDealsColumns.filter((value) => value !== key);
-      }
-      localStorage.setItem(ALERTS_COLUMNS_STORAGE_KEY, JSON.stringify(alertsDealsColumns));
-      renderAlertsDealsColumns();
-      updateAlertsDealsList();
-    });
-
-    addListener(alertsDealsColumnsList, 'input', (event) => {
-      const input = event.target.closest('[data-alerts-column-label]');
-      if (!input) return;
-      const key = input.dataset.alertsColumnLabel;
-      if (!key) return;
-      alertsDealsColumnLabels[key] = input.value.trim() || formatColumnLabel(key);
-      localStorage.setItem(ALERTS_COLUMNS_LABELS_KEY, JSON.stringify(alertsDealsColumnLabels));
-      renderAlertsDealsColumnHeaders();
-      updateAlertsDealsList();
-    });
-  }
-
-  if (alertsDealsColumnHeaders) {
-    addListener(alertsDealsColumnHeaders, 'click', (event) => {
-      const button = event.target.closest('[data-alerts-deals-sort-key]');
-      if (!button) return;
-      const key = button.dataset.alertsDealsSortKey;
-      if (!key) return;
-      if (alertsDealsSortKey === key) {
-        alertsDealsSortDirection = alertsDealsSortDirection === 'asc' ? 'desc' : 'asc';
-      } else {
-        alertsDealsSortKey = key;
-        alertsDealsSortDirection = 'asc';
-      }
-      renderAlertsDealsColumnHeaders();
-      updateAlertsDealsList();
-    });
-  }
-
-  if (alertsDealsList) {
-    addListener(alertsDealsList, 'click', (event) => {
-      const target = event.target.closest('[data-alerts-google-button]');
-      if (!target) return;
-      const vinKey = target.dataset.alertsGoogleTarget;
-      if (!vinKey) return;
-      const label = alertsDealsList.querySelector(`[data-alerts-google-last="${vinKey}"]`);
-      if (!label) return;
-      const timestamp = formatAlertsTimestamp(new Date());
-      label.textContent = `Last Click: ${timestamp}`;
-      localStorage.setItem(`${ALERTS_STORAGE_PREFIX}:${vinKey}:lastClick`, timestamp);
-    });
-
-    addListener(alertsDealsList, 'input', (event) => {
-      const input = event.target.closest('[data-alerts-notes-key]');
-      if (!input) return;
-      const key = input.dataset.alertsNotesKey;
-      if (!key) return;
-      localStorage.setItem(`${key}:note`, input.value);
-    });
-  }
+  bindAlertsEvents();
+  window.addEventListener('alerts:ready', bindAlertsEvents);
 
   if (builder) {
     addListener(builder, 'change', (event) => {

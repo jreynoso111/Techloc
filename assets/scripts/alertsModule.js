@@ -17,6 +17,7 @@ const hydrateAlertsPanel = async () => {
     const response = await fetch(`${basePath}assets/modules/alerts-panel.html`);
     if (!response.ok) throw new Error(`Alerts module not found (${response.status})`);
     alertsSlot.innerHTML = await response.text();
+    window.dispatchEvent(new Event('alerts:ready'));
   } catch (error) {
     console.error('Alerts module failed to load:', error);
   }
