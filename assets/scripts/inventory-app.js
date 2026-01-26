@@ -676,7 +676,12 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
   });
 };
 
-const getSegmentLabel = (value) => String(value ?? '').trim() || 'Unassigned';
+const getSegmentLabel = (value) => {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return 'Unassigned';
+  if (trimmed.toLowerCase() === 'pending aucion - manhein') return 'AUCTION';
+  return trimmed;
+};
 const getSegmentOptions = () => {
   const options = [{ key: 'dealStatus', label: 'Deal Status' }];
   const seen = new Set(options.map((opt) => opt.key));
