@@ -12,12 +12,15 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
   let alertsDealsAvailableColumns = [];
   let alertsDealsSortKey = '';
   let alertsDealsSortDirection = 'asc';
+  let templatesMounted = false;
+  let alertsDealsUiBound = false;
 
   const addListener = (element, event, handler, options) => {
     element?.addEventListener(event, handler, options);
   };
 
   const mountTemplates = () => {
+    if (templatesMounted) return;
     const rowTemplate = document.getElementById('alerts-deals-row-template');
     const list = document.getElementById('alerts-list');
     if (rowTemplate && list && !document.getElementById('alerts-deals-row')) {
@@ -31,6 +34,7 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       modalRoot.appendChild(modalTemplate.content.cloneNode(true));
       initializeLucideIcons?.(modalRoot);
     }
+    templatesMounted = true;
   };
 
   const setAlertsDealCount = (count) => {
@@ -77,7 +81,7 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     return String(value);
   };
 
-  const renderAlertsDealsList = (rows) => {
+  const renderAlertsDealsList = (rows, limit = 20) => {
     const list = document.getElementById('alerts-deals-list');
     if (!list) return;
     list.innerHTML = '';
@@ -85,7 +89,9 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       list.innerHTML = '<p class="text-xs text-slate-400">No matching deals found.</p>';
       return;
     }
-    rows.forEach((row) => {
+    const visibleRows = rows.slice(0, limit);
+    const fragment = document.createDocumentFragment();
+    visibleRows.forEach((row) => {
       const vin = row.VIN || '';
       const vinQuery = encodeURIComponent(vin);
       const storageKey = vin ? `${ALERTS_STORAGE_PREFIX}:${vin}` : '';
@@ -123,8 +129,21 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
           </label>
         </div>
       `;
-      list.appendChild(item);
+      fragment.appendChild(item);
     });
+    list.appendChild(fragment);
+
+    if (rows.length > limit) {
+      const loadMore = document.createElement('button');
+      loadMore.type = 'button';
+      loadMore.className = 'rounded-full border border-slate-800 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-400 hover:text-white';
+      loadMore.textContent = `Load More (${rows.length - limit} more)`;
+      loadMore.addEventListener('click', () => {
+        renderAlertsDealsList(rows, Math.min(rows.length, limit + 20));
+        list.scrollTop = list.scrollHeight;
+      }, { once: true });
+      list.appendChild(loadMore);
+    }
   };
 
   const sortAlertsDealsRows = (rows) => {
@@ -211,14 +230,20 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     }).format(date);
   };
 
-  const init = () => {
+  const openAlertsDealsModal = () => {
+    mountTemplates();
+    bindAlertsDealsUi();
+    const alertsDealsModal = document.getElementById('alerts-deals-modal');
+    if (!alertsDealsModal) return;
+    alertsDealsModal.classList.remove('hidden');
+    alertsDealsModal.classList.add('flex');
+    alertsDealsModal.setAttribute('aria-hidden', 'false');
+  };
+
+  const bindAlertsDealsUi = () => {
+    if (alertsDealsUiBound) return;
     mountTemplates();
 
-    const alertsToggle = document.getElementById('alerts-toggle');
-    const alertsList = document.getElementById('alerts-list');
-    const alertsBadges = document.getElementById('alerts-badges');
-    const alertsPanel = document.getElementById('alerts-panel');
-    const alertsDealsBadge = document.getElementById('alerts-deals-count');
     const alertsDealsModal = document.getElementById('alerts-deals-modal');
     const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
     const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
@@ -229,33 +254,14 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     const alertsDealsColumnsList = document.getElementById('alerts-deals-columns-list');
     const alertsDealsColumnHeaders = document.getElementById('alerts-deals-column-headers');
 
-    if (alertsToggle && alertsList && alertsBadges && alertsPanel) {
-      addListener(alertsToggle, 'click', () => {
-        const isCollapsed = alertsPanel.dataset.collapsed === 'true';
-        const nextCollapsed = !isCollapsed;
-        alertsPanel.dataset.collapsed = String(nextCollapsed);
-        alertsList.classList.toggle('hidden', nextCollapsed);
-        alertsBadges.classList.toggle('hidden', !nextCollapsed);
-        alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
-        const icon = alertsToggle.querySelector('[data-lucide]');
-        updateLucideIcon?.(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
-      });
-    }
-
-    if ((alertsDealsBadge || alertsDealsRowButton) && alertsDealsModal) {
-      const openModal = () => {
-        alertsDealsModal.classList.remove('hidden');
-        alertsDealsModal.classList.add('flex');
-        alertsDealsModal.setAttribute('aria-hidden', 'false');
-      };
+    if (alertsDealsModal) {
       const closeModal = () => {
         alertsDealsModal.classList.add('hidden');
         alertsDealsModal.classList.remove('flex');
         alertsDealsModal.setAttribute('aria-hidden', 'true');
       };
 
-      addListener(alertsDealsBadge, 'click', openModal);
-      addListener(alertsDealsRowButton, 'click', openModal);
+      addListener(alertsDealsRowButton, 'click', openAlertsDealsModal);
       addListener(alertsDealsModalClose, 'click', closeModal);
       addListener(alertsDealsModal, 'click', (event) => {
         if (event.target === alertsDealsModal) closeModal();
@@ -356,6 +362,33 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
         if (!key) return;
         localStorage.setItem(`${key}:note`, input.value);
       });
+    }
+
+    alertsDealsUiBound = true;
+  };
+
+  const init = () => {
+    const alertsToggle = document.getElementById('alerts-toggle');
+    const alertsList = document.getElementById('alerts-list');
+    const alertsBadges = document.getElementById('alerts-badges');
+    const alertsPanel = document.getElementById('alerts-panel');
+    const alertsDealsBadge = document.getElementById('alerts-deals-count');
+
+    if (alertsToggle && alertsList && alertsBadges && alertsPanel) {
+      addListener(alertsToggle, 'click', () => {
+        const isCollapsed = alertsPanel.dataset.collapsed === 'true';
+        const nextCollapsed = !isCollapsed;
+        alertsPanel.dataset.collapsed = String(nextCollapsed);
+        alertsList.classList.toggle('hidden', nextCollapsed);
+        alertsBadges.classList.toggle('hidden', !nextCollapsed);
+        alertsToggle.setAttribute('aria-expanded', String(!nextCollapsed));
+        const icon = alertsToggle.querySelector('[data-lucide]');
+        updateLucideIcon?.(icon, nextCollapsed ? 'chevron-down' : 'chevron-up');
+      });
+    }
+
+    if (alertsDealsBadge) {
+      addListener(alertsDealsBadge, 'click', openAlertsDealsModal);
     }
   };
 
