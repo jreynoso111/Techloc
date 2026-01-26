@@ -265,6 +265,18 @@ export const getInvPrepStatusRowClass = (status) => {
   return INV_PREP_STATUS_CLASSES[normalized] || '';
 };
 
+export const formatInvPrepStatusLabel = (status) => {
+  if (status === null || status === undefined || status === '') return '';
+  const raw = String(status).trim();
+  if (!raw) return '';
+  const normalized = raw.toLowerCase();
+  if (normalized === 'available for delas' || normalized === 'available for deals') return 'AVAILABLE';
+  if (normalized === 'm& t repo title in process' || normalized === 'm&t repo title in process') return 'TITLE IN PROCESS';
+  if (normalized === 'pending auction - manhein' || normalized === 'pending auction - manheim') return 'AUCTION';
+  if (normalized === 'third party repair shop') return 'REPAIR SHOP';
+  return raw;
+};
+
 export const normalizeBoolean = (value) => {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value !== 0;

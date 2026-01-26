@@ -12,6 +12,7 @@ import {
   getColumnLabel,
   getInvPrepStatusValue,
   getInvPrepStatusRowClass,
+  formatInvPrepStatusLabel,
   detectInvPrepStatusKey,
   getUniqueValues,
 } from '../core/state.js';
@@ -484,7 +485,9 @@ export const initDashboardUI = ({
       const cells = visibleColumns.map((col) => {
         let value = item[col.key];
 
-        if (col.type === 'boolean') value = value ? 'Yes' : 'No';
+        if (invPrepKey && col.key === invPrepKey) {
+          value = formatInvPrepStatusLabel(prepStatus);
+        } else if (col.type === 'boolean') value = value ? 'Yes' : 'No';
         else if (col.type === 'date') value = value ? formatDate(value) : '--';
         else if (MILEAGE_COLUMNS.has(col.key.toLowerCase()) || col.label?.toLowerCase() === 'mileage') {
           value = formatMileage(value);
