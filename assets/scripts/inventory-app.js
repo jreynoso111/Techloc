@@ -243,6 +243,7 @@ const buildPreferencesPayload = () => ({
   layout: {
     alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
     chartSplitWidth: DashboardState.layout.chartSplitWidth,
+    fullChartSplitWidth: DashboardState.layout.fullChartSplitWidth,
     dealPanelHeight: DashboardState.layout.dealPanelHeight,
     fullChartHeight: DashboardState.layout.fullChartHeight,
     fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
@@ -306,6 +307,9 @@ const applyPreferences = (config) => {
   }
   if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
   if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
+  if (typeof config.layout?.fullChartSplitWidth === 'number') {
+    DashboardState.layout.fullChartSplitWidth = config.layout.fullChartSplitWidth;
+  }
   if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
   if (typeof config.layout?.fullChartHeight === 'number') DashboardState.layout.fullChartHeight = config.layout.fullChartHeight;
   if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
@@ -376,6 +380,8 @@ const applyLayoutPreferencesToDom = () => {
   const fullWidthChartBodies = document.querySelectorAll('[data-full-chart-body]');
   const fullWidthChartToggles = document.querySelectorAll('[data-full-chart-toggle]');
   const fullWidthChartResizer = document.getElementById('full-chart-height-resizer');
+  const fullChartLayout = document.getElementById('full-chart-layout');
+  const fullChartResizer = document.getElementById('full-chart-resizer');
   if (!alertsPanel || !dealPanel) return;
   if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
     const minPanelWidth = 220;
@@ -403,6 +409,20 @@ const applyLayoutPreferencesToDom = () => {
     }
     primaryChart.style.flex = `0 0 ${nextWidth}px`;
     secondaryChart.style.flex = '1 1 auto';
+  }
+  if (typeof DashboardState.layout.fullChartSplitWidth === 'number'
+    && window.innerWidth >= 1024
+    && fullWidthCharts.length >= 2) {
+    const minChartWidth = 220;
+    let nextWidth = DashboardState.layout.fullChartSplitWidth;
+    if (fullChartLayout && fullChartResizer) {
+      const containerWidth = fullChartLayout.getBoundingClientRect().width;
+      const handleWidth = fullChartResizer.getBoundingClientRect().width;
+      const maxPrimaryWidth = Math.max(minChartWidth, containerWidth - minChartWidth - handleWidth);
+      nextWidth = Math.min(maxPrimaryWidth, Math.max(minChartWidth, nextWidth));
+    }
+    fullWidthCharts[0].style.flex = `0 0 ${nextWidth}px`;
+    fullWidthCharts[1].style.flex = '1 1 auto';
   }
   if (typeof DashboardState.layout.fullChartHeight === 'number' && fullWidthCharts.length) {
     fullWidthCharts.forEach((chart) => {
@@ -856,6 +876,7 @@ const bindFilterEvents = () => {
   const fullChartBodies = document.querySelectorAll('[data-full-chart-body]');
   const fullChartCards = document.querySelectorAll('[data-full-chart-card]');
   const fullChartResizer = document.getElementById('full-chart-height-resizer');
+  const fullChartWidthResizer = document.getElementById('full-chart-resizer');
 
   const addListener = (element, event, handler, options) => {
     element?.addEventListener(event, handler, options);
@@ -1317,6 +1338,9 @@ const bindFilterEvents = () => {
       });
       fullChartBodies.forEach((body) => body.classList.toggle('hidden', nextCollapsed));
       fullChartResizer.classList.toggle('hidden', nextCollapsed);
+      if (fullChartWidthResizer) {
+        fullChartWidthResizer.classList.toggle('hidden', nextCollapsed);
+      }
       fullChartToggles.forEach((toggle) => {
         toggle.setAttribute('aria-expanded', String(!nextCollapsed));
         const icon = toggle.querySelector('[data-lucide]');
@@ -1444,6 +1468,8 @@ const initializeResizablePanels = () => {
   const heightHandle = document.getElementById('panel-height-resizer');
   const fullChartCards = document.querySelectorAll('[data-full-chart-card]');
   const fullChartHandle = document.getElementById('full-chart-height-resizer');
+  const fullChartLayout = document.getElementById('full-chart-layout');
+  const fullChartResizer = document.getElementById('full-chart-resizer');
   if (!container || !handle || !dealPanel || !alertsPanel) return;
 
   const minPanelWidth = 220;
@@ -1528,6 +1554,52 @@ const initializeResizablePanels = () => {
       document.body.classList.add('select-none', 'resize-col');
       window.addEventListener('pointermove', onChartMove);
       window.addEventListener('pointerup', stopChartDragging);
+    });
+  }
+
+  if (fullChartLayout && fullChartResizer && fullChartCards.length >= 2) {
+    const minChartWidth = 220;
+    let fullChartStartX = 0;
+    let startFullPrimaryWidth = 0;
+    let isFullChartDragging = false;
+
+    const onFullChartMove = (event) => {
+      if (!isFullChartDragging) return;
+      const deltaX = event.clientX - fullChartStartX;
+      const containerWidth = fullChartLayout.getBoundingClientRect().width;
+      const handleWidth = fullChartResizer.getBoundingClientRect().width;
+      const maxPrimaryWidth = Math.max(minChartWidth, containerWidth - minChartWidth - handleWidth);
+      const nextPrimaryWidth = Math.min(
+        maxPrimaryWidth,
+        Math.max(minChartWidth, startFullPrimaryWidth + deltaX)
+      );
+      fullChartCards[0].style.flex = `0 0 ${nextPrimaryWidth}px`;
+      fullChartCards[1].style.flex = '1 1 auto';
+    };
+
+    const stopFullChartDragging = () => {
+      if (!isFullChartDragging) return;
+      isFullChartDragging = false;
+      document.body.classList.remove('select-none', 'resize-col');
+      window.removeEventListener('pointermove', onFullChartMove);
+      window.removeEventListener('pointerup', stopFullChartDragging);
+      DashboardState.layout.fullChartSplitWidth = fullChartCards[0].getBoundingClientRect().width;
+      schedulePersistPreferences();
+    };
+
+    if (typeof DashboardState.layout.fullChartSplitWidth === 'number' && window.innerWidth >= 1024) {
+      fullChartCards[0].style.flex = `0 0 ${DashboardState.layout.fullChartSplitWidth}px`;
+      fullChartCards[1].style.flex = '1 1 auto';
+    }
+
+    fullChartResizer.addEventListener('pointerdown', (event) => {
+      if (window.innerWidth < 1024) return;
+      isFullChartDragging = true;
+      fullChartStartX = event.clientX;
+      startFullPrimaryWidth = fullChartCards[0].getBoundingClientRect().width;
+      document.body.classList.add('select-none', 'resize-col');
+      window.addEventListener('pointermove', onFullChartMove);
+      window.addEventListener('pointerup', stopFullChartDragging);
     });
   }
 
