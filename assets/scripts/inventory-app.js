@@ -364,21 +364,44 @@ const loadDashboardPreferences = async () => {
 };
 
 const applyLayoutPreferencesToDom = () => {
+  const container = document.getElementById('deal-alerts-layout');
+  const handle = document.getElementById('panel-resizer');
   const alertsPanel = document.getElementById('alerts-panel');
   const dealPanel = document.getElementById('deal-status-panel');
   const primaryChart = document.getElementById('status-primary-card');
   const secondaryChart = document.getElementById('status-secondary-card');
+  const chartsLayout = document.getElementById('deal-charts-layout');
+  const chartHandle = document.getElementById('chart-resizer');
   const fullWidthCharts = document.querySelectorAll('[data-full-chart-card]');
   const fullWidthChartBodies = document.querySelectorAll('[data-full-chart-body]');
   const fullWidthChartToggles = document.querySelectorAll('[data-full-chart-toggle]');
   const fullWidthChartResizer = document.getElementById('full-chart-height-resizer');
   if (!alertsPanel || !dealPanel) return;
   if (typeof DashboardState.layout.alertsPanelWidth === 'number' && window.innerWidth >= 1024) {
-    alertsPanel.style.flex = `0 0 ${DashboardState.layout.alertsPanelWidth}px`;
+    const minPanelWidth = 220;
+    let nextWidth = DashboardState.layout.alertsPanelWidth;
+    if (container && handle) {
+      const containerWidth = container.getBoundingClientRect().width;
+      const handleWidth = handle.getBoundingClientRect().width;
+      const maxAlertsWidth = Math.max(minPanelWidth, containerWidth - minPanelWidth - handleWidth);
+      nextWidth = Math.min(maxAlertsWidth, Math.max(minPanelWidth, nextWidth));
+    }
+    alertsPanel.style.flex = `0 0 ${nextWidth}px`;
     dealPanel.style.flex = '1 1 auto';
   }
-  if (typeof DashboardState.layout.chartSplitWidth === 'number' && window.innerWidth >= 1024 && primaryChart && secondaryChart) {
-    primaryChart.style.flex = `0 0 ${DashboardState.layout.chartSplitWidth}px`;
+  if (typeof DashboardState.layout.chartSplitWidth === 'number'
+    && window.innerWidth >= 1024
+    && primaryChart
+    && secondaryChart) {
+    const minChartWidth = 220;
+    let nextWidth = DashboardState.layout.chartSplitWidth;
+    if (chartsLayout && chartHandle) {
+      const containerWidth = chartsLayout.getBoundingClientRect().width;
+      const handleWidth = chartHandle.getBoundingClientRect().width;
+      const maxPrimaryWidth = Math.max(minChartWidth, containerWidth - minChartWidth - handleWidth);
+      nextWidth = Math.min(maxPrimaryWidth, Math.max(minChartWidth, nextWidth));
+    }
+    primaryChart.style.flex = `0 0 ${nextWidth}px`;
     secondaryChart.style.flex = '1 1 auto';
   }
   if (typeof DashboardState.layout.fullChartHeight === 'number' && fullWidthCharts.length) {
