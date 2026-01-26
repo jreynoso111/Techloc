@@ -1,5 +1,5 @@
 import '../authManager.js';
-import '../admin-auth.js';
+import { requireSession, supabaseClient } from '../admin-auth.js';
 import '../sharedHeader.js';
 import '../adminNav.js';
 import { setupBackgroundManager } from '../backgroundManager.js';
@@ -7,12 +7,12 @@ import {
   loadPreferredBackgroundMode,
   persistBackgroundMode,
 } from '../backgroundPreference.js';
-import { supabase as supabaseClient } from '../../js/supabaseClient.js';
 import { logAdminEvent } from '../adminAudit.js';
 import { setServiceFilterIds } from '../../js/shared/navigationStore.js';
-import { deleteServiceRow, duplicateServiceRow, refreshServices } from './services-api.js';
+import { deleteRow as deleteServiceRow, duplicateRow as duplicateServiceRow, refresh as refreshServices } from './services-api.js';
 import { renderCharts as renderChartsUI, resizeCharts } from './services-charts.js';
 import { commitInlineEdit as commitInlineEditUI, startInlineEdit as startInlineEditUI } from './services-editor.js';
+import { attachResizeHandles, attachScrollSync } from './services-events.js';
 import { ALL_COLUMNS, DB_FIELD_BY_COL_ID, state } from './services-state.js';
 import { renderBody as renderBodyUI, renderHeader as renderHeaderUI, renderTable as renderTableUI } from './services-ui.js';
 
@@ -169,25 +169,24 @@ const loadPrefs = () => {
 };
 
 // ---------------- AUTH ----------------
-const requireSession = async () => {
-  const { data } = await supabaseClient.auth.getSession();
-
-  if (data?.session) {
-    state.currentUserId = data.session.user.id;
-    state.currentUserEmail = data.session.user.email || '';
+const applySessionState = async (session) => {
+  if (session?.user?.id) {
+    state.currentUserId = session.user.id;
+    state.currentUserEmail = session.user.email || '';
     if (window.currentUserRole) {
       state.currentUserRole = window.currentUserRole;
     } else {
       const { data: profile } = await supabaseClient
         .from('profiles')
         .select('role')
-        .eq('id', data.session.user.id)
+        .eq('id', session.user.id)
         .single();
       state.currentUserRole = profile?.role || 'user';
     }
   } else {
     state.currentUserRole = 'anon';
     state.currentUserId = 'anon';
+    state.currentUserEmail = '';
   }
 
   loadPrefs();
@@ -202,9 +201,7 @@ const requireSession = async () => {
 supabaseClient.auth.onAuthStateChange((_event, session) => {
   const nextUserId = session?.user?.id || 'anon';
   if (nextUserId === state.currentUserId) return;
-  state.currentUserId = nextUserId;
-  state.currentUserEmail = session?.user?.email || '';
-  loadPrefs();
+  applySessionState(session);
   renderTable();
 });
 
@@ -968,49 +965,6 @@ const attachInlineEditing = () => {
   });
 };
 
-// ---------------- RESIZE ----------------
-const onMouseMoveResize = (e) => {
-  const session = state.drag.resizing;
-  if (!session) return;
-  if (session.pointerId !== undefined && session.pointerId !== null && e.pointerId !== undefined && e.pointerId !== session.pointerId) return;
-  e.preventDefault();
-  const { colId, startX, startW } = session;
-  const dx = e.clientX - startX;
-  setColWidth(colId, startW + dx);
-};
-
-const stopResize = (e) => {
-  const session = state.drag.resizing;
-  if (!session) return;
-  if (session.pointerId !== undefined && session.pointerId !== null && e && e.pointerId !== undefined && e.pointerId !== session.pointerId) return;
-  state.drag.resizing = null;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  window.removeEventListener('pointermove', onMouseMoveResize);
-  window.removeEventListener('pointerup', stopResize, true);
-};
-
-const attachResizeHandles = () => {
-  els.thead.addEventListener('pointerdown', (e) => {
-    const handle = e.target.closest('[data-resize]');
-    if (!handle) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const colId = handle.getAttribute('data-resize');
-    const th = handle.closest('th');
-    const thWidth = th ? parseFloat(getComputedStyle(th).width) : 0;
-    const startWidth = Number.isFinite(state.columnWidths[colId]) ? state.columnWidths[colId] : (thWidth || 140);
-
-    state.drag.resizing = { colId, startX: e.clientX, startW: startWidth, pointerId: e.pointerId };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    if (handle.setPointerCapture) handle.setPointerCapture(e.pointerId);
-    window.addEventListener('pointermove', onMouseMoveResize);
-    window.addEventListener('pointerup', stopResize, true);
-  });
-};
-
 // ---------------- COLUMN PICKER ----------------
 const renderColumnsPopover = () => {
   els.columnsList.innerHTML = '';
@@ -1078,30 +1032,6 @@ els.colsNone.addEventListener('click', () => {
   savePrefs();
   renderTable();
 });
-
-// ---------------- TOP SCROLLBAR SYNC ----------------
-const attachScrollSync = () => {
-  let syncing = false;
-
-  els.tableScroll.addEventListener('scroll', () => {
-    if (syncing) return;
-    syncing = true;
-    els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
-    syncing = false;
-  });
-
-  els.topScrollbar.addEventListener('scroll', () => {
-    if (syncing) return;
-    syncing = true;
-    els.tableScroll.scrollLeft = els.topScrollbar.scrollLeft;
-    syncing = false;
-  });
-
-  window.addEventListener('resize', () => {
-    syncTopScrollbar();
-    resizeCharts();
-  });
-};
 
 // ---------------- CHARTS ----------------
 const renderCharts = (filteredRows) => renderChartsUI({ filteredRows, syncTopScrollbar });
@@ -1225,20 +1155,12 @@ const initBackground = async () => {
   });
 };
 
-const redirectToLogin = async () => {
-  if (!supabaseClient?.auth?.getSession) return;
-  const { data } = await supabaseClient.auth.getSession();
-  if (!data?.session) {
-    window.location.href = '../login.html';
-  }
-};
-
 const init = async () => {
-  await redirectToLogin();
   await initBackground();
-  await requireSession();
-  attachResizeHandles();
-  attachScrollSync();
+  const session = await requireSession();
+  await applySessionState(session);
+  attachResizeHandles({ els, state, setColWidth });
+  attachScrollSync({ els, syncTopScrollbar, resizeCharts });
   attachAnalyticsResizeObserver();
   attachInlineEditing();
   await refresh();
