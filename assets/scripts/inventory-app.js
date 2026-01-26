@@ -289,6 +289,31 @@ const formatAlertsTimestamp = (date) => {
   return `${month}/${day}/${year} ${hours}:${minutes}`;
 };
 
+const getGpsOfflineCount = () => {
+  const cutoff = Date.now() - (10 * 24 * 60 * 60 * 1000);
+  const rows = DashboardState.derived.filtered || [];
+  return rows.filter((row) => {
+    const vin = row?.vin || row?.VIN || getField(row, 'VIN');
+    if (!vin) return false;
+    const dealStatus = String(getField(row, 'Deal Status', 'dealStatus') || '').trim().toUpperCase();
+    if (dealStatus !== 'ACTIVE') return false;
+    const lastPingValue = getField(row, 'Last Ping', 'last_ping', 'LastPing');
+    const lastPingString = String(lastPingValue ?? '').trim();
+    if (!lastPingString) return true;
+    const parsed = new Date(lastPingString);
+    if (Number.isNaN(parsed.getTime())) return true;
+    return parsed.getTime() < cutoff;
+  }).length;
+};
+
+const updateGpsOfflineCluster = () => {
+  const count = getGpsOfflineCount();
+  const badge = document.getElementById('alerts-gps-offline-count');
+  const collapsedBadge = document.getElementById('alerts-gps-offline-badge');
+  if (badge) badge.textContent = String(count);
+  if (collapsedBadge) collapsedBadge.textContent = String(count);
+};
+
 const fetchAlertsDealCount = async () => {
   if (!supabaseClient?.from) {
     setAlertsDealCount(0);
@@ -2049,6 +2074,11 @@ const ui = initDashboardUI({
   createIcons: () => lucide?.createIcons?.(),
 });
 ({ renderDashboard, renderColumnChooser, openDrawer, closeDrawer } = ui);
+const baseRenderDashboard = renderDashboard;
+renderDashboard = () => {
+  baseRenderDashboard();
+  updateGpsOfflineCluster();
+};
 bindFilterEvents();
 initializeResizablePanels();
 
