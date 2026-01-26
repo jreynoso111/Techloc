@@ -72,6 +72,7 @@ export const hydrateVehiclesFromSupabase = async ({
   supabaseClient,
   page = 1,
   perPage = DashboardState.table.perPage,
+  fetchAll = false,
   setConnectionStatus,
   renderDashboard,
   showDebug,
@@ -97,26 +98,61 @@ export const hydrateVehiclesFromSupabase = async ({
 
   setConnectionStatus('Reconnecting…');
 
-  const start = (page - 1) * perPage;
-  const end = page * perPage;
-  const { data, error } = await supabaseClient
-    .from('DealsJP1')
-    .select('*')
-    .range(start, end);
+  let data = [];
+  if (fetchAll) {
+    const batchSize = 1000;
+    let offset = 0;
+    while (true) {
+      const { data: batch, error } = await supabaseClient
+        .from('DealsJP1')
+        .select('*')
+        .range(offset, offset + batchSize - 1);
+      if (error) {
+        setConnectionStatus('Offline');
+        DashboardState.ui.isLoading = false;
+        renderDashboard();
 
-  if (error) {
-    setConnectionStatus('Offline');
-    DashboardState.ui.isLoading = false;
-    renderDashboard();
+        if (showDebug) {
+          showDebug(
+            'Supabase SELECT failed',
+            'Esto suele ser RLS (no tienes SELECT permitido), credenciales, o tabla/columnas distintas.',
+            { code: error.code, message: error.message, details: error.details, hint: error.hint }
+          );
+        }
+        return;
+      }
 
-    if (showDebug) {
-      showDebug(
-        'Supabase SELECT failed',
-        'Esto suele ser RLS (no tienes SELECT permitido), credenciales, o tabla/columnas distintas.',
-        { code: error.code, message: error.message, details: error.details, hint: error.hint }
-      );
+      if (!Array.isArray(batch) || batch.length === 0) {
+        break;
+      }
+      data = data.concat(batch);
+      if (batch.length < batchSize) {
+        break;
+      }
+      offset += batchSize;
     }
-    return;
+  } else {
+    const start = (page - 1) * perPage;
+    const end = page * perPage;
+    const response = await supabaseClient
+      .from('DealsJP1')
+      .select('*')
+      .range(start, end);
+    data = response.data || [];
+    if (response.error) {
+      setConnectionStatus('Offline');
+      DashboardState.ui.isLoading = false;
+      renderDashboard();
+
+      if (showDebug) {
+        showDebug(
+          'Supabase SELECT failed',
+          'Esto suele ser RLS (no tienes SELECT permitido), credenciales, o tabla/columnas distintas.',
+          { code: response.error.code, message: response.error.message, details: response.error.details, hint: response.error.hint }
+        );
+      }
+      return;
+    }
   }
 
   DashboardState.schema = buildSchemaFromData(data || []);

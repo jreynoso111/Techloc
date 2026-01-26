@@ -497,7 +497,7 @@ const setVehiclesFromArray = (vehicles) => {
   });
 };
 
-const loadVehiclesPage = async (page = DashboardState.table.page) => {
+const loadVehiclesPage = async (page = DashboardState.table.page, { fetchAll = false } = {}) => {
   if (!supabaseClient?.from) {
     setConnectionStatus('Offline');
     DashboardState.ui.isLoading = false;
@@ -511,6 +511,7 @@ const loadVehiclesPage = async (page = DashboardState.table.page) => {
     supabaseClient,
     page,
     perPage: DashboardState.table.perPage,
+    fetchAll,
     setConnectionStatus,
     renderDashboard,
     showDebug,
@@ -1271,7 +1272,7 @@ const bindFilterEvents = () => {
     setupFilters();
     DashboardState.filters.chartFilters = {};
     resetPagination();
-    renderDashboard();
+    loadVehiclesPage(1, { fetchAll: true });
     schedulePersistPreferences();
   });
 
