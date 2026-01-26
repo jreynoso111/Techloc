@@ -295,6 +295,8 @@ const getGpsOfflineCount = () => {
   return rows.filter((row) => {
     const vin = row?.vin || row?.VIN || getField(row, 'VIN');
     if (!vin) return false;
+    const dealStatus = String(getField(row, 'Deal Status', 'dealStatus') || '').trim().toUpperCase();
+    if (dealStatus !== 'ACTIVE') return false;
     const lastPingValue = getField(row, 'Last Ping', 'last_ping', 'LastPing');
     const lastPingString = String(lastPingValue ?? '').trim();
     if (!lastPingString) return true;
