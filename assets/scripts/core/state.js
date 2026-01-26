@@ -15,6 +15,7 @@ export const DashboardState = {
     vehicleStatusKey: '',
     vehicleStatusSelection: [],
     gpsOfflineOnly: false,
+    blackListOnly: false,
   },
   vehiclesRaw: new Map(),
   schema: [],

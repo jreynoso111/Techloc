@@ -360,8 +360,15 @@ const updateBlackListCluster = () => {
   const count = getBlackListCount();
   const badge = document.getElementById('alerts-blacklist-count');
   const collapsedBadge = document.getElementById('alerts-blacklist-badge');
+  const row = document.getElementById('alerts-blacklist-row');
+  const isActive = DashboardState.filters.blackListOnly;
   if (badge) badge.textContent = String(count);
   if (collapsedBadge) collapsedBadge.textContent = String(count);
+  if (row) {
+    row.classList.toggle('border-rose-400/60', isActive);
+    row.classList.toggle('bg-rose-500/10', isActive);
+    row.setAttribute('aria-pressed', String(isActive));
+  }
 };
 
 const fetchAlertsDealCount = async () => {
@@ -769,6 +776,7 @@ const setupFilters = ({ preserveSelections = false } = {}) => {
     DashboardState.filters.unitTypeSelection = [];
     DashboardState.filters.vehicleStatusSelection = [];
     DashboardState.filters.gpsOfflineOnly = false;
+    DashboardState.filters.blackListOnly = false;
   }
 
   DashboardState.filters.dateKey = dateKey;
@@ -913,6 +921,7 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
   return getCurrentDataset().filter((item) => {
     if (filters.lastLeadFilterActive && filters.lastLeadSelection !== 'all' && item.isLastDeal !== filters.lastLeadSelection) return false;
     if (filters.gpsOfflineOnly && !isGpsOfflineRow(item)) return false;
+    if (filters.blackListOnly && !isBlackListRow(item)) return false;
     const dateValue = filters.dateKey ? item[filters.dateKey] : null;
     const parsedDate = dateValue ? new Date(dateValue) : null;
     const dateString = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : '';
@@ -1121,6 +1130,7 @@ const bindFilterEvents = () => {
   const alertsDealsColumnsList = document.getElementById('alerts-deals-columns-list');
   const alertsDealsColumnHeaders = document.getElementById('alerts-deals-column-headers');
   const alertsGpsOfflineRow = document.getElementById('alerts-gps-offline-row');
+  const alertsBlackListRow = document.getElementById('alerts-blacklist-row');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -1395,6 +1405,20 @@ const bindFilterEvents = () => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     DashboardState.filters.gpsOfflineOnly = !DashboardState.filters.gpsOfflineOnly;
+    resetPagination();
+    renderDashboard();
+    schedulePersistPreferences();
+  });
+  addListener(alertsBlackListRow, 'click', () => {
+    DashboardState.filters.blackListOnly = !DashboardState.filters.blackListOnly;
+    resetPagination();
+    renderDashboard();
+    schedulePersistPreferences();
+  });
+  addListener(alertsBlackListRow, 'keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    DashboardState.filters.blackListOnly = !DashboardState.filters.blackListOnly;
     resetPagination();
     renderDashboard();
     schedulePersistPreferences();
