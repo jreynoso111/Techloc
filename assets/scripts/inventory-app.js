@@ -24,6 +24,8 @@ import {
   detectTruthyColumnValue,
   detectCategoryKeys,
   normalizeBoolean,
+  detectInvPrepStatusKey,
+  formatInvPrepStatusLabel,
 } from './core/state.js';
 import { initDashboardUI } from './ui/uiController.js';
 import {
@@ -916,14 +918,22 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
       || activeChartFilters.every((filter) => {
         const values = Array.isArray(filter.values) ? filter.values : [];
         if (!values.length) return true;
-        return values.includes(getSegmentLabel(item[filter.key]));
+        return values.includes(getSegmentLabel(item[filter.key], filter.key));
       });
 
     return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && vehicleStatusMatch && columnMatch && chartMatch;
   });
 };
 
-const getSegmentLabel = (value) => String(value ?? '').trim() || 'Unassigned';
+const getSegmentLabel = (value, segmentKey = '') => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 'Unassigned';
+  const invPrepKey = detectInvPrepStatusKey(DashboardState.schema);
+  if (segmentKey && invPrepKey && segmentKey === invPrepKey) {
+    return formatInvPrepStatusLabel(raw) || 'Unassigned';
+  }
+  return raw;
+};
 const getSegmentOptions = () => {
   const options = [{ key: 'dealStatus', label: 'Deal Status' }];
   const seen = new Set(options.map((opt) => opt.key));

@@ -246,12 +246,12 @@ export const initDashboardUI = ({
         }, new Map()).values()
       );
       const dealStatusCounts = uniqueRecords.reduce((acc, item) => {
-        const key = getSegmentLabel(item[segmentKey]);
+        const key = getSegmentLabel(item[segmentKey], segmentKey);
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
       const segmentValues = Array.from(
-        new Set(segmentRecords.map((item) => getSegmentLabel(item[segmentKey])))
+        new Set(segmentRecords.map((item) => getSegmentLabel(item[segmentKey], segmentKey)))
       ).sort((a, b) => a.localeCompare(b));
       renderSegmentFieldOptions(chartId, segmentKey, segmentValues);
       const hiddenValues = ensureChartVisibilityState(chartId, segmentKey);
