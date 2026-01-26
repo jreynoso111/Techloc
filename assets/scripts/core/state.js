@@ -252,11 +252,19 @@ export const detectInvPrepStatusKey = (schema) =>
       || /inventory\s*preparation\s*status/i.test(col.label)
   )?.key || '';
 
+const normalizeInvPrepStatus = (status) => {
+  if (status === null || status === undefined) return '';
+  const value = String(status).trim();
+  if (!value) return '';
+  if (value.toLowerCase() === 'pending aucion - manhein') return 'AUCTION';
+  return value;
+};
+
 export const getInvPrepStatusValue = (item, key) => {
   const value = key ? item?.[key] : undefined;
-  if (value !== undefined && value !== null && value !== '') return String(value);
+  if (value !== undefined && value !== null && value !== '') return normalizeInvPrepStatus(value);
   const fallback = item?.prepStatus ?? item?.['Inventory Preparation Status'] ?? item?.['Inv. Prep. Stat'];
-  return fallback !== undefined && fallback !== null && fallback !== '' ? String(fallback) : '';
+  return fallback !== undefined && fallback !== null && fallback !== '' ? normalizeInvPrepStatus(fallback) : '';
 };
 
 export const getInvPrepStatusRowClass = (status) => {
