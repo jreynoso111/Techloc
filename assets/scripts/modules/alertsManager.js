@@ -13,7 +13,6 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
   let alertsDealsSortKey = '';
   let alertsDealsSortDirection = 'asc';
   let templatesMounted = false;
-  let alertsDealsUiBound = false;
   let alertsSupabaseClient = null;
 
   const addListener = (element, event, handler, options) => {
@@ -87,7 +86,7 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     return String(value);
   };
 
-  const renderAlertsDealsList = (rows, limit = 20) => {
+  const renderAlertsDealsList = (rows, limit = 500) => {
     const list = document.getElementById('alerts-deals-list');
     if (!list) return;
     list.innerHTML = '';
@@ -252,12 +251,12 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
   };
 
   const bindAlertsDealsUi = () => {
-    if (alertsDealsUiBound) return;
     mountTemplates();
 
     const alertsDealsModal = document.getElementById('alerts-deals-modal');
     const alertsDealsModalClose = document.getElementById('alerts-deals-modal-close');
     const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+    const alertsDealsBadge = document.getElementById('alerts-deals-count');
     const alertsDealsFilters = document.getElementById('alerts-deals-filters');
     const alertsDealsList = document.getElementById('alerts-deals-list');
     const alertsDealsColumnsToggle = document.getElementById('alerts-deals-columns-toggle');
@@ -273,6 +272,7 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       };
 
       addListener(alertsDealsRowButton, 'click', openAlertsDealsModal);
+      addListener(alertsDealsBadge, 'click', openAlertsDealsModal);
       addListener(alertsDealsModalClose, 'click', closeModal);
       addListener(alertsDealsModal, 'click', (event) => {
         if (event.target === alertsDealsModal) closeModal();
@@ -375,16 +375,20 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       });
     }
 
-    alertsDealsUiBound = true;
   };
 
   const init = () => {
+    mountTemplates();
+    bindAlertsDealsUi();
+    const alertsDealsRow = document.getElementById('alerts-deals-row');
+    const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+    alertsDealsRow?.classList.remove('hidden');
+    alertsDealsRowButton?.classList.remove('hidden');
+
     const alertsToggle = document.getElementById('alerts-toggle');
     const alertsList = document.getElementById('alerts-list');
     const alertsBadges = document.getElementById('alerts-badges');
     const alertsPanel = document.getElementById('alerts-panel');
-    const alertsDealsBadge = document.getElementById('alerts-deals-count');
-
     if (alertsToggle && alertsList && alertsBadges && alertsPanel) {
       addListener(alertsToggle, 'click', () => {
         const isCollapsed = alertsPanel.dataset.collapsed === 'true';
@@ -398,9 +402,6 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       });
     }
 
-    if (alertsDealsBadge) {
-      addListener(alertsDealsBadge, 'click', openAlertsDealsModal);
-    }
   };
 
   const fetchAlertsDealsData = async () => {
@@ -409,8 +410,7 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     }
     const { data, error } = await alertsSupabaseClient
       .from('DealsJP1')
-      .select('*')
-      .in('Vehicle Status', ['ACTIVE', 'STOCK', 'STOLEN']);
+      .select('*');
     if (error || !Array.isArray(data)) {
       return;
     }
@@ -460,14 +460,17 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       updateAlertsDealsList();
       return;
     }
-    const { count, error } = await alertsSupabaseClient
+    const { data, error } = await alertsSupabaseClient
       .from('DealsJP1')
-      .select('*', { count: 'exact', head: true })
-      .in('Vehicle Status', ['ACTIVE', 'STOCK', 'STOLEN']);
+      .select('*')
+      .not('VIN', 'is', null);
     if (error) {
       return;
     }
-    setAlertsDealCount(count || 0);
+    if (Array.isArray(data)) {
+      console.table(data.slice(0, 10));
+    }
+    setAlertsDealCount(data?.length || 0);
     alertsDealsRows = [];
   };
 
