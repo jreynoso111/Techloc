@@ -484,6 +484,10 @@ export const initDashboardUI = ({
       const cells = visibleColumns.map((col) => {
         let value = item[col.key];
 
+        if (col.key === invPrepKey) {
+          value = getInvPrepStatusValue(item, invPrepKey);
+        }
+
         if (col.type === 'boolean') value = value ? 'Yes' : 'No';
         else if (col.type === 'date') value = value ? formatDate(value) : '--';
         else if (MILEAGE_COLUMNS.has(col.key.toLowerCase()) || col.label?.toLowerCase() === 'mileage') {
