@@ -1,5 +1,7 @@
 import { SUPABASE_KEY, SUPABASE_URL } from '../scripts/env.js';
 
+// Single source of truth for the Supabase client; load this file from pages/scripts.
+
 const existingClient = typeof window !== 'undefined' ? window.supabaseClient : null;
 const supabaseLibReady =
   typeof window !== 'undefined' &&
