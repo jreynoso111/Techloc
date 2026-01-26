@@ -14,6 +14,7 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
   let alertsDealsSortDirection = 'asc';
   let templatesMounted = false;
   let alertsDealsUiBound = false;
+  let alertsSupabaseClient = null;
 
   const addListener = (element, event, handler, options) => {
     element?.addEventListener(event, handler, options);
@@ -72,8 +73,13 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
 
   const getAlertsColumnValue = (row, key, vin, vinQuery) => {
     if (key === 'VIN') {
+      const prepStatusRaw = row?.['Inventory Preparation Status'];
+      const prepStatus = prepStatusRaw === null || prepStatusRaw === undefined || prepStatusRaw === ''
+        ? '—'
+        : String(prepStatusRaw);
+      const prepBadge = `<span class="ml-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-semibold uppercase text-amber-200">Prep: ${prepStatus}</span>`;
       return vin
-        ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer">${vin}</a>`
+        ? `<a class="text-blue-200 underline decoration-transparent underline-offset-2 transition hover:decoration-blue-200" href="https://www.google.com/search?q=%22${vinQuery}%22" target="_blank" rel="noreferrer">${vin}</a>${prepBadge}`
         : '—';
     }
     const value = row?.[key];
@@ -238,6 +244,11 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     alertsDealsModal.classList.remove('hidden');
     alertsDealsModal.classList.add('flex');
     alertsDealsModal.setAttribute('aria-hidden', 'false');
+    const alertsDealsList = document.getElementById('alerts-deals-list');
+    if (alertsDealsList && !alertsDealsRows.length) {
+      alertsDealsList.innerHTML = '<p class="text-xs text-slate-400">Loading deals...</p>';
+    }
+    void fetchAlertsDealsData();
   };
 
   const bindAlertsDealsUi = () => {
@@ -392,34 +403,18 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     }
   };
 
-  const fetchAlertsDealCount = async (supabaseClient) => {
-    if (!supabaseClient?.from) {
-      setAlertsDealCount(0);
-      alertsDealsRows = [];
-      updateAlertsDealsList();
+  const fetchAlertsDealsData = async () => {
+    if (!alertsSupabaseClient?.from) {
       return;
     }
-    const { data, error } = await supabaseClient
+    const { data, error } = await alertsSupabaseClient
       .from('DealsJP1')
-      .select('*');
+      .select('*')
+      .in('Vehicle Status', ['ACTIVE', 'STOCK', 'STOLEN']);
     if (error || !Array.isArray(data)) {
       return;
     }
-    const onlineRows = data.filter((row) => {
-      if (!row?.VIN) return false;
-      const status = String(row['Vehicle Status'] || '').trim().toUpperCase();
-      if (!['ACTIVE', 'STOCK', 'STOLEN'].includes(status)) return false;
-      const prepStatus = String(row['Inventory Preparation Status'] || '').trim().toLowerCase();
-      return [
-        'out for repo',
-        'stolen',
-        'accidented',
-        'accident',
-        'stolen vehicle',
-        'third party repair shop',
-      ].includes(prepStatus);
-    });
-    setAlertsDealCount(onlineRows.length);
+    const onlineRows = data;
     alertsDealsRows = onlineRows;
     alertsDealsFilterOptions = Array.from(
       new Set(
@@ -455,6 +450,25 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
     renderAlertsDealsColumns();
     renderAlertsDealsColumnHeaders();
     updateAlertsDealsList();
+  };
+
+  const fetchAlertsDealCount = async (supabaseClient) => {
+    alertsSupabaseClient = supabaseClient || null;
+    if (!alertsSupabaseClient?.from) {
+      setAlertsDealCount(0);
+      alertsDealsRows = [];
+      updateAlertsDealsList();
+      return;
+    }
+    const { count, error } = await alertsSupabaseClient
+      .from('DealsJP1')
+      .select('*', { count: 'exact', head: true })
+      .in('Vehicle Status', ['ACTIVE', 'STOCK', 'STOLEN']);
+    if (error) {
+      return;
+    }
+    setAlertsDealCount(count || 0);
+    alertsDealsRows = [];
   };
 
   return {
