@@ -70,6 +70,8 @@ export const initializeSupabaseRealtime = ({ supabaseClient, setConnectionStatus
 
 export const hydrateVehiclesFromSupabase = async ({
   supabaseClient,
+  page = 1,
+  perPage = DashboardState.table.perPage,
   setConnectionStatus,
   renderDashboard,
   showDebug,
@@ -95,10 +97,12 @@ export const hydrateVehiclesFromSupabase = async ({
 
   setConnectionStatus('Reconnecting…');
 
+  const start = (page - 1) * perPage;
+  const end = page * perPage;
   const { data, error } = await supabaseClient
     .from('DealsJP1')
     .select('*')
-    .limit(5000);
+    .range(start, end);
 
   if (error) {
     setConnectionStatus('Offline');

@@ -497,6 +497,31 @@ const setVehiclesFromArray = (vehicles) => {
   });
 };
 
+const loadVehiclesPage = async (page = DashboardState.table.page) => {
+  if (!supabaseClient?.from) {
+    setConnectionStatus('Offline');
+    DashboardState.ui.isLoading = false;
+    renderDashboard();
+    return;
+  }
+  DashboardState.table.page = page;
+  DashboardState.ui.isLoading = true;
+  renderDashboard();
+  await hydrateVehiclesFromSupabase({
+    supabaseClient,
+    page,
+    perPage: DashboardState.table.perPage,
+    setConnectionStatus,
+    renderDashboard,
+    showDebug,
+    buildSchemaFromData,
+    setVehiclesFromArray,
+    initializeTablePreferences,
+    setupFilters,
+    getField,
+  });
+};
+
 const setupFilters = ({ preserveSelections = false } = {}) => {
   const dataset = getCurrentDataset();
   const schema = DashboardState.schema;
@@ -1008,22 +1033,25 @@ const bindFilterEvents = () => {
     schedulePersistPreferences();
   });
 
-  addListener(tablePrev, 'click', () => { DashboardState.table.page = Math.max(1, DashboardState.table.page - 1); renderDashboard(); });
-  addListener(tableNext, 'click', () => { DashboardState.table.page += 1; renderDashboard(); });
+  addListener(tablePrev, 'click', () => {
+    const nextPage = Math.max(1, DashboardState.table.page - 1);
+    loadVehiclesPage(nextPage);
+  });
+  addListener(tableNext, 'click', () => {
+    const nextPage = DashboardState.table.page + 1;
+    loadVehiclesPage(nextPage);
+  });
 
   addListener(perPageSelect, 'change', () => {
     DashboardState.table.perPage = Number(perPageSelect.value);
     DashboardState.table.page = 1;
-    renderDashboard();
+    loadVehiclesPage(1);
     schedulePersistPreferences();
   });
 
   addListener(goToInput, 'change', () => {
-    const totalRows = DashboardState.derived.filtered.length;
-    const totalPages = Math.max(1, Math.ceil(totalRows / DashboardState.table.perPage));
-    const desired = Math.min(Math.max(1, Number(goToInput.value) || 1), totalPages);
-    DashboardState.table.page = desired;
-    renderDashboard();
+    const desired = Math.max(1, Number(goToInput.value) || 1);
+    loadVehiclesPage(desired);
   });
 
   addListener(columnChooserOptions, 'click', (event) => {
@@ -1841,17 +1869,7 @@ mobileToggle?.addEventListener('click', () => {
   setInterval(() => {
     fetchAlertsDealCount();
   }, 60 * 60 * 1000);
-  await hydrateVehiclesFromSupabase({
-    supabaseClient,
-    setConnectionStatus,
-    renderDashboard,
-    showDebug,
-    buildSchemaFromData,
-    setVehiclesFromArray,
-    initializeTablePreferences,
-    setupFilters,
-    getField,
-  });
+  await loadVehiclesPage(1);
   initializeSupabaseRealtime({
     supabaseClient,
     setConnectionStatus,
