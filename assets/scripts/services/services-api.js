@@ -1,4 +1,4 @@
-import { supabase as supabaseClient } from '../../js/supabaseClient.js';
+import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
 import { logAdminEvent } from '../adminAudit.js';
 
 const logChange = async ({
