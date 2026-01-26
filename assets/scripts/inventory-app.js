@@ -679,8 +679,13 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
 const getSegmentLabel = (value) => {
   const trimmed = String(value ?? '').trim();
   if (!trimmed) return 'Unassigned';
-  const normalized = trimmed.toLowerCase();
-  if (['pending aucion - manhein', 'pending auction - manhein'].includes(normalized)) {
+  const normalized = trimmed
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\s*-\s*/g, ' - ')
+    .replace('aucion', 'auction');
+  if (normalized.startsWith('pending auction')
+    && (normalized.includes('manhein') || normalized.includes('manheim'))) {
     return 'AUCTION';
   }
   return trimmed;
