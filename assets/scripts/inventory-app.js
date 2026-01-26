@@ -727,12 +727,17 @@ const getSegmentLabel = (value) => {
     .replace(/\s+/g, ' ')
     .replace(/\s*-\s*/g, ' - ')
     .replace('aucion', 'auction');
+  const normalizedLoose = trimmed
+    .toLowerCase()
+    .replace(/[-_/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (normalized.startsWith('pending auction')
     && (normalized.includes('manhein') || normalized.includes('manheim'))) {
     return 'AUCTION';
   }
-  if (normalized === 'third party repair shop') return 'REPAIR SHOP';
-  if (normalized === 'available for deals') return 'Available';
+  if (normalizedLoose.includes('third party repair shop')) return 'REPAIR SHOP';
+  if (normalizedLoose.includes('available for deals')) return 'Available';
   return trimmed;
 };
 const getSegmentOptions = () => {
