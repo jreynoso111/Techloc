@@ -379,6 +379,12 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
   };
 
   const init = () => {
+    mountTemplates();
+    const alertsDealsRow = document.getElementById('alerts-deals-row');
+    const alertsDealsRowButton = document.getElementById('alerts-deals-row-button');
+    alertsDealsRow?.classList.remove('hidden');
+    alertsDealsRowButton?.classList.remove('hidden');
+
     const alertsToggle = document.getElementById('alerts-toggle');
     const alertsList = document.getElementById('alerts-list');
     const alertsBadges = document.getElementById('alerts-badges');
@@ -460,14 +466,17 @@ export const createAlertsManager = ({ initializeLucideIcons, updateLucideIcon } 
       updateAlertsDealsList();
       return;
     }
-    const { count, error } = await alertsSupabaseClient
+    const { data, error } = await alertsSupabaseClient
       .from('DealsJP1')
-      .select('*', { count: 'exact', head: true })
-      .in('Vehicle Status', ['ACTIVE', 'STOCK', 'STOLEN']);
+      .select('*')
+      .not('VIN', 'is', null);
     if (error) {
       return;
     }
-    setAlertsDealCount(count || 0);
+    if (Array.isArray(data)) {
+      console.table(data.slice(0, 10));
+    }
+    setAlertsDealCount(data?.length || 0);
     alertsDealsRows = [];
   };
 
