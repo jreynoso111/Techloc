@@ -1,5 +1,5 @@
 import '../authManager.js';
-import '../admin-auth.js';
+import { requireSession, supabaseClient } from '../admin-auth.js';
 import '../sharedHeader.js';
 import '../adminNav.js';
 import { setupBackgroundManager } from '../backgroundManager.js';
@@ -7,13 +7,13 @@ import {
   loadPreferredBackgroundMode,
   persistBackgroundMode,
 } from '../backgroundPreference.js';
-import { supabase as supabaseClient } from '../../js/supabaseClient.js';
 import { logAdminEvent } from '../adminAudit.js';
 import { setServiceFilterIds } from '../../js/shared/navigationStore.js';
-import { deleteServiceRow, duplicateServiceRow, refreshServices } from './services-api.js';
+import { deleteRow as deleteServiceRow, duplicateRow as duplicateServiceRow, refresh as refreshServices } from './services-api.js';
 import { renderCharts as renderChartsUI, resizeCharts } from './services-charts.js';
 import { commitInlineEdit as commitInlineEditUI, startInlineEdit as startInlineEditUI } from './services-editor.js';
-import { ALL_COLUMNS, DB_FIELD_BY_COL_ID, state } from './services-state.js';
+import { attachResizeHandles, attachScrollSync } from './services-events.js';
+import { ALL_COLUMNS, DB_FIELD_BY_COL_ID, loadPrefs, savePrefs, state } from './services-state.js';
 import { renderBody as renderBodyUI, renderHeader as renderHeaderUI, renderTable as renderTableUI } from './services-ui.js';
 
 const READ_TABLE = 'Services';
@@ -95,99 +95,25 @@ const els = {
   analyticsWrap: document.getElementById('analytics-wrap'),
 };
 
-// ================== PERSISTENCE ==================
-const STORAGE_PREFIX = 'techloc_services_table_prefs_v1';
-const storageKey = () => `${STORAGE_PREFIX}:${state.currentUserId}`;
-const safeParse = (raw) => { try { return JSON.parse(raw); } catch { return null; } };
-
-const savePrefs = () => {
-  localStorage.setItem(storageKey(), JSON.stringify({
-    columnOrder: state.columnOrder,
-    columnVisibility: state.columnVisibility,
-    columnWidths: state.columnWidths,
-    columnLabels: state.columnLabels,
-    filters: state.filters,
-    pagination: state.pagination,
-  }));
-};
-
-const loadPrefs = () => {
-  const prefs = safeParse(localStorage.getItem(storageKey()) || '');
-  if (!prefs) return;
-
-  const validCols = new Set(['actions', ...ALL_COLUMNS.map(c => c.id)]);
-
-  if (Array.isArray(prefs.columnOrder)) {
-    const cleaned = prefs.columnOrder.filter(c => validCols.has(c));
-    const missing = [...validCols].filter(c => !cleaned.includes(c));
-    state.columnOrder = [...cleaned, ...missing];
-  }
-
-  if (prefs.columnVisibility && typeof prefs.columnVisibility === 'object') {
-    const next = { ...state.columnVisibility };
-    for (const [k, v] of Object.entries(prefs.columnVisibility)) {
-      if (validCols.has(k)) next[k] = !!v;
-    }
-    next.actions = true;
-    state.columnVisibility = next;
-  }
-
-  if (prefs.columnWidths && typeof prefs.columnWidths === 'object') {
-    const next = { ...state.columnWidths };
-    for (const [k, v] of Object.entries(prefs.columnWidths)) {
-      if (validCols.has(k) && Number.isFinite(+v)) next[k] = +v;
-    }
-    state.columnWidths = next;
-  }
-
-  if (prefs.columnLabels && typeof prefs.columnLabels === 'object') {
-    const next = {};
-    for (const [k, v] of Object.entries(prefs.columnLabels)) {
-      if (validCols.has(k) && typeof v === 'string') next[k] = v;
-    }
-    state.columnLabels = next;
-  }
-
-  if (prefs.filters && typeof prefs.filters === 'object') {
-    const nextFilters = { columnFilters: {} };
-    if (prefs.filters.columnFilters && typeof prefs.filters.columnFilters === 'object') {
-      for (const [colId, filter] of Object.entries(prefs.filters.columnFilters)) {
-        if (!validCols.has(colId)) continue;
-        const values = Array.isArray(filter?.values) ? filter.values : [];
-        const query = typeof filter?.query === 'string' ? filter.query : '';
-        if (values.length || query) nextFilters.columnFilters[colId] = { values, query };
-      }
-    }
-    state.filters = nextFilters;
-  }
-
-  if (prefs.pagination && typeof prefs.pagination === 'object') {
-    const page = Number.isFinite(+prefs.pagination.page) ? +prefs.pagination.page : 1;
-    state.pagination.page = Math.max(1, page);
-    if (Number.isFinite(+prefs.pagination.pageSize)) state.pagination.pageSize = +prefs.pagination.pageSize;
-  }
-};
-
 // ---------------- AUTH ----------------
-const requireSession = async () => {
-  const { data } = await supabaseClient.auth.getSession();
-
-  if (data?.session) {
-    state.currentUserId = data.session.user.id;
-    state.currentUserEmail = data.session.user.email || '';
+const applySessionState = async (session) => {
+  if (session?.user?.id) {
+    state.currentUserId = session.user.id;
+    state.currentUserEmail = session.user.email || '';
     if (window.currentUserRole) {
       state.currentUserRole = window.currentUserRole;
     } else {
       const { data: profile } = await supabaseClient
         .from('profiles')
         .select('role')
-        .eq('id', data.session.user.id)
+        .eq('id', session.user.id)
         .single();
       state.currentUserRole = profile?.role || 'user';
     }
   } else {
     state.currentUserRole = 'anon';
     state.currentUserId = 'anon';
+    state.currentUserEmail = '';
   }
 
   loadPrefs();
@@ -202,9 +128,7 @@ const requireSession = async () => {
 supabaseClient.auth.onAuthStateChange((_event, session) => {
   const nextUserId = session?.user?.id || 'anon';
   if (nextUserId === state.currentUserId) return;
-  state.currentUserId = nextUserId;
-  state.currentUserEmail = session?.user?.email || '';
-  loadPrefs();
+  applySessionState(session);
   renderTable();
 });
 
@@ -968,49 +892,6 @@ const attachInlineEditing = () => {
   });
 };
 
-// ---------------- RESIZE ----------------
-const onMouseMoveResize = (e) => {
-  const session = state.drag.resizing;
-  if (!session) return;
-  if (session.pointerId !== undefined && session.pointerId !== null && e.pointerId !== undefined && e.pointerId !== session.pointerId) return;
-  e.preventDefault();
-  const { colId, startX, startW } = session;
-  const dx = e.clientX - startX;
-  setColWidth(colId, startW + dx);
-};
-
-const stopResize = (e) => {
-  const session = state.drag.resizing;
-  if (!session) return;
-  if (session.pointerId !== undefined && session.pointerId !== null && e && e.pointerId !== undefined && e.pointerId !== session.pointerId) return;
-  state.drag.resizing = null;
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  window.removeEventListener('pointermove', onMouseMoveResize);
-  window.removeEventListener('pointerup', stopResize, true);
-};
-
-const attachResizeHandles = () => {
-  els.thead.addEventListener('pointerdown', (e) => {
-    const handle = e.target.closest('[data-resize]');
-    if (!handle) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    const colId = handle.getAttribute('data-resize');
-    const th = handle.closest('th');
-    const thWidth = th ? parseFloat(getComputedStyle(th).width) : 0;
-    const startWidth = Number.isFinite(state.columnWidths[colId]) ? state.columnWidths[colId] : (thWidth || 140);
-
-    state.drag.resizing = { colId, startX: e.clientX, startW: startWidth, pointerId: e.pointerId };
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    if (handle.setPointerCapture) handle.setPointerCapture(e.pointerId);
-    window.addEventListener('pointermove', onMouseMoveResize);
-    window.addEventListener('pointerup', stopResize, true);
-  });
-};
-
 // ---------------- COLUMN PICKER ----------------
 const renderColumnsPopover = () => {
   els.columnsList.innerHTML = '';
@@ -1079,30 +960,6 @@ els.colsNone.addEventListener('click', () => {
   renderTable();
 });
 
-// ---------------- TOP SCROLLBAR SYNC ----------------
-const attachScrollSync = () => {
-  let syncing = false;
-
-  els.tableScroll.addEventListener('scroll', () => {
-    if (syncing) return;
-    syncing = true;
-    els.topScrollbar.scrollLeft = els.tableScroll.scrollLeft;
-    syncing = false;
-  });
-
-  els.topScrollbar.addEventListener('scroll', () => {
-    if (syncing) return;
-    syncing = true;
-    els.tableScroll.scrollLeft = els.topScrollbar.scrollLeft;
-    syncing = false;
-  });
-
-  window.addEventListener('resize', () => {
-    syncTopScrollbar();
-    resizeCharts();
-  });
-};
-
 // ---------------- CHARTS ----------------
 const renderCharts = (filteredRows) => renderChartsUI({ filteredRows, syncTopScrollbar });
 
@@ -1159,61 +1016,74 @@ const deleteRow = async (row) => deleteServiceRow({
 });
 
 // ---------------- EVENTS ----------------
-els.prevPage.addEventListener('click', () => { if (state.pagination.page > 1) { state.pagination.page -= 1; savePrefs(); renderTable(); } });
-els.nextPage.addEventListener('click', () => {
-  const total = applySort(applyFilters()).length;
-  const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
-  if (state.pagination.page < totalPages) { state.pagination.page += 1; savePrefs(); renderTable(); }
-});
-
-els.refresh.addEventListener('click', refresh);
-
-// Create new record inline (adds blank row in DB, then you edit cells)
-els.addRecord?.addEventListener('click', async () => {
-  if (state.currentUserRole !== 'administrator') return;
-  try {
-    const payload = {
-      company_name: '',
-      authorization: '',
-      category: '',
-      verified: null,
-      phone: '',
-      contact: '',
-      address: '',
-      city: '',
-      state: '',
-      zip: '',
-      email: '',
-      notes: '',
-      website: '',
-      availability: '',
-      lat: null,
-      long: null,
-    };
-    const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
-    if (error) throw error;
-    const normalized = normalizeRow(data);
-    if (normalized?.id === undefined || normalized?.id === null || normalized.id === '') {
-      console.error('Insert returned row without a valid id', data);
-      showToast('Error creating record: missing ID from server. Please refresh and try again.', 'error');
-      return;
+const attachButtonEvents = () => {
+  els.prevPage.addEventListener('click', () => {
+    if (state.pagination.page > 1) {
+      state.pagination.page -= 1;
+      savePrefs();
+      renderTable();
     }
+  });
 
-    state.rows.unshift(normalized);
-    state.pagination.page = 1;
-    renderTable();
-    savePrefs();
+  els.nextPage.addEventListener('click', () => {
+    const total = applySort(applyFilters()).length;
+    const totalPages = Math.max(1, Math.ceil(total / state.pagination.pageSize));
+    if (state.pagination.page < totalPages) {
+      state.pagination.page += 1;
+      savePrefs();
+      renderTable();
+    }
+  });
 
-    logChange({
-      action: 'insert',
-      summary: `Created new service record (#${normalized.id})`,
-      recordId: normalized.id,
-    });
-  } catch (err) {
-    console.error(err);
-    showToast('Error creating record: ' + (err?.message || JSON.stringify(err)), 'error');
-  }
-});
+  els.refresh.addEventListener('click', refresh);
+
+  // Create new record inline (adds blank row in DB, then you edit cells)
+  els.addRecord?.addEventListener('click', async () => {
+    if (state.currentUserRole !== 'administrator') return;
+    try {
+      const payload = {
+        company_name: '',
+        authorization: '',
+        category: '',
+        verified: null,
+        phone: '',
+        contact: '',
+        address: '',
+        city: '',
+        state: '',
+        zip: '',
+        email: '',
+        notes: '',
+        website: '',
+        availability: '',
+        lat: null,
+        long: null,
+      };
+      const { data, error } = await supabaseClient.from(WRITE_TABLE).insert([payload]).select('*').single();
+      if (error) throw error;
+      const normalized = normalizeRow(data);
+      if (normalized?.id === undefined || normalized?.id === null || normalized.id === '') {
+        console.error('Insert returned row without a valid id', data);
+        showToast('Error creating record: missing ID from server. Please refresh and try again.', 'error');
+        return;
+      }
+
+      state.rows.unshift(normalized);
+      state.pagination.page = 1;
+      renderTable();
+      savePrefs();
+
+      logChange({
+        action: 'insert',
+        summary: `Created new service record (#${normalized.id})`,
+        recordId: normalized.id,
+      });
+    } catch (err) {
+      console.error(err);
+      showToast('Error creating record: ' + (err?.message || JSON.stringify(err)), 'error');
+    }
+  });
+};
 
 // ---------------- INIT ----------------
 const initBackground = async () => {
@@ -1225,20 +1095,13 @@ const initBackground = async () => {
   });
 };
 
-const redirectToLogin = async () => {
-  if (!supabaseClient?.auth?.getSession) return;
-  const { data } = await supabaseClient.auth.getSession();
-  if (!data?.session) {
-    window.location.href = '../login.html';
-  }
-};
-
 const init = async () => {
-  await redirectToLogin();
   await initBackground();
-  await requireSession();
-  attachResizeHandles();
-  attachScrollSync();
+  const session = await requireSession();
+  await applySessionState(session);
+  attachButtonEvents();
+  attachResizeHandles({ els, state, setColWidth });
+  attachScrollSync({ els, syncTopScrollbar, resizeCharts });
   attachAnalyticsResizeObserver();
   attachInlineEditing();
   await refresh();
