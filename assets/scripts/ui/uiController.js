@@ -12,6 +12,7 @@ import {
   getColumnLabel,
   getInvPrepStatusValue,
   getInvPrepStatusRowClass,
+  formatInvPrepStatusLabel,
   detectInvPrepStatusKey,
   getUniqueValues,
 } from '../core/state.js';
@@ -245,12 +246,12 @@ export const initDashboardUI = ({
         }, new Map()).values()
       );
       const dealStatusCounts = uniqueRecords.reduce((acc, item) => {
-        const key = getSegmentLabel(item[segmentKey]);
+        const key = getSegmentLabel(item[segmentKey], segmentKey);
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
       const segmentValues = Array.from(
-        new Set(segmentRecords.map((item) => getSegmentLabel(item[segmentKey])))
+        new Set(segmentRecords.map((item) => getSegmentLabel(item[segmentKey], segmentKey)))
       ).sort((a, b) => a.localeCompare(b));
       renderSegmentFieldOptions(chartId, segmentKey, segmentValues);
       const hiddenValues = ensureChartVisibilityState(chartId, segmentKey);
@@ -484,7 +485,9 @@ export const initDashboardUI = ({
       const cells = visibleColumns.map((col) => {
         let value = item[col.key];
 
-        if (col.type === 'boolean') value = value ? 'Yes' : 'No';
+        if (invPrepKey && col.key === invPrepKey) {
+          value = formatInvPrepStatusLabel(prepStatus);
+        } else if (col.type === 'boolean') value = value ? 'Yes' : 'No';
         else if (col.type === 'date') value = value ? formatDate(value) : '--';
         else if (MILEAGE_COLUMNS.has(col.key.toLowerCase()) || col.label?.toLowerCase() === 'mileage') {
           value = formatMileage(value);
