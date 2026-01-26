@@ -731,6 +731,8 @@ const getSegmentLabel = (value) => {
     && (normalized.includes('manhein') || normalized.includes('manheim'))) {
     return 'AUCTION';
   }
+  if (normalized === 'third party repair shop') return 'REPAIR SHOP';
+  if (normalized === 'available for deals') return 'Available';
   return trimmed;
 };
 const getSegmentOptions = () => {
