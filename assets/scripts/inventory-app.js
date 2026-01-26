@@ -289,6 +289,88 @@ const formatAlertsTimestamp = (date) => {
   return `${month}/${day}/${year} ${hours}:${minutes}`;
 };
 
+const isGpsOfflineRow = (row) => {
+  const vin = row?.vin || row?.VIN || getField(row, 'VIN');
+  if (!vin) return false;
+  const dealStatus = String(getField(row, 'Deal Status', 'dealStatus') || '').trim().toUpperCase();
+  if (dealStatus !== 'ACTIVE') return false;
+  const lastPingValue = getField(row, 'Last Ping', 'last_ping', 'LastPing');
+  const lastPingString = String(lastPingValue ?? '').trim();
+  if (!lastPingString) return true;
+  const parsed = new Date(lastPingString);
+  if (Number.isNaN(parsed.getTime())) return true;
+  const cutoff = Date.now() - (10 * 24 * 60 * 60 * 1000);
+  return parsed.getTime() < cutoff;
+};
+
+const parseCurrencyValue = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+  const normalized = String(value).replace(/[$,]/g, '').trim();
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const isBlackListRow = (row) => {
+  const vin = row?.vin || row?.VIN || getField(row, 'VIN');
+  if (!vin) return false;
+  const dealStatus = String(getField(row, 'Deal Status', 'dealStatus') || '').trim().toUpperCase();
+  const isActive = dealStatus === 'ACTIVE';
+  const prepStatus = String(getField(row, 'Inventory Preparation Status', 'inventory_preparation_status') || '').trim().toLowerCase();
+  const repoMatch = ['out for repo', 'repoed on hold'].includes(prepStatus);
+  const openBalance = parseCurrencyValue(getField(row, 'Open Balance', 'open_balance'));
+  const oldestInvoiceValue = getField(row, 'Oldest Invoice (Open)', 'Oldest invoice (Open)', 'oldest_invoice_open');
+  const oldestInvoiceString = String(oldestInvoiceValue ?? '').trim();
+  let oldestInvoiceMatch = false;
+  if (isActive && openBalance > 0 && oldestInvoiceString) {
+    const parsed = new Date(oldestInvoiceString);
+    if (!Number.isNaN(parsed.getTime())) {
+      const cutoff = Date.now() - (10 * 24 * 60 * 60 * 1000);
+      oldestInvoiceMatch = parsed.getTime() < cutoff;
+    }
+  }
+  return repoMatch || oldestInvoiceMatch;
+};
+
+const getGpsOfflineCount = () => {
+  const rows = DashboardState.derived.filtered || [];
+  return rows.filter((row) => isGpsOfflineRow(row)).length;
+};
+
+const getBlackListCount = () => {
+  const rows = DashboardState.derived.filtered || [];
+  return rows.filter((row) => isBlackListRow(row)).length;
+};
+
+const updateGpsOfflineCluster = () => {
+  const count = getGpsOfflineCount();
+  const badge = document.getElementById('alerts-gps-offline-count');
+  const collapsedBadge = document.getElementById('alerts-gps-offline-badge');
+  const row = document.getElementById('alerts-gps-offline-row');
+  const isActive = DashboardState.filters.gpsOfflineOnly;
+  if (badge) badge.textContent = String(count);
+  if (collapsedBadge) collapsedBadge.textContent = String(count);
+  if (row) {
+    row.classList.toggle('border-amber-400/60', isActive);
+    row.classList.toggle('bg-amber-500/10', isActive);
+    row.setAttribute('aria-pressed', String(isActive));
+  }
+};
+
+const updateBlackListCluster = () => {
+  const count = getBlackListCount();
+  const badge = document.getElementById('alerts-blacklist-count');
+  const collapsedBadge = document.getElementById('alerts-blacklist-badge');
+  const row = document.getElementById('alerts-blacklist-row');
+  const isActive = DashboardState.filters.blackListOnly;
+  if (badge) badge.textContent = String(count);
+  if (collapsedBadge) collapsedBadge.textContent = String(count);
+  if (row) {
+    row.classList.toggle('border-rose-400/60', isActive);
+    row.classList.toggle('bg-rose-500/10', isActive);
+    row.setAttribute('aria-pressed', String(isActive));
+  }
+};
+
 const fetchAlertsDealCount = async () => {
   if (!supabaseClient?.from) {
     setAlertsDealCount(0);
@@ -693,6 +775,8 @@ const setupFilters = ({ preserveSelections = false } = {}) => {
     DashboardState.filters.columnFilters = {};
     DashboardState.filters.unitTypeSelection = [];
     DashboardState.filters.vehicleStatusSelection = [];
+    DashboardState.filters.gpsOfflineOnly = false;
+    DashboardState.filters.blackListOnly = false;
   }
 
   DashboardState.filters.dateKey = dateKey;
@@ -836,6 +920,8 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
 
   return getCurrentDataset().filter((item) => {
     if (filters.lastLeadFilterActive && filters.lastLeadSelection !== 'all' && item.isLastDeal !== filters.lastLeadSelection) return false;
+    if (filters.gpsOfflineOnly && !isGpsOfflineRow(item)) return false;
+    if (filters.blackListOnly && !isBlackListRow(item)) return false;
     const dateValue = filters.dateKey ? item[filters.dateKey] : null;
     const parsedDate = dateValue ? new Date(dateValue) : null;
     const dateString = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.toISOString().slice(0, 10) : '';
@@ -1043,6 +1129,8 @@ const bindFilterEvents = () => {
   const alertsDealsColumnsPanel = document.getElementById('alerts-deals-columns-panel');
   const alertsDealsColumnsList = document.getElementById('alerts-deals-columns-list');
   const alertsDealsColumnHeaders = document.getElementById('alerts-deals-column-headers');
+  const alertsGpsOfflineRow = document.getElementById('alerts-gps-offline-row');
+  const alertsBlackListRow = document.getElementById('alerts-blacklist-row');
   const drawerClose = document.getElementById('drawer-close');
   const columnChooser = document.getElementById('column-chooser');
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
@@ -1302,6 +1390,35 @@ const bindFilterEvents = () => {
 
   addListener(resetFiltersButton, 'click', () => {
     setupFilters();
+    resetPagination();
+    renderDashboard();
+    schedulePersistPreferences();
+  });
+
+  addListener(alertsGpsOfflineRow, 'click', () => {
+    DashboardState.filters.gpsOfflineOnly = !DashboardState.filters.gpsOfflineOnly;
+    resetPagination();
+    renderDashboard();
+    schedulePersistPreferences();
+  });
+  addListener(alertsGpsOfflineRow, 'keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    DashboardState.filters.gpsOfflineOnly = !DashboardState.filters.gpsOfflineOnly;
+    resetPagination();
+    renderDashboard();
+    schedulePersistPreferences();
+  });
+  addListener(alertsBlackListRow, 'click', () => {
+    DashboardState.filters.blackListOnly = !DashboardState.filters.blackListOnly;
+    resetPagination();
+    renderDashboard();
+    schedulePersistPreferences();
+  });
+  addListener(alertsBlackListRow, 'keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    DashboardState.filters.blackListOnly = !DashboardState.filters.blackListOnly;
     resetPagination();
     renderDashboard();
     schedulePersistPreferences();
@@ -2049,6 +2166,12 @@ const ui = initDashboardUI({
   createIcons: () => lucide?.createIcons?.(),
 });
 ({ renderDashboard, renderColumnChooser, openDrawer, closeDrawer } = ui);
+const baseRenderDashboard = renderDashboard;
+renderDashboard = () => {
+  baseRenderDashboard();
+  updateGpsOfflineCluster();
+  updateBlackListCluster();
+};
 bindFilterEvents();
 initializeResizablePanels();
 
