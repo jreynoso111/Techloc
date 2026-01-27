@@ -380,14 +380,19 @@ export const initDashboardUI = ({
           const headerLabel = c.label === 'Calc- End' ? 'Calc-<br>End' : c.label;
           return `
             <th class="relative px-3 py-2" data-col-key="${c.key}" draggable="true"${style}>
-              <div class="flex items-center gap-2">
-                <button type="button" data-sort="${c.key}" class="flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400" aria-label="Sort by ${c.label}">
+              <div class="flex flex-col gap-1">
+                <div class="flex items-start justify-between gap-2 text-left text-[10px] uppercase tracking-[0.3em] text-slate-400">
                   <span class="whitespace-normal break-words">${headerLabel}</span>
                   <span class="text-[10px] text-blue-300">${indicator}</span>
-                </button>
-                <button type="button" data-column-filter-toggle="${c.key}" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-800 bg-slate-950/70 text-slate-300 transition hover:text-white" aria-label="Filter ${c.label}">
-                  <i data-lucide="sliders-horizontal" class="h-3 w-3"></i>
-                </button>
+                </div>
+                <div class="flex items-center justify-end gap-1">
+                  <button type="button" data-column-filter-toggle="${c.key}" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-800 bg-slate-950/70 text-slate-300 transition hover:text-white" aria-label="Filter ${c.label}">
+                    <i data-lucide="sliders-horizontal" class="h-3 w-3"></i>
+                  </button>
+                  <button type="button" data-sort="${c.key}" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-800 bg-slate-950/70 text-slate-300 transition hover:text-white" aria-label="Sort by ${c.label}">
+                    <i data-lucide="arrow-up-down" class="h-3 w-3"></i>
+                  </button>
+                </div>
               </div>
               <div class="column-filter-panel absolute left-0 top-full z-40 mt-2 hidden w-56 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-[10px] font-semibold text-slate-200 shadow-lg" data-column-filter-panel="${c.key}">
                 <p class="text-[10px] uppercase tracking-[0.3em] text-slate-400">${c.label}</p>
