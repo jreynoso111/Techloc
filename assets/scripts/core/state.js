@@ -36,7 +36,14 @@ export const DashboardState = {
   chartVisibility: {},
   chartVisibilityOptions: {},
   realtime: { channel: null },
-  layout: { alertsPanelWidth: null, chartSplitWidth: null, dealPanelHeight: null, fullChartHeight: null, fullChartCollapsed: false },
+  layout: {
+    alertsPanelWidth: null,
+    chartSplitWidth: null,
+    dealPanelHeight: null,
+    fullChartHeight: null,
+    fullChartHeights: {},
+    fullChartCollapsed: false,
+  },
   preferences: {
     userId: null,
     config: null,
