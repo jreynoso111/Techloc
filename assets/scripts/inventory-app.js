@@ -415,6 +415,20 @@ const normalizePhysicalLocation = (value) => {
   }
   return trimmed;
 };
+const LOCATION_FILTER_VALUES = [
+  'AAI',
+  'Central CA Truck',
+  'Copart',
+  'DRS Truck Sales',
+  'External Dealer',
+  'Housby',
+  'Remarket Place',
+  'Ritchie Bros Auction',
+  'Starpoint agent',
+];
+const LOCATION_FILTER_SET = new Set(LOCATION_FILTER_VALUES.map((value) => value.toLowerCase()));
+const STATUS_FILTER_SET = new Set(['active', 'stock', 'stolen']);
+const AUCTION_LOCATION_REGEX = /auction/i;
 const getField = (row, ...keys) => {
   for (const key of keys) {
     const value = row?.[key];
@@ -488,6 +502,7 @@ const buildPreferencesPayload = () => ({
     chartFilters: DashboardState.filters.chartFilters,
     unitTypeSelection: DashboardState.filters.unitTypeSelection,
     vehicleStatusSelection: DashboardState.filters.vehicleStatusSelection,
+    locationFocusActive: DashboardState.filters.locationFocusActive,
   },
   layout: {
     alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -495,6 +510,7 @@ const buildPreferencesPayload = () => ({
     dealPanelHeight: DashboardState.layout.dealPanelHeight,
     fullChartHeight: DashboardState.layout.fullChartHeight,
     fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
+    tertiarySplitWidth: DashboardState.layout.tertiarySplitWidth,
   },
 });
 
@@ -553,11 +569,15 @@ const applyPreferences = (config) => {
   } else if (typeof config.filters?.vehicleStatusSelection === 'string') {
     DashboardState.filters.vehicleStatusSelection = [config.filters.vehicleStatusSelection];
   }
+  if (typeof config.filters?.locationFocusActive === 'boolean') {
+    DashboardState.filters.locationFocusActive = config.filters.locationFocusActive;
+  }
   if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
   if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
   if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
   if (typeof config.layout?.fullChartHeight === 'number') DashboardState.layout.fullChartHeight = config.layout.fullChartHeight;
   if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
+  if (typeof config.layout?.tertiarySplitWidth === 'number') DashboardState.layout.tertiarySplitWidth = config.layout.tertiarySplitWidth;
 };
 
 const fetchTableConfig = async (userId) => {
@@ -609,6 +629,7 @@ const loadDashboardPreferences = async () => {
   if (config) {
     DashboardState.preferences.config = config;
     applyPreferences(config);
+    updateLocationFilterToggle();
   }
 };
 
@@ -617,6 +638,10 @@ const applyLayoutPreferencesToDom = () => {
   const dealPanel = document.getElementById('deal-status-panel');
   const primaryChart = document.getElementById('status-primary-card');
   const secondaryChart = document.getElementById('status-secondary-card');
+  const tertiaryChartsLayout = document.getElementById('status-tertiary-layout');
+  const tertiaryChartResizer = document.getElementById('tertiary-chart-resizer');
+  const tertiaryChart = document.getElementById('status-tertiary-card');
+  const tertiarySecondaryChart = document.getElementById('status-tertiary-secondary-card');
   const fullWidthCharts = document.querySelectorAll('[data-full-chart-card]');
   const fullWidthChartBodies = document.querySelectorAll('[data-full-chart-body]');
   const fullWidthChartToggles = document.querySelectorAll('[data-full-chart-toggle]');
@@ -630,10 +655,11 @@ const applyLayoutPreferencesToDom = () => {
     primaryChart.style.flex = `0 0 ${DashboardState.layout.chartSplitWidth}px`;
     secondaryChart.style.flex = '1 1 auto';
   }
-  if (typeof DashboardState.layout.fullChartHeight === 'number' && fullWidthCharts.length) {
-    fullWidthCharts.forEach((chart) => {
-      chart.style.height = `${DashboardState.layout.fullChartHeight}px`;
-    });
+  if (tertiaryChartsLayout && tertiaryChartResizer && tertiaryChart && tertiarySecondaryChart) {
+    if (typeof DashboardState.layout.tertiarySplitWidth === 'number' && window.innerWidth >= 1024) {
+      tertiaryChart.style.flex = `0 0 ${DashboardState.layout.tertiarySplitWidth}px`;
+      tertiarySecondaryChart.style.flex = '1 1 auto';
+    }
   }
   if (fullWidthCharts.length && fullWidthChartBodies.length && fullWidthChartToggles.length && fullWidthChartResizer) {
     const fullChartMinHeight = '220px';
@@ -657,6 +683,9 @@ const applyLayoutPreferencesToDom = () => {
     if (!isCollapsed) {
       fullWidthCharts.forEach((chart) => {
         chart.style.minHeight = fullChartMinHeight;
+        if (typeof DashboardState.layout.fullChartHeight === 'number') {
+          chart.style.height = `${DashboardState.layout.fullChartHeight}px`;
+        }
       });
     }
   }
@@ -892,6 +921,12 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
     const vehicleStatusMatch = !filters.vehicleStatusKey
       || !vehicleStatusSelections.length
       || vehicleStatusSelections.includes(String(item[filters.vehicleStatusKey] ?? ''));
+    const physicalLocationValue = String(item['Physical Location'] ?? '').trim();
+    const locationMatch = !filters.locationFocusActive
+      || (
+        (LOCATION_FILTER_SET.has(physicalLocationValue.toLowerCase()) || AUCTION_LOCATION_REGEX.test(physicalLocationValue))
+        && STATUS_FILTER_SET.has(String(item['Vehicle Status'] ?? '').trim().toLowerCase())
+      );
 
     const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
       if (!entry) return true;
@@ -921,7 +956,7 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
         return values.includes(getSegmentLabel(item[filter.key], filter.key));
       });
 
-    return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && vehicleStatusMatch && columnMatch && chartMatch;
+    return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && vehicleStatusMatch && locationMatch && columnMatch && chartMatch;
   });
 };
 
@@ -1007,6 +1042,7 @@ let renderDashboard = () => {};
 let renderColumnChooser = () => {};
 let openDrawer = () => {};
 let closeDrawer = () => {};
+let updateLocationFilterToggle = () => {};
 
 const exportCsv = () => {
   const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
@@ -1083,6 +1119,9 @@ const bindFilterEvents = () => {
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
   const columnChooserOptions = document.getElementById('column-chooser-options');
   const exportCsvButton = document.getElementById('export-csv');
+  const locationFilterToggle = document.getElementById('location-filter-toggle');
+  const headerActions = document.getElementById('inventory-header-actions');
+  const connectionStatusWrapper = document.getElementById('connection-status-wrapper');
   const segmentSelects = document.querySelectorAll('[data-segment-select]');
   const chartContainers = document.querySelectorAll('[data-bar-chart]');
   const segmentFilterToggles = document.querySelectorAll('[data-segment-filter-toggle]');
@@ -1099,6 +1138,17 @@ const bindFilterEvents = () => {
   const resetPagination = () => (DashboardState.table.page = 1);
   let activeDragKey = null;
   let resizing = null;
+  if (locationFilterToggle && headerActions && connectionStatusWrapper && !headerActions.contains(locationFilterToggle)) {
+    connectionStatusWrapper.after(locationFilterToggle);
+  }
+  updateLocationFilterToggle = () => {
+    if (!locationFilterToggle) return;
+    const isActive = DashboardState.filters.locationFocusActive;
+    locationFilterToggle.setAttribute('aria-pressed', String(isActive));
+    locationFilterToggle.classList.toggle('border-blue-400', isActive);
+    locationFilterToggle.classList.toggle('text-white', isActive);
+    locationFilterToggle.classList.toggle('bg-blue-500/10', isActive);
+  };
 
   if (tableScroll && tableScrollTop && tableScrollTopInner) {
     const tableElement = tableScroll.querySelector('table');
@@ -1337,6 +1387,8 @@ const bindFilterEvents = () => {
 
   addListener(resetFiltersButton, 'click', () => {
     setupFilters();
+    DashboardState.filters.locationFocusActive = false;
+    updateLocationFilterToggle();
     resetPagination();
     renderDashboard();
     schedulePersistPreferences();
@@ -1573,9 +1625,21 @@ const bindFilterEvents = () => {
   });
 
   addListener(exportCsvButton, 'click', exportCsv);
+  if (locationFilterToggle) {
+    updateLocationFilterToggle();
+    addListener(locationFilterToggle, 'click', () => {
+      DashboardState.filters.locationFocusActive = !DashboardState.filters.locationFocusActive;
+      updateLocationFilterToggle();
+      resetPagination();
+      renderDashboard();
+      schedulePersistPreferences();
+    });
+  }
   document.getElementById('erase-filters')?.addEventListener('click', () => {
     setupFilters();
     DashboardState.filters.chartFilters = {};
+    DashboardState.filters.locationFocusActive = false;
+    updateLocationFilterToggle();
     resetPagination();
     renderDashboard();
     schedulePersistPreferences();
@@ -1804,6 +1868,10 @@ const initializeResizablePanels = () => {
   const chartHandle = document.getElementById('chart-resizer');
   const primaryChart = document.getElementById('status-primary-card');
   const secondaryChart = document.getElementById('status-secondary-card');
+  const tertiaryChartsLayout = document.getElementById('status-tertiary-layout');
+  const tertiaryChartHandle = document.getElementById('tertiary-chart-resizer');
+  const tertiaryChart = document.getElementById('status-tertiary-card');
+  const tertiarySecondaryChart = document.getElementById('status-tertiary-secondary-card');
   const heightHandle = document.getElementById('panel-height-resizer');
   const fullChartCards = document.querySelectorAll('[data-full-chart-card]');
   const fullChartHandle = document.getElementById('full-chart-height-resizer');
@@ -1888,6 +1956,49 @@ const initializeResizablePanels = () => {
       isChartDragging = true;
       chartStartX = event.clientX;
       startPrimaryWidth = primaryChart.getBoundingClientRect().width;
+      document.body.classList.add('select-none', 'resize-col');
+      window.addEventListener('pointermove', onChartMove);
+      window.addEventListener('pointerup', stopChartDragging);
+    });
+  }
+
+  if (tertiaryChartsLayout && tertiaryChartHandle && tertiaryChart && tertiarySecondaryChart) {
+    const minChartWidth = 220;
+    let chartStartX = 0;
+    let startPrimaryWidth = 0;
+    let isChartDragging = false;
+
+    const onChartMove = (event) => {
+      if (!isChartDragging) return;
+      const deltaX = event.clientX - chartStartX;
+      const containerWidth = tertiaryChartsLayout.getBoundingClientRect().width;
+      const handleWidth = tertiaryChartHandle.getBoundingClientRect().width;
+      const maxPrimaryWidth = Math.max(minChartWidth, containerWidth - minChartWidth - handleWidth);
+      const nextPrimaryWidth = Math.min(maxPrimaryWidth, Math.max(minChartWidth, startPrimaryWidth + deltaX));
+      tertiaryChart.style.flex = `0 0 ${nextPrimaryWidth}px`;
+      tertiarySecondaryChart.style.flex = '1 1 auto';
+    };
+
+    const stopChartDragging = () => {
+      if (!isChartDragging) return;
+      isChartDragging = false;
+      document.body.classList.remove('select-none', 'resize-col');
+      window.removeEventListener('pointermove', onChartMove);
+      window.removeEventListener('pointerup', stopChartDragging);
+      DashboardState.layout.tertiarySplitWidth = tertiaryChart.getBoundingClientRect().width;
+      schedulePersistPreferences();
+    };
+
+    if (typeof DashboardState.layout.tertiarySplitWidth === 'number' && window.innerWidth >= 1024) {
+      tertiaryChart.style.flex = `0 0 ${DashboardState.layout.tertiarySplitWidth}px`;
+      tertiarySecondaryChart.style.flex = '1 1 auto';
+    }
+
+    tertiaryChartHandle.addEventListener('pointerdown', (event) => {
+      if (window.innerWidth < 1024) return;
+      isChartDragging = true;
+      chartStartX = event.clientX;
+      startPrimaryWidth = tertiaryChart.getBoundingClientRect().width;
       document.body.classList.add('select-none', 'resize-col');
       window.addEventListener('pointermove', onChartMove);
       window.addEventListener('pointerup', stopChartDragging);
