@@ -427,6 +427,7 @@ const LOCATION_FILTER_VALUES = [
   'Starpoint agent',
 ];
 const LOCATION_FILTER_SET = new Set(LOCATION_FILTER_VALUES.map((value) => value.toLowerCase()));
+const STATUS_FILTER_SET = new Set(['active', 'stock', 'stolen']);
 const getField = (row, ...keys) => {
   for (const key of keys) {
     const value = row?.[key];
@@ -924,7 +925,10 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
       || !vehicleStatusSelections.length
       || vehicleStatusSelections.includes(String(item[filters.vehicleStatusKey] ?? ''));
     const locationMatch = !filters.locationFocusActive
-      || LOCATION_FILTER_SET.has(String(item['Physical Location'] ?? '').trim().toLowerCase());
+      || (
+        LOCATION_FILTER_SET.has(String(item['Physical Location'] ?? '').trim().toLowerCase())
+        && STATUS_FILTER_SET.has(String(item['Vehicle Status'] ?? '').trim().toLowerCase())
+      );
 
     const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
       if (!entry) return true;
