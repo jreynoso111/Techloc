@@ -29,7 +29,7 @@
   <link rel="stylesheet" href="../assets/visuals/inventory-control.css" />
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
 
-  <!-- ✅ FIX: remove empty space + prevent any overlap + make top scrollbar never look cut -->
+  <!-- ✅ FIXES (keeps TOP horizontal scrollbar + removes empty space + prevents overlap) -->
   <style>
     /* ===== Inventory table spacing + anti-overlap fix ===== */
 
@@ -44,17 +44,17 @@
       margin: 0 !important;
     }
 
-    /* Sticky wrap: no extra gap/padding; also creates solid background for the scroll-top */
+    /* Sticky wrap: no extra gap/padding */
     #inventory-sticky-wrap {
       padding: 0 !important;
       margin: 0 !important;
     }
 
-    /* Top scrollbar should NEVER look cut */
+    /* TOP scrollbar should NEVER look cut */
     #inventory-table-scroll-top {
       margin: 0 !important;
       padding: 0 !important;
-      height: 14px;              /* visible track height */
+      height: 16px; /* a bit taller so it never looks clipped */
       background: rgba(2, 6, 23, 0.92);
       border: 1px solid rgba(30, 41, 59, 0.9);
       border-radius: 14px;
@@ -62,12 +62,12 @@
       overflow-y: hidden;
     }
 
-    /* Inner element must define width via JS; but make sure it has height */
+    /* Inner element must define width via JS; give it height */
     #inventory-table-scroll-top-inner {
-      height: 12px;
+      height: 14px;
     }
 
-    /* The bar + scroll-top should not be clipped by parent overflow */
+    /* Ensure nothing clips the sticky block */
     #inventory-sticky-wrap,
     #inventory-table-scroll-top,
     #inventory-table-scroll-top-inner {
@@ -79,13 +79,38 @@
       margin-top: 0 !important;
       padding-top: 0 !important;
     }
+
+    /* Force TOP scrollbar visible even if other scrollbars are hidden globally */
+    #inventory-table-scroll-top {
+      scrollbar-width: auto !important; /* Firefox */
+    }
+
+    #inventory-table-scroll-top::-webkit-scrollbar {
+      height: 12px !important; /* Chrome/Safari/Edge */
+      display: block !important;
+    }
+
+    #inventory-table-scroll-top::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.55) !important;
+      border-radius: 999px !important;
+    }
+
+    #inventory-table-scroll-top::-webkit-scrollbar-track {
+      background: rgba(2, 6, 23, 0.92) !important;
+      border-radius: 999px !important;
+    }
   </style>
 </head>
 
-<body class="min-h-screen bg-slate-950 font-sans text-slate-50" data-density="compact" data-page-title="Inventory Control" data-active-nav="inventory-control">
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50"
+      data-density="compact"
+      data-page-title="Inventory Control"
+      data-active-nav="inventory-control">
+
   <div data-shared-header></div>
 
-  <!-- ✅ DELETED: constellation canvas that was creating “canvas section” feeling / extra space
+  <!-- ✅ Removed constellation/canvas overlay per your request (it was contributing to the “canvas section” feel) -->
+  <!--
   <div class="pointer-events-none fixed inset-0 -z-10 opacity-70 mix-blend-screen" aria-hidden="true">
     <canvas id="constellation-canvas" class="h-full w-full"></canvas>
   </div>
@@ -391,9 +416,7 @@
 
     <!-- ✅ FIXED TABLE AREA: BAR + TOP SCROLL are one sticky block, no gaps, no overlap -->
     <section id="inventory-table-section" class="p-0">
-      <!-- Sticky block: BAR + TOP SCROLL (together) so NOTHING overlays anything -->
       <div id="inventory-sticky-wrap" class="sticky top-0 z-50">
-        <!-- Options bar -->
         <div class="inventory-options-bar flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/90 px-2 py-2 text-xs font-semibold text-slate-200 backdrop-blur md:flex-nowrap">
           <div class="rounded-xl border border-slate-800/70 bg-slate-900/40 px-2 py-1">
             <div class="relative">
@@ -460,13 +483,12 @@
           </div>
         </div>
 
-        <!-- Top horizontal scrollbar -->
+        <!-- ✅ TOP horizontal scrollbar: STILL PRESENT -->
         <div id="inventory-table-scroll-top" class="overflow-x-auto">
           <div id="inventory-table-scroll-top-inner"></div>
         </div>
       </div>
 
-      <!-- Table scroll area -->
       <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
         <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
           <colgroup id="inventory-table-cols"></colgroup>
@@ -522,6 +544,30 @@
       <ul id="drawer-timeline" class="mt-2 space-y-2 text-xs text-slate-300"></ul>
     </div>
   </aside>
+
+  <!-- ✅ Ensures TOP scrollbar always works (width + two-way sync), without touching your inventory-app.js -->
+  <script>
+    function syncTopScrollBar() {
+      const top = document.getElementById('inventory-table-scroll-top');
+      const topInner = document.getElementById('inventory-table-scroll-top-inner');
+      const bottom = document.getElementById('inventory-table-scroll');
+      const table = bottom?.querySelector('table');
+
+      if (!top || !topInner || !bottom || !table) return;
+
+      // Set top inner width to match table scroll width
+      topInner.style.width = table.scrollWidth + 'px';
+
+      // Two-way scroll sync
+      top.onscroll = () => { bottom.scrollLeft = top.scrollLeft; };
+      bottom.onscroll = () => { top.scrollLeft = bottom.scrollLeft; };
+    }
+
+    window.addEventListener('load', () => {
+      syncTopScrollBar();
+      window.addEventListener('resize', syncTopScrollBar);
+    });
+  </script>
 
   <script type="module" src="../assets/scripts/inventory-app.js"></script>
   <script type="module" src="../assets/scripts/sharedHeader.js"></script>
