@@ -28,12 +28,64 @@
 
   <link rel="stylesheet" href="../assets/visuals/inventory-control.css" />
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
+
+  <!-- ✅ FIX: remove empty space + prevent any overlap + make top scrollbar never look cut -->
+  <style>
+    /* ===== Inventory table spacing + anti-overlap fix ===== */
+
+    /* Remove any inherited spacing around this section */
+    #inventory-table-section {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    /* Kill accidental margins that create "empty space" */
+    .inventory-options-bar {
+      margin: 0 !important;
+    }
+
+    /* Sticky wrap: no extra gap/padding; also creates solid background for the scroll-top */
+    #inventory-sticky-wrap {
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* Top scrollbar should NEVER look cut */
+    #inventory-table-scroll-top {
+      margin: 0 !important;
+      padding: 0 !important;
+      height: 14px;              /* visible track height */
+      background: rgba(2, 6, 23, 0.92);
+      border: 1px solid rgba(30, 41, 59, 0.9);
+      border-radius: 14px;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    /* Inner element must define width via JS; but make sure it has height */
+    #inventory-table-scroll-top-inner {
+      height: 12px;
+    }
+
+    /* The bar + scroll-top should not be clipped by parent overflow */
+    #inventory-sticky-wrap,
+    #inventory-table-scroll-top,
+    #inventory-table-scroll-top-inner {
+      overflow: visible;
+    }
+
+    /* No extra "air" between scroll-top and table */
+    #inventory-table-scroll {
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+  </style>
 </head>
 
 <body class="min-h-screen bg-slate-950 font-sans text-slate-50" data-density="compact" data-page-title="Inventory Control" data-active-nav="inventory-control">
   <div data-shared-header></div>
 
-  <!-- ✅ REMOVED: constellation canvas block that could visually feel like a "canvas section"
+  <!-- ✅ DELETED: constellation canvas that was creating “canvas section” feeling / extra space
   <div class="pointer-events-none fixed inset-0 -z-10 opacity-70 mix-blend-screen" aria-hidden="true">
     <canvas id="constellation-canvas" class="h-full w-full"></canvas>
   </div>
@@ -95,57 +147,59 @@
         <div id="deal-status-panel" class="flex-1">
           <div id="deal-charts-layout" class="flex flex-col gap-3 lg:flex-row lg:items-stretch">
             <div id="status-primary-card" class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-primary">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-              <div class="flex flex-wrap items-center gap-3">
+              <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-wrap items-center gap-3">
+                  <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                    Segment
+                    <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select data-chart-id="status-primary"></select>
+                  </label>
+                  <div class="relative">
+                    <button type="button" class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" data-segment-filter-toggle data-chart-id="status-primary" aria-expanded="false">
+                      Fields
+                      <span class="rounded-full border border-slate-800 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300" data-segment-filter-count data-chart-id="status-primary">All</span>
+                    </button>
+                    <div class="absolute left-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-primary">
+                      <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show fields</p>
+                      <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                        <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-primary">Show all</button>
+                        <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-primary">Hide all</button>
+                      </div>
+                      <div class="mt-2 grid gap-2" data-segment-filter-options data-chart-id="status-primary"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 88px;" data-bar-chart data-chart-id="status-primary" aria-label="Units by deal status chart"></div>
+            </div>
+
+            <div id="chart-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
+              <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
+            </div>
+
+            <div id="status-secondary-card" class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-secondary">
+              <div class="flex flex-wrap items-center justify-end gap-3">
                 <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                   Segment
-                  <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select data-chart-id="status-primary"></select>
+                  <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select data-chart-id="status-secondary"></select>
                 </label>
                 <div class="relative">
-                  <button type="button" class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" data-segment-filter-toggle data-chart-id="status-primary" aria-expanded="false">
+                  <button type="button" class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" data-segment-filter-toggle data-chart-id="status-secondary" aria-expanded="false">
                     Fields
-                    <span class="rounded-full border border-slate-800 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300" data-segment-filter-count data-chart-id="status-primary">All</span>
+                    <span class="rounded-full border border-slate-800 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300" data-segment-filter-count data-chart-id="status-secondary">All</span>
                   </button>
-                  <div class="absolute left-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-primary">
+                  <div class="absolute right-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-secondary">
                     <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show fields</p>
                     <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-                      <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-primary">Show all</button>
-                      <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-primary">Hide all</button>
+                      <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-secondary">Show all</button>
+                      <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-secondary">Hide all</button>
                     </div>
-                    <div class="mt-2 grid gap-2" data-segment-filter-options data-chart-id="status-primary"></div>
+                    <div class="mt-2 grid gap-2" data-segment-filter-options data-chart-id="status-secondary"></div>
                   </div>
                 </div>
               </div>
+              <div class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 88px;" data-bar-chart data-chart-id="status-secondary" aria-label="Units by deal status chart"></div>
             </div>
-            <div class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 88px;" data-bar-chart data-chart-id="status-primary" aria-label="Units by deal status chart"></div>
           </div>
-          <div id="chart-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
-            <span class="h-full w-0.5 rounded-full bg-slate-800"></span>
-          </div>
-          <div id="status-secondary-card" class="flex h-full min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard lg:flex-1" data-chart-id="status-secondary">
-            <div class="flex flex-wrap items-center justify-end gap-3">
-              <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Segment
-                <select class="h-7 rounded-lg border border-slate-800 bg-slate-950/70 px-2 text-[10px] font-semibold text-slate-200" data-segment-select data-chart-id="status-secondary"></select>
-              </label>
-              <div class="relative">
-                <button type="button" class="flex items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200" data-segment-filter-toggle data-chart-id="status-secondary" aria-expanded="false">
-                  Fields
-                  <span class="rounded-full border border-slate-800 bg-slate-950/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300" data-segment-filter-count data-chart-id="status-secondary">All</span>
-                </button>
-                <div class="absolute right-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-secondary">
-                  <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show fields</p>
-                  <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
-                    <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-secondary">Show all</button>
-                    <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-secondary">Hide all</button>
-                  </div>
-                  <div class="mt-2 grid gap-2" data-segment-filter-options data-chart-id="status-secondary"></div>
-                </div>
-              </div>
-            </div>
-            <div class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 88px;" data-bar-chart data-chart-id="status-secondary" aria-label="Units by deal status chart"></div>
-          </div>
-        </div>
         </div>
 
         <div id="panel-resizer" class="resize-handle hidden w-2 items-stretch justify-center lg:flex">
@@ -166,6 +220,7 @@
               </button>
             </div>
           </div>
+
           <div id="alerts-deals-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-hidden="true">
             <div class="flex h-[calc(100vh-6cm)] w-[calc(100vw-6cm)] flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-950 p-4 shadow-2xl sm:p-6">
               <div class="flex items-center justify-between gap-3">
@@ -197,6 +252,7 @@
               </div>
             </div>
           </div>
+
           <div id="alerts-badges" class="mt-3 hidden flex flex-wrap gap-2 text-xs text-slate-200">
             <span class="inline-flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/40 px-2 py-1 text-[11px] font-semibold text-slate-200">
               <i data-lucide="satellite" class="h-3.5 w-3.5 text-amber-300"></i>
@@ -211,6 +267,7 @@
               2
             </span>
           </div>
+
           <ul id="alerts-list" class="mt-3 space-y-2 text-xs text-slate-200">
             <li id="alerts-deals-row" class="hidden">
               <button id="alerts-deals-row-button" type="button" class="flex h-9 w-full items-center gap-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-2 py-1.5 text-rose-100 transition hover:border-rose-400 hover:text-white" aria-haspopup="dialog" aria-controls="alerts-deals-modal">
@@ -224,6 +281,7 @@
                 <span id="alerts-deals-row-count" class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200">0</span>
               </button>
             </li>
+
             <li id="alerts-gps-offline-row" class="flex h-9 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-2 py-1.5 text-slate-200 transition hover:bg-slate-900/40">
               <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-amber-300">
                 <i data-lucide="satellite" class="h-4 w-4"></i>
@@ -234,6 +292,7 @@
               </div>
               <span id="alerts-gps-offline-count" class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-amber-200">0</span>
             </li>
+
             <li class="flex h-9 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-2 py-1.5 text-slate-200 transition hover:bg-slate-900/40">
               <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-rose-300">
                 <i data-lucide="lifebuoy" class="h-4 w-4"></i>
@@ -244,6 +303,7 @@
               </div>
               <span class="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold uppercase text-rose-200">queue</span>
             </li>
+
             <li class="flex h-9 items-center gap-3 rounded-xl border border-slate-800 bg-transparent px-2 py-1.5 text-slate-200 transition hover:bg-slate-900/40">
               <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900/70 text-blue-300">
                 <i data-lucide="activity" class="h-4 w-4"></i>
@@ -279,7 +339,7 @@
                 </button>
                 <div class="absolute right-0 z-40 mt-2 hidden w-60 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg" data-segment-filter-panel data-chart-id="status-tertiary">
                   <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show fields</p>
-                  <div class="mt-2 flexl flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
+                  <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">
                     <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-select-all data-chart-id="status-tertiary">Show all</button>
                     <button type="button" class="rounded-full border border-slate-800 px-2 py-1 transition hover:text-white" data-segment-clear-all data-chart-id="status-tertiary">Hide all</button>
                   </div>
@@ -293,6 +353,7 @@
           </div>
           <div id="status-tertiary-body" class="mt-2 grid flex-1 items-end gap-2" style="--chart-col-min: 96px;" data-bar-chart data-chart-id="status-tertiary" data-full-chart-body aria-label="Units by deal status chart"></div>
         </div>
+
         <div id="status-tertiary-secondary-card" class="flex min-h-[220px] flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-3 shadow-dashboard" data-chart-id="status-tertiary-2" data-collapsed="false" data-full-chart-card>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <label class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
@@ -328,33 +389,36 @@
       </div>
     </section>
 
-    <!-- ✅ TABLE SECTION (FIXED: no sticky wrapper canvas / no extra vertical padding) -->
-    <section class="px-4 pb-4 pt-0">
-      <div class="flex flex-col gap-2">
-
-        <!-- ✅ Options bar only (sticky) -->
-        <div class="inventory-options-bar sticky top-0 z-30 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/80 px-2 py-2 text-xs font-semibold text-slate-200 md:flex-nowrap">
+    <!-- ✅ FIXED TABLE AREA: BAR + TOP SCROLL are one sticky block, no gaps, no overlap -->
+    <section id="inventory-table-section" class="p-0">
+      <!-- Sticky block: BAR + TOP SCROLL (together) so NOTHING overlays anything -->
+      <div id="inventory-sticky-wrap" class="sticky top-0 z-50">
+        <!-- Options bar -->
+        <div class="inventory-options-bar flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/90 px-2 py-2 text-xs font-semibold text-slate-200 backdrop-blur md:flex-nowrap">
           <div class="rounded-xl border border-slate-800/70 bg-slate-900/40 px-2 py-1">
             <div class="relative">
               <button id="column-chooser-toggle" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:border-blue-500 hover:text-white" aria-haspopup="true" aria-expanded="false">
                 Columns
               </button>
-              <div id="column-chooser" class="absolute left-0 z-40 mt-2 hidden w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
+              <div id="column-chooser" class="absolute left-0 z-50 mt-2 hidden w-52 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-800 bg-slate-950/95 p-3 text-xs text-slate-200 shadow-lg">
                 <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Show columns</p>
                 <div id="column-chooser-options" class="mt-2 grid max-h-[48rem] gap-2 overflow-y-auto pr-1"></div>
               </div>
             </div>
           </div>
+
           <div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2 py-1">
             <button id="export-csv" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200 transition hover:border-emerald-400 hover:text-white" aria-label="Export filtered rows to CSV">
               Export
             </button>
           </div>
+
           <div class="rounded-xl border border-rose-500/30 bg-rose-500/10 px-2 py-1">
             <button id="erase-filters" type="button" data-pill-control class="h-7 text-xs font-semibold uppercase tracking-[0.2em] text-rose-200 transition hover:border-rose-400 hover:text-white">
               Erase Filters
             </button>
           </div>
+
           <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-200">
             <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Per page</span>
             <select id="table-per-page" class="h-7 rounded-xl border border-slate-700 bg-slate-950/60 px-2 text-[11px] font-semibold text-slate-200">
@@ -364,7 +428,9 @@
               <option value="50">50</option>
             </select>
           </label>
+
           <span id="table-summary" class="rounded-xl border border-slate-700 bg-slate-950/60 px-2 py-1 text-[11px] font-semibold text-slate-200">0 assets</span>
+
           <div class="flex items-center gap-1 text-[11px] font-semibold text-slate-200">
             <button id="table-prev" type="button" data-pill-control class="h-9 w-9 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Previous page">
               <i data-lucide="chevron-left" class="h-4 w-4"></i>
@@ -373,40 +439,43 @@
             <button id="table-next" type="button" data-pill-control class="h-9 w-9 text-slate-200 transition hover:border-blue-500 hover:text-white" aria-label="Next page">
               <i data-lucide="chevron-right" class="h-4 w-4"></i>
             </button>
-          <label class="inline-flex items-center gap-1">
-            <i data-lucide="hash" class="h-3 w-3 text-slate-400"></i>
-            <input id="table-go-to" type="number" min="1" class="h-7 w-14 rounded-xl border border-slate-700 bg-slate-950/60 px-2 text-[11px] font-semibold text-slate-200" />
-          </label>
-        </div>
-        <div class="flex items-center gap-2 md:ml-auto">
-          <div class="inline-flex h-9 items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 px-3 text-xs font-semibold text-slate-200 shadow-none">
-            <span class="h-2 w-2 rounded-full bg-emerald-400/80"></span>
-            <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</span>
-            <span class="text-sm font-black text-white" data-metric="active">--</span>
-          </div>
-          <div class="inline-flex h-9 items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 px-3 text-xs font-semibold text-slate-200 shadow-none">
-            <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
-            <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</span>
-            <span class="text-sm font-black text-white" data-metric="hold">--</span>
-          </div>
-        </div>
-      </div>
-      </div>
 
-      <!-- ✅ Scroll top directly under bar (minimal spacing) -->
-      <div class="mt-0">
-        <div id="inventory-table-scroll-top" class="mt-1 overflow-x-auto">
+            <label class="inline-flex items-center gap-1">
+              <i data-lucide="hash" class="h-3 w-3 text-slate-400"></i>
+              <input id="table-go-to" type="number" min="1" class="h-7 w-14 rounded-xl border border-slate-700 bg-slate-950/60 px-2 text-[11px] font-semibold text-slate-200" />
+            </label>
+          </div>
+
+          <div class="flex items-center gap-2 md:ml-auto">
+            <div class="inline-flex h-9 items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 px-3 text-xs font-semibold text-slate-200 shadow-none">
+              <span class="h-2 w-2 rounded-full bg-emerald-400/80"></span>
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">Active Units</span>
+              <span class="text-sm font-black text-white" data-metric="active">--</span>
+            </div>
+            <div class="inline-flex h-9 items-center gap-3 rounded-2xl border border-slate-800/70 bg-slate-950/40 px-3 text-xs font-semibold text-slate-200 shadow-none">
+              <span class="h-2 w-2 rounded-full bg-amber-400/80"></span>
+              <span class="text-[10px] uppercase tracking-[0.3em] text-slate-400">On Hold</span>
+              <span class="text-sm font-black text-white" data-metric="hold">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top horizontal scrollbar -->
+        <div id="inventory-table-scroll-top" class="overflow-x-auto">
           <div id="inventory-table-scroll-top-inner"></div>
         </div>
-        <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
-          <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
+      </div>
+
+      <!-- Table scroll area -->
+      <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
+        <table class="min-w-full table-fixed text-left text-sm text-slate-200" aria-label="Filtered inventory table">
           <colgroup id="inventory-table-cols"></colgroup>
           <thead id="inventory-table-head" class="text-[10px] uppercase tracking-[0.3em] text-slate-400"></thead>
           <tbody id="inventory-table" class="divide-y divide-slate-800"></tbody>
-          </table>
-        </div>
+        </table>
       </div>
     </section>
+
   </main>
 
   <aside id="row-drawer" class="fixed right-0 top-0 z-40 flex h-full w-80 translate-x-full flex-col gap-4 border-l border-slate-800 bg-slate-950/95 p-4 shadow-2xl transition-transform">
