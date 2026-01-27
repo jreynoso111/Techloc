@@ -1122,6 +1122,8 @@ const bindFilterEvents = () => {
   const columnChooserOptions = document.getElementById('column-chooser-options');
   const exportCsvButton = document.getElementById('export-csv');
   const locationFilterToggle = document.getElementById('location-filter-toggle');
+  const headerActions = document.getElementById('inventory-header-actions');
+  const connectionStatusWrapper = document.getElementById('connection-status-wrapper');
   const segmentSelects = document.querySelectorAll('[data-segment-select]');
   const chartContainers = document.querySelectorAll('[data-bar-chart]');
   const segmentFilterToggles = document.querySelectorAll('[data-segment-filter-toggle]');
@@ -1138,6 +1140,9 @@ const bindFilterEvents = () => {
   const resetPagination = () => (DashboardState.table.page = 1);
   let activeDragKey = null;
   let resizing = null;
+  if (locationFilterToggle && headerActions && connectionStatusWrapper && !headerActions.contains(locationFilterToggle)) {
+    connectionStatusWrapper.after(locationFilterToggle);
+  }
   updateLocationFilterToggle = () => {
     if (!locationFilterToggle) return;
     const isActive = DashboardState.filters.locationFocusActive;
