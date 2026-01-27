@@ -28,46 +28,12 @@
 
   <link rel="stylesheet" href="../assets/visuals/inventory-control.css" />
   <link rel="stylesheet" href="../assets/visuals/theme.css" />
-
-  <!-- ✅ FIX: remove empty space + prevent overlap/cut on top horizontal scroll -->
-  <style>
-    /* Tighten spacing ONLY around the table tools + scrollbars area */
-    .inventory-options-bar {
-      margin-top: 0 !important;
-      margin-bottom: 0 !important;
-    }
-
-    #inventory-table-scroll-top {
-      margin-top: 6px !important;
-      margin-bottom: 0 !important;
-      position: relative;
-      z-index: 1; /* ensures nothing "cuts" it */
-      overflow-y: hidden;
-    }
-
-    #inventory-table-scroll-top-inner {
-      height: 1px;
-    }
-
-    /* Avoid any parent clipping the top scrollbar */
-    #inventory-table-scroll-top,
-    #inventory-table-scroll,
-    .inventory-options-bar {
-      overflow: visible;
-    }
-
-    /* Force top scrollbar to be visible even if some global CSS hides scrollbars */
-    #inventory-table-scroll-top {
-      scrollbar-width: auto !important; /* Firefox */
-    }
-    #inventory-table-scroll-top::-webkit-scrollbar {
-      height: 10px !important;
-      display: block !important;
-    }
-  </style>
 </head>
 
-<body class="min-h-screen bg-slate-950 font-sans text-slate-50" data-density="compact" data-page-title="Inventory Control" data-active-nav="inventory-control">
+<body class="min-h-screen bg-slate-950 font-sans text-slate-50 overflow-x-hidden"
+      data-density="compact"
+      data-page-title="Inventory Control"
+      data-active-nav="inventory-control">
   <div data-shared-header></div>
   <div class="pointer-events-none fixed inset-0 -z-10 opacity-70 mix-blend-screen" aria-hidden="true">
     <canvas id="constellation-canvas" class="h-full w-full"></canvas>
@@ -365,8 +331,7 @@
     </section>
 
     <section class="p-4">
-      <div class="flex flex-col gap-2">
-        <!-- ✅ FIXED: removed sticky/top-0, changed mb-2 -> mb-0 -->
+      <div class="flex flex-col gap-1">
         <div class="inventory-options-bar z-10 mb-0 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-950/80 px-2 py-2 text-xs font-semibold text-slate-200 backdrop-blur md:flex-nowrap">
           <div class="rounded-xl border border-slate-800/70 bg-slate-900/40 px-2 py-1">
             <div class="relative">
@@ -428,8 +393,7 @@
       </div>
 
       <div class="mt-0">
-        <!-- ✅ FIXED: mb-2 -> mb-0 (no extra space) -->
-        <div id="inventory-table-scroll-top" class="mb-0 overflow-x-auto">
+        <div id="inventory-table-scroll-top" class="mb-0 overflow-x-auto relative z-10">
           <div id="inventory-table-scroll-top-inner"></div>
         </div>
         <div id="inventory-table-scroll" class="scrollbar-hidden overflow-x-auto">
@@ -487,31 +451,6 @@
       <ul id="drawer-timeline" class="mt-2 space-y-2 text-xs text-slate-300"></ul>
     </div>
   </aside>
-
-  <!-- ✅ Ensures top scrollbar matches table width + syncs scroll without affecting page scroll -->
-  <script>
-    (function () {
-      function syncTopScroll() {
-        const top = document.getElementById('inventory-table-scroll-top');
-        const topInner = document.getElementById('inventory-table-scroll-top-inner');
-        const bottom = document.getElementById('inventory-table-scroll');
-        const table = bottom ? bottom.querySelector('table') : null;
-
-        if (!top || !topInner || !bottom || !table) return;
-
-        topInner.style.width = table.scrollWidth + 'px';
-
-        // sync scroll positions
-        top.onscroll = () => { bottom.scrollLeft = top.scrollLeft; };
-        bottom.onscroll = () => { top.scrollLeft = bottom.scrollLeft; };
-      }
-
-      window.addEventListener('load', () => {
-        syncTopScroll();
-        window.addEventListener('resize', syncTopScroll);
-      });
-    })();
-  </script>
 
   <script type="module" src="../assets/scripts/inventory-app.js"></script>
   <script type="module" src="../assets/scripts/sharedHeader.js"></script>
