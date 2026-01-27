@@ -41,8 +41,8 @@ export const DashboardState = {
     chartSplitWidth: null,
     dealPanelHeight: null,
     fullChartHeight: null,
-    fullChartHeights: {},
     fullChartCollapsed: false,
+    tertiarySplitWidth: null,
   },
   preferences: {
     userId: null,

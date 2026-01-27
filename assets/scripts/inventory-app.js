@@ -509,6 +509,7 @@ const buildPreferencesPayload = () => ({
     fullChartHeight: DashboardState.layout.fullChartHeight,
     fullChartHeights: DashboardState.layout.fullChartHeights,
     fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
+    tertiarySplitWidth: DashboardState.layout.tertiarySplitWidth,
   },
 });
 
@@ -578,6 +579,7 @@ const applyPreferences = (config) => {
     DashboardState.layout.fullChartHeights = { ...config.layout.fullChartHeights };
   }
   if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
+  if (typeof config.layout?.tertiarySplitWidth === 'number') DashboardState.layout.tertiarySplitWidth = config.layout.tertiarySplitWidth;
 };
 
 const fetchTableConfig = async (userId) => {
@@ -638,6 +640,10 @@ const applyLayoutPreferencesToDom = () => {
   const dealPanel = document.getElementById('deal-status-panel');
   const primaryChart = document.getElementById('status-primary-card');
   const secondaryChart = document.getElementById('status-secondary-card');
+  const tertiaryChartsLayout = document.getElementById('status-tertiary-layout');
+  const tertiaryChartResizer = document.getElementById('tertiary-chart-resizer');
+  const tertiaryChart = document.getElementById('status-tertiary-card');
+  const tertiarySecondaryChart = document.getElementById('status-tertiary-secondary-card');
   const fullWidthCharts = document.querySelectorAll('[data-full-chart-card]');
   const fullWidthChartBodies = document.querySelectorAll('[data-full-chart-body]');
   const fullWidthChartToggles = document.querySelectorAll('[data-full-chart-toggle]');
@@ -651,15 +657,11 @@ const applyLayoutPreferencesToDom = () => {
     primaryChart.style.flex = `0 0 ${DashboardState.layout.chartSplitWidth}px`;
     secondaryChart.style.flex = '1 1 auto';
   }
-  if (fullWidthCharts.length) {
-    fullWidthCharts.forEach((chart) => {
-      const chartId = chart.dataset.chartId;
-      const storedHeight = chartId ? DashboardState.layout.fullChartHeights?.[chartId] : null;
-      const nextHeight = typeof storedHeight === 'number' ? storedHeight : DashboardState.layout.fullChartHeight;
-      if (typeof nextHeight === 'number') {
-        chart.style.height = `${nextHeight}px`;
-      }
-    });
+  if (tertiaryChartsLayout && tertiaryChartResizer && tertiaryChart && tertiarySecondaryChart) {
+    if (typeof DashboardState.layout.tertiarySplitWidth === 'number' && window.innerWidth >= 1024) {
+      tertiaryChart.style.flex = `0 0 ${DashboardState.layout.tertiarySplitWidth}px`;
+      tertiarySecondaryChart.style.flex = '1 1 auto';
+    }
   }
   if (fullWidthCharts.length && fullWidthChartBodies.length && fullWidthChartToggles.length) {
     const fullChartMinHeight = '220px';
@@ -683,6 +685,9 @@ const applyLayoutPreferencesToDom = () => {
     if (!isCollapsed) {
       fullWidthCharts.forEach((chart) => {
         chart.style.minHeight = fullChartMinHeight;
+        if (typeof DashboardState.layout.fullChartHeight === 'number') {
+          chart.style.height = `${DashboardState.layout.fullChartHeight}px`;
+        }
       });
     }
   }
@@ -1859,6 +1864,10 @@ const initializeResizablePanels = () => {
   const chartHandle = document.getElementById('chart-resizer');
   const primaryChart = document.getElementById('status-primary-card');
   const secondaryChart = document.getElementById('status-secondary-card');
+  const tertiaryChartsLayout = document.getElementById('status-tertiary-layout');
+  const tertiaryChartHandle = document.getElementById('tertiary-chart-resizer');
+  const tertiaryChart = document.getElementById('status-tertiary-card');
+  const tertiarySecondaryChart = document.getElementById('status-tertiary-secondary-card');
   const heightHandle = document.getElementById('panel-height-resizer');
   const fullChartCards = document.querySelectorAll('[data-full-chart-card]');
   const fullChartHandles = document.querySelectorAll('[data-full-chart-resizer]');
@@ -1943,6 +1952,49 @@ const initializeResizablePanels = () => {
       isChartDragging = true;
       chartStartX = event.clientX;
       startPrimaryWidth = primaryChart.getBoundingClientRect().width;
+      document.body.classList.add('select-none', 'resize-col');
+      window.addEventListener('pointermove', onChartMove);
+      window.addEventListener('pointerup', stopChartDragging);
+    });
+  }
+
+  if (tertiaryChartsLayout && tertiaryChartHandle && tertiaryChart && tertiarySecondaryChart) {
+    const minChartWidth = 220;
+    let chartStartX = 0;
+    let startPrimaryWidth = 0;
+    let isChartDragging = false;
+
+    const onChartMove = (event) => {
+      if (!isChartDragging) return;
+      const deltaX = event.clientX - chartStartX;
+      const containerWidth = tertiaryChartsLayout.getBoundingClientRect().width;
+      const handleWidth = tertiaryChartHandle.getBoundingClientRect().width;
+      const maxPrimaryWidth = Math.max(minChartWidth, containerWidth - minChartWidth - handleWidth);
+      const nextPrimaryWidth = Math.min(maxPrimaryWidth, Math.max(minChartWidth, startPrimaryWidth + deltaX));
+      tertiaryChart.style.flex = `0 0 ${nextPrimaryWidth}px`;
+      tertiarySecondaryChart.style.flex = '1 1 auto';
+    };
+
+    const stopChartDragging = () => {
+      if (!isChartDragging) return;
+      isChartDragging = false;
+      document.body.classList.remove('select-none', 'resize-col');
+      window.removeEventListener('pointermove', onChartMove);
+      window.removeEventListener('pointerup', stopChartDragging);
+      DashboardState.layout.tertiarySplitWidth = tertiaryChart.getBoundingClientRect().width;
+      schedulePersistPreferences();
+    };
+
+    if (typeof DashboardState.layout.tertiarySplitWidth === 'number' && window.innerWidth >= 1024) {
+      tertiaryChart.style.flex = `0 0 ${DashboardState.layout.tertiarySplitWidth}px`;
+      tertiarySecondaryChart.style.flex = '1 1 auto';
+    }
+
+    tertiaryChartHandle.addEventListener('pointerdown', (event) => {
+      if (window.innerWidth < 1024) return;
+      isChartDragging = true;
+      chartStartX = event.clientX;
+      startPrimaryWidth = tertiaryChart.getBoundingClientRect().width;
       document.body.classList.add('select-none', 'resize-col');
       window.addEventListener('pointermove', onChartMove);
       window.addEventListener('pointerup', stopChartDragging);
