@@ -415,6 +415,18 @@ const normalizePhysicalLocation = (value) => {
   }
   return trimmed;
 };
+const LOCATION_FILTER_VALUES = [
+  'AAI',
+  'Central CA Truck',
+  'Copart',
+  'DRS Truck Sales',
+  'External Dealer',
+  'Housby',
+  'Remarket Place',
+  'Ritchie Bros Auction',
+  'Starpoint agent',
+];
+const LOCATION_FILTER_SET = new Set(LOCATION_FILTER_VALUES.map((value) => value.toLowerCase()));
 const getField = (row, ...keys) => {
   for (const key of keys) {
     const value = row?.[key];
@@ -488,6 +500,7 @@ const buildPreferencesPayload = () => ({
     chartFilters: DashboardState.filters.chartFilters,
     unitTypeSelection: DashboardState.filters.unitTypeSelection,
     vehicleStatusSelection: DashboardState.filters.vehicleStatusSelection,
+    locationFocusActive: DashboardState.filters.locationFocusActive,
   },
   layout: {
     alertsPanelWidth: DashboardState.layout.alertsPanelWidth,
@@ -553,6 +566,9 @@ const applyPreferences = (config) => {
   } else if (typeof config.filters?.vehicleStatusSelection === 'string') {
     DashboardState.filters.vehicleStatusSelection = [config.filters.vehicleStatusSelection];
   }
+  if (typeof config.filters?.locationFocusActive === 'boolean') {
+    DashboardState.filters.locationFocusActive = config.filters.locationFocusActive;
+  }
   if (typeof config.layout?.alertsPanelWidth === 'number') DashboardState.layout.alertsPanelWidth = config.layout.alertsPanelWidth;
   if (typeof config.layout?.chartSplitWidth === 'number') DashboardState.layout.chartSplitWidth = config.layout.chartSplitWidth;
   if (typeof config.layout?.dealPanelHeight === 'number') DashboardState.layout.dealPanelHeight = config.layout.dealPanelHeight;
@@ -609,6 +625,7 @@ const loadDashboardPreferences = async () => {
   if (config) {
     DashboardState.preferences.config = config;
     applyPreferences(config);
+    updateLocationFilterToggle();
   }
 };
 
@@ -892,6 +909,8 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
     const vehicleStatusMatch = !filters.vehicleStatusKey
       || !vehicleStatusSelections.length
       || vehicleStatusSelections.includes(String(item[filters.vehicleStatusKey] ?? ''));
+    const locationMatch = !filters.locationFocusActive
+      || LOCATION_FILTER_SET.has(String(item['Physical Location'] ?? '').trim().toLowerCase());
 
     const columnMatch = Object.entries(filters.columnFilters || {}).every(([key, entry]) => {
       if (!entry) return true;
@@ -921,7 +940,7 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
         return values.includes(getSegmentLabel(item[filter.key], filter.key));
       });
 
-    return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && vehicleStatusMatch && columnMatch && chartMatch;
+    return inDateRange && categoryMatch && salesChannelMatch && unitTypeMatch && vehicleStatusMatch && locationMatch && columnMatch && chartMatch;
   });
 };
 
@@ -1007,6 +1026,7 @@ let renderDashboard = () => {};
 let renderColumnChooser = () => {};
 let openDrawer = () => {};
 let closeDrawer = () => {};
+let updateLocationFilterToggle = () => {};
 
 const exportCsv = () => {
   const visibleColumns = DashboardState.schema.filter((c) => DashboardState.table.columns[c.key]);
@@ -1083,6 +1103,7 @@ const bindFilterEvents = () => {
   const columnChooserToggle = document.getElementById('column-chooser-toggle');
   const columnChooserOptions = document.getElementById('column-chooser-options');
   const exportCsvButton = document.getElementById('export-csv');
+  const locationFilterToggle = document.getElementById('location-filter-toggle');
   const segmentSelects = document.querySelectorAll('[data-segment-select]');
   const chartContainers = document.querySelectorAll('[data-bar-chart]');
   const segmentFilterToggles = document.querySelectorAll('[data-segment-filter-toggle]');
@@ -1099,6 +1120,14 @@ const bindFilterEvents = () => {
   const resetPagination = () => (DashboardState.table.page = 1);
   let activeDragKey = null;
   let resizing = null;
+  updateLocationFilterToggle = () => {
+    if (!locationFilterToggle) return;
+    const isActive = DashboardState.filters.locationFocusActive;
+    locationFilterToggle.setAttribute('aria-pressed', String(isActive));
+    locationFilterToggle.classList.toggle('border-blue-400', isActive);
+    locationFilterToggle.classList.toggle('text-white', isActive);
+    locationFilterToggle.classList.toggle('bg-blue-500/10', isActive);
+  };
 
   if (tableScroll && tableScrollTop && tableScrollTopInner) {
     const tableElement = tableScroll.querySelector('table');
@@ -1337,6 +1366,8 @@ const bindFilterEvents = () => {
 
   addListener(resetFiltersButton, 'click', () => {
     setupFilters();
+    DashboardState.filters.locationFocusActive = false;
+    updateLocationFilterToggle();
     resetPagination();
     renderDashboard();
     schedulePersistPreferences();
@@ -1573,9 +1604,21 @@ const bindFilterEvents = () => {
   });
 
   addListener(exportCsvButton, 'click', exportCsv);
+  if (locationFilterToggle) {
+    updateLocationFilterToggle();
+    addListener(locationFilterToggle, 'click', () => {
+      DashboardState.filters.locationFocusActive = !DashboardState.filters.locationFocusActive;
+      updateLocationFilterToggle();
+      resetPagination();
+      renderDashboard();
+      schedulePersistPreferences();
+    });
+  }
   document.getElementById('erase-filters')?.addEventListener('click', () => {
     setupFilters();
     DashboardState.filters.chartFilters = {};
+    DashboardState.filters.locationFocusActive = false;
+    updateLocationFilterToggle();
     resetPagination();
     renderDashboard();
     schedulePersistPreferences();

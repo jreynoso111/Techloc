@@ -14,6 +14,7 @@ export const DashboardState = {
     unitTypeSelection: [],
     vehicleStatusKey: '',
     vehicleStatusSelection: [],
+    locationFocusActive: false,
   },
   vehiclesRaw: new Map(),
   schema: [],
