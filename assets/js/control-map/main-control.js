@@ -3,6 +3,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     import { supabase as supabaseClient } from '../supabaseClient.js';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js';
     import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js';
+    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js';
     import { createRepairHistoryManager } from '../../scripts/repairHistory.js';
     import { createPartnerClusterGroup } from './utils/cluster.js';
     import { attachDistances, debounce, debounceAsync, getOriginKey, runWithTimeout } from './utils/helpers.js';
@@ -415,6 +416,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       runWithTimeout,
       timeoutMs: SUPABASE_TIMEOUT_MS,
       tableName: TABLES.repairHistory,
+      escapeHTML,
+      formatDateTime
+    });
+
+    const gpsHistoryManager = createGpsHistoryManager({
+      supabaseClient,
+      ensureSupabaseSession,
+      runWithTimeout,
+      timeoutMs: SUPABASE_TIMEOUT_MS,
+      tableName: TABLES.gpsHistory,
       escapeHTML,
       formatDateTime
     });
@@ -1587,6 +1598,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const card = target?.closest('[data-type="vehicle"]') || composedPath.find((node) => node?.dataset?.type === 'vehicle');
       const viewMoreBtn = target?.closest('[data-action="vehicle-view-more"]') || findInPath('vehicle-view-more');
       const repairHistoryBtn = target?.closest('[data-action="repair-history"]') || findInPath('repair-history');
+      const gpsHistoryBtn = target?.closest('[data-action="gps-history"]') || findInPath('gps-history');
       if (!card || !container.contains(card)) return;
 
       const vehicle = findVehicleById(card.dataset.id);
@@ -1605,6 +1617,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         event.stopPropagation();
         event.stopImmediatePropagation?.();
         openRepairModal(vehicle);
+        return;
+      }
+
+      if (gpsHistoryBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        openGpsHistoryModal(vehicle);
         return;
       }
 
@@ -1880,7 +1900,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                 ${svgIcon('info', 'h-3.5 w-3.5')}
                 See more
               </button>
-              <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">History</button>
+              <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">Service History</button>
+              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS History</button>
             </div>
           `;
 
@@ -1897,6 +1918,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
             repairHistoryButton.addEventListener('click', (event) => {
               event.stopPropagation();
               openRepairModal(vehicle);
+            });
+          }
+
+          const gpsHistoryButton = card.querySelector('[data-action="gps-history"]');
+          if (gpsHistoryButton) {
+            gpsHistoryButton.addEventListener('click', (event) => {
+              event.stopPropagation();
+              openGpsHistoryModal(vehicle);
             });
           }
 
@@ -2703,6 +2732,83 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         body,
         signal,
         setActiveTab
+      });
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function openGpsHistoryModal(vehicle) {
+      const modal = document.getElementById('vehicle-modal');
+      const title = document.getElementById('vehicle-modal-title');
+      const vinDisplay = document.getElementById('vehicle-modal-vin');
+      const body = document.getElementById('vehicle-modal-body');
+      const columnsToggle = document.getElementById('vehicle-modal-columns-toggle');
+      const columnsPanel = document.getElementById('vehicle-modal-columns-panel');
+      if (!modal || !title || !body) return;
+
+      if (modal.repairModalController) {
+        modal.repairModalController.abort();
+      }
+      if (modal.gpsModalController) {
+        modal.gpsModalController.abort();
+      }
+      const gpsModalController = new AbortController();
+      modal.gpsModalController = gpsModalController;
+      const { signal } = gpsModalController;
+
+      const VIN = gpsHistoryManager.getVehicleVin(vehicle);
+      modal.dataset.vehicleId = vehicle.id;
+      title.textContent = 'GPS History';
+      if (vinDisplay) {
+        vinDisplay.textContent = VIN ? `VIN: ${VIN}` : '';
+      }
+      columnsToggle?.classList.add('hidden');
+      columnsPanel?.classList.add('hidden');
+      body.innerHTML = `
+        <div class="space-y-4">
+          <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">GPS History</p>
+                <p class="text-[10px] text-slate-500" data-gps-status>Loading GPS history...</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="text" class="w-52 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 placeholder-slate-500" placeholder="Search GPS records" data-gps-search />
+                <div class="relative">
+                  <button type="button" class="rounded border border-slate-700 bg-slate-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 hover:border-slate-500" data-gps-columns-toggle>
+                    Columns
+                  </button>
+                  <div class="absolute right-0 z-10 mt-2 hidden w-[320px] rounded-lg border border-slate-800 bg-slate-950/95 p-3 text-[11px] text-slate-200 shadow-xl" data-gps-columns-panel>
+                    <div class="flex items-start justify-between gap-2">
+                      <div>
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Column controls</p>
+                        <p class="text-[10px] text-slate-500">Drag to reorder, toggle visibility, and set width.</p>
+                      </div>
+                    </div>
+                    <div class="mt-3 grid gap-2 max-h-64 overflow-auto" data-gps-columns-list></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="overflow-auto">
+              <table class="min-w-full text-left text-[11px] text-slate-200">
+                <thead class="text-[10px] uppercase text-slate-500" data-gps-history-head></thead>
+                <tbody class="divide-y divide-slate-800/80" data-gps-history-body>
+                  <tr>
+                    <td class="py-2 pr-3 text-slate-400" colspan="1">Loading history...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      gpsHistoryManager.setupGpsHistoryUI({
+        vehicle,
+        body,
+        signal
       });
 
       modal.classList.remove('hidden');
