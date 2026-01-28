@@ -2795,9 +2795,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               }
             }
 
-            const updateQuery = supabaseClient
-              .from(updateTable)
-              .update({ [updateColumn]: newValue });
             const vin = String(
               getField(vehicle?.details || {}, 'VIN', 'Vin', 'vin')
                 || vehicle?.VIN
@@ -2808,8 +2805,13 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               throw new Error('VIN missing for update.');
             }
             const updateRequest = updateTable === TABLES.vehiclesUpdates
-              ? updateQuery.eq('VIN', vin)
-              : updateQuery.eq('id', vehicle.id);
+              ? supabaseClient
+                  .from(updateTable)
+                  .upsert({ VIN: vin, [updateColumn]: newValue }, { onConflict: 'VIN' })
+              : supabaseClient
+                  .from(updateTable)
+                  .update({ [updateColumn]: newValue })
+                  .eq('id', vehicle.id);
             const { error } = await runWithTimeout(
               updateRequest,
               8000,
