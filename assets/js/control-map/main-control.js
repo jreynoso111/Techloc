@@ -2758,7 +2758,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               throw new Error('VIN missing for update.');
             }
             const updateRequest = updateTable === TABLES.vehiclesUpdates
-              ? updateQuery.or(`VIN.eq.${vin},vin.eq.${vin}`)
+              ? updateQuery.eq('VIN', vin)
               : updateQuery.eq('id', vehicle.id);
             const { error } = await runWithTimeout(
               updateRequest,
