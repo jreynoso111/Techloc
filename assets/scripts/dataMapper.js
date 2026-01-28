@@ -137,7 +137,7 @@ const normalizeVehicle = (row, idx = 0, { getField: fieldGetter, toStateCode, re
     type: field(row, 'Unit Type', 'type') || 'Vehicle',
     year: field(row, 'Model Year', 'year'),
     model: field(row, 'Model', 'model') || 'Vehicle',
-    vin: field(row, 'ShortVIN', 'VIN', 'vin') || 'N/A',
+    vin: field(row, 'VIN', 'vin', 'ShortVIN') || 'N/A',
     gpsFix: field(row, 'GPS Fix', 'gps_fix'),
     gpsReason: field(row, 'GPS Fix Reason', 'gps_fix_reason'),
     gpsMoving: field(row, 'GPS Moving', 'gps_moving'),
