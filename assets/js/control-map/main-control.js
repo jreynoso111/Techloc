@@ -1901,7 +1901,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                 See more
               </button>
               <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">Service History</button>
-              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS History</button>
+              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS history</button>
             </div>
           `;
 
@@ -2774,6 +2774,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                 <p class="text-[10px] text-slate-500" data-gps-status>Loading GPS history...</p>
               </div>
               <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300" data-gps-connection-status>
+                  Checking connection
+                </button>
                 <input type="text" class="w-52 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 placeholder-slate-500" placeholder="Search GPS records" data-gps-search />
                 <div class="relative">
                   <button type="button" class="rounded border border-slate-700 bg-slate-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 hover:border-slate-500" data-gps-columns-toggle>
