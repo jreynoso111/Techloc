@@ -2753,7 +2753,12 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
             const updateQuery = supabaseClient
               .from(updateTable)
               .update({ [updateColumn]: newValue });
-            const vin = repairHistoryManager.getRepairVehicleVin(vehicle) || vehicle?.vin || '';
+            const vin = String(
+              getField(vehicle?.details || {}, 'VIN', 'Vin', 'vin')
+                || vehicle?.VIN
+                || vehicle?.vin
+                || ''
+            ).trim();
             if (updateTable === TABLES.vehiclesUpdates && !vin) {
               throw new Error('VIN missing for update.');
             }
