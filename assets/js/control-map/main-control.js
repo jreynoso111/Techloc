@@ -404,8 +404,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     const isAdminUser = () => `${window.currentUserRole || ''}`.toLowerCase() === 'administrator';
 
     const EDITABLE_VEHICLE_FIELDS = {
-      'gps fix': 'gpsFix',
-      'gps fix reason': 'gpsReason'
+      'gps fix': { fieldKey: 'gpsFix', updateColumn: 'gps_fix', table: TABLES.vehiclesUpdates },
+      'gps fix reason': { fieldKey: 'gpsReason', updateColumn: 'gps_fix_reason', table: TABLES.vehiclesUpdates }
     };
 
     const repairHistoryManager = createRepairHistoryManager({
@@ -2465,8 +2465,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const { headers, hidden } = getVehicleModalHeaders(vehicleHeaders);
       const detailRows = headers.map(header => {
         const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
-        const fieldKey = EDITABLE_VEHICLE_FIELDS[header.toLowerCase()];
-        const isEditable = Boolean(fieldKey);
+        const editConfig = EDITABLE_VEHICLE_FIELDS[header.toLowerCase()];
+        const fieldKey = editConfig?.fieldKey;
+        const isEditable = Boolean(editConfig);
         const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
         return `
           <tr class="border-b border-slate-800/80 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${header}">
@@ -2480,7 +2481,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               <div class="flex items-center justify-between gap-2">
                 <span data-field-value>${value || '—'}</span>
                 ${isEditable ? `
-                  <button type="button" class="rounded border border-amber-400/40 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}">Edit</button>
+                  <button type="button" class="rounded border border-amber-400/40 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}" data-edit-column="${editConfig.updateColumn}" data-edit-table="${editConfig.table}">Edit</button>
                 ` : ''}
               </div>
             </td>
@@ -2720,6 +2721,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           button.textContent = 'Verifying...';
           const fieldKey = button.dataset.editField;
           const headerKey = button.dataset.editHeader;
+          const updateColumn = button.dataset.editColumn || headerKey;
+          const updateTable = button.dataset.editTable || TABLES.vehicles;
           const cell = button.closest('td');
           const valueNode = cell?.querySelector('[data-field-value]');
           if (!cell || !valueNode) {
@@ -2747,11 +2750,18 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               }
             }
 
+            const updateQuery = supabaseClient
+              .from(updateTable)
+              .update({ [updateColumn]: newValue });
+            const vin = repairHistoryManager.getRepairVehicleVin(vehicle) || vehicle?.vin || '';
+            if (updateTable === TABLES.vehiclesUpdates && !vin) {
+              throw new Error('VIN missing for update.');
+            }
+            const updateRequest = updateTable === TABLES.vehiclesUpdates
+              ? updateQuery.or(`VIN.eq.${vin},vin.eq.${vin}`)
+              : updateQuery.eq('id', vehicle.id);
             const { error } = await runWithTimeout(
-              supabaseClient
-                .from(TABLES.vehicles)
-                .update({ [headerKey]: newValue })
-                .eq('id', vehicle.id),
+              updateRequest,
               8000,
               'Error de comunicación con la base de datos.'
             );
