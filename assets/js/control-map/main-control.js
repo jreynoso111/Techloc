@@ -1901,7 +1901,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                 See more
               </button>
               <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">Service History</button>
-              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS History</button>
+              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS history</button>
             </div>
           `;
 
