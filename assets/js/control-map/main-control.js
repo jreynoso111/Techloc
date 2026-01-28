@@ -891,8 +891,53 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const stopLoading = startLoading('Loading Vehicles…');
       try {
         const data = await vehicleService.listVehicles();
-        vehicles = data.map((row, idx) => normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords }));
+        let updateRows = [];
+        if (supabaseClient) {
+          try {
+            const { data: updatesData, error: updatesError } = await runWithTimeout(
+              supabaseClient
+                .from(TABLES.vehiclesUpdates)
+                .select('VIN,"gps to fix","gps fix reason"'),
+              8000,
+              'Error de comunicación con la base de datos.'
+            );
+            if (updatesError) throw updatesError;
+            updateRows = updatesData || [];
+          } catch (error) {
+            console.warn('Vehicle updates load warning: ' + (error?.message || error));
+          }
+        }
+
+        const updatesByVin = new Map();
+        updateRows.forEach((row) => {
+          const vin = String(getField(row, 'VIN', 'vin') || '').trim();
+          if (!vin) return;
+          updatesByVin.set(vin.toLowerCase(), row);
+        });
+
+        vehicles = data.map((row, idx) => {
+          const normalized = normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords });
+          const vinValue = String(getField(row, 'VIN', 'vin', 'ShortVIN') || normalized.vin || '').trim();
+          const update = updatesByVin.get(vinValue.toLowerCase());
+          if (update) {
+            const gpsFix = getField(update, 'gps to fix', 'gps_to_fix');
+            const gpsReason = getField(update, 'gps fix reason', 'gps_fix_reason');
+            normalized.gpsFix = gpsFix;
+            normalized.gpsReason = gpsReason;
+            if (normalized.details) {
+              normalized.details['GPS Fix'] = gpsFix;
+              normalized.details['GPS Fix Reason'] = gpsReason;
+            }
+          }
+          return normalized;
+        });
         vehicleHeaders = data.length ? Object.keys(data[0]) : [];
+        if (!vehicleHeaders.some((header) => header.toLowerCase() === 'gps fix')) {
+          vehicleHeaders.push('GPS Fix');
+        }
+        if (!vehicleHeaders.some((header) => header.toLowerCase() === 'gps fix reason')) {
+          vehicleHeaders.push('GPS Fix Reason');
+        }
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
         renderVehicles();
@@ -2750,9 +2795,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               }
             }
 
-            const updateQuery = supabaseClient
-              .from(updateTable)
-              .update({ [updateColumn]: newValue });
             const vin = String(
               getField(vehicle?.details || {}, 'VIN', 'Vin', 'vin')
                 || vehicle?.VIN
@@ -2763,8 +2805,13 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               throw new Error('VIN missing for update.');
             }
             const updateRequest = updateTable === TABLES.vehiclesUpdates
-              ? updateQuery.eq('VIN', vin)
-              : updateQuery.eq('id', vehicle.id);
+              ? supabaseClient
+                  .from(updateTable)
+                  .upsert({ VIN: vin, [updateColumn]: newValue }, { onConflict: 'VIN' })
+              : supabaseClient
+                  .from(updateTable)
+                  .update({ [updateColumn]: newValue })
+                  .eq('id', vehicle.id);
             const { error } = await runWithTimeout(
               updateRequest,
               8000,
