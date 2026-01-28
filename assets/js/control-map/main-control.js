@@ -404,8 +404,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     const isAdminUser = () => `${window.currentUserRole || ''}`.toLowerCase() === 'administrator';
 
     const EDITABLE_VEHICLE_FIELDS = {
-      'gps fix': { fieldKey: 'gpsFix', updateColumn: 'gps_fix', table: TABLES.vehiclesUpdates },
-      'gps fix reason': { fieldKey: 'gpsReason', updateColumn: 'gps_fix_reason', table: TABLES.vehiclesUpdates }
+      'gps fix': { fieldKey: 'gpsFix', updateColumn: 'gps to fix', table: TABLES.vehiclesUpdates },
+      'gps fix reason': { fieldKey: 'gpsReason', updateColumn: 'gps fix reason', table: TABLES.vehiclesUpdates }
     };
 
     const repairHistoryManager = createRepairHistoryManager({
