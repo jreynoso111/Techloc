@@ -12,7 +12,8 @@ export const TABLES = {
   vehiclesUpdates: 'vehicles_updates',
   hotspots: 'Hotspots',
   blacklist: 'Services_Blacklist',
-  repairHistory: 'repair_history'
+  repairHistory: 'repair_history',
+  gpsHistory: 'PT-LastPing'
 };
 
 export const SUPABASE_TIMEOUT_MS = 10000;
