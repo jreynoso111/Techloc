@@ -39,6 +39,12 @@ export const vehiclePopupTemplate = ({
           <p class="font-semibold text-slate-50">${dealCompletion}</p>
         </div>
       </div>
+
+      <div class="flex items-center justify-end">
+        <button type="button" data-view-more-popup class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+          More details
+        </button>
+      </div>
     </div>
   </div>
 `;

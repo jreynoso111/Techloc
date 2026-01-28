@@ -22,23 +22,26 @@ const createGpsHistoryManager = ({
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
   const fetchGpsHistory = async (VIN) => {
-    if (!supabaseClient || !VIN) return [];
+    const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
+    if (!supabaseClient || !normalizedVin) {
+      return { records: [], error: supabaseClient ? new Error('VIN missing') : new Error('Supabase unavailable') };
+    }
     try {
       await ensureSupabaseSession?.();
       const { data, error } = await runWithTimeout(
         supabaseClient
-          .from(tableName)
+          .from(tableName.replace(/"/g, ''))
           .select('*')
-          .eq('VIN', VIN)
+          .eq('VIN', normalizedVin)
           .order('created_at', { ascending: false }),
         timeoutMs,
         'GPS history request timed out.'
       );
       if (error) throw error;
-      return data || [];
+      return { records: data || [], error: null };
     } catch (error) {
       console.error('Failed to load GPS history:', error);
-      return [];
+      return { records: [], error };
     }
   };
 
@@ -51,6 +54,7 @@ const createGpsHistoryManager = ({
     const columnsList = body.querySelector('[data-gps-columns-list]');
     const searchInput = body.querySelector('[data-gps-search]');
     const statusText = body.querySelector('[data-gps-status]');
+    const connectionStatus = body.querySelector('[data-gps-connection-status]');
 
     let gpsCache = [];
     let gpsColumns = [];
@@ -147,7 +151,7 @@ const createGpsHistoryManager = ({
     const formatValue = (key, value) => {
       if (value === null || value === undefined || value === '') return '—';
       const normalizedKey = key.toLowerCase();
-      if (normalizedKey.includes('date') || normalizedKey.includes('time')) {
+      if (key === 'PT-LastPing' || normalizedKey.includes('date') || normalizedKey.includes('time')) {
         return safeFormatDateTime(value);
       }
       if (typeof value === 'object') {
@@ -284,12 +288,55 @@ const createGpsHistoryManager = ({
       renderHistory(gpsCache);
     };
 
+    const setConnectionStatus = (label, tone = 'neutral') => {
+      if (!connectionStatus) return;
+      connectionStatus.textContent = label;
+      connectionStatus.classList.remove(
+        'border-emerald-400/50',
+        'bg-emerald-500/15',
+        'text-emerald-100',
+        'border-amber-400/50',
+        'bg-amber-500/15',
+        'text-amber-100',
+        'border-rose-400/50',
+        'bg-rose-500/15',
+        'text-rose-100'
+      );
+      if (tone === 'success') {
+        connectionStatus.classList.add('border-emerald-400/50', 'bg-emerald-500/15', 'text-emerald-100');
+      } else if (tone === 'warning') {
+        connectionStatus.classList.add('border-amber-400/50', 'bg-amber-500/15', 'text-amber-100');
+      } else if (tone === 'error') {
+        connectionStatus.classList.add('border-rose-400/50', 'bg-rose-500/15', 'text-rose-100');
+      }
+    };
+
     loadPreferences();
     if (statusText) statusText.textContent = 'Loading GPS history...';
-    fetchGpsHistory(VIN).then((records) => {
-      renderHistory(records);
-      if (statusText) statusText.textContent = `${records.length} record${records.length === 1 ? '' : 's'} loaded.`;
-    });
+    if (!VIN) {
+      renderHistory([]);
+      if (statusText) statusText.textContent = 'No VIN available for this vehicle.';
+      setConnectionStatus('VIN missing', 'warning');
+    } else if (!supabaseClient) {
+      renderHistory([]);
+      if (statusText) statusText.textContent = 'Supabase connection not available.';
+      setConnectionStatus('Disconnected', 'error');
+    } else {
+      setConnectionStatus('Connecting…', 'warning');
+      fetchGpsHistory(VIN).then(({ records, error }) => {
+        renderHistory(records);
+        if (statusText) {
+          statusText.textContent = error
+            ? 'Unable to load GPS history.'
+            : `${records.length} record${records.length === 1 ? '' : 's'} loaded.`;
+        }
+        if (error) {
+          setConnectionStatus('Connection failed', 'error');
+        } else {
+          setConnectionStatus(`Connected · ${tableName}`, 'success');
+        }
+      });
+    }
 
     if (columnsToggle && columnsPanel) {
       columnsToggle.addEventListener('click', () => {
