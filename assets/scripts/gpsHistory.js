@@ -70,6 +70,7 @@ const createGpsHistoryManager = ({
 
     const DEFAULT_COLUMN_ORDER = [
       'created_at',
+      'PT-LastPing',
       'gps_time',
       'latitude',
       'lat',
