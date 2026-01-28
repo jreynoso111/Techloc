@@ -919,15 +919,13 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           const normalized = normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords });
           const vinValue = String(getField(row, 'VIN', 'vin', 'ShortVIN') || normalized.vin || '').trim();
           const update = updatesByVin.get(vinValue.toLowerCase());
-          if (update) {
-            const gpsFix = getField(update, 'gps to fix', 'gps_to_fix');
-            const gpsReason = getField(update, 'gps fix reason', 'gps_fix_reason');
-            normalized.gpsFix = gpsFix;
-            normalized.gpsReason = gpsReason;
-            if (normalized.details) {
-              normalized.details['GPS Fix'] = gpsFix;
-              normalized.details['GPS Fix Reason'] = gpsReason;
-            }
+          const gpsFix = update ? getField(update, 'gps to fix', 'gps_to_fix') : '';
+          const gpsReason = update ? getField(update, 'gps fix reason', 'gps_fix_reason') : '';
+          normalized.gpsFix = gpsFix;
+          normalized.gpsReason = gpsReason;
+          if (normalized.details) {
+            normalized.details['GPS Fix'] = gpsFix;
+            normalized.details['GPS Fix Reason'] = gpsReason;
           }
           return normalized;
         });
@@ -2513,7 +2511,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         const editConfig = EDITABLE_VEHICLE_FIELDS[header.toLowerCase()];
         const fieldKey = editConfig?.fieldKey;
         const isEditable = Boolean(editConfig);
-        const value = vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—';
+        const value = editConfig
+          ? (vehicle?.[fieldKey] ?? '—')
+          : (vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—');
         return `
           <tr class="border-b border-slate-800/80 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${header}">
             <th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">
