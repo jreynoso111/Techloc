@@ -13,7 +13,7 @@ export const TABLES = {
   hotspots: 'Hotspots',
   blacklist: 'Services_Blacklist',
   repairHistory: 'repair_history',
-  gpsHistory: 'PT-LastPing'
+  gpsHistory: 'gps_history'
 };
 
 export const SUPABASE_TIMEOUT_MS = 10000;

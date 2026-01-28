@@ -22,7 +22,8 @@ const createGpsHistoryManager = ({
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
   const fetchGpsHistory = async (VIN) => {
-    if (!supabaseClient || !VIN) {
+    const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
+    if (!supabaseClient || !normalizedVin) {
       return { records: [], error: supabaseClient ? new Error('VIN missing') : new Error('Supabase unavailable') };
     }
     try {
@@ -30,8 +31,8 @@ const createGpsHistoryManager = ({
       const { data, error } = await runWithTimeout(
         supabaseClient
           .from(tableName)
-          .select('*')
-          .eq('VIN', VIN)
+          .select('*, "PT-LastPing"')
+          .eq('VIN', normalizedVin)
           .order('created_at', { ascending: false }),
         timeoutMs,
         'GPS history request timed out.'
@@ -69,6 +70,7 @@ const createGpsHistoryManager = ({
 
     const DEFAULT_COLUMN_ORDER = [
       'created_at',
+      'PT-LastPing',
       'gps_time',
       'latitude',
       'lat',
@@ -150,7 +152,7 @@ const createGpsHistoryManager = ({
     const formatValue = (key, value) => {
       if (value === null || value === undefined || value === '') return '—';
       const normalizedKey = key.toLowerCase();
-      if (normalizedKey.includes('date') || normalizedKey.includes('time')) {
+      if (key === 'PT-LastPing' || normalizedKey.includes('date') || normalizedKey.includes('time')) {
         return safeFormatDateTime(value);
       }
       if (typeof value === 'object') {

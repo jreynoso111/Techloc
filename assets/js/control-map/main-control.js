@@ -2808,6 +2808,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         </div>
       `;
 
+      vehicle.vin = vehicle.vin?.trim().toUpperCase();
       gpsHistoryManager.setupGpsHistoryUI({
         vehicle,
         body,
