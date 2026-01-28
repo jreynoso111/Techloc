@@ -924,9 +924,12 @@ const applyFilters = ({ ignoreChartFilter = false, ignoreChartId = null } = {}) 
     const vehicleStatusMatch = !filters.vehicleStatusKey
       || !vehicleStatusSelections.length
       || vehicleStatusSelections.includes(String(item[filters.vehicleStatusKey] ?? ''));
+    const locationValue = String(item['Physical Location'] ?? '').trim().toLowerCase();
+    const locationCompact = locationValue.replace(/[^a-z0-9]/g, '');
+    const isCopartLike = locationCompact.includes('copart');
     const locationMatch = !filters.locationFocusActive
       || (
-        LOCATION_FILTER_SET.has(String(item['Physical Location'] ?? '').trim().toLowerCase())
+        (LOCATION_FILTER_SET.has(locationValue) || isCopartLike)
         && STATUS_FILTER_SET.has(String(item['Vehicle Status'] ?? '').trim().toLowerCase())
       );
 
