@@ -9,6 +9,7 @@ export const SERVICE_CATEGORY_HINTS = {
 export const TABLES = {
   services: SERVICE_TABLE,
   vehicles: 'vehicles',
+  vehiclesUpdates: 'vehicles_updates',
   hotspots: 'Hotspots',
   blacklist: 'Services_Blacklist',
   repairHistory: 'repair_history'
