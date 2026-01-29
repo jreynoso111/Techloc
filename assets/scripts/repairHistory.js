@@ -35,6 +35,16 @@ const getRepairVehicleVin = (vehicle) => {
   return typeof vin === 'string' ? vin.trim().toUpperCase() : '';
 };
 
+const getRepairVehicleShortVin = (vehicle) => {
+  const shortVin = vehicle?.shortvin ?? vehicle?.short_vin ?? vehicle?.shortVin;
+  if (typeof shortVin === 'string' && shortVin.trim()) {
+    return shortVin.trim().toUpperCase();
+  }
+  const vin = getRepairVehicleVin(vehicle);
+  if (!vin) return '';
+  return vin.slice(-6).toUpperCase();
+};
+
 const createRepairHistoryManager = ({
   supabaseClient,
   startLoading,
@@ -49,16 +59,16 @@ const createRepairHistoryManager = ({
   const safeEscape = escapeHTML || helpers.escapeHTML;
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
-  const fetchRepairs = async (VIN) => {
-    const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
-    if (!supabaseClient || !normalizedVin) return [];
+  const fetchRepairs = async (shortVin) => {
+    const normalizedShortVin = typeof shortVin === 'string' ? shortVin.trim().toUpperCase() : '';
+    if (!supabaseClient || !normalizedShortVin) return [];
     try {
       await ensureSupabaseSession?.();
       const { data, error } = await runWithTimeout(
         supabaseClient
           .from(tableName)
           .select('*')
-          .eq('VIN', normalizedVin)
+          .eq('shortvin', normalizedShortVin)
           .order('created_at', { ascending: false }),
         timeoutMs,
         'Repair history request timed out.'
@@ -117,6 +127,7 @@ const createRepairHistoryManager = ({
 
   const setupRepairHistoryUI = ({ vehicle, body, signal, setActiveTab }) => {
     const VIN = getRepairVehicleVin(vehicle);
+    const shortVin = getRepairVehicleShortVin(vehicle);
     const historyBody = body.querySelector('[data-repair-history-body]');
     const historyEmpty = body.querySelector('[data-repair-empty]');
     const historyHead = body.querySelector('[data-repair-history-head]');
@@ -378,18 +389,18 @@ const createRepairHistoryManager = ({
         .delete()
         .eq('id', repairId);
       if (error) throw error;
-      const repairs = await fetchRepairs(VIN);
+      const repairs = await fetchRepairs(shortVin);
       renderRepairHistory(repairs);
     };
 
-    if (!VIN) {
+    if (!shortVin) {
       if (historyEmpty) historyEmpty.textContent = 'No VIN available for this vehicle.';
       renderRepairHistory([]);
       return;
     }
 
     if (historyEmpty) historyEmpty.textContent = 'Loading history...';
-    fetchRepairs(VIN).then(renderRepairHistory);
+    fetchRepairs(shortVin).then(renderRepairHistory);
 
     if (repairColumnsToggle && repairColumnsPanel) {
       repairColumnsToggle.addEventListener('click', () => {
@@ -507,7 +518,7 @@ const createRepairHistoryManager = ({
             delete form.dataset.editRepairId;
             if (submitBtn) submitBtn.textContent = 'Save entry';
           }
-          const repairs = await fetchRepairs(VIN);
+          const repairs = await fetchRepairs(shortVin);
           renderRepairHistory(repairs);
           if (statusText) {
             statusText.textContent = 'Entry saved successfully.';
