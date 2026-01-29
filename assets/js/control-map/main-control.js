@@ -1624,7 +1624,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation?.();
-        openGpsHistoryModal(vehicle);
+        void handleGpsHistoryRequest(vehicle);
         return;
       }
 
@@ -1925,7 +1925,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           if (gpsHistoryButton) {
             gpsHistoryButton.addEventListener('click', (event) => {
               event.stopPropagation();
-              openGpsHistoryModal(vehicle);
+              void handleGpsHistoryRequest(vehicle);
             });
           }
 
@@ -2783,7 +2783,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       modal.classList.add('flex');
     }
 
-    function openGpsHistoryModal(vehicle) {
+    function openGpsHistoryModal(vehicle, { records = null, error = null } = {}) {
       const modal = document.getElementById('vehicle-modal');
       const title = document.getElementById('vehicle-modal-title');
       const vinDisplay = document.getElementById('vehicle-modal-vin');
@@ -2861,11 +2861,24 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       gpsHistoryManager.setupGpsHistoryUI({
         vehicle,
         body,
-        signal
+        signal,
+        records,
+        error
       });
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+    }
+
+    async function handleGpsHistoryRequest(vehicle) {
+      const VIN = gpsHistoryManager.getVehicleVin(vehicle);
+      const stopLoading = startLoading('Loading GPS history…');
+      try {
+        const { records, error } = await gpsHistoryManager.fetchGpsHistory(VIN);
+        openGpsHistoryModal(vehicle, { records, error });
+      } finally {
+        stopLoading();
+      }
     }
 
     function attachVehicleModalRowDrag() {
