@@ -49,9 +49,11 @@ const createRepairHistoryManager = ({
   const safeEscape = escapeHTML || helpers.escapeHTML;
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
-  const fetchRepairs = async (VIN) => {
-    const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
-    if (!supabaseClient || !normalizedVin) return [];
+  const fetchRepairs = async (vin) => {
+    const normalizedVin = typeof vin === 'string' ? vin.trim().toUpperCase() : '';
+    if (!supabaseClient || !normalizedVin) {
+      return { data: [], error: new Error('Missing Supabase client or VIN.') };
+    }
     try {
       await ensureSupabaseSession?.();
       const { data, error } = await runWithTimeout(
@@ -64,10 +66,10 @@ const createRepairHistoryManager = ({
         'Repair history request timed out.'
       );
       if (error) throw error;
-      return data || [];
+      return { data: data || [], error: null };
     } catch (error) {
       console.error('Failed to load repair history:', error);
-      return [];
+      return { data: [], error };
     }
   };
 
@@ -127,6 +129,8 @@ const createRepairHistoryManager = ({
     const form = body.querySelector('[data-repair-form]');
     const statusText = body.querySelector('[data-repair-status]');
     const submitBtn = body.querySelector('[data-repair-submit]');
+    const connectionStatus = body.querySelector('[data-repair-connection]');
+    const errorStatus = body.querySelector('[data-repair-error]');
 
     let repairCache = [];
     let repairColumns = [];
@@ -378,18 +382,56 @@ const createRepairHistoryManager = ({
         .delete()
         .eq('id', repairId);
       if (error) throw error;
-      const repairs = await fetchRepairs(VIN);
-      renderRepairHistory(repairs);
+      await loadRepairs({ showLoading: false });
     };
 
     if (!VIN) {
       if (historyEmpty) historyEmpty.textContent = 'No VIN available for this vehicle.';
+      if (connectionStatus) connectionStatus.textContent = 'Status: missing VIN';
+      if (errorStatus) {
+        errorStatus.textContent = 'No VIN found to query service history.';
+        errorStatus.classList.remove('hidden');
+      }
       renderRepairHistory([]);
       return;
     }
 
-    if (historyEmpty) historyEmpty.textContent = 'Loading history...';
-    fetchRepairs(VIN).then(renderRepairHistory);
+    const updateConnectionStatus = ({ state, detail = '', isError = false } = {}) => {
+      if (connectionStatus) connectionStatus.textContent = `Status: ${state}`;
+      if (errorStatus) {
+        if (detail) {
+          errorStatus.textContent = detail;
+          errorStatus.classList.remove('hidden');
+        } else {
+          errorStatus.textContent = '';
+          errorStatus.classList.add('hidden');
+        }
+        errorStatus.classList.toggle('text-rose-300', isError);
+        errorStatus.classList.toggle('text-emerald-300', !isError && Boolean(detail));
+      }
+    };
+
+    const loadRepairs = async ({ showLoading = true } = {}) => {
+      if (showLoading && historyEmpty) historyEmpty.textContent = 'Loading history...';
+      updateConnectionStatus({ state: 'connecting…' });
+      const { data, error } = await fetchRepairs(VIN);
+      if (error) {
+        updateConnectionStatus({
+          state: 'error',
+          detail: error?.message || 'Unable to load service history.',
+          isError: true
+        });
+      } else {
+        updateConnectionStatus({
+          state: 'connected',
+          detail: `Loaded ${data.length} record${data.length === 1 ? '' : 's'} from ${tableName}.`
+        });
+      }
+      renderRepairHistory(data);
+      return { data, error };
+    };
+
+    void loadRepairs();
 
     if (repairColumnsToggle && repairColumnsPanel) {
       repairColumnsToggle.addEventListener('click', () => {
@@ -507,8 +549,7 @@ const createRepairHistoryManager = ({
             delete form.dataset.editRepairId;
             if (submitBtn) submitBtn.textContent = 'Save entry';
           }
-          const repairs = await fetchRepairs(VIN);
-          renderRepairHistory(repairs);
+          await loadRepairs({ showLoading: false });
           if (statusText) {
             statusText.textContent = 'Entry saved successfully.';
             statusText.classList.remove('text-slate-400', 'text-amber-300');
