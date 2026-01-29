@@ -40,16 +40,38 @@ const createGpsHistoryManager = ({
     try {
       await ensureSupabaseSession?.();
       const sourceTable = tableName || '"PT-LastPing"';
-      let query = supabaseClient
-        .from(sourceTable)
-        .select('*');
-      if (normalizedVehicleId) {
-        query = query.eq('vehicle_id', normalizedVehicleId);
-      } else {
-        query = query.eq('VIN', normalizedVin);
+      const orderCandidates = ['Date', 'created_at', 'gps_time', 'PT-LastPing'];
+      const buildQuery = () => {
+        let query = supabaseClient
+          .from(sourceTable)
+          .select('*');
+        if (normalizedVehicleId) {
+          query = query.eq('vehicle_id', normalizedVehicleId);
+        } else {
+          query = query.eq('VIN', normalizedVin);
+        }
+        return query;
+      };
+
+      let lastError = null;
+      for (const column of orderCandidates) {
+        const { data, error } = await runWithTimeout(
+          buildQuery().order(column, { ascending: false }),
+          timeoutMs,
+          'GPS history request timed out.'
+        );
+        if (!error) {
+          return { records: data || [], error: null };
+        }
+        lastError = error;
+        const message = `${error?.message || ''} ${error?.details || ''}`;
+        if (!/does not exist|unknown column/i.test(message)) {
+          throw error;
+        }
       }
+
       const { data, error } = await runWithTimeout(
-        query.order('PT-LastPing', { ascending: false }),
+        buildQuery(),
         timeoutMs,
         'GPS history request timed out.'
       );
