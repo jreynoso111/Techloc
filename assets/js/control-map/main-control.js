@@ -2876,9 +2876,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
     async function handleGpsHistoryRequest(vehicle) {
       const VIN = gpsHistoryManager.getVehicleVin(vehicle);
+      const vehicleId = gpsHistoryManager.getVehicleId(vehicle);
       const stopLoading = startLoading('Loading GPS history…');
       try {
-        const { records, error } = await gpsHistoryManager.fetchGpsHistory(VIN);
+        const { records, error } = await gpsHistoryManager.fetchGpsHistory({ VIN, vehicleId });
         openGpsHistoryModal(vehicle, { records, error });
       } finally {
         stopLoading();
