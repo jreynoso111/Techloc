@@ -59,9 +59,9 @@ const createRepairHistoryManager = ({
   const safeEscape = escapeHTML || helpers.escapeHTML;
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
-  const fetchRepairs = async (shortVin) => {
-    const normalizedShortVin = typeof shortVin === 'string' ? shortVin.trim().toUpperCase() : '';
-    if (!supabaseClient || !normalizedShortVin) {
+  const fetchRepairs = async (vin) => {
+    const normalizedVin = typeof vin === 'string' ? vin.trim().toUpperCase() : '';
+    if (!supabaseClient || !normalizedVin) {
       return { data: [], error: new Error('Missing Supabase client or VIN.') };
     }
     try {
@@ -414,7 +414,7 @@ const createRepairHistoryManager = ({
     const loadRepairs = async ({ showLoading = true } = {}) => {
       if (showLoading && historyEmpty) historyEmpty.textContent = 'Loading history...';
       updateConnectionStatus({ state: 'connecting…' });
-      const { data, error } = await fetchRepairs(shortVin);
+      const { data, error } = await fetchRepairs(VIN);
       if (error) {
         updateConnectionStatus({
           state: 'error',
