@@ -71,7 +71,7 @@ const createRepairHistoryManager = ({
           .from(tableName)
           .select('*')
           .ilike('shortvin', normalizedShortVin)
-          .order('created_at', { ascending: false }),
+          .order('request date', { ascending: false }),
         timeoutMs,
         'Repair history request timed out.'
       );
@@ -152,19 +152,14 @@ const createRepairHistoryManager = ({
     const REPAIR_COLUMN_STORAGE_KEY = 'repairHistoryColumns';
 
     const DEFAULT_REPAIR_COLUMNS = [
-      { key: 'cs_contact_date', label: 'Date' },
       { key: 'status', label: 'Status' },
-      { key: 'doc', label: 'DOC' },
-      { key: 'shipping_date', label: 'Shipping Date' },
-      { key: 'poc_name', label: 'POC Name' },
-      { key: 'poc_phone', label: 'POC Phone' },
-      { key: 'customer_availability', label: 'Customer Availability' },
-      { key: 'installer_request_date', label: 'Installer Request Date' },
-      { key: 'installation_company', label: 'Installation Company' },
-      { key: 'technician_availability_date', label: 'Technician Availability Date' },
-      { key: 'installation_place', label: 'Installation Place' },
-      { key: 'repair_notes', label: 'Notes' },
-      { key: 'repair_price', label: 'Cost' }
+      { key: 'request date', label: 'Request Date' },
+      { key: 'workdate', label: 'Work Date' },
+      { key: 'shipping date', label: 'Shipping Date' },
+      { key: 'company_name', label: 'Company Name' },
+      { key: 'shortvin', label: 'Short VIN' },
+      { key: 'Service_category', label: 'Service Category' },
+      { key: 'Notes', label: 'Notes' }
     ];
 
     const formatRepairValue = (key, value) => {
@@ -200,7 +195,7 @@ const createRepairHistoryManager = ({
       if (columnKey === 'status') {
         return renderStatusBadge(repair?.[columnKey]);
       }
-      if (columnKey === 'repair_notes') {
+      if (columnKey === 'Notes') {
         return renderNotesCell(repair?.[columnKey]);
       }
       return safeEscape(formatRepairValue(columnKey, repair?.[columnKey]));
@@ -210,17 +205,11 @@ const createRepairHistoryManager = ({
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (match) => match.toUpperCase());
 
-    const CRITICAL_REPAIR_COLUMNS = new Set(['cs_contact_date', 'status', 'repair_notes']);
+    const CRITICAL_REPAIR_COLUMNS = new Set(['status', 'request date', 'Notes']);
     const TECHNICAL_REPAIR_COLUMNS = new Set([
       'id',
-      'vehicle_id',
-      'vehicleId',
-      'customer_id',
-      'customerId',
       'created_at',
-      'updated_at',
-      'VIN',
-      'vin'
+      'updated_at'
     ]);
 
     const getDefaultRepairColumnVisibility = (key) => {
@@ -327,8 +316,8 @@ const createRepairHistoryManager = ({
       if (!query) return repairs;
       return repairs.filter((repair) => {
         const status = `${repair?.status || ''}`.toLowerCase();
-        const notes = `${repair?.repair_notes || ''}`.toLowerCase();
-        const company = `${repair?.installation_company || ''}`.toLowerCase();
+        const notes = `${repair?.Notes || ''}`.toLowerCase();
+        const company = `${repair?.company_name || ''}`.toLowerCase();
         return status.includes(query) || notes.includes(query) || company.includes(query);
       });
     };
