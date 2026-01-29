@@ -8,6 +8,16 @@ const getVehicleVin = (vehicle) => {
   return typeof vin === 'string' ? vin.trim() : '';
 };
 
+const getVehicleId = (vehicle) => {
+  const vehicleId = vehicle?.vehicle_id
+    ?? vehicle?.vehicleId
+    ?? vehicle?.id
+    ?? vehicle?.details?.vehicle_id
+    ?? vehicle?.details?.vehicleId
+    ?? '';
+  return vehicleId ? `${vehicleId}`.trim() : '';
+};
+
 const createGpsHistoryManager = ({
   supabaseClient,
   ensureSupabaseSession,
@@ -21,19 +31,25 @@ const createGpsHistoryManager = ({
   const safeEscape = escapeHTML || helpers.escapeHTML;
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
-  const fetchGpsHistory = async (VIN) => {
+  const fetchGpsHistory = async ({ VIN, vehicleId } = {}) => {
     const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
-    if (!supabaseClient || !normalizedVin) {
-      return { records: [], error: supabaseClient ? new Error('VIN missing') : new Error('Supabase unavailable') };
+    const normalizedVehicleId = typeof vehicleId === 'string' ? vehicleId.trim() : '';
+    if (!supabaseClient || (!normalizedVehicleId && !normalizedVin)) {
+      return { records: [], error: supabaseClient ? new Error('Vehicle identifier missing') : new Error('Supabase unavailable') };
     }
     try {
       await ensureSupabaseSession?.();
+      const sourceTable = tableName || '"PT-LastPing"';
+      let query = supabaseClient
+        .from(sourceTable)
+        .select('*');
+      if (normalizedVehicleId) {
+        query = query.eq('vehicle_id', normalizedVehicleId);
+      } else {
+        query = query.eq('VIN', normalizedVin);
+      }
       const { data, error } = await runWithTimeout(
-        supabaseClient
-          .from('PT-LastPing')
-          .select('*')
-          .eq('VIN', normalizedVin)
-          .order('PT-LastPing', { ascending: false }),
+        query.order('PT-LastPing', { ascending: false }),
         timeoutMs,
         'GPS history request timed out.'
       );
@@ -47,6 +63,7 @@ const createGpsHistoryManager = ({
 
   const setupGpsHistoryUI = ({ vehicle, body, signal, records: preloadedRecords, error: preloadedError }) => {
     const VIN = getVehicleVin(vehicle);
+    const vehicleId = getVehicleId(vehicle);
     const historyBody = body.querySelector('[data-gps-history-body]');
     const historyHead = body.querySelector('[data-gps-history-head]');
     const columnsToggle = body.querySelector('[data-gps-columns-toggle]');
@@ -328,10 +345,10 @@ const createGpsHistoryManager = ({
 
     loadPreferences();
     if (statusText) statusText.textContent = 'Loading GPS history...';
-    if (!VIN) {
+    if (!VIN && !vehicleId) {
       renderHistory([]);
-      if (statusText) statusText.textContent = 'No VIN available for this vehicle.';
-      setConnectionStatus('VIN missing', 'warning');
+      if (statusText) statusText.textContent = 'No VIN or vehicle ID available for this vehicle.';
+      setConnectionStatus('Vehicle missing', 'warning');
     } else if (!supabaseClient) {
       renderHistory([]);
       if (statusText) statusText.textContent = 'Supabase connection not available.';
@@ -340,7 +357,7 @@ const createGpsHistoryManager = ({
       finalizeRender(preloadedRecords, preloadedError);
     } else {
       setConnectionStatus('Connecting…', 'warning');
-      fetchGpsHistory(VIN).then(({ records, error }) => {
+      fetchGpsHistory({ VIN, vehicleId }).then(({ records, error }) => {
         finalizeRender(records, error);
       });
     }
@@ -429,6 +446,7 @@ const createGpsHistoryManager = ({
   };
 
   return {
+    getVehicleId,
     getVehicleVin,
     fetchGpsHistory,
     setupGpsHistoryUI
