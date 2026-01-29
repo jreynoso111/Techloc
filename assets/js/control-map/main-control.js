@@ -2651,7 +2651,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           <div class="repair-tab-panel" data-tab-panel="history">
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 p-3">
               <div class="flex flex-wrap items-center justify-between gap-3 pb-3">
-                <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Repair History</p>
+                <div class="space-y-1">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">Repair History</p>
+                  <p class="text-[10px] text-slate-500" data-repair-connection>Status: checking connection…</p>
+                  <p class="text-[10px] text-rose-300 hidden" data-repair-error></p>
+                </div>
                 <div class="flex flex-wrap items-center gap-2">
                   <input type="text" class="w-48 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-200 placeholder-slate-500" placeholder="Search notes, status, company" data-repair-search />
                   <div class="relative">
