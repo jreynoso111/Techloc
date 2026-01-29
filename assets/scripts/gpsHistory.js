@@ -33,7 +33,7 @@ const createGpsHistoryManager = ({
           .from(tableName.replace(/"/g, ''))
           .select('*')
           .eq('VIN', normalizedVin)
-          .order('created_at', { ascending: false }),
+          .order('PT-LastPing', { ascending: false }),
         timeoutMs,
         'GPS history request timed out.'
       );
@@ -45,7 +45,7 @@ const createGpsHistoryManager = ({
     }
   };
 
-  const setupGpsHistoryUI = ({ vehicle, body, signal }) => {
+  const setupGpsHistoryUI = ({ vehicle, body, signal, records: preloadedRecords, error: preloadedError }) => {
     const VIN = getVehicleVin(vehicle);
     const historyBody = body.querySelector('[data-gps-history-body]');
     const historyHead = body.querySelector('[data-gps-history-head]');
@@ -312,6 +312,20 @@ const createGpsHistoryManager = ({
       }
     };
 
+    const finalizeRender = (records, error) => {
+      renderHistory(records);
+      if (statusText) {
+        statusText.textContent = error
+          ? 'Unable to load GPS history.'
+          : `${records.length} record${records.length === 1 ? '' : 's'} loaded.`;
+      }
+      if (error) {
+        setConnectionStatus('Connection failed', 'error');
+      } else {
+        setConnectionStatus(`Connected · ${tableName}`, 'success');
+      }
+    };
+
     loadPreferences();
     if (statusText) statusText.textContent = 'Loading GPS history...';
     if (!VIN) {
@@ -322,20 +336,12 @@ const createGpsHistoryManager = ({
       renderHistory([]);
       if (statusText) statusText.textContent = 'Supabase connection not available.';
       setConnectionStatus('Disconnected', 'error');
+    } else if (Array.isArray(preloadedRecords)) {
+      finalizeRender(preloadedRecords, preloadedError);
     } else {
       setConnectionStatus('Connecting…', 'warning');
       fetchGpsHistory(VIN).then(({ records, error }) => {
-        renderHistory(records);
-        if (statusText) {
-          statusText.textContent = error
-            ? 'Unable to load GPS history.'
-            : `${records.length} record${records.length === 1 ? '' : 's'} loaded.`;
-        }
-        if (error) {
-          setConnectionStatus('Connection failed', 'error');
-        } else {
-          setConnectionStatus(`Connected · ${tableName}`, 'success');
-        }
+        finalizeRender(records, error);
       });
     }
 
