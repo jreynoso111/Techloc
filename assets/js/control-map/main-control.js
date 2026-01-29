@@ -2063,6 +2063,21 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         .map(item => item.vehicle);
     }
 
+    function getDaysParkedValue(vehicle) {
+      const raw = vehicle?.daysStationary ?? vehicle?.details?.days_stationary ?? vehicle?.details?.['Days Parked'];
+      if (typeof raw === 'number') return Number.isFinite(raw) ? raw : Number.NEGATIVE_INFINITY;
+      if (typeof raw === 'string') {
+        const normalized = raw.replace(/,/g, '').trim();
+        const parsed = Number.parseFloat(normalized);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    function sortVehiclesByDaysParked(list) {
+      return [...list].sort((a, b) => getDaysParkedValue(b) - getDaysParkedValue(a));
+    }
+
     function getUniqueVehicleValues(field, { includeEmpty = false } = {}) {
       const values = new Set();
       let hasEmpty = false;
@@ -2144,6 +2159,31 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       renderCheckboxOptions('filter-deal-status', dealStatusValues, vehicleFilters.dealStatus);
       renderCheckboxOptions('filter-pt', ptValues, vehicleFilters.ptStatus);
       renderCheckboxOptions('filter-moving', movingValues, vehicleFilters.moving, getMovingLabel);
+      updateVehicleFilterLabels();
+    }
+
+    function updateVehicleFilterLabel(toggleId, selections, labelResolver = (value) => value) {
+      const toggle = document.getElementById(toggleId);
+      if (!toggle) return;
+      const label = toggle.querySelector('span');
+      if (!label) return;
+      if (!selections.length) {
+        label.textContent = 'Select';
+        return;
+      }
+      if (selections.length === 1) {
+        label.textContent = labelResolver(selections[0]);
+        return;
+      }
+      label.textContent = `${selections.length} selected`;
+    }
+
+    function updateVehicleFilterLabels() {
+      updateVehicleFilterLabel('filter-invprep-toggle', vehicleFilters.invPrep);
+      updateVehicleFilterLabel('filter-gps-toggle', vehicleFilters.gpsFix, (value) => getGpsFixLabel(value, EMPTY_FILTER_VALUE));
+      updateVehicleFilterLabel('filter-moving-toggle', vehicleFilters.moving, getMovingLabel);
+      updateVehicleFilterLabel('filter-deal-status-toggle', vehicleFilters.dealStatus);
+      updateVehicleFilterLabel('filter-pt-toggle', vehicleFilters.ptStatus);
     }
 
     function syncVehicleFilterInputs() {
@@ -2169,6 +2209,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       syncCheckboxes(ptContainer, vehicleFilters.ptStatus);
       if (minInput) minInput.value = vehicleFilters.dealMin;
       if (maxInput) maxInput.value = vehicleFilters.dealMax;
+      updateVehicleFilterLabels();
     }
 
     function resetVehicleFilters() {
@@ -2243,6 +2284,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         if (!container) return;
         container.addEventListener('change', () => {
           vehicleFilters[key] = getCheckedValues(container);
+          updateVehicleFilterLabels();
           renderVehicles();
         });
       });
@@ -2282,13 +2324,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         return vehicles.filter(v => v.id === selectedVehicleId);
       }
 
+      let baseList = vehicles;
       if (selectedTechId !== null) {
         const tech = technicians.find(t => t.id === selectedTechId);
         const nearby = getVehiclesForTech(tech);
-        return nearby.length ? nearby : vehicles;
+        baseList = nearby.length ? nearby : vehicles;
       }
 
-      return filterVehicles(vehicles, query);
+      const filtered = filterVehicles(baseList, query);
+      const shouldSortByDaysParked = vehicleFilters.moving.includes('stopped');
+      return shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered;
     }
 
     function getTechList(baseList = technicians) {
