@@ -2291,14 +2291,15 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         return vehicles.filter(v => v.id === selectedVehicleId);
       }
 
+      let baseList = vehicles;
       if (selectedTechId !== null) {
         const tech = technicians.find(t => t.id === selectedTechId);
         const nearby = getVehiclesForTech(tech);
-        return nearby.length ? nearby : vehicles;
+        baseList = nearby.length ? nearby : vehicles;
       }
 
-      const filtered = filterVehicles(vehicles, query);
-      const shouldSortByDaysParked = vehicleFilters.moving.length === 1 && vehicleFilters.moving.includes('stopped');
+      const filtered = filterVehicles(baseList, query);
+      const shouldSortByDaysParked = vehicleFilters.moving.includes('stopped');
       return shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered;
     }
 
