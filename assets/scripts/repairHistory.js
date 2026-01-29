@@ -36,7 +36,7 @@ const getRepairVehicleVin = (vehicle) => {
 };
 
 const getRepairVehicleShortVin = (vehicle) => {
-  const shortVin = vehicle?.shortvin ?? vehicle?.short_vin ?? vehicle?.shortVin;
+  const shortVin = vehicle?.shortvin ?? vehicle?.shortVin;
   if (typeof shortVin === 'string' && shortVin.trim()) {
     return shortVin.trim().toUpperCase();
   }
@@ -70,7 +70,7 @@ const createRepairHistoryManager = ({
         supabaseClient
           .from(tableName)
           .select('*')
-          .or(`shortvin.ilike.${normalizedShortVin}`)
+          .ilike('shortvin', normalizedShortVin)
           .order('created_at', { ascending: false }),
         timeoutMs,
         'Repair history request timed out.'
