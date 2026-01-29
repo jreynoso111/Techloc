@@ -91,6 +91,7 @@ const createGpsHistoryManager = ({
 
     let gpsCache = [];
     let gpsColumns = [];
+    let availableColumnKeys = [];
     let columnVisibility = {};
     let columnOrder = [];
     let columnWidths = {};
@@ -145,14 +146,8 @@ const createGpsHistoryManager = ({
       localStorage.setItem(WIDTH_STORAGE_KEY, JSON.stringify(columnWidths));
     };
 
-    const buildColumns = (records) => {
-      const columnKeys = new Set();
-      records.forEach((record) => {
-        Object.keys(record || {}).forEach((key) => {
-          columnKeys.add(key);
-        });
-      });
-      const allKeys = Array.from(columnKeys);
+    const buildColumnsFromKeys = (keys = []) => {
+      const allKeys = Array.from(new Set(keys.filter(Boolean)));
       const ordered = [
         ...DEFAULT_COLUMN_ORDER.filter((key) => allKeys.includes(key)),
         ...allKeys.filter((key) => !DEFAULT_COLUMN_ORDER.includes(key)).sort()
@@ -175,6 +170,16 @@ const createGpsHistoryManager = ({
         }
       });
       savePreferences();
+    };
+
+    const buildColumns = (records) => {
+      const columnKeys = new Set(availableColumnKeys);
+      records.forEach((record) => {
+        Object.keys(record || {}).forEach((key) => {
+          columnKeys.add(key);
+        });
+      });
+      buildColumnsFromKeys(Array.from(columnKeys));
     };
 
     const getVisibleColumns = () => columnOrder
@@ -359,8 +364,38 @@ const createGpsHistoryManager = ({
       }
     };
 
+    const loadColumnMetadata = async () => {
+      if (!supabaseClient) return;
+      const rawTable = (tableName || 'PT-LastPing').replace(/"/g, '');
+      const tableKey = rawTable.includes('.') ? rawTable.split('.').pop() : rawTable;
+      try {
+        await ensureSupabaseSession?.();
+        const { data, error } = await runWithTimeout(
+          supabaseClient
+            .from('information_schema.columns')
+            .select('column_name,ordinal_position')
+            .eq('table_name', tableKey)
+            .order('ordinal_position', { ascending: true }),
+          timeoutMs,
+          'GPS history column request timed out.'
+        );
+        if (error) throw error;
+        availableColumnKeys = (data || [])
+          .map((row) => row?.column_name)
+          .filter(Boolean);
+        if (availableColumnKeys.length) {
+          buildColumnsFromKeys(availableColumnKeys);
+          renderColumnsList();
+          renderTableHead();
+        }
+      } catch (error) {
+        console.warn('Failed to load GPS history columns:', error);
+      }
+    };
+
     loadPreferences();
     if (statusText) statusText.textContent = 'Loading GPS history...';
+    loadColumnMetadata();
     if (!VIN && !vehicleId) {
       renderHistory([]);
       if (statusText) statusText.textContent = 'No VIN or vehicle ID available for this vehicle.';
