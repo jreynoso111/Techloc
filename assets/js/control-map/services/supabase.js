@@ -12,7 +12,7 @@ export const TABLES = {
   vehiclesUpdates: 'vehicles_updates',
   hotspots: 'Hotspots',
   blacklist: 'Services_Blacklist',
-  repairHistory: 'repair_history',
+  repairHistory: 'services_request',
   gpsHistory: '"PT-LastPing"'
 };
 
