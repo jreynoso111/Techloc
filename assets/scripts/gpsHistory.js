@@ -8,6 +8,16 @@ const getVehicleVin = (vehicle) => {
   return typeof vin === 'string' ? vin.trim() : '';
 };
 
+const getVehicleId = (vehicle) => {
+  const vehicleId = vehicle?.vehicle_id
+    ?? vehicle?.vehicleId
+    ?? vehicle?.id
+    ?? vehicle?.details?.vehicle_id
+    ?? vehicle?.details?.vehicleId
+    ?? '';
+  return vehicleId ? `${vehicleId}`.trim() : '';
+};
+
 const createGpsHistoryManager = ({
   supabaseClient,
   ensureSupabaseSession,
@@ -21,24 +31,46 @@ const createGpsHistoryManager = ({
   const safeEscape = escapeHTML || helpers.escapeHTML;
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
-  const fetchGpsHistory = async (VIN) => {
-    const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
-    if (!supabaseClient || !normalizedVin) {
-      return { records: [], error: supabaseClient ? new Error('VIN missing') : new Error('Supabase unavailable') };
+  const fetchGpsHistory = async ({ vehicleId } = {}) => {
+    const normalizedVehicleId = typeof vehicleId === 'string' ? vehicleId.trim() : '';
+    if (!supabaseClient || !normalizedVehicleId) {
+      return { records: [], error: supabaseClient ? new Error('Vehicle identifier missing') : new Error('Supabase unavailable') };
     }
     try {
       await ensureSupabaseSession?.();
+      const sourceTable = tableName || '"PT-LastPing"';
       const { data, error } = await runWithTimeout(
         supabaseClient
-          .from('PT-LastPing')
+          .from(sourceTable)
           .select('*')
-          .eq('VIN', normalizedVin)
-          .order('PT-LastPing', { ascending: false }),
+          .eq('vehicle_id', normalizedVehicleId),
         timeoutMs,
         'GPS history request timed out.'
       );
       if (error) throw error;
-      return { records: data || [], error: null };
+      const records = Array.isArray(data) ? data : [];
+      records.sort((a, b) => {
+        const idA = a?.id;
+        const idB = b?.id;
+        if (idA != null && idB != null) {
+          return (Number(idB) || 0) - (Number(idA) || 0);
+        }
+        const dateCandidates = ['Date', 'created_at', 'gps_time', 'PT-LastPing'];
+        const dateValue = (record) => {
+          for (const key of dateCandidates) {
+            const value = record?.[key];
+            if (value) return Date.parse(value);
+          }
+          return NaN;
+        };
+        const timeA = dateValue(a);
+        const timeB = dateValue(b);
+        if (Number.isNaN(timeA) && Number.isNaN(timeB)) return 0;
+        if (Number.isNaN(timeA)) return 1;
+        if (Number.isNaN(timeB)) return -1;
+        return timeB - timeA;
+      });
+      return { records, error: null };
     } catch (error) {
       console.error('Failed to load GPS history:', error);
       return { records: [], error };
@@ -47,6 +79,7 @@ const createGpsHistoryManager = ({
 
   const setupGpsHistoryUI = ({ vehicle, body, signal, records: preloadedRecords, error: preloadedError }) => {
     const VIN = getVehicleVin(vehicle);
+    const vehicleId = getVehicleId(vehicle);
     const historyBody = body.querySelector('[data-gps-history-body]');
     const historyHead = body.querySelector('[data-gps-history-head]');
     const columnsToggle = body.querySelector('[data-gps-columns-toggle]');
@@ -58,6 +91,7 @@ const createGpsHistoryManager = ({
 
     let gpsCache = [];
     let gpsColumns = [];
+    let availableColumnKeys = [];
     let columnVisibility = {};
     let columnOrder = [];
     let columnWidths = {};
@@ -112,14 +146,8 @@ const createGpsHistoryManager = ({
       localStorage.setItem(WIDTH_STORAGE_KEY, JSON.stringify(columnWidths));
     };
 
-    const buildColumns = (records) => {
-      const columnKeys = new Set();
-      records.forEach((record) => {
-        Object.keys(record || {}).forEach((key) => {
-          columnKeys.add(key);
-        });
-      });
-      const allKeys = Array.from(columnKeys);
+    const buildColumnsFromKeys = (keys = []) => {
+      const allKeys = Array.from(new Set(keys.filter(Boolean)));
       const ordered = [
         ...DEFAULT_COLUMN_ORDER.filter((key) => allKeys.includes(key)),
         ...allKeys.filter((key) => !DEFAULT_COLUMN_ORDER.includes(key)).sort()
@@ -142,6 +170,16 @@ const createGpsHistoryManager = ({
         }
       });
       savePreferences();
+    };
+
+    const buildColumns = (records) => {
+      const columnKeys = new Set(availableColumnKeys);
+      records.forEach((record) => {
+        Object.keys(record || {}).forEach((key) => {
+          columnKeys.add(key);
+        });
+      });
+      buildColumnsFromKeys(Array.from(columnKeys));
     };
 
     const getVisibleColumns = () => columnOrder
@@ -326,12 +364,42 @@ const createGpsHistoryManager = ({
       }
     };
 
+    const loadColumnMetadata = async () => {
+      if (!supabaseClient) return;
+      const rawTable = (tableName || 'PT-LastPing').replace(/"/g, '');
+      const tableKey = rawTable.includes('.') ? rawTable.split('.').pop() : rawTable;
+      try {
+        await ensureSupabaseSession?.();
+        const { data, error } = await runWithTimeout(
+          supabaseClient
+            .from('information_schema.columns')
+            .select('column_name,ordinal_position')
+            .eq('table_name', tableKey)
+            .order('ordinal_position', { ascending: true }),
+          timeoutMs,
+          'GPS history column request timed out.'
+        );
+        if (error) throw error;
+        availableColumnKeys = (data || [])
+          .map((row) => row?.column_name)
+          .filter(Boolean);
+        if (availableColumnKeys.length) {
+          buildColumnsFromKeys(availableColumnKeys);
+          renderColumnsList();
+          renderTableHead();
+        }
+      } catch (error) {
+        console.warn('Failed to load GPS history columns:', error);
+      }
+    };
+
     loadPreferences();
     if (statusText) statusText.textContent = 'Loading GPS history...';
-    if (!VIN) {
+    loadColumnMetadata();
+    if (!VIN && !vehicleId) {
       renderHistory([]);
-      if (statusText) statusText.textContent = 'No VIN available for this vehicle.';
-      setConnectionStatus('VIN missing', 'warning');
+      if (statusText) statusText.textContent = 'No VIN or vehicle ID available for this vehicle.';
+      setConnectionStatus('Vehicle missing', 'warning');
     } else if (!supabaseClient) {
       renderHistory([]);
       if (statusText) statusText.textContent = 'Supabase connection not available.';
@@ -340,7 +408,7 @@ const createGpsHistoryManager = ({
       finalizeRender(preloadedRecords, preloadedError);
     } else {
       setConnectionStatus('Connecting…', 'warning');
-      fetchGpsHistory(VIN).then(({ records, error }) => {
+      fetchGpsHistory({ vehicleId }).then(({ records, error }) => {
         finalizeRender(records, error);
       });
     }
@@ -429,6 +497,7 @@ const createGpsHistoryManager = ({
   };
 
   return {
+    getVehicleId,
     getVehicleVin,
     fetchGpsHistory,
     setupGpsHistoryUI
