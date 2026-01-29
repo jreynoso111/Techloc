@@ -31,8 +31,8 @@ const getDefaultHelpers = () => ({
 });
 
 const getRepairVehicleVin = (vehicle) => {
-  const vin = vehicle?.VIN ?? vehicle?.details?.VIN ?? '';
-  return typeof vin === 'string' ? vin.trim() : '';
+  const vin = vehicle?.VIN ?? vehicle?.vin ?? vehicle?.details?.VIN ?? '';
+  return typeof vin === 'string' ? vin.trim().toUpperCase() : '';
 };
 
 const createRepairHistoryManager = ({
@@ -50,14 +50,15 @@ const createRepairHistoryManager = ({
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
   const fetchRepairs = async (VIN) => {
-    if (!supabaseClient || !VIN) return [];
+    const normalizedVin = typeof VIN === 'string' ? VIN.trim().toUpperCase() : '';
+    if (!supabaseClient || !normalizedVin) return [];
     try {
       await ensureSupabaseSession?.();
       const { data, error } = await runWithTimeout(
         supabaseClient
           .from(tableName)
           .select('*')
-          .eq('VIN', VIN)
+          .eq('VIN', normalizedVin)
           .order('created_at', { ascending: false }),
         timeoutMs,
         'Repair history request timed out.'
@@ -380,6 +381,12 @@ const createRepairHistoryManager = ({
       const repairs = await fetchRepairs(VIN);
       renderRepairHistory(repairs);
     };
+
+    if (!VIN) {
+      if (historyEmpty) historyEmpty.textContent = 'No VIN available for this vehicle.';
+      renderRepairHistory([]);
+      return;
+    }
 
     if (historyEmpty) historyEmpty.textContent = 'Loading history...';
     fetchRepairs(VIN).then(renderRepairHistory);
