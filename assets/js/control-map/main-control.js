@@ -2063,6 +2063,15 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         .map(item => item.vehicle);
     }
 
+    function getDaysParkedValue(vehicle) {
+      const parsed = Number.parseFloat(vehicle?.daysStationary);
+      return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+    }
+
+    function sortVehiclesByDaysParked(list) {
+      return [...list].sort((a, b) => getDaysParkedValue(b) - getDaysParkedValue(a));
+    }
+
     function getUniqueVehicleValues(field, { includeEmpty = false } = {}) {
       const values = new Set();
       let hasEmpty = false;
@@ -2282,13 +2291,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         return vehicles.filter(v => v.id === selectedVehicleId);
       }
 
+      let baseList = vehicles;
       if (selectedTechId !== null) {
         const tech = technicians.find(t => t.id === selectedTechId);
         const nearby = getVehiclesForTech(tech);
-        return nearby.length ? nearby : vehicles;
+        baseList = nearby.length ? nearby : vehicles;
       }
 
-      return filterVehicles(vehicles, query);
+      const filtered = filterVehicles(baseList, query);
+      const shouldSortByDaysParked = vehicleFilters.moving.includes('stopped');
+      return shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered;
     }
 
     function getTechList(baseList = technicians) {
