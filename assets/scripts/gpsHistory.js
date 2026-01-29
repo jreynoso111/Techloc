@@ -30,7 +30,7 @@ const createGpsHistoryManager = ({
       await ensureSupabaseSession?.();
       const { data, error } = await runWithTimeout(
         supabaseClient
-          .from(tableName.replace(/"/g, ''))
+          .from('PT-LastPing')
           .select('*')
           .eq('VIN', normalizedVin)
           .order('PT-LastPing', { ascending: false }),

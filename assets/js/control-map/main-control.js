@@ -1925,7 +1925,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           if (gpsHistoryButton) {
             gpsHistoryButton.addEventListener('click', (event) => {
               event.stopPropagation();
-              openGpsHistoryModal(vehicle);
+              void handleGpsHistoryRequest(vehicle);
             });
           }
 
