@@ -70,7 +70,7 @@ const createRepairHistoryManager = ({
         supabaseClient
           .from(tableName)
           .select('*')
-          .or(`shortvin.ilike.${normalizedShortVin},short_vin.ilike.${normalizedShortVin}`)
+          .or(`shortvin.ilike.${normalizedShortVin}`)
           .order('created_at', { ascending: false }),
         timeoutMs,
         'Repair history request timed out.'
