@@ -437,14 +437,21 @@ const positionFilterPopover = (popover) => {
   popover.style.right = '0';
 
   const containerRect = els.tableScroll.getBoundingClientRect();
-  const popoverRect = popover.getBoundingClientRect();
   const padding = 8;
+  const viewportLeft = padding;
+  const viewportRight = window.innerWidth - padding;
+  const visibleLeft = Math.max(containerRect.left + padding, viewportLeft);
+  const visibleRight = Math.min(containerRect.right - padding, viewportRight);
+  const visibleWidth = Math.max(240, visibleRight - visibleLeft);
+  popover.style.maxWidth = `${visibleWidth}px`;
+
+  const popoverRect = popover.getBoundingClientRect();
   let shiftX = 0;
 
-  if (popoverRect.left < containerRect.left + padding) {
-    shiftX = containerRect.left + padding - popoverRect.left;
-  } else if (popoverRect.right > containerRect.right - padding) {
-    shiftX = containerRect.right - padding - popoverRect.right;
+  if (popoverRect.left < visibleLeft) {
+    shiftX = visibleLeft - popoverRect.left;
+  } else if (popoverRect.right > visibleRight) {
+    shiftX = visibleRight - popoverRect.right;
   }
 
   if (shiftX) {
