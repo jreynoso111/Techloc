@@ -430,6 +430,28 @@ const toggleSort = (colId) => {
   renderTable();
 };
 
+const positionFilterPopover = (popover) => {
+  if (!popover || !els.tableScroll) return;
+  popover.style.transform = '';
+  popover.style.left = 'auto';
+  popover.style.right = '0';
+
+  const containerRect = els.tableScroll.getBoundingClientRect();
+  const popoverRect = popover.getBoundingClientRect();
+  const padding = 8;
+  let shiftX = 0;
+
+  if (popoverRect.left < containerRect.left + padding) {
+    shiftX = containerRect.left + padding - popoverRect.left;
+  } else if (popoverRect.right > containerRect.right - padding) {
+    shiftX = containerRect.right - padding - popoverRect.right;
+  }
+
+  if (shiftX) {
+    popover.style.transform = `translateX(${shiftX}px)`;
+  }
+};
+
 const buildHeaderCell = (colId) => {
   const th = document.createElement('th');
   th.className = 'text-left font-semibold text-slate-200 resizable bg-slate-950/60 compact-th';
@@ -584,6 +606,7 @@ const buildHeaderCell = (colId) => {
     filterPopover.classList.toggle('hidden');
     if (willOpen) {
       renderOptions(searchInput.value);
+      requestAnimationFrame(() => positionFilterPopover(filterPopover));
       document.addEventListener('click', closePopover);
     } else {
       document.removeEventListener('click', closePopover);
