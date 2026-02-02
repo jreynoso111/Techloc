@@ -43,8 +43,11 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     whenDomReady.then(() => {
       const indicator = getNavElement('userIndicator');
       if (!indicator) return;
+      const hasSession = Boolean(session?.user);
       const label = resolveUserLabel(session?.user);
       indicator.textContent = `Cuenta: ${label}`;
+      indicator.classList.toggle('hidden', !hasSession);
+      indicator.setAttribute('aria-hidden', (!hasSession).toString());
     });
 
   const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
