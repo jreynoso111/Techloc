@@ -20,9 +20,32 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     services: 'nav-services',
     login: 'nav-login',
     logout: 'nav-logout',
+    userIndicator: 'nav-user-indicator',
   };
 
   const getNavElement = (key) => document.getElementById(navIds[key]);
+  let currentSession = null;
+
+  const resolveUserLabel = (user) => {
+    if (!user) return 'Invitado';
+    const metadata = user.user_metadata || {};
+    return (
+      metadata.full_name ||
+      metadata.name ||
+      metadata.preferred_username ||
+      user.email ||
+      user.phone ||
+      'Cuenta activa'
+    );
+  };
+
+  const updateUserIndicator = (session) =>
+    whenDomReady.then(() => {
+      const indicator = getNavElement('userIndicator');
+      if (!indicator) return;
+      const label = resolveUserLabel(session?.user);
+      indicator.textContent = `Cuenta: ${label}`;
+    });
 
   const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
   const roleAllowsServiceRequests = (role) => String(role || '').toLowerCase() === 'administrator';
@@ -256,12 +279,15 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         return;
       }
 
+      currentSession = data?.session ?? null;
       updateNav(hasSession, userRole, userStatus); // Pasamos el rol y estado
+      updateUserIndicator(currentSession);
       toggleProtectedBlocks(hasSession);
       enforceRouteProtection(hasSession, userRole);
       bindLogout();
 
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        currentSession = session ?? null;
         const sessionExists = Boolean(session);
         let updatedRole = 'user';
         let updatedStatus = 'active';
@@ -284,6 +310,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         const onLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
 
         updateNav(sessionExists, updatedRole, updatedStatus);
+        updateUserIndicator(currentSession);
         toggleProtectedBlocks(sessionExists);
         enforceRouteProtection(sessionExists, updatedRole);
 
@@ -298,8 +325,10 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
       });
     } catch (error) {
       console.error('Failed to verify Supabase session', error);
+      currentSession = null;
       enforceRouteProtection(false, null);
       updateNav(false, null, null);
+      updateUserIndicator(currentSession);
       toggleProtectedBlocks(false);
     }
   };
