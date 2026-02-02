@@ -430,6 +430,35 @@ const toggleSort = (colId) => {
   renderTable();
 };
 
+const positionFilterPopover = (popover) => {
+  if (!popover || !els.tableScroll) return;
+  popover.style.transform = '';
+  popover.style.left = 'auto';
+  popover.style.right = '0';
+
+  const containerRect = els.tableScroll.getBoundingClientRect();
+  const padding = 8;
+  const viewportLeft = padding;
+  const viewportRight = window.innerWidth - padding;
+  const visibleLeft = Math.max(containerRect.left + padding, viewportLeft);
+  const visibleRight = Math.min(containerRect.right - padding, viewportRight);
+  const visibleWidth = Math.max(240, visibleRight - visibleLeft);
+  popover.style.maxWidth = `${visibleWidth}px`;
+
+  const popoverRect = popover.getBoundingClientRect();
+  let shiftX = 0;
+
+  if (popoverRect.left < visibleLeft) {
+    shiftX = visibleLeft - popoverRect.left;
+  } else if (popoverRect.right > visibleRight) {
+    shiftX = visibleRight - popoverRect.right;
+  }
+
+  if (shiftX) {
+    popover.style.transform = `translateX(${shiftX}px)`;
+  }
+};
+
 const buildHeaderCell = (colId) => {
   const th = document.createElement('th');
   th.className = 'text-left font-semibold text-slate-200 resizable bg-slate-950/60 compact-th';
@@ -584,6 +613,7 @@ const buildHeaderCell = (colId) => {
     filterPopover.classList.toggle('hidden');
     if (willOpen) {
       renderOptions(searchInput.value);
+      requestAnimationFrame(() => positionFilterPopover(filterPopover));
       document.addEventListener('click', closePopover);
     } else {
       document.removeEventListener('click', closePopover);
