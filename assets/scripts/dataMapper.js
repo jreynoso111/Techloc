@@ -148,6 +148,8 @@ const normalizeVehicle = (row, idx = 0, { getField: fieldGetter, toStateCode, re
     encoreSerial: field(row, 'Encore Serial', 'encore_serial'),
     lastRead: field(row, 'PT Last Read', 'pt_last_read'),
     daysStationary: field(row, 'days_stationary', 'Days Stationary', 'Days stationary', 'Days Stationary (Calc)', 'Days Parked'),
+    stockNo: field(row, 'Current Stock No', 'current_stock_no', 'Stock No', 'Stock'),
+    openBalance: field(row, 'Open Balance', 'open_balance'),
     state: stateCode,
     city: city || '',
     zipcode: zip || '',
