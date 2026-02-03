@@ -39,6 +39,7 @@ let initialSessionResolved = false;
 let initializationPromise = null;
 let cachedUserRole = null;
 let cachedUserStatus = null;
+let cachedUserProfile = null;
 const sessionListeners = new Set();
 const broadcastRoleStatus = (role, status) =>
   window.dispatchEvent(
@@ -117,6 +118,67 @@ const getUserAccess = async (session) => {
   return { role: normalizedRole, status: normalizedStatus };
 };
 
+const getUserProfile = async (session) => {
+  if (window.currentUserProfile) return window.currentUserProfile;
+  if (cachedUserProfile) {
+    window.currentUserProfile = cachedUserProfile;
+    return cachedUserProfile;
+  }
+
+  const userId = session?.user?.id;
+  if (!userId) {
+    cachedUserProfile = null;
+    return null;
+  }
+
+  const { data, error } = await supabaseClient.from('profiles').select('name, email').eq('id', userId).single();
+
+  if (error) {
+    console.warn('Unable to fetch user profile', error);
+    return null;
+  }
+
+  cachedUserProfile = data || null;
+  window.currentUserProfile = cachedUserProfile;
+  return cachedUserProfile;
+};
+
+const recordLastConnection = async (session) => {
+  const userId = session?.user?.id;
+  if (!userId) return;
+  if (typeof localStorage === 'undefined') return;
+
+  const storageKey = `techloc:last-connection:${userId}`;
+  const now = Date.now();
+  const lastRecorded = Number(localStorage.getItem(storageKey) || 0);
+  if (Number.isFinite(lastRecorded) && lastRecorded && now - lastRecorded < 5 * 60 * 1000) return;
+
+  localStorage.setItem(storageKey, String(now));
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ last_connection: new Date(now).toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    console.warn('Unable to record last connection', error);
+  }
+};
+
+const updateHeaderAccount = async (session) => {
+  const accountName = document.querySelector('[data-account-name]');
+  if (!accountName) return;
+
+  if (!session?.user) {
+    accountName.textContent = 'Account';
+    return;
+  }
+
+  const profile = await getUserProfile(session);
+  const fallbackEmail = session.user.email || profile?.email || 'Account';
+  const label = session.user.email || profile?.email || fallbackEmail;
+  accountName.textContent = label;
+};
+
 const applyRoleVisibility = (role) => {
   const adminOnly = document.querySelectorAll('[data-admin-only]');
   adminOnly.forEach((item) => {
@@ -169,8 +231,10 @@ const initializeAuthState = () => {
       if (!session) {
         cachedUserRole = null;
         cachedUserStatus = null;
+        cachedUserProfile = null;
         window.currentUserRole = null;
         window.currentUserStatus = null;
+        window.currentUserProfile = null;
         broadcastRoleStatus(null, null);
       }
 
@@ -350,6 +414,8 @@ const syncNavigationVisibility = async (sessionFromEvent = null) => {
     navItems.forEach((item) => item.classList.remove('hidden'));
     guestItems.forEach((item) => item.classList.add('hidden'));
     setupLogoutButton();
+    await updateHeaderAccount(session);
+    await recordLastConnection(session);
   } else {
     navItems.forEach((item) => item.classList.add('hidden'));
     guestItems.forEach((item) => item.classList.remove('hidden'));
@@ -357,6 +423,7 @@ const syncNavigationVisibility = async (sessionFromEvent = null) => {
     if (logoutButton) {
       logoutButton.classList.add('hidden');
     }
+    await updateHeaderAccount(null);
   }
 };
 
