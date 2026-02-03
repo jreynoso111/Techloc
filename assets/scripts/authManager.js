@@ -89,6 +89,27 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     return `${basePath}${normalizedPage}`;
   };
 
+  const profileCacheKey = (userId) => `techloc_profile_${userId}`;
+  const loadCachedProfile = (userId) => {
+    if (!userId) return null;
+    try {
+      const raw = localStorage.getItem(profileCacheKey(userId));
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      console.warn('Unable to read cached profile', error);
+      return null;
+    }
+  };
+
+  const saveCachedProfile = (userId, profile) => {
+    if (!userId || !profile) return;
+    try {
+      localStorage.setItem(profileCacheKey(userId), JSON.stringify(profile));
+    } catch (error) {
+      console.warn('Unable to cache profile', error);
+    }
+  };
+
   // --- NUEVO: Función para obtener el rol y estado desde la tabla profiles ---
   const fetchUserProfile = async (userId) => {
     try {
@@ -98,21 +119,24 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         .eq('id', userId)
         .single();
 
-      if (error || !data)
+      if (error || !data) {
         return {
-          role: 'user',
-          status: 'active',
-        }; // Valores por defecto si falla
+          role: null,
+          status: null,
+        };
+      }
 
-      return {
+      const profile = {
         role: data.role || 'user',
-        status: data.status || 'active',
+        status: (data.status || 'active').toLowerCase(),
       };
+      saveCachedProfile(userId, profile);
+      return profile;
     } catch (err) {
       console.error('Error fetching role:', err);
       return {
-        role: 'user',
-        status: 'active',
+        role: null,
+        status: null,
       };
     }
   };
@@ -220,12 +244,12 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
       return;
     }
 
-    if (hasSession && isAdminPath && !roleAllowsDashboard(role)) {
+    if (hasSession && role && isAdminPath && !roleAllowsDashboard(role)) {
       window.location.replace(mapsTo('index.html'));
       return;
     }
 
-    if (hasSession && isServiceRequestPath() && !roleAllowsServiceRequests(role)) {
+    if (hasSession && role && isServiceRequestPath() && !roleAllowsServiceRequests(role)) {
       window.location.replace(mapsTo('index.html'));
       return;
     }
@@ -262,27 +286,13 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     try {
       const { data } = await supabaseClient.auth.getSession();
       const hasSession = Boolean(data?.session);
-      let userRole = 'user'; // Rol por defecto
-      let userStatus = 'active';
+      let userRole = null;
+      let userStatus = null;
 
-      // --- NUEVO: Si hay sesión, buscamos el rol en la base de datos ---
       if (hasSession && data.session.user) {
-        const profile = await fetchUserProfile(data.session.user.id);
-        userRole = profile.role;
-        userStatus = profile.status.toLowerCase();
-
-        // Guardamos el rol y estado globalmente para usarlo en otros scripts
-        window.currentUserRole = userRole;
-        window.currentUserStatus = userStatus;
-
-        // Opcional: Añadir al body para usar CSS (ej: body[data-role="admin"] .delete-btn { display: block; })
-        document.body.setAttribute('data-user-role', userRole);
-        document.body.setAttribute('data-user-status', userStatus);
-
-        // Disparamos un evento para avisar a otros scripts que el rol está listo
-        window.dispatchEvent(
-          new CustomEvent('auth:role-ready', { detail: { role: userRole, status: userStatus } })
-        );
+        const cachedProfile = loadCachedProfile(data.session.user.id);
+        userRole = cachedProfile?.role ?? null;
+        userStatus = cachedProfile?.status ?? null;
       } else {
         window.currentUserRole = null;
         window.currentUserStatus = null;
@@ -297,26 +307,71 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
       }
 
       currentSession = data?.session ?? null;
-      updateNav(hasSession, userRole, userStatus); // Pasamos el rol y estado
+      if (hasSession && data.session.user) {
+        window.currentUserRole = userRole;
+        window.currentUserStatus = userStatus;
+        if (userRole) document.body.setAttribute('data-user-role', userRole);
+        if (userStatus) document.body.setAttribute('data-user-status', userStatus);
+      }
+
+      updateNav(hasSession, userRole, userStatus);
       updateUserIndicator(currentSession);
       toggleProtectedBlocks(hasSession);
       enforceRouteProtection(hasSession, userRole);
       bindLogout();
 
+      if (hasSession && data.session.user) {
+        fetchUserProfile(data.session.user.id).then((profile) => {
+          const nextRole = profile?.role ?? null;
+          const nextStatus = profile?.status ?? null;
+          window.currentUserRole = nextRole;
+          window.currentUserStatus = nextStatus;
+          if (nextRole) document.body.setAttribute('data-user-role', nextRole);
+          if (nextStatus) document.body.setAttribute('data-user-status', nextStatus);
+          updateNav(true, nextRole, nextStatus);
+          updateUserIndicator(currentSession);
+          toggleProtectedBlocks(true);
+          enforceRouteProtection(true, nextRole);
+          if (nextRole || nextStatus) {
+            window.dispatchEvent(
+              new CustomEvent('auth:role-ready', { detail: { role: nextRole, status: nextStatus } })
+            );
+          }
+        });
+      }
+
       supabaseClient.auth.onAuthStateChange(async (event, session) => {
         currentSession = session ?? null;
         const sessionExists = Boolean(session);
-        let updatedRole = 'user';
-        let updatedStatus = 'active';
+        let updatedRole = null;
+        let updatedStatus = null;
 
         if (sessionExists && session.user) {
-           const profile = await fetchUserProfile(session.user.id);
-           updatedRole = profile.role;
-           updatedStatus = profile.status.toLowerCase();
-           window.currentUserRole = updatedRole;
-           window.currentUserStatus = updatedStatus;
-           document.body.setAttribute('data-user-role', updatedRole);
-           document.body.setAttribute('data-user-status', updatedStatus);
+          const cachedProfile = loadCachedProfile(session.user.id);
+          updatedRole = cachedProfile?.role ?? null;
+          updatedStatus = cachedProfile?.status ?? null;
+          window.currentUserRole = updatedRole;
+          window.currentUserStatus = updatedStatus;
+          if (updatedRole) document.body.setAttribute('data-user-role', updatedRole);
+          if (updatedStatus) document.body.setAttribute('data-user-status', updatedStatus);
+
+          fetchUserProfile(session.user.id).then((profile) => {
+            const nextRole = profile?.role ?? null;
+            const nextStatus = profile?.status ?? null;
+            window.currentUserRole = nextRole;
+            window.currentUserStatus = nextStatus;
+            if (nextRole) document.body.setAttribute('data-user-role', nextRole);
+            if (nextStatus) document.body.setAttribute('data-user-status', nextStatus);
+            updateNav(true, nextRole, nextStatus);
+            updateUserIndicator(currentSession);
+            toggleProtectedBlocks(true);
+            enforceRouteProtection(true, nextRole);
+            if (nextRole || nextStatus) {
+              window.dispatchEvent(
+                new CustomEvent('auth:role-ready', { detail: { role: nextRole, status: nextStatus } })
+              );
+            }
+          });
         } else {
            window.currentUserRole = null;
            window.currentUserStatus = null;
