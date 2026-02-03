@@ -25,8 +25,8 @@ const setActiveNav = (container, activeKey) => {
   }
 
   if (activeKey === 'contact') {
-    const dropdown = container.querySelector('[data-about-dropdown]');
-    const toggle = container.querySelector('[data-about-toggle]');
+    const dropdown = container.querySelector('[data-contact-dropdown]');
+    const toggle = container.querySelector('[data-contact-toggle]');
     if (dropdown) dropdown.classList.remove('hidden');
     if (toggle) toggle.setAttribute('aria-expanded', 'true');
   }
@@ -43,9 +43,9 @@ const setupMobileMenu = (container) => {
   });
 };
 
-const setupAboutDropdown = (container) => {
-  const toggle = container.querySelector('[data-about-toggle]');
-  const dropdown = container.querySelector('[data-about-dropdown]');
+const setupContactDropdown = (container) => {
+  const toggle = container.querySelector('[data-contact-toggle]');
+  const dropdown = container.querySelector('[data-contact-dropdown]');
   if (!toggle || !dropdown) return;
 
   const closeDropdown = () => {
@@ -73,7 +73,7 @@ const setupAboutDropdown = (container) => {
       closeDropdown();
       return;
     }
-    if (event.target.closest('[data-about-toggle]') || event.target.closest('[data-about-dropdown]')) return;
+    if (event.target.closest('[data-contact-toggle]') || event.target.closest('[data-contact-dropdown]')) return;
     closeDropdown();
   });
 
@@ -99,7 +99,7 @@ const hydrateHeader = async () => {
     headerSlot.innerHTML = rendered;
     setActiveNav(headerSlot, activeNav);
     setupMobileMenu(headerSlot);
-    setupAboutDropdown(headerSlot);
+    setupContactDropdown(headerSlot);
   } catch (error) {
     console.error('Shared header failed to load:', error);
   }
