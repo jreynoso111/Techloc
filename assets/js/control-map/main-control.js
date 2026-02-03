@@ -115,6 +115,55 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
     const useCallback = createCallbackMemo();
 
+    const parseNumber = (value) => {
+      if (value === undefined || value === null) return null;
+      const cleaned = typeof value === 'string' ? value.replace(/[$,]/g, '').trim() : value;
+      if (cleaned === '') return null;
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const normalizeStockNumber = (value) => {
+      if (value === undefined || value === null) return '';
+      const normalized = String(value).trim().toUpperCase();
+      return normalized === '' ? '' : normalized;
+    };
+
+    const formatPayKpi = (value) => {
+      if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+      return value.toFixed(2);
+    };
+
+    const fetchDealsByStockNumbers = async (stockNumbers = []) => {
+      if (!supabaseClient?.from || !stockNumbers.length) return new Map();
+      const unique = Array.from(new Set(stockNumbers.filter(Boolean)));
+      if (!unique.length) return new Map();
+
+      const stockNoColumn = '"Current Stock No"';
+      const chunkSize = 800;
+      const results = new Map();
+      for (let i = 0; i < unique.length; i += chunkSize) {
+        const chunk = unique.slice(i, i + chunkSize);
+        const { data, error } = await runWithTimeout(
+          supabaseClient
+            .from(TABLES.deals)
+            .select('"Current Stock No","Regular Amount","Open Balance"')
+            .in(stockNoColumn, chunk),
+          8000,
+          'Error de comunicación con la base de datos.'
+        );
+        if (error) throw error;
+        (data || []).forEach((row) => {
+          const stockNo = normalizeStockNumber(row?.['Current Stock No']);
+          const regularAmount = parseNumber(row?.['Regular Amount']);
+          const openBalance = parseNumber(row?.['Open Balance']);
+          if (!stockNo || regularAmount === null || openBalance === null) return;
+          results.set(stockNo, { regularAmount, openBalance });
+        });
+      }
+      return results;
+    };
+
     const normalizeSelectionValue = (value) => `${value ?? ''}`.trim().toLowerCase();
     const matchesVehicleSelection = (vehicle, selection) => {
       if (!vehicle || !selection) return false;
@@ -926,7 +975,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           updatesByVin.set(vin.toLowerCase(), row);
         });
 
-        vehicles = data.map((row, idx) => {
+        const normalizedVehicles = data.map((row, idx) => {
           const normalized = normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords });
           const vinValue = String(getField(row, 'VIN', 'vin', 'ShortVIN') || normalized.vin || '').trim();
           const update = updatesByVin.get(vinValue.toLowerCase());
@@ -940,6 +989,30 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           }
           return normalized;
         });
+
+        let dealsByStockNo = new Map();
+        if (supabaseClient) {
+          try {
+            const stockNumbers = normalizedVehicles
+              .map((vehicle) => normalizeStockNumber(vehicle.stockNo))
+              .filter(Boolean);
+            dealsByStockNo = await fetchDealsByStockNumbers(stockNumbers);
+          } catch (error) {
+            console.warn('DealsJP1 load warning: ' + (error?.message || error));
+          }
+        }
+
+        normalizedVehicles.forEach((vehicle) => {
+          const stockNo = normalizeStockNumber(vehicle.stockNo);
+          const dealValues = dealsByStockNo.get(stockNo) ?? null;
+          const regularAmount = dealValues?.regularAmount ?? null;
+          const openBalance = dealValues?.openBalance ?? null;
+          const payKpi = openBalance !== null && regularAmount ? openBalance / regularAmount : null;
+          vehicle.payKpi = payKpi;
+          vehicle.payKpiDisplay = formatPayKpi(payKpi);
+        });
+
+        vehicles = normalizedVehicles;
         vehicleHeaders = data.length ? Object.keys(data[0]) : [];
         if (!vehicleHeaders.some((header) => header.toLowerCase() === 'gps fix')) {
           vehicleHeaders.push('GPS Fix');
@@ -1827,7 +1900,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           if (idx >= VEHICLE_RENDER_LIMIT) return;
 
           const card = document.createElement('div');
-          const dealStatusStyles = getStatusCardStyles(vehicle.status, 'deal');
           const prepStatusStyles = getStatusCardStyles(vehicle.invPrepStatus, 'prep');
           const ptStatusStyles = getStatusCardStyles(vehicle.ptStatus, 'pt');
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
@@ -1873,9 +1945,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
             </div>
             <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
               <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border px-2 py-1.5 ${dealStatusStyles.card}">
-                  <p class="text-[9px] uppercase font-bold ${dealStatusStyles.label}">Deal</p>
-                  <p class="text-[11px] font-semibold ${dealStatusStyles.value}">${vehicle.status || '—'}</p>
+                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
+                  <p class="text-[9px] uppercase text-slate-500 font-bold">Pay KPI</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.payKpiDisplay || '—'}</p>
                 </div>
                 <div class="rounded border px-2 py-1.5 ${prepStatusStyles.card}">
                   <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">Prep</p>
