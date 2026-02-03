@@ -139,6 +139,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const unique = Array.from(new Set(stockNumbers.filter(Boolean)));
       if (!unique.length) return new Map();
 
+      const stockNoColumn = '"Current Stock No"';
       const chunkSize = 800;
       const results = new Map();
       for (let i = 0; i < unique.length; i += chunkSize) {
@@ -147,7 +148,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           supabaseClient
             .from(TABLES.deals)
             .select('"Current Stock No","Regular Amount"')
-            .in('Current Stock No', chunk),
+            .in(stockNoColumn, chunk),
           8000,
           'Error de comunicación con la base de datos.'
         );
