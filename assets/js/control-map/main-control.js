@@ -1973,7 +1973,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                 See more
               </button>
               <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">Service History</button>
-              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS history</button>
+              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS Historic</button>
             </div>
           `;
 
@@ -2947,10 +2947,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     }
 
     async function handleGpsHistoryRequest(vehicle) {
-      const vehicleId = gpsHistoryManager.getVehicleId(vehicle);
+      const vin = gpsHistoryManager.getVehicleVin(vehicle);
       const stopLoading = startLoading('Loading GPS history…');
       try {
-        const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vehicleId });
+        const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vin });
         openGpsHistoryModal(vehicle, { records, error });
       } finally {
         stopLoading();
