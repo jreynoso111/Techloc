@@ -60,6 +60,7 @@ const setupAboutDropdown = (container) => {
 
   toggle.addEventListener('click', (event) => {
     event.preventDefault();
+    event.stopPropagation();
     const isHidden = dropdown.classList.contains('hidden');
     if (isHidden) {
       openDropdown();
