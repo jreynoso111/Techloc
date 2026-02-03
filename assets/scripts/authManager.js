@@ -25,6 +25,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
 
   const getNavElement = (key) => document.getElementById(navIds[key]);
   let currentSession = null;
+  let pendingHeaderIndicator = false;
 
   const resolveUserLabel = (user) => {
     if (!user) return 'Invitado';
@@ -42,9 +43,25 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
   const updateUserIndicator = (session) =>
     whenDomReady.then(() => {
       const indicator = getNavElement('userIndicator');
-      if (!indicator) return;
+      if (!indicator) {
+        if (!pendingHeaderIndicator) {
+          pendingHeaderIndicator = true;
+          window.addEventListener(
+            'shared-header:loaded',
+            () => {
+              pendingHeaderIndicator = false;
+              updateUserIndicator(currentSession);
+            },
+            { once: true }
+          );
+        }
+        return;
+      }
+      const hasSession = Boolean(session?.user);
       const label = resolveUserLabel(session?.user);
       indicator.textContent = `Cuenta: ${label}`;
+      indicator.classList.toggle('hidden', !hasSession);
+      indicator.setAttribute('aria-hidden', (!hasSession).toString());
     });
 
   const roleAllowsDashboard = (role) => ['administrator', 'moderator'].includes(String(role || '').toLowerCase());
