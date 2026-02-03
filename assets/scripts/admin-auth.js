@@ -143,18 +143,39 @@ const getUserProfile = async (session) => {
   return cachedUserProfile;
 };
 
+const recordLastConnection = async (session) => {
+  const userId = session?.user?.id;
+  if (!userId) return;
+  if (typeof localStorage === 'undefined') return;
+
+  const storageKey = `techloc:last-connection:${userId}`;
+  const now = Date.now();
+  const lastRecorded = Number(localStorage.getItem(storageKey) || 0);
+  if (Number.isFinite(lastRecorded) && lastRecorded && now - lastRecorded < 5 * 60 * 1000) return;
+
+  localStorage.setItem(storageKey, String(now));
+  const { error } = await supabaseClient
+    .from('profiles')
+    .update({ last_connection: new Date(now).toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    console.warn('Unable to record last connection', error);
+  }
+};
+
 const updateHeaderAccount = async (session) => {
   const accountName = document.querySelector('[data-account-name]');
   if (!accountName) return;
 
   if (!session?.user) {
-    accountName.textContent = 'Signed in';
+    accountName.textContent = 'Account';
     return;
   }
 
   const profile = await getUserProfile(session);
-  const fallbackEmail = session.user.email || 'Account';
-  const label = profile?.name || profile?.email || session.user.user_metadata?.full_name || fallbackEmail;
+  const fallbackEmail = session.user.email || profile?.email || 'Account';
+  const label = session.user.email || profile?.email || fallbackEmail;
   accountName.textContent = label;
 };
 
@@ -394,6 +415,7 @@ const syncNavigationVisibility = async (sessionFromEvent = null) => {
     guestItems.forEach((item) => item.classList.add('hidden'));
     setupLogoutButton();
     await updateHeaderAccount(session);
+    await recordLastConnection(session);
   } else {
     navItems.forEach((item) => item.classList.add('hidden'));
     guestItems.forEach((item) => item.classList.remove('hidden'));
