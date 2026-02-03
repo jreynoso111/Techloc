@@ -53,6 +53,7 @@ const hydrateHeader = async () => {
     headerSlot.innerHTML = rendered;
     setActiveNav(headerSlot, activeNav);
     setupMobileMenu(headerSlot);
+    window.dispatchEvent(new CustomEvent('shared-header:loaded'));
   } catch (error) {
     console.error('Shared header failed to load:', error);
   }
