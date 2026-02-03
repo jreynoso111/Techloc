@@ -54,7 +54,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     try {
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('role, status')
+        .select('role, status, email')
         .eq('id', userId)
         .single();
 
@@ -62,19 +62,53 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         return {
           role: 'user',
           status: 'active',
+          email: null,
         }; // Valores por defecto si falla
 
       return {
         role: data.role || 'user',
         status: data.status || 'active',
+        email: data.email || null,
       };
     } catch (err) {
       console.error('Error fetching role:', err);
       return {
         role: 'user',
         status: 'active',
+        email: null,
       };
     }
+  };
+
+  const waitForAccountLabel = (timeoutMs = 3000) =>
+    new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        const label = document.querySelector('[data-account-name]');
+        if (label) {
+          resolve(label);
+          return;
+        }
+        if (Date.now() - start >= timeoutMs) {
+          resolve(null);
+          return;
+        }
+        setTimeout(check, 100);
+      };
+      check();
+    });
+
+  const updateHeaderAccount = async (session, profileEmail) => {
+    const accountName = await waitForAccountLabel();
+    if (!accountName) return;
+
+    if (!session?.user) {
+      accountName.textContent = 'Account';
+      return;
+    }
+
+    const label = session.user.email || profileEmail || 'Account';
+    accountName.textContent = label;
   };
 
   const toggleDashboardLinks = (hasSession, role, status) =>
@@ -230,6 +264,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         const profile = await fetchUserProfile(data.session.user.id);
         userRole = profile.role;
         userStatus = profile.status.toLowerCase();
+        await updateHeaderAccount(data.session, profile.email);
 
         // Guardamos el rol y estado globalmente para usarlo en otros scripts
         window.currentUserRole = userRole;
@@ -248,6 +283,7 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
         window.currentUserStatus = null;
         document.body.removeAttribute('data-user-role');
         document.body.removeAttribute('data-user-status');
+        await updateHeaderAccount(null);
       }
 
       const isLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
@@ -274,11 +310,13 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
            window.currentUserStatus = updatedStatus;
            document.body.setAttribute('data-user-role', updatedRole);
            document.body.setAttribute('data-user-status', updatedStatus);
+           await updateHeaderAccount(session, profile.email);
         } else {
            window.currentUserRole = null;
            window.currentUserStatus = null;
            document.body.removeAttribute('data-user-role');
            document.body.removeAttribute('data-user-status');
+           await updateHeaderAccount(null);
         }
 
         const onLoginPage = window.location.pathname.toLowerCase().includes('/login.html');
