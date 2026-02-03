@@ -147,7 +147,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         const { data, error } = await runWithTimeout(
           supabaseClient
             .from(TABLES.deals)
-            .select('"Current Stock No","Regular Amount"')
+            .select('"Current Stock No","Regular Amount","Open Balance"')
             .in(stockNoColumn, chunk),
           8000,
           'Error de comunicación con la base de datos.'
@@ -156,8 +156,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         (data || []).forEach((row) => {
           const stockNo = normalizeStockNumber(row?.['Current Stock No']);
           const regularAmount = parseNumber(row?.['Regular Amount']);
-          if (!stockNo || regularAmount === null) return;
-          results.set(stockNo, regularAmount);
+          const openBalance = parseNumber(row?.['Open Balance']);
+          if (!stockNo || regularAmount === null || openBalance === null) return;
+          results.set(stockNo, { regularAmount, openBalance });
         });
       }
       return results;
@@ -1003,8 +1004,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
         normalizedVehicles.forEach((vehicle) => {
           const stockNo = normalizeStockNumber(vehicle.stockNo);
-          const regularAmount = dealsByStockNo.get(stockNo) ?? null;
-          const openBalance = parseNumber(vehicle.openBalance);
+          const dealValues = dealsByStockNo.get(stockNo) ?? null;
+          const regularAmount = dealValues?.regularAmount ?? null;
+          const openBalance = dealValues?.openBalance ?? null;
           const payKpi = openBalance !== null && regularAmount ? openBalance / regularAmount : null;
           vehicle.payKpi = payKpi;
           vehicle.payKpiDisplay = formatPayKpi(payKpi);
