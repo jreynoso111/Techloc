@@ -23,6 +23,13 @@ const setActiveNav = (container, activeKey) => {
     activeLink.classList.add(...activeClass);
     activeLink.setAttribute('aria-current', 'page');
   }
+
+  if (activeKey === 'contact') {
+    const dropdown = container.querySelector('[data-about-dropdown]');
+    const toggle = container.querySelector('[data-about-toggle]');
+    if (dropdown) dropdown.classList.remove('hidden');
+    if (toggle) toggle.setAttribute('aria-expanded', 'true');
+  }
 };
 
 const setupMobileMenu = (container) => {
@@ -34,6 +41,52 @@ const setupMobileMenu = (container) => {
     const isHidden = nav.classList.toggle('hidden');
     toggle.setAttribute('aria-expanded', (!isHidden).toString());
   });
+};
+
+const setupAboutDropdown = (container) => {
+  const toggle = container.querySelector('[data-about-toggle]');
+  const dropdown = container.querySelector('[data-about-dropdown]');
+  if (!toggle || !dropdown) return;
+
+  const closeDropdown = () => {
+    dropdown.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+  };
+
+  const openDropdown = () => {
+    dropdown.classList.remove('hidden');
+    toggle.setAttribute('aria-expanded', 'true');
+  };
+
+  toggle.addEventListener('click', (event) => {
+    const isHidden = dropdown.classList.contains('hidden');
+    if (isHidden) {
+      openDropdown();
+    } else {
+      closeDropdown();
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!container.contains(event.target)) {
+      closeDropdown();
+      return;
+    }
+    if (event.target.closest('[data-about-toggle]') || event.target.closest('[data-about-dropdown]')) return;
+    closeDropdown();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeDropdown();
+  });
+};
+
+const syncAccountLabel = (container) => {
+  const label = container.querySelector('[data-account-name]');
+  if (!label) return;
+  if (window.currentUserEmail) {
+    label.textContent = window.currentUserEmail;
+  }
 };
 
 const hydrateHeader = async () => {
@@ -53,9 +106,18 @@ const hydrateHeader = async () => {
     headerSlot.innerHTML = rendered;
     setActiveNav(headerSlot, activeNav);
     setupMobileMenu(headerSlot);
+    setupAboutDropdown(headerSlot);
+    syncAccountLabel(headerSlot);
   } catch (error) {
     console.error('Shared header failed to load:', error);
   }
 };
 
 hydrateHeader();
+
+window.addEventListener('auth:account-updated', (event) => {
+  const label = document.querySelector('[data-account-name]');
+  if (!label) return;
+  const email = event?.detail?.email || 'Account';
+  label.textContent = email;
+});
