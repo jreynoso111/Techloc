@@ -93,6 +93,7 @@ const els = {
   colsAll: document.getElementById('cols-all'),
   colsNone: document.getElementById('cols-none'),
   analyticsWrap: document.getElementById('analytics-wrap'),
+  eraseFilters: document.getElementById('erase-filters'),
 };
 
 // ---------------- AUTH ----------------
@@ -348,6 +349,18 @@ const hasActiveFilters = () => {
     const query = typeof filter.query === 'string' ? filter.query.trim() : '';
     return values.length > 0 || query.length > 0;
   });
+};
+
+const clearAllFilters = () => {
+  state.filters.columnFilters = {};
+  state.pagination.page = 1;
+  savePrefs();
+  renderTable();
+};
+
+const updateEraseFiltersButton = () => {
+  if (!els.eraseFilters) return;
+  els.eraseFilters.disabled = !hasActiveFilters();
 };
 
 const applySort = (rows) => {
@@ -709,20 +722,23 @@ const renderBody = (pageRows) => renderBodyUI({
   pageRows,
 });
 
-const renderTable = () => renderTableUI({
-  applyFilters,
-  applySort,
-  renderPagination,
-  renderColgroup,
-  renderHeader,
-  renderBody,
-  renderColumnsPopover,
-  syncTopScrollbar,
-  renderCharts,
-  hasActiveFilters,
-  setServiceFilterIds,
-  lucide,
-});
+const renderTable = () => {
+  renderTableUI({
+    applyFilters,
+    applySort,
+    renderPagination,
+    renderColgroup,
+    renderHeader,
+    renderBody,
+    renderColumnsPopover,
+    syncTopScrollbar,
+    renderCharts,
+    hasActiveFilters,
+    setServiceFilterIds,
+    lucide,
+  });
+  updateEraseFiltersButton();
+};
 
 // ---------------- INLINE CELL EDITING ----------------
 const withTimeout = (promise, ms = 20000) => {
@@ -1066,6 +1082,7 @@ const attachButtonEvents = () => {
   });
 
   els.refresh.addEventListener('click', refresh);
+  els.eraseFilters?.addEventListener('click', clearAllFilters);
 
   // Create new record inline (adds blank row in DB, then you edit cells)
   els.addRecord?.addEventListener('click', async () => {
