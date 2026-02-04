@@ -82,7 +82,31 @@ export const getVehicleMarkerBorderColor = (fillColor) => {
   return '#991b1b';
 };
 
+const getPtLastReadAgeMs = (value) => {
+  if (!value) return null;
+  const readDate = new Date(value);
+  if (Number.isNaN(readDate.getTime())) return null;
+  return Date.now() - readDate.getTime();
+};
+
+const getPtLastReadStatus = (value) => {
+  const ageMs = getPtLastReadAgeMs(value);
+  if (ageMs === null) return 'fresh';
+  const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  if (ageMs > sevenDaysMs) return 'unknown';
+  if (ageMs > twoDaysMs) return 'stale';
+  return 'fresh';
+};
+
 export const getMovingMeta = (vehicle = {}) => {
+  const ptReadStatus = getPtLastReadStatus(vehicle?.lastRead);
+  if (ptReadStatus === 'unknown') {
+    return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
+  }
+  if (ptReadStatus === 'stale') {
+    return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
+  }
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
   if (movingValue === 1) {
     return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
@@ -94,6 +118,7 @@ export const getMovingMeta = (vehicle = {}) => {
 };
 
 export const isVehicleNotMoving = (vehicle = {}) => {
+  if (getPtLastReadStatus(vehicle?.lastRead) === 'stale') return true;
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
   return movingValue === -1;
 };
