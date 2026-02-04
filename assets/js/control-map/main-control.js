@@ -147,7 +147,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         const { data, error } = await runWithTimeout(
           supabaseClient
             .from(TABLES.deals)
-            .select('"Current Stock No","Regular Amount","Open Balance"')
+            .select('"Current Stock No","Regular Amount","Open Balance","Vehicle Status"')
             .in(stockNoColumn, chunk),
           8000,
           'Error de comunicación con la base de datos.'
@@ -157,8 +157,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           const stockNo = normalizeStockNumber(row?.['Current Stock No']);
           const regularAmount = parseNumber(row?.['Regular Amount']);
           const openBalance = parseNumber(row?.['Open Balance']);
+          const vehicleStatus = String(row?.['Vehicle Status'] ?? '').trim();
           if (!stockNo || regularAmount === null || openBalance === null) return;
-          results.set(stockNo, { regularAmount, openBalance });
+          results.set(stockNo, { regularAmount, openBalance, vehicleStatus });
         });
       }
       return results;
@@ -1002,17 +1003,24 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           }
         }
 
-        normalizedVehicles.forEach((vehicle) => {
+        const allowedDealStatuses = new Set(['ACTIVE', 'STOCK']);
+        const filteredVehicles = normalizedVehicles.filter((vehicle) => {
           const stockNo = normalizeStockNumber(vehicle.stockNo);
           const dealValues = dealsByStockNo.get(stockNo) ?? null;
+          const normalizedStatus = String(dealValues?.vehicleStatus ?? '').trim().toUpperCase();
+          if (normalizedStatus && !allowedDealStatuses.has(normalizedStatus)) return false;
+          if (normalizedStatus) {
+            vehicle.status = normalizedStatus;
+          }
           const regularAmount = dealValues?.regularAmount ?? null;
           const openBalance = dealValues?.openBalance ?? null;
           const payKpi = openBalance !== null && regularAmount ? openBalance / regularAmount : null;
           vehicle.payKpi = payKpi;
           vehicle.payKpiDisplay = formatPayKpi(payKpi);
+          return true;
         });
 
-        vehicles = normalizedVehicles;
+        vehicles = filteredVehicles;
         vehicleHeaders = data.length ? Object.keys(data[0]) : [];
         if (!vehicleHeaders.some((header) => header.toLowerCase() === 'gps fix')) {
           vehicleHeaders.push('GPS Fix');
