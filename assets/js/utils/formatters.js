@@ -82,16 +82,50 @@ export const getVehicleMarkerBorderColor = (fillColor) => {
   return '#991b1b';
 };
 
-const isPtLastReadStale = (value) => {
-  if (!value) return false;
-  const readDate = new Date(value);
-  if (Number.isNaN(readDate.getTime())) return false;
+const parsePtLastReadDate = (value) => {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+
+  const match = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) return null;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  let year = Number(match[3]);
+  if (year < 100) year += 2000;
+  const hours = Number(match[4] || 0);
+  const minutes = Number(match[5] || 0);
+  const seconds = Number(match[6] || 0);
+  const date = new Date(year, month - 1, day, hours, minutes, seconds);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const getPtLastReadAgeMs = (value) => {
+  const readDate = parsePtLastReadDate(value);
+  if (!readDate) return null;
+  return Date.now() - readDate.getTime();
+};
+
+const getPtLastReadStatus = (value) => {
+  const ageMs = getPtLastReadAgeMs(value);
+  if (ageMs === null) return 'fresh';
+  if (ageMs <= 0) return 'fresh';
   const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
-  return Date.now() - readDate.getTime() > twoDaysMs;
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  if (ageMs > sevenDaysMs) return 'unknown';
+  if (ageMs > twoDaysMs) return 'stale';
+  return 'fresh';
 };
 
 export const getMovingMeta = (vehicle = {}) => {
-  if (isPtLastReadStale(vehicle?.lastRead)) {
+  const ptReadStatus = getPtLastReadStatus(vehicle?.lastRead);
+  if (ptReadStatus === 'unknown') {
+    return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
+  }
+  if (ptReadStatus === 'stale') {
     return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
   }
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
@@ -105,7 +139,7 @@ export const getMovingMeta = (vehicle = {}) => {
 };
 
 export const isVehicleNotMoving = (vehicle = {}) => {
-  if (isPtLastReadStale(vehicle?.lastRead)) return true;
+  if (getPtLastReadStatus(vehicle?.lastRead) === 'stale') return true;
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
   return movingValue === -1;
 };
