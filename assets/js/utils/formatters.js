@@ -82,16 +82,37 @@ export const getVehicleMarkerBorderColor = (fillColor) => {
   return '#991b1b';
 };
 
-const getPtLastReadAgeMs = (value) => {
+const parsePtLastReadDate = (value) => {
   if (!value) return null;
-  const readDate = new Date(value);
-  if (Number.isNaN(readDate.getTime())) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+
+  const match = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (!match) return null;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  let year = Number(match[3]);
+  if (year < 100) year += 2000;
+  const hours = Number(match[4] || 0);
+  const minutes = Number(match[5] || 0);
+  const seconds = Number(match[6] || 0);
+  const date = new Date(year, month - 1, day, hours, minutes, seconds);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const getPtLastReadAgeMs = (value) => {
+  const readDate = parsePtLastReadDate(value);
+  if (!readDate) return null;
   return Date.now() - readDate.getTime();
 };
 
 const getPtLastReadStatus = (value) => {
   const ageMs = getPtLastReadAgeMs(value);
   if (ageMs === null) return 'fresh';
+  if (ageMs <= 0) return 'fresh';
   const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   if (ageMs > sevenDaysMs) return 'unknown';
