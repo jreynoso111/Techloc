@@ -120,33 +120,35 @@ const getPtLastReadStatus = (value) => {
   return 'fresh';
 };
 
-export const getMovingMeta = (vehicle = {}) => {
+export const getMovingStatus = (vehicle = {}) => {
   const ptReadStatus = getPtLastReadStatus(vehicle?.lastRead);
-  if (ptReadStatus === 'unknown') {
-    return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
-  }
-  if (ptReadStatus === 'stale') {
-    return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
-  }
+  if (ptReadStatus === 'unknown') return 'unknown';
+  if (ptReadStatus === 'stale') return 'stopped';
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
-  if (movingValue === 1) {
+  if (movingValue === 1) return 'moving';
+  if (movingValue === -1) return 'stopped';
+  return 'unknown';
+};
+
+export const getMovingMeta = (vehicle = {}) => {
+  const status = getMovingStatus(vehicle);
+  if (status === 'moving') {
     return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
   }
-  if (movingValue === -1) {
+  if (status === 'stopped') {
     return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
   }
   return { label: 'Unknown', text: 'text-slate-300', bg: 'bg-slate-800/70', dot: 'bg-slate-400' };
 };
 
 export const isVehicleNotMoving = (vehicle = {}) => {
-  if (getPtLastReadStatus(vehicle?.lastRead) === 'stale') return true;
-  const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
-  return movingValue === -1;
+  return getMovingStatus(vehicle) === 'stopped';
 };
 
 export const getMovingLabel = (value) => {
   if (value === 'moving') return 'Moving';
   if (value === 'stopped') return 'Not moving';
+  if (value === 'unknown') return 'Unknown';
   return value;
 };
 
