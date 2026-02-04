@@ -12,6 +12,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       escapeHTML,
       formatDateTime,
       getGpsFixLabel,
+      getMovingStatus,
       getMovingLabel,
       getMovingMeta,
       getStatusCardStyles,
@@ -2116,11 +2117,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
       if (!matchesRange(vehicle.dealCompletion, vehicleFilters.dealMin, vehicleFilters.dealMax)) return false;
 
-      const isStopped = isVehicleNotMoving(vehicle);
-      if (vehicleFilters.moving.length) {
-        if (isStopped && !vehicleFilters.moving.includes('stopped')) return false;
-        if (!isStopped && !vehicleFilters.moving.includes('moving')) return false;
-      }
+      const movingStatus = getMovingStatus(vehicle);
+      if (vehicleFilters.moving.length && !vehicleFilters.moving.includes(movingStatus)) return false;
 
       return true;
     }
@@ -2179,8 +2177,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     function getMovingOptions() {
       const values = new Set();
       vehicles.forEach((vehicle) => {
-        if (isVehicleNotMoving(vehicle)) values.add('stopped');
-        else values.add('moving');
+        values.add(getMovingStatus(vehicle));
       });
       return Array.from(values).sort();
     }
