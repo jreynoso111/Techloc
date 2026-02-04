@@ -1003,7 +1003,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           }
         }
 
-        const allowedDealStatuses = new Set(['ACTIVE', 'SOLD']);
+        const allowedDealStatuses = new Set(['ACTIVE', 'STOCK']);
         const filteredVehicles = normalizedVehicles.filter((vehicle) => {
           const stockNo = normalizeStockNumber(vehicle.stockNo);
           const dealValues = dealsByStockNo.get(stockNo) ?? null;
