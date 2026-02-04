@@ -82,7 +82,18 @@ export const getVehicleMarkerBorderColor = (fillColor) => {
   return '#991b1b';
 };
 
+const isPtLastReadStale = (value) => {
+  if (!value) return false;
+  const readDate = new Date(value);
+  if (Number.isNaN(readDate.getTime())) return false;
+  const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+  return Date.now() - readDate.getTime() > twoDaysMs;
+};
+
 export const getMovingMeta = (vehicle = {}) => {
+  if (isPtLastReadStale(vehicle?.lastRead)) {
+    return { label: 'Not moving', text: 'text-amber-200', bg: 'bg-amber-500/10', dot: 'bg-amber-400' };
+  }
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
   if (movingValue === 1) {
     return { label: 'Moving', text: 'text-emerald-200', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400' };
@@ -94,6 +105,7 @@ export const getMovingMeta = (vehicle = {}) => {
 };
 
 export const isVehicleNotMoving = (vehicle = {}) => {
+  if (isPtLastReadStale(vehicle?.lastRead)) return true;
   const movingValue = parseInt(vehicle.moving || vehicle.movingCalc || vehicle.gpsMoving || '', 10);
   return movingValue === -1;
 };
