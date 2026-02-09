@@ -8,10 +8,18 @@ export const createPartnerClusterIcon = (cluster, color = '#334155') => {
   });
 };
 
-export const createPartnerClusterGroup = (color = '#334155') => L.markerClusterGroup({
-  maxClusterRadius: 45,
-  disableClusteringAtZoom: 17,
-  spiderfyOnMaxZoom: true,
-  showCoverageOnHover: false,
-  iconCreateFunction: (cluster) => createPartnerClusterIcon(cluster, color)
-});
+export const createPartnerClusterGroup = (color = '#334155') => {
+  if (typeof window === 'undefined' || !window.L) return null;
+  if (typeof window.L.markerClusterGroup !== 'function') {
+    console.warn('Leaflet marker cluster plugin unavailable. Falling back to layer groups.');
+    return window.L.layerGroup();
+  }
+
+  return window.L.markerClusterGroup({
+    maxClusterRadius: 45,
+    disableClusteringAtZoom: 17,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    iconCreateFunction: (cluster) => createPartnerClusterIcon(cluster, color)
+  });
+};
