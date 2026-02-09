@@ -758,30 +758,34 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
     const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
 
-    async function loadDatasetText({ key, path }) {
-      const override = localStorage.getItem(localDatasetKey(key));
-      if (override) return override;
-      const response = await fetch(path);
-      if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
-      return response.text();
-    }
+    const renderMapInitError = (message) => {
+      const mapContainer = document.getElementById('tech-map');
+      if (!mapContainer) return;
+      mapContainer.innerHTML = `
+        <div class="flex h-full items-center justify-center px-6 text-center">
+          <div class="max-w-md rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-5 text-slate-200 shadow-xl">
+            <p class="text-sm font-semibold text-slate-100">Map unavailable</p>
+            <p class="mt-2 text-xs text-slate-400">${escapeHTML(message)}</p>
+          </div>
+        </div>
+      `;
+    };
 
-    // --- 1. Initialize map ---
-    function initMap() {
-      map = L.map('tech-map', {
-        renderer: L.canvas(),
-        zoomControl: false,
-        minZoom: 3,
-        zoomSnap: 0.25,
-        zoomDelta: 0.5
-      }).setView([39.8, -98.5], 5);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-      hotspotLayer = L.layerGroup().addTo(map);
-      blacklistLayer = L.layerGroup().addTo(map);
-      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
-      vehicleLayer = L.markerClusterGroup({
+    const ensureLeafletReady = () => {
+      if (typeof window === 'undefined' || !window.L || typeof window.L.map !== 'function') {
+        renderMapInitError('The map library failed to load. Please refresh the page or check your connection.');
+        return false;
+      }
+      return true;
+    };
+
+    const createVehicleClusterLayer = () => {
+      if (typeof window === 'undefined' || !window.L) return null;
+      if (typeof window.L.markerClusterGroup !== 'function') {
+        console.warn('Leaflet marker cluster plugin unavailable. Falling back to layer groups for vehicles.');
+        return window.L.layerGroup();
+      }
+      return window.L.markerClusterGroup({
         maxClusterRadius: 35,
         disableClusteringAtZoom: 17,
         spiderfyOnMaxZoom: true,
@@ -840,14 +844,42 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
           const badgeHtml = hasStopped ? '<span class="vehicle-cross-badge absolute inset-0 flex items-center justify-center pointer-events-none">✕</span>' : '';
           const [width, height] = iconSize;
-          return L.divIcon({
+          return window.L.divIcon({
             html: `<div class="relative border-2 font-bold rounded-full flex items-center justify-center shadow-lg bg-slate-900/90 ${sizeClass}" style="color:${clusterColor}; border-color:${clusterColor}">${badgeHtml}<span>${count}</span></div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
           });
         }
-      }).addTo(map);
+      });
+    };
+
+    async function loadDatasetText({ key, path }) {
+      const override = localStorage.getItem(localDatasetKey(key));
+      if (override) return override;
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
+      return response.text();
+    }
+
+    // --- 1. Initialize map ---
+    function initMap() {
+      if (!ensureLeafletReady()) return;
+      map = L.map('tech-map', {
+        renderer: L.canvas(),
+        zoomControl: false,
+        minZoom: 3,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5
+      }).setView([39.8, -98.5], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      hotspotLayer = L.layerGroup().addTo(map);
+      blacklistLayer = L.layerGroup().addTo(map);
+      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
+      vehicleLayer = createVehicleClusterLayer();
+      if (vehicleLayer) vehicleLayer.addTo(map);
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
       serviceLayer = L.layerGroup().addTo(map);
