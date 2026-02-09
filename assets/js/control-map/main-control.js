@@ -1903,11 +1903,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
             console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
           }
 
+          if (idx >= VEHICLE_RENDER_LIMIT) return;
+
           if (coords && vehicleMarkersVisible) {
             vehiclesForMarkers.push({ vehicle, coords, focusHandler });
           }
-
-          if (idx >= VEHICLE_RENDER_LIMIT) return;
 
           const card = document.createElement('div');
           const prepStatusStyles = getStatusCardStyles(vehicle.invPrepStatus, 'prep');
