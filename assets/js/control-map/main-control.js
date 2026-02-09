@@ -758,34 +758,30 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
     const localDatasetKey = (key, suffix = 'csv') => `techloc:dataset:${key}:${suffix}`;
 
-    const renderMapInitError = (message) => {
-      const mapContainer = document.getElementById('tech-map');
-      if (!mapContainer) return;
-      mapContainer.innerHTML = `
-        <div class="flex h-full items-center justify-center px-6 text-center">
-          <div class="max-w-md rounded-2xl border border-slate-800 bg-slate-900/70 px-6 py-5 text-slate-200 shadow-xl">
-            <p class="text-sm font-semibold text-slate-100">Map unavailable</p>
-            <p class="mt-2 text-xs text-slate-400">${escapeHTML(message)}</p>
-          </div>
-        </div>
-      `;
-    };
+    async function loadDatasetText({ key, path }) {
+      const override = localStorage.getItem(localDatasetKey(key));
+      if (override) return override;
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
+      return response.text();
+    }
 
-    const ensureLeafletReady = () => {
-      if (typeof window === 'undefined' || !window.L || typeof window.L.map !== 'function') {
-        renderMapInitError('The map library failed to load. Please refresh the page or check your connection.');
-        return false;
-      }
-      return true;
-    };
-
-    const createVehicleClusterLayer = () => {
-      if (typeof window === 'undefined' || !window.L) return null;
-      if (typeof window.L.markerClusterGroup !== 'function') {
-        console.warn('Leaflet marker cluster plugin unavailable. Falling back to layer groups for vehicles.');
-        return window.L.layerGroup();
-      }
-      return window.L.markerClusterGroup({
+    // --- 1. Initialize map ---
+    function initMap() {
+      map = L.map('tech-map', {
+        renderer: L.canvas(),
+        zoomControl: false,
+        minZoom: 3,
+        zoomSnap: 0.25,
+        zoomDelta: 0.5
+      }).setView([39.8, -98.5], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      hotspotLayer = L.layerGroup().addTo(map);
+      blacklistLayer = L.layerGroup().addTo(map);
+      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
+      vehicleLayer = L.markerClusterGroup({
         maxClusterRadius: 35,
         disableClusteringAtZoom: 17,
         spiderfyOnMaxZoom: true,
@@ -844,42 +840,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
           const badgeHtml = hasStopped ? '<span class="vehicle-cross-badge absolute inset-0 flex items-center justify-center pointer-events-none">✕</span>' : '';
           const [width, height] = iconSize;
-          return window.L.divIcon({
+          return L.divIcon({
             html: `<div class="relative border-2 font-bold rounded-full flex items-center justify-center shadow-lg bg-slate-900/90 ${sizeClass}" style="color:${clusterColor}; border-color:${clusterColor}">${badgeHtml}<span>${count}</span></div>`,
             className: 'vehicle-cluster-icon',
             iconSize,
             iconAnchor: [width / 2, height / 2]
           });
         }
-      });
-    };
-
-    async function loadDatasetText({ key, path }) {
-      const override = localStorage.getItem(localDatasetKey(key));
-      if (override) return override;
-      const response = await fetch(path);
-      if (!response.ok) throw new Error(`Unable to read ${path} (Status ${response.status})`);
-      return response.text();
-    }
-
-    // --- 1. Initialize map ---
-    function initMap() {
-      if (!ensureLeafletReady()) return;
-      map = L.map('tech-map', {
-        renderer: L.canvas(),
-        zoomControl: false,
-        minZoom: 3,
-        zoomSnap: 0.25,
-        zoomDelta: 0.5
-      }).setView([39.8, -98.5], 5);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-      hotspotLayer = L.layerGroup().addTo(map);
-      blacklistLayer = L.layerGroup().addTo(map);
-      techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
-      vehicleLayer = createVehicleClusterLayer();
-      if (vehicleLayer) vehicleLayer.addTo(map);
+      }).addTo(map);
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
       serviceLayer = L.layerGroup().addTo(map);
@@ -1879,7 +1847,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const searchBox = document.getElementById('vehicle-search');
       const filtered = getVehicleList(searchBox?.value || '');
       document.getElementById('vehicles-count').textContent = filtered.length;
-      updateVehicleFilterOptions(filtered);
 
       if (filtered.length === 0) {
         const empty = document.createElement('div');
@@ -1935,11 +1902,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
             console.warn(`No location data for vehicle ${vehicle.vin || vehicle.id || 'unknown'}`);
           }
 
-          if (idx >= VEHICLE_RENDER_LIMIT) return;
-
           if (coords && vehicleMarkersVisible) {
             vehiclesForMarkers.push({ vehicle, coords, focusHandler });
           }
+
+          if (idx >= VEHICLE_RENDER_LIMIT) return;
 
           const card = document.createElement('div');
           const prepStatusStyles = getStatusCardStyles(vehicle.invPrepStatus, 'prep');
@@ -2189,10 +2156,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       return [...list].sort((a, b) => getDaysParkedValue(b) - getDaysParkedValue(a));
     }
 
-    function getUniqueVehicleValues(list, field, { includeEmpty = false } = {}) {
+    function getUniqueVehicleValues(field, { includeEmpty = false } = {}) {
       const values = new Set();
       let hasEmpty = false;
-      list.forEach((vehicle) => {
+      vehicles.forEach((vehicle) => {
         const normalized = normalizeFilterValue(vehicle?.[field]);
         if (!normalized) {
           if (includeEmpty) hasEmpty = true;
@@ -2251,30 +2218,23 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       });
     }
 
-    function updateVehicleFilterOptions(list = vehicles) {
-      const invPrepAll = getUniqueVehicleValues(vehicles, 'invPrepStatus');
-      const gpsAll = getUniqueVehicleValues(vehicles, 'gpsFix', { includeEmpty: true });
-      const dealStatusAll = getUniqueVehicleValues(vehicles, 'status');
-      const ptAll = getUniqueVehicleValues(vehicles, 'ptStatus');
-
-      const invPrepValues = getUniqueVehicleValues(list, 'invPrepStatus');
-      const gpsValues = getUniqueVehicleValues(list, 'gpsFix', { includeEmpty: true });
-      const dealStatusValues = getUniqueVehicleValues(list, 'status');
-      const ptValues = getUniqueVehicleValues(list, 'ptStatus');
+    function updateVehicleFilterOptions() {
+      const invPrepValues = getUniqueVehicleValues('invPrepStatus');
+      const gpsValues = getUniqueVehicleValues('gpsFix', { includeEmpty: true });
+      const dealStatusValues = getUniqueVehicleValues('status');
+      const ptValues = getUniqueVehicleValues('ptStatus');
       const movingValues = getMovingOptions();
 
-      vehicleFilters.invPrep = normalizeFilterSelections(invPrepAll, vehicleFilters.invPrep);
-      vehicleFilters.gpsFix = normalizeFilterSelections(gpsAll, vehicleFilters.gpsFix);
-      vehicleFilters.dealStatus = normalizeFilterSelections(dealStatusAll, vehicleFilters.dealStatus);
-      vehicleFilters.ptStatus = normalizeFilterSelections(ptAll, vehicleFilters.ptStatus);
+      vehicleFilters.invPrep = normalizeFilterSelections(invPrepValues, vehicleFilters.invPrep);
+      vehicleFilters.gpsFix = normalizeFilterSelections(gpsValues, vehicleFilters.gpsFix);
+      vehicleFilters.dealStatus = normalizeFilterSelections(dealStatusValues, vehicleFilters.dealStatus);
+      vehicleFilters.ptStatus = normalizeFilterSelections(ptValues, vehicleFilters.ptStatus);
       vehicleFilters.moving = normalizeFilterSelections(movingValues, vehicleFilters.moving);
 
-      const mergeSelections = (values, selections) => Array.from(new Set([...values, ...selections])).sort();
-
-      renderCheckboxOptions('filter-invprep', mergeSelections(invPrepValues, vehicleFilters.invPrep), vehicleFilters.invPrep);
-      renderCheckboxOptions('filter-gps', mergeSelections(gpsValues, vehicleFilters.gpsFix), vehicleFilters.gpsFix, (value) => getGpsFixLabel(value, EMPTY_FILTER_VALUE));
-      renderCheckboxOptions('filter-deal-status', mergeSelections(dealStatusValues, vehicleFilters.dealStatus), vehicleFilters.dealStatus);
-      renderCheckboxOptions('filter-pt', mergeSelections(ptValues, vehicleFilters.ptStatus), vehicleFilters.ptStatus);
+      renderCheckboxOptions('filter-invprep', invPrepValues, vehicleFilters.invPrep);
+      renderCheckboxOptions('filter-gps', gpsValues, vehicleFilters.gpsFix, (value) => getGpsFixLabel(value, EMPTY_FILTER_VALUE));
+      renderCheckboxOptions('filter-deal-status', dealStatusValues, vehicleFilters.dealStatus);
+      renderCheckboxOptions('filter-pt', ptValues, vehicleFilters.ptStatus);
       renderCheckboxOptions('filter-moving', movingValues, vehicleFilters.moving, getMovingLabel);
       updateVehicleFilterLabels();
     }

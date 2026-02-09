@@ -1,6 +1,11 @@
 import { supabase as supabaseClient } from '../js/supabaseClient.js';
 
 (function () {
+  if (!supabaseClient) {
+    console.error('Supabase client not initialized. Ensure supabaseClient.js is available.');
+    return;
+  }
+
   const whenDomReady = new Promise((resolve) => {
     if (document.readyState !== 'loading') {
       resolve();
@@ -8,23 +13,6 @@ import { supabase as supabaseClient } from '../js/supabaseClient.js';
     }
     document.addEventListener('DOMContentLoaded', () => resolve(), { once: true });
   });
-
-  const revealProtectedFallback = () =>
-    whenDomReady.then(() => {
-      const loading = document.querySelector('[data-auth-loading]');
-      const protectedBlocks = document.querySelectorAll('[data-auth-protected]');
-      loading?.remove();
-      protectedBlocks.forEach((block) => {
-        block.classList.remove('hidden');
-        block.removeAttribute('aria-hidden');
-      });
-    });
-
-  if (!supabaseClient) {
-    console.error('Supabase client not initialized. Ensure supabaseClient.js is available.');
-    revealProtectedFallback();
-    return;
-  }
 
   const navIds = {
     control: 'nav-control-view',
