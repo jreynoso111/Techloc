@@ -1847,6 +1847,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const searchBox = document.getElementById('vehicle-search');
       const filtered = getVehicleList(searchBox?.value || '');
       document.getElementById('vehicles-count').textContent = filtered.length;
+      updateVehicleFilterOptions(filtered);
 
       if (filtered.length === 0) {
         const empty = document.createElement('div');
@@ -2156,10 +2157,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       return [...list].sort((a, b) => getDaysParkedValue(b) - getDaysParkedValue(a));
     }
 
-    function getUniqueVehicleValues(field, { includeEmpty = false } = {}) {
+    function getUniqueVehicleValues(list, field, { includeEmpty = false } = {}) {
       const values = new Set();
       let hasEmpty = false;
-      vehicles.forEach((vehicle) => {
+      list.forEach((vehicle) => {
         const normalized = normalizeFilterValue(vehicle?.[field]);
         if (!normalized) {
           if (includeEmpty) hasEmpty = true;
@@ -2218,23 +2219,30 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       });
     }
 
-    function updateVehicleFilterOptions() {
-      const invPrepValues = getUniqueVehicleValues('invPrepStatus');
-      const gpsValues = getUniqueVehicleValues('gpsFix', { includeEmpty: true });
-      const dealStatusValues = getUniqueVehicleValues('status');
-      const ptValues = getUniqueVehicleValues('ptStatus');
+    function updateVehicleFilterOptions(list = vehicles) {
+      const invPrepAll = getUniqueVehicleValues(vehicles, 'invPrepStatus');
+      const gpsAll = getUniqueVehicleValues(vehicles, 'gpsFix', { includeEmpty: true });
+      const dealStatusAll = getUniqueVehicleValues(vehicles, 'status');
+      const ptAll = getUniqueVehicleValues(vehicles, 'ptStatus');
+
+      const invPrepValues = getUniqueVehicleValues(list, 'invPrepStatus');
+      const gpsValues = getUniqueVehicleValues(list, 'gpsFix', { includeEmpty: true });
+      const dealStatusValues = getUniqueVehicleValues(list, 'status');
+      const ptValues = getUniqueVehicleValues(list, 'ptStatus');
       const movingValues = getMovingOptions();
 
-      vehicleFilters.invPrep = normalizeFilterSelections(invPrepValues, vehicleFilters.invPrep);
-      vehicleFilters.gpsFix = normalizeFilterSelections(gpsValues, vehicleFilters.gpsFix);
-      vehicleFilters.dealStatus = normalizeFilterSelections(dealStatusValues, vehicleFilters.dealStatus);
-      vehicleFilters.ptStatus = normalizeFilterSelections(ptValues, vehicleFilters.ptStatus);
+      vehicleFilters.invPrep = normalizeFilterSelections(invPrepAll, vehicleFilters.invPrep);
+      vehicleFilters.gpsFix = normalizeFilterSelections(gpsAll, vehicleFilters.gpsFix);
+      vehicleFilters.dealStatus = normalizeFilterSelections(dealStatusAll, vehicleFilters.dealStatus);
+      vehicleFilters.ptStatus = normalizeFilterSelections(ptAll, vehicleFilters.ptStatus);
       vehicleFilters.moving = normalizeFilterSelections(movingValues, vehicleFilters.moving);
 
-      renderCheckboxOptions('filter-invprep', invPrepValues, vehicleFilters.invPrep);
-      renderCheckboxOptions('filter-gps', gpsValues, vehicleFilters.gpsFix, (value) => getGpsFixLabel(value, EMPTY_FILTER_VALUE));
-      renderCheckboxOptions('filter-deal-status', dealStatusValues, vehicleFilters.dealStatus);
-      renderCheckboxOptions('filter-pt', ptValues, vehicleFilters.ptStatus);
+      const mergeSelections = (values, selections) => Array.from(new Set([...values, ...selections])).sort();
+
+      renderCheckboxOptions('filter-invprep', mergeSelections(invPrepValues, vehicleFilters.invPrep), vehicleFilters.invPrep);
+      renderCheckboxOptions('filter-gps', mergeSelections(gpsValues, vehicleFilters.gpsFix), vehicleFilters.gpsFix, (value) => getGpsFixLabel(value, EMPTY_FILTER_VALUE));
+      renderCheckboxOptions('filter-deal-status', mergeSelections(dealStatusValues, vehicleFilters.dealStatus), vehicleFilters.dealStatus);
+      renderCheckboxOptions('filter-pt', mergeSelections(ptValues, vehicleFilters.ptStatus), vehicleFilters.ptStatus);
       renderCheckboxOptions('filter-moving', movingValues, vehicleFilters.moving, getMovingLabel);
       updateVehicleFilterLabels();
     }
