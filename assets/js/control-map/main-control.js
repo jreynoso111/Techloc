@@ -62,8 +62,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     let vehicles = [];
     let vehicleHeaders = [];
     let vehicleMarkersVisible = true;
-    let hotspotsVisible = true;
-    let blacklistMarkersVisible = true;
+    let hotspotsVisible = false;
+    let blacklistMarkersVisible = false;
     const serviceHeadersByCategory = {};
     let selectedVehicleId = null;
     let syncingVehicleSelection = false;
@@ -778,8 +778,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3 }).addTo(map);
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png', { maxZoom: 19, minZoom: 3, opacity: 0.95 }).addTo(map);
       L.control.zoom({ position: 'bottomright' }).addTo(map);
-      hotspotLayer = L.layerGroup().addTo(map);
-      blacklistLayer = L.layerGroup().addTo(map);
+      hotspotLayer = L.layerGroup();
+      if (hotspotsVisible) hotspotLayer.addTo(map);
+      blacklistLayer = L.layerGroup();
+      if (blacklistMarkersVisible) blacklistLayer.addTo(map);
       techLayer = createPartnerClusterGroup(SERVICE_COLORS.tech);
       vehicleLayer = L.markerClusterGroup({
         maxClusterRadius: 35,
