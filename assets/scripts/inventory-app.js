@@ -110,11 +110,14 @@ let alertsDealsFilterOptions = [];
 const ALERTS_STORAGE_PREFIX = 'alertsDeals';
 const ALERTS_COLUMNS_STORAGE_KEY = `${ALERTS_STORAGE_PREFIX}:columns`;
 const ALERTS_COLUMNS_LABELS_KEY = `${ALERTS_STORAGE_PREFIX}:columnLabels`;
+const ALERTS_LAST_CLICKS_TABLE = 'control_map_vehicle_clicks';
 let alertsDealsColumns = [];
 let alertsDealsColumnLabels = {};
 let alertsDealsAvailableColumns = [];
 let alertsDealsSortKey = '';
 let alertsDealsSortDirection = 'asc';
+let alertsDealsLastClickByVin = {};
+let alertsDealsLastClickLoadedForUser = null;
 const setAlertsDealCount = (count) => {
   const badge = document.getElementById('alerts-deals-count');
   const modalCount = document.querySelector('[data-alerts-deals-count]');
@@ -158,6 +161,11 @@ const getAlertsColumnValue = (row, key, vin, vinQuery) => {
   return String(value);
 };
 
+const getStoredAlertsLastClick = (vin) => {
+  if (!vin) return '';
+  return alertsDealsLastClickByVin[vin] || localStorage.getItem(`${ALERTS_STORAGE_PREFIX}:${vin}:lastClick`) || '';
+};
+
 const renderAlertsDealsList = (rows) => {
   const list = document.getElementById('alerts-deals-list');
   if (!list) return;
@@ -172,7 +180,7 @@ const renderAlertsDealsList = (rows) => {
     const prepStatus = String(row['Inventory Preparation Status'] || '').trim();
     const storageKey = vin ? `${ALERTS_STORAGE_PREFIX}:${vin}` : '';
     const storedNote = storageKey ? localStorage.getItem(`${storageKey}:note`) : '';
-    const storedClick = storageKey ? localStorage.getItem(`${storageKey}:lastClick`) : '';
+    const storedClick = getStoredAlertsLastClick(vin);
     const visibleColumns = alertsDealsColumns.length
       ? alertsDealsColumns
       : ['VIN', 'Vehicle Status', 'Current Stock No', 'Physical Location', 'Inventory Preparation Status'];
@@ -196,7 +204,7 @@ const renderAlertsDealsList = (rows) => {
       </div>
       <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-200">
         ${columnMarkup}
-        <span class="text-slate-400" data-alerts-google-last="${vin}">Last Click: ${storedClick || '—'}</span>
+        <span class="text-slate-400" data-alerts-google-last="${vin}">${storedClick || '—'}</span>
       </div>
       <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-200">
         <label class="flex min-w-[220px] flex-1 items-center gap-2 text-slate-200">
@@ -291,6 +299,48 @@ const formatAlertsTimestamp = (date) => {
   return `${month}/${day}/${year} ${hours}:${minutes}`;
 };
 
+
+const formatAlertsTimestampFromDbValue = (value) => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return formatAlertsTimestamp(parsed);
+};
+
+const loadAlertsLastClicksFromSupabase = async (rows = []) => {
+  const userId = DashboardState.preferences.userId;
+  if (!supabaseClient?.from || !userId || !Array.isArray(rows) || !rows.length) return;
+  const vins = Array.from(new Set(rows.map((row) => String(row?.VIN || '').trim()).filter(Boolean)));
+  if (!vins.length) return;
+
+  const { data, error } = await supabaseClient
+    .from(ALERTS_LAST_CLICKS_TABLE)
+    .select('vin, clicked_at')
+    .eq('user_id', userId)
+    .in('vin', vins)
+    .order('clicked_at', { ascending: false });
+
+  if (error || !Array.isArray(data)) return;
+
+  const nextByVin = { ...alertsDealsLastClickByVin };
+  data.forEach((entry) => {
+    const vin = String(entry?.vin || '').trim();
+    if (!vin || nextByVin[vin]) return;
+    const formatted = formatAlertsTimestampFromDbValue(entry?.clicked_at);
+    if (formatted) nextByVin[vin] = formatted;
+  });
+  alertsDealsLastClickByVin = nextByVin;
+  alertsDealsLastClickLoadedForUser = userId;
+};
+
+const insertAlertsLastClickHistory = async (vin, clickedAtIso) => {
+  const userId = DashboardState.preferences.userId;
+  if (!supabaseClient?.from || !userId || !vin || !clickedAtIso) return;
+  await supabaseClient
+    .from(ALERTS_LAST_CLICKS_TABLE)
+    .insert({ user_id: userId, vin, clicked_at: clickedAtIso, source: 'google_button' });
+};
+
 const getGpsOfflineCount = () => {
   const cutoff = Date.now() - (10 * 24 * 60 * 60 * 1000);
   const rows = DashboardState.derived.filtered || [];
@@ -357,6 +407,9 @@ const fetchAlertsDealCount = async () => {
       onlineRows.flatMap((row) => Object.keys(row || {})),
     ),
   ).sort();
+  if (alertsDealsLastClickLoadedForUser !== DashboardState.preferences.userId) {
+    await loadAlertsLastClicksFromSupabase(onlineRows);
+  }
   if (!alertsDealsColumns.length) {
     const storedColumns = localStorage.getItem(ALERTS_COLUMNS_STORAGE_KEY);
     alertsDealsColumns = storedColumns ? JSON.parse(storedColumns) : [
@@ -512,6 +565,9 @@ const buildPreferencesPayload = () => ({
     fullChartCollapsed: DashboardState.layout.fullChartCollapsed,
     tertiarySplitWidth: DashboardState.layout.tertiarySplitWidth,
   },
+  alerts: {
+    lastClicksByVin: alertsDealsLastClickByVin,
+  },
 });
 
 const applyPreferences = (config) => {
@@ -581,6 +637,9 @@ const applyPreferences = (config) => {
   }
   if (typeof config.layout?.fullChartCollapsed === 'boolean') DashboardState.layout.fullChartCollapsed = config.layout.fullChartCollapsed;
   if (typeof config.layout?.tertiarySplitWidth === 'number') DashboardState.layout.tertiarySplitWidth = config.layout.tertiarySplitWidth;
+  if (config.alerts?.lastClicksByVin && typeof config.alerts.lastClicksByVin === 'object') {
+    alertsDealsLastClickByVin = { ...config.alerts.lastClicksByVin };
+  }
 };
 
 const fetchTableConfig = async (userId) => {
@@ -1295,9 +1354,13 @@ const bindFilterEvents = () => {
       if (!vinKey) return;
       const label = alertsDealsList.querySelector(`[data-alerts-google-last="${vinKey}"]`);
       if (!label) return;
-      const timestamp = formatAlertsTimestamp(new Date());
-      label.textContent = `Last Click: ${timestamp}`;
+      const clickedAt = new Date();
+      const timestamp = formatAlertsTimestamp(clickedAt);
+      label.textContent = timestamp;
+      alertsDealsLastClickByVin[vinKey] = timestamp;
       localStorage.setItem(`${ALERTS_STORAGE_PREFIX}:${vinKey}:lastClick`, timestamp);
+      insertAlertsLastClickHistory(vinKey, clickedAt.toISOString());
+      schedulePersistPreferences();
     });
 
     addListener(alertsDealsList, 'input', (event) => {
