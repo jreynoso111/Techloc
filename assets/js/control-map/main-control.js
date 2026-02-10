@@ -66,6 +66,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     let blacklistMarkersVisible = false;
     const serviceHeadersByCategory = {};
     let selectedVehicleId = null;
+    const checkedVehicleIds = new Set();
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
@@ -1683,6 +1684,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const viewMoreBtn = target?.closest('[data-action="vehicle-view-more"]') || findInPath('vehicle-view-more');
       const repairHistoryBtn = target?.closest('[data-action="repair-history"]') || findInPath('repair-history');
       const gpsHistoryBtn = target?.closest('[data-action="gps-history"]') || findInPath('gps-history');
+      const selectCheckbox = target?.closest('[data-action="vehicle-select-checkbox"]') || findInPath('vehicle-select-checkbox');
       if (!card || !container.contains(card)) return;
 
       const vehicle = findVehicleById(card.dataset.id);
@@ -1709,6 +1711,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         event.stopPropagation();
         event.stopImmediatePropagation?.();
         void handleGpsHistoryRequest(vehicle);
+        return;
+      }
+
+      if (selectCheckbox) {
+        event.stopPropagation();
         return;
       }
 
@@ -1978,15 +1985,36 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                 <span class="text-slate-400">${vehicle.payment || ''}</span>
               </div>
             </div>
-            <div class="pt-1 flex items-center justify-end gap-2">
-              <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
-                ${svgIcon('info', 'h-3.5 w-3.5')}
-                See more
-              </button>
-              <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">Service History</button>
-              <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS Historic</button>
+            <div class="pt-1 flex items-end justify-between gap-2">
+              <label class="inline-flex items-center gap-2 text-[10px] font-semibold text-slate-300">
+                <input type="checkbox" data-action="vehicle-select-checkbox" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400" ${checkedVehicleIds.has(vehicle.id) ? 'checked' : ''}>
+                Mark
+              </label>
+              <div class="flex items-center justify-end gap-2">
+                <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
+                  ${svgIcon('info', 'h-3.5 w-3.5')}
+                  See more
+                </button>
+                <button type="button" data-action="repair-history" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-[10px] font-bold text-blue-100 hover:bg-blue-500/25 transition-colors">Service History</button>
+                <button type="button" data-action="gps-history" class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/15 px-3 py-1 text-[10px] font-bold text-emerald-100 hover:bg-emerald-500/25 transition-colors">GPS Historic</button>
+              </div>
             </div>
           `;
+
+          const selectCheckbox = card.querySelector('[data-action="vehicle-select-checkbox"]');
+          if (selectCheckbox) {
+            selectCheckbox.addEventListener('click', (event) => {
+              event.stopPropagation();
+            });
+            selectCheckbox.addEventListener('change', (event) => {
+              event.stopPropagation();
+              if (event.currentTarget.checked) {
+                checkedVehicleIds.add(vehicle.id);
+              } else {
+                checkedVehicleIds.delete(vehicle.id);
+              }
+            });
+          }
 
           const viewMoreButton = card.querySelector('[data-action="vehicle-view-more"]');
           if (viewMoreButton) {
