@@ -2060,7 +2060,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           const card = document.createElement('div');
           const prepStatusStyles = getStatusCardStyles(vehicle.invPrepStatus, 'prep');
           const isThirdPartyRepairShop = String(vehicle.invPrepStatus || '').trim().toLowerCase() === 'third party repair shop';
-          const prepLabel = isThirdPartyRepairShop ? 'Repair Shop' : 'Prep';
           const prepStatusDisplay = isThirdPartyRepairShop ? 'Repair Shop' : (vehicle.invPrepStatus || '—');
           const ptStatusStyles = getStatusCardStyles(vehicle.ptStatus, 'pt');
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
@@ -2111,7 +2110,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.payKpiDisplay || '—'}</p>
                 </div>
                 <div class="rounded border px-2 py-1.5 ${prepStatusStyles.card}">
-                  <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">${prepLabel}</p>
+                  <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">Prep</p>
                   <p class="text-[11px] font-semibold ${prepStatusStyles.value}">${prepStatusDisplay}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
