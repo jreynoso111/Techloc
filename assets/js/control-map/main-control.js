@@ -1992,7 +1992,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
                   <span>on rev?</span>
                   <input type="checkbox" data-action="vehicle-select-checkbox" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400" ${checkedVehicleIds.has(vehicle.id) ? 'checked' : ''}>
                 </label>
-                <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${checkedVehicleClickTimes.has(vehicle.id) ? `Last click: ${formatDateTime(checkedVehicleClickTimes.get(vehicle.id))}` : 'Last click: --'}</p>
+                <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${checkedVehicleClickTimes.has(vehicle.id) ? formatDateTime(checkedVehicleClickTimes.get(vehicle.id)) : '--'}</p>
               </div>
               <div class="flex items-center justify-end gap-2">
                 <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
@@ -2016,7 +2016,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               const clickedAt = new Date().toISOString();
               checkedVehicleClickTimes.set(vehicle.id, clickedAt);
               if (selectLastClick) {
-                selectLastClick.textContent = `Last click: ${formatDateTime(clickedAt)}`;
+                selectLastClick.textContent = formatDateTime(clickedAt);
               }
               if (event.currentTarget.checked) {
                 checkedVehicleIds.add(vehicle.id);
