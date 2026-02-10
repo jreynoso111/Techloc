@@ -67,6 +67,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     const serviceHeadersByCategory = {};
     let selectedVehicleId = null;
     const checkedVehicleIds = new Set();
+    const checkedVehicleClickTimes = new Map();
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
@@ -1986,10 +1987,13 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               </div>
             </div>
             <div class="pt-1 flex items-end justify-between gap-2">
-              <label class="inline-flex items-center gap-2 text-[10px] font-semibold text-slate-300">
-                <input type="checkbox" data-action="vehicle-select-checkbox" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400" ${checkedVehicleIds.has(vehicle.id) ? 'checked' : ''}>
-                Mark
-              </label>
+              <div class="flex flex-col items-start gap-1">
+                <label class="inline-flex flex-col items-start gap-1 text-[10px] font-semibold text-slate-300 leading-tight">
+                  <span>on rev?</span>
+                  <input type="checkbox" data-action="vehicle-select-checkbox" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400" ${checkedVehicleIds.has(vehicle.id) ? 'checked' : ''}>
+                </label>
+                <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${checkedVehicleClickTimes.has(vehicle.id) ? `Last click: ${formatDateTime(checkedVehicleClickTimes.get(vehicle.id))}` : 'Last click: --'}</p>
+              </div>
               <div class="flex items-center justify-end gap-2">
                 <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                   ${svgIcon('info', 'h-3.5 w-3.5')}
@@ -2002,12 +2006,18 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           `;
 
           const selectCheckbox = card.querySelector('[data-action="vehicle-select-checkbox"]');
+          const selectLastClick = card.querySelector('[data-action="vehicle-select-last-click"]');
           if (selectCheckbox) {
             selectCheckbox.addEventListener('click', (event) => {
               event.stopPropagation();
             });
             selectCheckbox.addEventListener('change', (event) => {
               event.stopPropagation();
+              const clickedAt = new Date().toISOString();
+              checkedVehicleClickTimes.set(vehicle.id, clickedAt);
+              if (selectLastClick) {
+                selectLastClick.textContent = `Last click: ${formatDateTime(clickedAt)}`;
+              }
               if (event.currentTarget.checked) {
                 checkedVehicleIds.add(vehicle.id);
               } else {
