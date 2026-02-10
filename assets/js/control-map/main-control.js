@@ -69,6 +69,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     const checkedVehicleIds = new Set();
     const checkedVehicleClickTimes = new Map();
     const checkedVehicleClickTimesByVin = new Map();
+    const checkedVehicleStateByVin = new Map();
     const VEHICLE_CLICK_HISTORY_TABLE = 'control_map_vehicle_clicks';
     let syncingVehicleSelection = false;
     let selectedTechId = null;
@@ -159,7 +160,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
       const { data, error } = await supabaseClient
         .from(VEHICLE_CLICK_HISTORY_TABLE)
-        .select('vin, clicked_at')
+        .select('vin, clicked_at, metadata')
         .eq('user_id', userId)
         .in('vin', vins)
         .order('clicked_at', { ascending: false });
@@ -171,22 +172,29 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         const vin = String(row?.vin || '').trim();
         const clickedAt = String(row?.clicked_at || '').trim();
         if (!vin || !clickedAt || latestByVin.has(vin)) return;
-        latestByVin.set(vin, clickedAt);
+        latestByVin.set(vin, {
+          clickedAt,
+          checked: row?.metadata?.checked === true,
+        });
       });
 
-      latestByVin.forEach((clickedAt, vin) => {
-        checkedVehicleClickTimesByVin.set(vin, clickedAt);
+      latestByVin.forEach((entry, vin) => {
+        checkedVehicleClickTimesByVin.set(vin, entry.clickedAt);
+        checkedVehicleStateByVin.set(vin, entry.checked);
       });
 
       vehicleRows.forEach((vehicle) => {
         const vin = getVehicleVin(vehicle);
-        const clickedAt = vin ? checkedVehicleClickTimesByVin.get(vin) : null;
-        if (clickedAt) checkedVehicleClickTimes.set(vehicle.id, clickedAt);
+        const entry = vin ? latestByVin.get(vin) : null;
+        if (!entry) return;
+        checkedVehicleClickTimes.set(vehicle.id, entry.clickedAt);
+        if (entry.checked) checkedVehicleIds.add(vehicle.id);
+        else checkedVehicleIds.delete(vehicle.id);
       });
     };
 
-    const saveVehicleClickHistory = async (vehicle, clickedAtIso) => {
-      if (!supabaseClient?.from || !vehicle || !clickedAtIso) return;
+    const saveVehicleClickHistory = async (vehicle, clickedAtIso, isChecked) => {
+      if (!supabaseClient?.from || !vehicle || !clickedAtIso || typeof isChecked !== 'boolean') return;
       const userId = await getCurrentUserId();
       const vin = getVehicleVin(vehicle);
       if (!userId || !vin) return;
@@ -199,6 +207,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           source: 'vehicle_select_checkbox',
           page: 'control-map',
           action: 'toggle_on_rev',
+          metadata: { checked: isChecked },
         });
     };
 
@@ -2061,7 +2070,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               <div class="flex flex-col items-start gap-1">
                 <label class="inline-flex flex-col items-start gap-1 text-[10px] font-semibold text-slate-300 leading-tight">
                   <span>on rev?</span>
-                  <input type="checkbox" data-action="vehicle-select-checkbox" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400" ${checkedVehicleIds.has(vehicle.id) ? 'checked' : ''}>
+                  <input type="checkbox" data-action="vehicle-select-checkbox" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-amber-400 focus:ring-amber-400" ${(checkedVehicleStateByVin.get(getVehicleVin(vehicle)) ?? checkedVehicleIds.has(vehicle.id)) ? 'checked' : ''}>
                 </label>
                 <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) ? formatDateTime(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) : '--'}</p>
               </div>
@@ -2086,13 +2095,17 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               event.stopPropagation();
               const clickedAt = new Date().toISOString();
               const vin = getVehicleVin(vehicle);
+              const isChecked = Boolean(event.currentTarget.checked);
               checkedVehicleClickTimes.set(vehicle.id, clickedAt);
-              if (vin) checkedVehicleClickTimesByVin.set(vin, clickedAt);
+              if (vin) {
+                checkedVehicleClickTimesByVin.set(vin, clickedAt);
+                checkedVehicleStateByVin.set(vin, isChecked);
+              }
               if (selectLastClick) {
                 selectLastClick.textContent = formatDateTime(clickedAt);
               }
-              void saveVehicleClickHistory(vehicle, clickedAt);
-              if (event.currentTarget.checked) {
+              void saveVehicleClickHistory(vehicle, clickedAt, isChecked);
+              if (isChecked) {
                 checkedVehicleIds.add(vehicle.id);
               } else {
                 checkedVehicleIds.delete(vehicle.id);
