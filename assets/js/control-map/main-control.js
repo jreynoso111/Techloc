@@ -71,6 +71,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     const checkedVehicleClickTimesByVin = new Map();
     const checkedVehicleStateByVin = new Map();
     const VEHICLE_CLICK_HISTORY_TABLE = 'control_map_vehicle_clicks';
+    const VEHICLE_FILTERS_STORAGE_KEY = 'controlMapVehicleFilters';
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
@@ -94,6 +95,64 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       ptStatus: [],
       dealMin: 0,
       dealMax: 100,
+    };
+
+    const getVehicleFiltersStorageKey = (userId) => `${VEHICLE_FILTERS_STORAGE_KEY}:${userId || 'anonymous'}`;
+
+    const normalizeVehicleFilterPayload = (payload = {}) => {
+      const toArray = (value) => (Array.isArray(value)
+        ? value.map((item) => String(item).trim()).filter(Boolean)
+        : []);
+
+      const toBoundedNumber = (value, fallback) => {
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.max(0, Math.min(parsed, 100));
+      };
+
+      const min = toBoundedNumber(payload.dealMin, 0);
+      const max = toBoundedNumber(payload.dealMax, 100);
+
+      return {
+        invPrep: toArray(payload.invPrep),
+        gpsFix: toArray(payload.gpsFix),
+        moving: toArray(payload.moving),
+        dealStatus: toArray(payload.dealStatus),
+        ptStatus: toArray(payload.ptStatus),
+        dealMin: Math.min(min, max),
+        dealMax: max,
+      };
+    };
+
+    const applyVehicleFilterPayload = (payload = {}) => {
+      const normalized = normalizeVehicleFilterPayload(payload);
+      Object.assign(vehicleFilters, normalized);
+    };
+
+    const loadVehicleFilterPrefs = async () => {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      try {
+        const userId = await getCurrentUserId();
+        const raw = localStorage.getItem(getVehicleFiltersStorageKey(userId));
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        applyVehicleFilterPayload(parsed);
+      } catch (error) {
+        console.warn('Failed to load vehicle filter preferences.', error);
+      }
+    };
+
+    const persistVehicleFilterPrefs = async () => {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      try {
+        const userId = await getCurrentUserId();
+        localStorage.setItem(
+          getVehicleFiltersStorageKey(userId),
+          JSON.stringify(normalizeVehicleFilterPayload(vehicleFilters))
+        );
+      } catch (error) {
+        console.warn('Failed to save vehicle filter preferences.', error);
+      }
     };
 
     const selectedServiceByType = {};
@@ -2426,6 +2485,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       vehicleFilters.dealMax = 100;
       syncVehicleFilterInputs();
       renderVehicles();
+      persistVehicleFilterPrefs();
     }
 
     function bindVehicleFilterDropdowns() {
@@ -2490,6 +2550,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           vehicleFilters[key] = getCheckedValues(container);
           updateVehicleFilterLabels();
           renderVehicles();
+          persistVehicleFilterPrefs();
         });
       });
 
@@ -2511,6 +2572,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
             syncVehicleFilterInputs();
           }
           renderVehicles();
+          persistVehicleFilterPrefs();
         });
       });
 
@@ -3737,6 +3799,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         if (isServiceTypeEnabled('tech')) loadTechnicians();
         loadHotspots();
         loadBlacklistSites();
+        await loadVehicleFilterPrefs();
         loadVehicles();
         await loadAllServices();
         setupResizableSidebars();
