@@ -2062,6 +2062,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           const isThirdPartyRepairShop = String(vehicle.invPrepStatus || '').trim().toLowerCase() === 'third party repair shop';
           const prepStatusDisplay = isThirdPartyRepairShop ? 'Repair Shop' : (vehicle.invPrepStatus || '—');
           const ptStatusStyles = getStatusCardStyles(vehicle.ptStatus, 'pt');
+          const gpsFixText = String(vehicle.gpsFix || 'GPS issue');
+          const gpsReasonText = String(vehicle.gpsReason || 'Pending');
+          const hasNoGps = `${gpsFixText} ${gpsReasonText}`.toLowerCase().includes('no gps');
+          const gpsCardClasses = hasNoGps
+            ? 'rounded-lg border border-red-500/70 bg-red-950/40 px-2 py-1.5 flex items-center gap-2 text-red-100'
+            : 'rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200';
+          const gpsIconClasses = hasNoGps ? 'h-3 w-3 text-red-300' : 'h-3 w-3 text-amber-300';
+          const gpsReasonClasses = hasNoGps ? 'text-[10px] text-red-200/90' : 'text-[10px] text-slate-400';
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
           card.dataset.id = vehicle.id;
           card.dataset.type = 'vehicle';
@@ -2088,11 +2096,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
               </div>
             </div>
             <div class="grid grid-cols-2 gap-2 text-[11px]">
-              <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
-                ${svgIcon('wifiOff', 'h-3 w-3 text-amber-300')}
+              <div class="${gpsCardClasses}">
+                ${svgIcon('wifiOff', gpsIconClasses)}
                 <div class="text-left leading-tight">
-                  <p class="font-semibold">${vehicle.gpsFix || 'GPS issue'}</p>
-                  <p class="text-[10px] text-slate-400">${vehicle.gpsReason || 'Pending'}</p>
+                  <p class="font-semibold">${gpsFixText}</p>
+                  <p class="${gpsReasonClasses}">${gpsReasonText}</p>
                 </div>
               </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
