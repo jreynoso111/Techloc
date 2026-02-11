@@ -2352,6 +2352,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       return [...list].sort((a, b) => getDaysParkedValue(b) - getDaysParkedValue(a));
     }
 
+    function isVehicleOnRevChecked(vehicle) {
+      const vin = getVehicleVin(vehicle);
+      const checkedByVin = vin ? checkedVehicleStateByVin.get(vin) : undefined;
+      return checkedByVin ?? checkedVehicleIds.has(vehicle.id);
+    }
+
+    function sortVehiclesByOnRevChecked(list) {
+      return [...list].sort((a, b) => Number(isVehicleOnRevChecked(b)) - Number(isVehicleOnRevChecked(a)));
+    }
+
     function getUniqueVehicleValues(field, { includeEmpty = false } = {}) {
       const values = new Set();
       let hasEmpty = false;
@@ -2609,7 +2619,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
       const filtered = filterVehicles(baseList, query);
       const shouldSortByDaysParked = vehicleFilters.moving.includes('stopped');
-      return shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered;
+      const shouldPrioritizeOnRev = vehicleFilters.invPrep.includes('available for deals')
+        && vehicleFilters.moving.includes('moving');
+
+      let list = shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered;
+      if (shouldPrioritizeOnRev) {
+        list = sortVehiclesByOnRevChecked(list);
+      }
+      return list;
     }
 
     function getTechList(baseList = technicians) {
