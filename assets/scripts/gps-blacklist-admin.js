@@ -11,6 +11,12 @@ const els = {
   headRow: document.getElementById('table-head-row'),
   body: document.getElementById('table-body'),
   feedback: document.getElementById('feedback'),
+  searchInput: document.getElementById('search-input'),
+  sortColumn: document.getElementById('sort-column'),
+  sortDirection: document.getElementById('sort-direction'),
+  filterColumn: document.getElementById('filter-column'),
+  filterValue: document.getElementById('filter-value'),
+  clearFiltersBtn: document.getElementById('clear-filters-btn'),
   refreshBtn: document.getElementById('refresh-btn'),
   addNewBtn: document.getElementById('add-new-btn'),
   modal: document.getElementById('row-modal'),
@@ -24,6 +30,12 @@ const els = {
 const state = {
   rows: [],
   columns: [],
+  visibleColumns: [],
+  searchQuery: '',
+  sortColumn: '',
+  sortDirection: 'asc',
+  filterColumn: '',
+  filterValue: '',
   primaryKey: null,
   editingKey: null,
   currentUserLabel: null,
@@ -31,6 +43,7 @@ const state = {
 
 const ADDED_AT_COL = 'added_at';
 const AUTO_FIELDS = new Set(['is_active', 'added_by', 'uuid']);
+const HIDDEN_COLUMNS = new Set(['uuid', 'is_active']);
 
 const setStatus = (message, tone = 'neutral') => {
   if (!els.statusPill) return;
@@ -63,7 +76,7 @@ const detectPrimaryKey = (columns) => KEY_CANDIDATES.find((key) => columns.inclu
 const getDisplayColumns = (rows) => {
   const merged = new Set();
   rows.forEach((row) => Object.keys(row || {}).forEach((key) => merged.add(key)));
-  return [...merged];
+  return [...merged].filter((key) => !HIDDEN_COLUMNS.has(normalizeColumnName(key)));
 };
 
 const findColumnByNormalizedName = (normalizedName) =>
@@ -84,6 +97,59 @@ const formatAddedAt = (value) => {
 
 const isAddedAtColumn = (columnName) => normalizeColumnName(columnName) === ADDED_AT_COL;
 
+
+
+const compareValues = (a, b) => {
+  const aText = String(a ?? '').toLowerCase();
+  const bText = String(b ?? '').toLowerCase();
+  const aNumber = Number(aText);
+  const bNumber = Number(bText);
+  const bothNumeric = !Number.isNaN(aNumber) && !Number.isNaN(bNumber) && aText !== '' && bText !== '';
+
+  if (bothNumeric) return aNumber - bNumber;
+  return aText.localeCompare(bText, 'es', { numeric: true, sensitivity: 'base' });
+};
+
+const getFilteredRows = () => {
+  const query = state.searchQuery.trim().toLowerCase();
+  const filterValue = state.filterValue.trim().toLowerCase();
+
+  let rows = [...state.rows];
+
+  if (query) {
+    rows = rows.filter((row) =>
+      state.visibleColumns.some((col) => String(row[col] ?? '').toLowerCase().includes(query)),
+    );
+  }
+
+  if (state.filterColumn && filterValue) {
+    rows = rows.filter((row) => String(row[state.filterColumn] ?? '').toLowerCase().includes(filterValue));
+  }
+
+  if (state.sortColumn) {
+    const direction = state.sortDirection === 'desc' ? -1 : 1;
+    rows.sort((a, b) => compareValues(a[state.sortColumn], b[state.sortColumn]) * direction);
+  }
+
+  return rows;
+};
+
+const renderColumnSelectors = () => {
+  const options = state.visibleColumns
+    .map((col) => `<option value="${col}">${col}</option>`)
+    .join('');
+
+  if (els.sortColumn) {
+    els.sortColumn.innerHTML = `<option value="">Sin orden</option>${options}`;
+    els.sortColumn.value = state.sortColumn && state.visibleColumns.includes(state.sortColumn) ? state.sortColumn : '';
+  }
+
+  if (els.filterColumn) {
+    els.filterColumn.innerHTML = `<option value="">Sin filtro</option>${options}`;
+    els.filterColumn.value = state.filterColumn && state.visibleColumns.includes(state.filterColumn) ? state.filterColumn : '';
+  }
+};
+
 const formatCell = (columnName, value) => {
   if (value === null || value === undefined || value === '') return '—';
   if (isAddedAtColumn(columnName)) return formatAddedAt(value);
@@ -94,7 +160,7 @@ const formatCell = (columnName, value) => {
 
 const renderHeader = () => {
   if (!els.headRow) return;
-  const headers = state.columns
+  const headers = state.visibleColumns
     .map(
       (col) =>
         `<th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-300">${col.toUpperCase()}</th>`,
@@ -107,15 +173,17 @@ const renderTable = () => {
   renderHeader();
   if (!els.body) return;
 
-  if (!state.rows.length) {
-    els.body.innerHTML = `<tr><td colspan="${Math.max(state.columns.length + 1, 2)}" class="px-4 py-8 text-center text-slate-500 italic">No hay registros en ${TABLE_NAME}.</td></tr>`;
+  const rowsToRender = getFilteredRows();
+
+  if (!rowsToRender.length) {
+    els.body.innerHTML = `<tr><td colspan="${Math.max(state.visibleColumns.length + 1, 2)}" class="px-4 py-8 text-center text-slate-500 italic">No hay registros para los filtros aplicados.</td></tr>`;
     return;
   }
 
-  els.body.innerHTML = state.rows
+  els.body.innerHTML = rowsToRender
     .map((row) => {
       const rowKey = state.primaryKey ? row[state.primaryKey] : '';
-      const cells = state.columns
+      const cells = state.visibleColumns
         .map((col) => `<td class="max-w-[260px] truncate px-3 py-2 text-slate-200" title="${String(row[col] ?? '')}">${formatCell(col, row[col])}</td>`)
         .join('');
 
@@ -135,7 +203,7 @@ const renderTable = () => {
 };
 
 const updateCounters = () => {
-  if (els.totalCount) els.totalCount.textContent = String(state.rows.length);
+  if (els.totalCount) els.totalCount.textContent = String(getFilteredRows().length);
   if (els.pkLabel) els.pkLabel.textContent = state.primaryKey || 'Not found';
   if (els.lastSync) els.lastSync.textContent = new Date().toLocaleString();
 };
@@ -145,7 +213,7 @@ const openModal = (title, row = null) => {
   els.modalTitle.textContent = title;
   els.rowForm.innerHTML = '';
 
-  const editableColumns = state.columns.filter((col) => {
+  const editableColumns = state.visibleColumns.filter((col) => {
     const normalizedCol = normalizeColumnName(col);
     return col !== state.primaryKey && !isAddedAtColumn(col) && !AUTO_FIELDS.has(normalizedCol);
   });
@@ -243,8 +311,13 @@ const fetchRows = async () => {
 
   state.rows = data || [];
   state.columns = getDisplayColumns(state.rows);
-  state.primaryKey = detectPrimaryKey(state.columns);
+  state.visibleColumns = [...state.columns];
+  state.primaryKey = detectPrimaryKey(Object.keys(state.rows[0] || {}));
 
+  if (state.sortColumn && !state.visibleColumns.includes(state.sortColumn)) state.sortColumn = '';
+  if (state.filterColumn && !state.visibleColumns.includes(state.filterColumn)) state.filterColumn = '';
+
+  renderColumnSelectors();
   renderTable();
   updateCounters();
   setStatus(`Tabla ${TABLE_NAME} lista`, 'success');
@@ -304,6 +377,47 @@ const initialize = async () => {
     }
 
     els.refreshBtn?.addEventListener('click', fetchRows);
+    els.searchInput?.addEventListener('input', (event) => {
+      state.searchQuery = event.target.value || '';
+      renderTable();
+      updateCounters();
+    });
+    els.sortColumn?.addEventListener('change', (event) => {
+      state.sortColumn = event.target.value || '';
+      renderTable();
+      updateCounters();
+    });
+    els.sortDirection?.addEventListener('change', (event) => {
+      state.sortDirection = event.target.value === 'desc' ? 'desc' : 'asc';
+      renderTable();
+      updateCounters();
+    });
+    els.filterColumn?.addEventListener('change', (event) => {
+      state.filterColumn = event.target.value || '';
+      renderTable();
+      updateCounters();
+    });
+    els.filterValue?.addEventListener('input', (event) => {
+      state.filterValue = event.target.value || '';
+      renderTable();
+      updateCounters();
+    });
+    els.clearFiltersBtn?.addEventListener('click', () => {
+      state.searchQuery = '';
+      state.sortColumn = '';
+      state.sortDirection = 'asc';
+      state.filterColumn = '';
+      state.filterValue = '';
+
+      if (els.searchInput) els.searchInput.value = '';
+      if (els.sortColumn) els.sortColumn.value = '';
+      if (els.sortDirection) els.sortDirection.value = 'asc';
+      if (els.filterColumn) els.filterColumn.value = '';
+      if (els.filterValue) els.filterValue.value = '';
+
+      renderTable();
+      updateCounters();
+    });
     els.addNewBtn?.addEventListener('click', () => openModal('Nuevo registro'));
     els.modalClose?.addEventListener('click', closeModal);
     els.modalCancel?.addEventListener('click', closeModal);
