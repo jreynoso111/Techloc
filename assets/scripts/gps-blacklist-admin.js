@@ -26,9 +26,11 @@ const state = {
   columns: [],
   primaryKey: null,
   editingKey: null,
+  currentUserLabel: null,
 };
 
 const ADDED_AT_COL = 'added_at';
+const AUTO_FIELDS = new Set(['is_active', 'added_by']);
 
 const setStatus = (message, tone = 'neutral') => {
   if (!els.statusPill) return;
@@ -60,6 +62,9 @@ const getDisplayColumns = (rows) => {
   rows.forEach((row) => Object.keys(row || {}).forEach((key) => merged.add(key)));
   return [...merged];
 };
+
+const findColumnByNormalizedName = (normalizedName) =>
+  state.columns.find((col) => String(col || '').toLowerCase() === String(normalizedName || '').toLowerCase()) || null;
 
 const formatAddedAt = (value) => {
   if (!value) return '—';
@@ -137,7 +142,10 @@ const openModal = (title, row = null) => {
   els.modalTitle.textContent = title;
   els.rowForm.innerHTML = '';
 
-  const editableColumns = state.columns.filter((col) => col !== state.primaryKey && !isAddedAtColumn(col));
+  const editableColumns = state.columns.filter((col) => {
+    const normalizedCol = String(col || '').toLowerCase();
+    return col !== state.primaryKey && !isAddedAtColumn(col) && !AUTO_FIELDS.has(normalizedCol);
+  });
 
   editableColumns.forEach((col) => {
     const value = row?.[col] ?? '';
@@ -174,6 +182,16 @@ const buildPayloadFromForm = () => {
   return payload;
 };
 
+const applyInsertDefaults = (payload) => {
+  const isActiveCol = findColumnByNormalizedName('is_active') || 'Is_Active';
+  const addedByCol = findColumnByNormalizedName('added_by') || 'ADDED_BY';
+
+  payload[isActiveCol] = true;
+  payload[addedByCol] = state.currentUserLabel || 'unknown-user';
+
+  return payload;
+};
+
 const saveModalRecord = async () => {
   const payload = buildPayloadFromForm();
   setStatus('Guardando…');
@@ -187,7 +205,8 @@ const saveModalRecord = async () => {
     }
     setFeedback('Registro actualizado correctamente.', 'success');
   } else {
-    const { error } = await supabaseClient.from(TABLE_NAME).insert([payload]);
+    const insertPayload = applyInsertDefaults(payload);
+    const { error } = await supabaseClient.from(TABLE_NAME).insert([insertPayload]);
     if (error) {
       setStatus('Error al insertar', 'error');
       setFeedback(error.message || 'No fue posible insertar.', 'error');
@@ -264,6 +283,8 @@ const handleRowActions = async (event) => {
 const initialize = async () => {
   try {
     const session = await requireSession();
+    state.currentUserLabel = session?.user?.email || session?.user?.id || 'unknown-user';
+
     const isAdmin = await validateAdminRole(session);
 
     if (!isAdmin) {
