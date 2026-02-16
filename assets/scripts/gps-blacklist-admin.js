@@ -140,12 +140,12 @@ const renderColumnSelectors = () => {
     .join('');
 
   if (els.sortColumn) {
-    els.sortColumn.innerHTML = `<option value="">Sin orden</option>${options}`;
+    els.sortColumn.innerHTML = `<option value="">No sort</option>${options}`;
     els.sortColumn.value = state.sortColumn && state.visibleColumns.includes(state.sortColumn) ? state.sortColumn : '';
   }
 
   if (els.filterColumn) {
-    els.filterColumn.innerHTML = `<option value="">Sin filtro</option>${options}`;
+    els.filterColumn.innerHTML = `<option value="">No filter</option>${options}`;
     els.filterColumn.value = state.filterColumn && state.visibleColumns.includes(state.filterColumn) ? state.filterColumn : '';
   }
 };
@@ -176,7 +176,7 @@ const renderTable = () => {
   const rowsToRender = getFilteredRows();
 
   if (!rowsToRender.length) {
-    els.body.innerHTML = `<tr><td colspan="${Math.max(state.visibleColumns.length + 1, 2)}" class="px-4 py-8 text-center text-slate-500 italic">No hay registros para los filtros aplicados.</td></tr>`;
+    els.body.innerHTML = `<tr><td colspan="${Math.max(state.visibleColumns.length + 1, 2)}" class="px-4 py-8 text-center text-slate-500 italic">No records match the applied filters.</td></tr>`;
     return;
   }
 
@@ -192,8 +192,8 @@ const renderTable = () => {
           ${cells}
           <td class="px-3 py-2">
             <div class="flex justify-end gap-2">
-              <button type="button" title="Editar" data-edit="${String(rowKey ?? '')}" class="h-7 w-7 rounded-md border border-blue-700/60 text-sm text-blue-200 hover:bg-blue-600/20">✎</button>
-              <button type="button" title="Eliminar" data-delete="${String(rowKey ?? '')}" class="h-7 w-7 rounded-md border border-red-700/60 text-sm text-red-200 hover:bg-red-600/20">🗑</button>
+              <button type="button" title="Edit" data-edit="${String(rowKey ?? '')}" class="h-7 w-7 rounded-md border border-blue-700/60 text-sm text-blue-200 hover:bg-blue-600/20">✎</button>
+              <button type="button" title="Delete" data-delete="${String(rowKey ?? '')}" class="h-7 w-7 rounded-md border border-red-700/60 text-sm text-red-200 hover:bg-red-600/20">🗑</button>
             </div>
           </td>
         </tr>
@@ -273,25 +273,25 @@ const applyInsertDefaults = (payload) => {
 
 const saveModalRecord = async () => {
   const payload = buildPayloadFromForm();
-  setStatus('Guardando…');
+  setStatus('Saving…');
 
   if (state.editingKey !== null && state.primaryKey) {
     const { error } = await supabaseClient.from(TABLE_NAME).update(payload).eq(state.primaryKey, state.editingKey);
     if (error) {
-      setStatus('Error al actualizar', 'error');
-      setFeedback(error.message || 'No fue posible actualizar.', 'error');
+      setStatus('Error updating', 'error');
+      setFeedback(error.message || 'Could not update the record.', 'error');
       return;
     }
-    setFeedback('Registro actualizado correctamente.', 'success');
+    setFeedback('Record updated successfully.', 'success');
   } else {
     const insertPayload = applyInsertDefaults(payload);
     const { error } = await supabaseClient.from(TABLE_NAME).insert([insertPayload]);
     if (error) {
-      setStatus('Error al insertar', 'error');
-      setFeedback(error.message || 'No fue posible insertar.', 'error');
+      setStatus('Error inserting', 'error');
+      setFeedback(error.message || 'Could not insert the record.', 'error');
       return;
     }
-    setFeedback('Registro insertado correctamente.', 'success');
+    setFeedback('Record inserted successfully.', 'success');
   }
 
   closeModal();
@@ -299,13 +299,13 @@ const saveModalRecord = async () => {
 };
 
 const fetchRows = async () => {
-  setStatus('Cargando…');
+  setStatus('Loading…');
   const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').limit(500);
 
   if (error) {
     console.error(`Error loading ${TABLE_NAME}`, error);
-    setStatus('Error al cargar', 'error');
-    setFeedback(error.message || 'No fue posible consultar la tabla.', 'error');
+    setStatus('Error loading', 'error');
+    setFeedback(error.message || 'Could not query the table.', 'error');
     return;
   }
 
@@ -320,8 +320,8 @@ const fetchRows = async () => {
   renderColumnSelectors();
   renderTable();
   updateCounters();
-  setStatus(`Tabla ${TABLE_NAME} lista`, 'success');
-  setFeedback(`Se cargaron ${state.rows.length} registros.`, 'success');
+  setStatus(`${TABLE_NAME} table ready`, 'success');
+  setFeedback(`Loaded ${state.rows.length} records.`, 'success');
 };
 
 const validateAdminRole = async (session) => {
@@ -344,22 +344,22 @@ const handleRowActions = async (event) => {
   if (editValue !== undefined) {
     const row = state.rows.find((entry) => String(entry[state.primaryKey]) === String(editValue));
     if (!row) return;
-    openModal('Editar registro', row);
+    openModal('Edit record', row);
     return;
   }
 
   if (deleteValue !== undefined) {
-    if (!window.confirm(`¿Eliminar ${state.primaryKey}=${deleteValue}?`)) return;
+    if (!window.confirm(`Delete ${state.primaryKey}=${deleteValue}?`)) return;
 
-    setStatus('Eliminando…');
+    setStatus('Deleting…');
     const { error } = await supabaseClient.from(TABLE_NAME).delete().eq(state.primaryKey, deleteValue);
     if (error) {
-      setStatus('Error al eliminar', 'error');
-      setFeedback(error.message || 'No fue posible eliminar.', 'error');
+      setStatus('Error deleting', 'error');
+      setFeedback(error.message || 'Could not delete the record.', 'error');
       return;
     }
 
-    setFeedback('Registro eliminado correctamente.', 'success');
+    setFeedback('Record deleted successfully.', 'success');
     await fetchRows();
   }
 };
@@ -418,20 +418,20 @@ const initialize = async () => {
       renderTable();
       updateCounters();
     });
-    els.addNewBtn?.addEventListener('click', () => openModal('Nuevo registro'));
+    els.addNewBtn?.addEventListener('click', () => openModal('New record'));
     els.modalClose?.addEventListener('click', closeModal);
     els.modalCancel?.addEventListener('click', closeModal);
     els.modalSave?.addEventListener('click', () => {
       saveModalRecord().catch((error) => {
         console.error('Save failed', error);
-        setFeedback('No fue posible guardar el registro.', 'error');
+        setFeedback('Could not save the record.', 'error');
       });
     });
 
     els.body?.addEventListener('click', (event) => {
       handleRowActions(event).catch((error) => {
         console.error('Row action failed', error);
-        setFeedback('No fue posible completar la acción.', 'error');
+        setFeedback('Could not complete the action.', 'error');
       });
     });
 
@@ -439,7 +439,7 @@ const initialize = async () => {
     window.lucide?.createIcons();
   } catch (error) {
     console.error('GPS blacklist admin initialization failed', error);
-    setStatus('Error de sesión', 'error');
+    setStatus('Session error', 'error');
   }
 };
 
