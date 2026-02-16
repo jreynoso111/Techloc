@@ -30,7 +30,7 @@ const state = {
 };
 
 const ADDED_AT_COL = 'added_at';
-const AUTO_FIELDS = new Set(['is_active', 'added_by']);
+const AUTO_FIELDS = new Set(['is_active', 'added_by', 'uuid']);
 
 const setStatus = (message, tone = 'neutral') => {
   if (!els.statusPill) return;
@@ -55,6 +55,9 @@ const setFeedback = (message, tone = 'neutral') => {
   els.feedback.className = `min-h-5 text-xs ${toneClasses[tone] || toneClasses.neutral}`;
 };
 
+
+const normalizeColumnName = (value) => String(value || '').trim().toLowerCase();
+
 const detectPrimaryKey = (columns) => KEY_CANDIDATES.find((key) => columns.includes(key)) || null;
 
 const getDisplayColumns = (rows) => {
@@ -64,7 +67,7 @@ const getDisplayColumns = (rows) => {
 };
 
 const findColumnByNormalizedName = (normalizedName) =>
-  state.columns.find((col) => String(col || '').toLowerCase() === String(normalizedName || '').toLowerCase()) || null;
+  state.columns.find((col) => normalizeColumnName(col) === normalizeColumnName(normalizedName)) || null;
 
 const formatAddedAt = (value) => {
   if (!value) return '—';
@@ -79,7 +82,7 @@ const formatAddedAt = (value) => {
   return `${mm}/${dd}/${yy} [${hh}:${min}]`;
 };
 
-const isAddedAtColumn = (columnName) => String(columnName || '').toLowerCase() === ADDED_AT_COL;
+const isAddedAtColumn = (columnName) => normalizeColumnName(columnName) === ADDED_AT_COL;
 
 const formatCell = (columnName, value) => {
   if (value === null || value === undefined || value === '') return '—';
@@ -143,7 +146,7 @@ const openModal = (title, row = null) => {
   els.rowForm.innerHTML = '';
 
   const editableColumns = state.columns.filter((col) => {
-    const normalizedCol = String(col || '').toLowerCase();
+    const normalizedCol = normalizeColumnName(col);
     return col !== state.primaryKey && !isAddedAtColumn(col) && !AUTO_FIELDS.has(normalizedCol);
   });
 
@@ -183,13 +186,21 @@ const buildPayloadFromForm = () => {
 };
 
 const applyInsertDefaults = (payload) => {
-  const isActiveCol = findColumnByNormalizedName('is_active') || 'Is_Active';
+  const sanitizedPayload = { ...payload };
+
+  Object.keys(sanitizedPayload).forEach((column) => {
+    if (normalizeColumnName(column) === 'uuid') {
+      delete sanitizedPayload[column];
+    }
+  });
+
+  const isActiveCol = findColumnByNormalizedName('is_active') || 'Is_active';
   const addedByCol = findColumnByNormalizedName('added_by') || 'ADDED_BY';
 
-  payload[isActiveCol] = true;
-  payload[addedByCol] = state.currentUserLabel || 'unknown-user';
+  sanitizedPayload[isActiveCol] = true;
+  sanitizedPayload[addedByCol] = state.currentUserLabel || 'unknown-user';
 
-  return payload;
+  return sanitizedPayload;
 };
 
 const saveModalRecord = async () => {
