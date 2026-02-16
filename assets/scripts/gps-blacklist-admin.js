@@ -10,12 +10,15 @@ const els = {
   lastSync: document.getElementById('last-sync'),
   headRow: document.getElementById('table-head-row'),
   body: document.getElementById('table-body'),
-  rowJson: document.getElementById('row-json'),
-  formMode: document.getElementById('form-mode'),
   feedback: document.getElementById('feedback'),
   refreshBtn: document.getElementById('refresh-btn'),
-  saveBtn: document.getElementById('save-btn'),
-  newBtn: document.getElementById('new-btn'),
+  addNewBtn: document.getElementById('add-new-btn'),
+  modal: document.getElementById('row-modal'),
+  modalTitle: document.getElementById('modal-title'),
+  modalClose: document.getElementById('modal-close'),
+  modalCancel: document.getElementById('modal-cancel'),
+  modalSave: document.getElementById('modal-save'),
+  rowForm: document.getElementById('row-form'),
 };
 
 const state = {
@@ -25,9 +28,10 @@ const state = {
   editingKey: null,
 };
 
+const ADDED_AT_COL = 'added_at';
+
 const setStatus = (message, tone = 'neutral') => {
   if (!els.statusPill) return;
-
   const toneClasses = {
     neutral: 'border-slate-700 bg-slate-900 text-slate-300',
     success: 'border-emerald-700/60 bg-emerald-900/50 text-emerald-200',
@@ -52,29 +56,43 @@ const setFeedback = (message, tone = 'neutral') => {
 const detectPrimaryKey = (columns) => KEY_CANDIDATES.find((key) => columns.includes(key)) || null;
 
 const getDisplayColumns = (rows) => {
-  if (!rows.length) return [];
   const merged = new Set();
   rows.forEach((row) => Object.keys(row || {}).forEach((key) => merged.add(key)));
   return [...merged];
 };
 
-const formatCell = (value) => {
-  if (value === null || value === undefined) return '—';
+const formatAddedAt = (value) => {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const yy = String(date.getFullYear()).slice(-2);
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${mm}/${dd}/${yy} [${hh}:${min}]`;
+};
+
+const isAddedAtColumn = (columnName) => String(columnName || '').toLowerCase() === ADDED_AT_COL;
+
+const formatCell = (columnName, value) => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (isAddedAtColumn(columnName)) return formatAddedAt(value);
   if (typeof value === 'object') return JSON.stringify(value);
-  const stringValue = String(value);
-  return stringValue.length > 60 ? `${stringValue.slice(0, 57)}...` : stringValue;
+  const valueText = String(value);
+  return valueText.length > 80 ? `${valueText.slice(0, 77)}...` : valueText;
 };
 
 const renderHeader = () => {
   if (!els.headRow) return;
-  const selectedColumns = state.columns.slice(0, 6);
-  const headers = selectedColumns
+  const headers = state.columns
     .map(
       (col) =>
-        `<th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-300">${col}</th>`,
+        `<th class="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-300">${col.toUpperCase()}</th>`,
     )
     .join('');
-  els.headRow.innerHTML = `${headers}<th class="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">Actions</th>`;
+  els.headRow.innerHTML = `${headers}<th class="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-300">ACCIONES</th>`;
 };
 
 const renderTable = () => {
@@ -82,31 +100,24 @@ const renderTable = () => {
   if (!els.body) return;
 
   if (!state.rows.length) {
-    els.body.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-500 italic">No hay registros en gps_blacklist.</td></tr>';
+    els.body.innerHTML = `<tr><td colspan="${Math.max(state.columns.length + 1, 2)}" class="px-4 py-8 text-center text-slate-500 italic">No hay registros en ${TABLE_NAME}.</td></tr>`;
     return;
   }
 
-  const visibleColumns = state.columns.slice(0, 6);
-
   els.body.innerHTML = state.rows
     .map((row) => {
-      const keyValue = state.primaryKey ? row[state.primaryKey] : null;
-      const cells = visibleColumns
-        .map(
-          (col) =>
-            `<td class="max-w-[220px] truncate px-3 py-2 text-slate-200" title="${String(row[col] ?? '')}">${formatCell(row[col])}</td>`,
-        )
+      const rowKey = state.primaryKey ? row[state.primaryKey] : '';
+      const cells = state.columns
+        .map((col) => `<td class="max-w-[260px] truncate px-3 py-2 text-slate-200" title="${String(row[col] ?? '')}">${formatCell(col, row[col])}</td>`)
         .join('');
-
-      const disabledDelete = keyValue === null || keyValue === undefined ? 'disabled opacity-40 cursor-not-allowed' : '';
 
       return `
         <tr class="hover:bg-slate-800/40">
           ${cells}
           <td class="px-3 py-2">
             <div class="flex justify-end gap-2">
-              <button type="button" data-edit="${state.primaryKey ? String(keyValue ?? '') : ''}" class="rounded-md border border-blue-700/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-200 hover:bg-blue-600/20">Edit</button>
-              <button type="button" data-delete="${state.primaryKey ? String(keyValue ?? '') : ''}" class="rounded-md border border-red-700/60 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-200 hover:bg-red-600/20 ${disabledDelete}">Delete</button>
+              <button type="button" title="Editar" data-edit="${String(rowKey ?? '')}" class="h-7 w-7 rounded-md border border-blue-700/60 text-sm text-blue-200 hover:bg-blue-600/20">✎</button>
+              <button type="button" title="Eliminar" data-delete="${String(rowKey ?? '')}" class="h-7 w-7 rounded-md border border-red-700/60 text-sm text-red-200 hover:bg-red-600/20">🗑</button>
             </div>
           </td>
         </tr>
@@ -121,12 +132,72 @@ const updateCounters = () => {
   if (els.lastSync) els.lastSync.textContent = new Date().toLocaleString();
 };
 
-const resetEditor = () => {
+const openModal = (title, row = null) => {
+  state.editingKey = row && state.primaryKey ? row[state.primaryKey] : null;
+  els.modalTitle.textContent = title;
+  els.rowForm.innerHTML = '';
+
+  const editableColumns = state.columns.filter((col) => col !== state.primaryKey && !isAddedAtColumn(col));
+
+  editableColumns.forEach((col) => {
+    const value = row?.[col] ?? '';
+    const fieldId = `field-${col}`;
+    const inputType = typeof value === 'number' ? 'number' : 'text';
+    els.rowForm.insertAdjacentHTML(
+      'beforeend',
+      `
+      <label class="grid gap-1 text-xs font-semibold uppercase tracking-wide text-slate-300" for="${fieldId}">
+        <span>${col}</span>
+        <input id="${fieldId}" data-field="${col}" type="${inputType}" value="${String(value).replaceAll('"', '&quot;')}" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 focus:border-blue-500 focus:outline-none" />
+      </label>
+      `,
+    );
+  });
+
+  els.modal.classList.remove('hidden');
+  els.modal.classList.add('flex');
+};
+
+const closeModal = () => {
   state.editingKey = null;
-  if (els.formMode) els.formMode.textContent = 'Modo: crear nuevo';
-  if (els.rowJson) {
-    els.rowJson.value = '{\n  "serial": "",\n  "reason": ""\n}';
+  els.modal.classList.add('hidden');
+  els.modal.classList.remove('flex');
+};
+
+const buildPayloadFromForm = () => {
+  const payload = {};
+  els.rowForm.querySelectorAll('[data-field]').forEach((input) => {
+    const field = input.dataset.field;
+    const raw = input.value;
+    payload[field] = raw === '' ? null : raw;
+  });
+  return payload;
+};
+
+const saveModalRecord = async () => {
+  const payload = buildPayloadFromForm();
+  setStatus('Guardando…');
+
+  if (state.editingKey !== null && state.primaryKey) {
+    const { error } = await supabaseClient.from(TABLE_NAME).update(payload).eq(state.primaryKey, state.editingKey);
+    if (error) {
+      setStatus('Error al actualizar', 'error');
+      setFeedback(error.message || 'No fue posible actualizar.', 'error');
+      return;
+    }
+    setFeedback('Registro actualizado correctamente.', 'success');
+  } else {
+    const { error } = await supabaseClient.from(TABLE_NAME).insert([payload]);
+    if (error) {
+      setStatus('Error al insertar', 'error');
+      setFeedback(error.message || 'No fue posible insertar.', 'error');
+      return;
+    }
+    setFeedback('Registro insertado correctamente.', 'success');
   }
+
+  closeModal();
+  await fetchRows();
 };
 
 const fetchRows = async () => {
@@ -163,82 +234,25 @@ const validateAdminRole = async (session) => {
   return String(data?.role || '').toLowerCase() === 'administrator';
 };
 
-const handleSave = async () => {
-  let payload;
-  try {
-    payload = JSON.parse(els.rowJson.value || '{}');
-  } catch (error) {
-    setFeedback('JSON inválido. Corrige el formato antes de guardar.', 'error');
-    return;
-  }
-
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    setFeedback('El payload debe ser un objeto JSON.', 'error');
-    return;
-  }
-
-  setStatus('Guardando…');
-
-  if (state.editingKey !== null && state.primaryKey) {
-    const updatePayload = { ...payload };
-    delete updatePayload[state.primaryKey];
-
-    const { error } = await supabaseClient.from(TABLE_NAME).update(updatePayload).eq(state.primaryKey, state.editingKey);
-    if (error) {
-      setStatus('Error al actualizar', 'error');
-      setFeedback(error.message || 'No fue posible actualizar el registro.', 'error');
-      return;
-    }
-
-    setFeedback('Registro actualizado correctamente.', 'success');
-  } else {
-    const { error } = await supabaseClient.from(TABLE_NAME).insert([payload]);
-    if (error) {
-      setStatus('Error al insertar', 'error');
-      setFeedback(error.message || 'No fue posible insertar el registro.', 'error');
-      return;
-    }
-
-    setFeedback('Registro insertado correctamente.', 'success');
-  }
-
-  resetEditor();
-  await fetchRows();
-};
-
 const handleRowActions = async (event) => {
   const editValue = event.target.closest('[data-edit]')?.dataset.edit;
   const deleteValue = event.target.closest('[data-delete]')?.dataset.delete;
 
   if (editValue !== undefined) {
-    if (!state.primaryKey) {
-      setFeedback('No se detectó columna llave para editar.', 'error');
-      return;
-    }
-
     const row = state.rows.find((entry) => String(entry[state.primaryKey]) === String(editValue));
     if (!row) return;
-
-    state.editingKey = row[state.primaryKey];
-    els.rowJson.value = JSON.stringify(row, null, 2);
-    els.formMode.textContent = `Modo: editando ${state.primaryKey}=${String(state.editingKey)}`;
-    setFeedback('Registro cargado en el editor.', 'neutral');
+    openModal('Editar registro', row);
     return;
   }
 
   if (deleteValue !== undefined) {
-    if (!state.primaryKey) {
-      setFeedback('No se detectó columna llave para eliminar.', 'error');
-      return;
-    }
-
     if (!window.confirm(`¿Eliminar ${state.primaryKey}=${deleteValue}?`)) return;
 
     setStatus('Eliminando…');
     const { error } = await supabaseClient.from(TABLE_NAME).delete().eq(state.primaryKey, deleteValue);
     if (error) {
       setStatus('Error al eliminar', 'error');
-      setFeedback(error.message || 'No fue posible eliminar el registro.', 'error');
+      setFeedback(error.message || 'No fue posible eliminar.', 'error');
       return;
     }
 
@@ -258,11 +272,16 @@ const initialize = async () => {
     }
 
     els.refreshBtn?.addEventListener('click', fetchRows);
-    els.saveBtn?.addEventListener('click', handleSave);
-    els.newBtn?.addEventListener('click', () => {
-      resetEditor();
-      setFeedback('Editor reiniciado para nuevo registro.', 'neutral');
+    els.addNewBtn?.addEventListener('click', () => openModal('Nuevo registro'));
+    els.modalClose?.addEventListener('click', closeModal);
+    els.modalCancel?.addEventListener('click', closeModal);
+    els.modalSave?.addEventListener('click', () => {
+      saveModalRecord().catch((error) => {
+        console.error('Save failed', error);
+        setFeedback('No fue posible guardar el registro.', 'error');
+      });
     });
+
     els.body?.addEventListener('click', (event) => {
       handleRowActions(event).catch((error) => {
         console.error('Row action failed', error);
