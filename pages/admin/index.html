@@ -266,6 +266,15 @@
                     <span>Upload</span>
                   </button>
                 </form>
+                <div id="pt-ping-progress" class="hidden space-y-2">
+                  <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                    <span id="pt-ping-progress-label">Initializing…</span>
+                    <span id="pt-ping-progress-count">0%</span>
+                  </div>
+                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div id="pt-ping-progress-bar" class="h-2 w-0 bg-indigo-500 transition-all duration-200"></div>
+                  </div>
+                </div>
                 <p id="pt-ping-status" class="text-xs leading-relaxed text-slate-400">Serial is required; all rows are sent to Supabase (no VIN check). Conflicts resolved by VIN + Serial.</p>
                 <details id="pt-error-box" class="hidden overflow-hidden rounded-xl border border-rose-900/60 bg-rose-950/60 text-xs text-rose-100 shadow-inner shadow-rose-950/50">
                   <summary class="cursor-pointer px-3 py-2 font-semibold text-rose-200">Error details</summary>
@@ -357,7 +366,7 @@
       'Lat',
       'Long',
     ];
-    const PT_PING_BATCH_SIZE = 50;
+    const PT_PING_BATCH_SIZE = 10;
     const PT_PING_BATCH_DELAY_MS = 150;
     const PT_PING_HEADER_MAP = (() => {
       const map = new Map();
@@ -1525,6 +1534,10 @@
 
       const submitBtn = document.getElementById('pt-ping-upload-button');
       const status = document.getElementById('pt-ping-status');
+      const progressWrap = document.getElementById('pt-ping-progress');
+      const progressBar = document.getElementById('pt-ping-progress-bar');
+      const progressLabel = document.getElementById('pt-ping-progress-label');
+      const progressCount = document.getElementById('pt-ping-progress-count');
       const errorBox = document.getElementById('pt-error-box');
       const errorPre = document.getElementById('pt-error-pre');
       const rejectedRows = [];
@@ -1614,12 +1627,21 @@
         if (status) status.textContent = text;
       };
 
+      const setProgress = (percent, label) => {
+        const safePercent = Math.max(0, Math.min(100, percent));
+        if (progressWrap) progressWrap.classList.remove('hidden');
+        if (progressBar) progressBar.style.width = `${safePercent}%`;
+        if (progressLabel && label) progressLabel.textContent = label;
+        if (progressCount) progressCount.textContent = `${Math.round(safePercent)}%`;
+      };
+
       const resetErrorBox = () => {
         if (errorBox) errorBox.classList.add('hidden');
         if (errorPre) errorPre.textContent = '';
       };
 
       resetErrorBox();
+      setProgress(0, 'Preparing upload...');
 
       setStatus(`Validating ${cleanedRows.length} rows (Serial and Date required)...`);
       let dealsVinSet;
@@ -1630,6 +1652,7 @@
         console.error('Failed to load Deals VINs', err);
         showToast('Unable to load Deals VINs for validation.', 'error');
         setStatus('VIN validation unavailable.');
+        setProgress(0, 'Validation failed');
         showPtError(err, 'Deals VIN fetch failed');
         return;
       }
@@ -1670,52 +1693,65 @@
 
       if (!validRows.length) {
         setStatus('No rows contained both Serial and Date values.');
+        setProgress(0, 'No valid rows');
         showToast('No rows contained both Serial and Date values.', 'error');
         return;
       }
 
       const dedupedRows = deduplicateValidRows(validRows);
       const totalBatches = Math.ceil(dedupedRows.length / PT_PING_BATCH_SIZE);
-      const serialsForRecalc = new Set();
+      const serialsForRecalc = Array.from(
+        new Set(
+          dedupedRows
+            .map((row) => row?.['Serial'])
+            .filter((serial) => serial !== undefined && serial !== null && `${serial}`.trim() !== '')
+        )
+      );
 
       for (let i = 0; i < dedupedRows.length; i += PT_PING_BATCH_SIZE) {
         const batchNumber = Math.floor(i / PT_PING_BATCH_SIZE) + 1;
         const sliceEnd = i + PT_PING_BATCH_SIZE;
         const batchRows = dedupedRows.slice(i, sliceEnd);
-        batchRows.forEach((row) => {
-          const serial = row?.['Serial'];
-          if (serial) serialsForRecalc.add(serial);
-        });
         const batch = batchRows.map(buildSlimPtPayload);
 
         setStatus(`Uploading batch ${batchNumber} of ${totalBatches} (${Math.min(sliceEnd, dedupedRows.length)} of ${dedupedRows.length})...`);
-        const { data, error } = await supabaseClient
+        setProgress(((batchNumber - 1) / totalBatches) * 90, `Uploading batch ${batchNumber}/${totalBatches}`);
+        const { error, count } = await supabaseClient
           .from('PT-LastPing')
-          .upsert(batch, { onConflict: '"Serial",read_day,day_half', ignoreDuplicates: true })
-          .select();
+          .upsert(batch, {
+            onConflict: '"Serial",read_day,day_half',
+            ignoreDuplicates: true,
+            count: 'exact',
+          });
 
         if (error) {
           console.error('Supabase insert error:', { error, batchNumber });
           if (isRlsBlocked(error)) {
             showToast('Upload blocked by security policy (RLS).', 'error');
             setStatus('Upload blocked by security policy (RLS).');
+            setProgress(((batchNumber - 1) / totalBatches) * 90, `Batch ${batchNumber} blocked`);
             showPtError(error, `Batch ${batchNumber} blocked`);
             return;
           }
           showToast('Upload failed', 'error');
           setStatus('Upload failed: ' + (error?.message || 'Unknown error'));
+          setProgress(((batchNumber - 1) / totalBatches) * 90, `Batch ${batchNumber} failed`);
           showPtError(error, `Batch ${batchNumber} failed`);
           throw error;
         }
 
-        const insertedCount = Array.isArray(data) ? data.length : 0;
+        const insertedCount = typeof count === 'number' ? count : batch.length;
         aggregated.batches += 1;
         aggregated.inserted += insertedCount;
         aggregated.skippedSupabaseDuplicates += Math.max(0, batch.length - insertedCount);
+        setProgress((batchNumber / totalBatches) * 90, `Uploaded batch ${batchNumber}/${totalBatches}`);
         await new Promise((resolve) => setTimeout(resolve, PT_PING_BATCH_DELAY_MS));
       }
 
-      await recalcPtMovedForSerials(Array.from(serialsForRecalc));
+      setStatus(`Running PT recalc for ${serialsForRecalc.length} serials...`);
+      setProgress(95, `Running recalc RPC (${serialsForRecalc.length} serials)`);
+      await recalcPtMovedForSerials(serialsForRecalc);
+      setProgress(100, 'Done');
 
       const summary =
         'Completed.' +
