@@ -262,8 +262,8 @@ const applyInsertDefaults = (payload) => {
     }
   });
 
-  const isActiveCol = findColumnByNormalizedName('is_active') || 'Is_active';
-  const addedByCol = findColumnByNormalizedName('added_by') || 'ADDED_BY';
+  const isActiveCol = findColumnByNormalizedName('is_active') || 'is_active';
+  const addedByCol = findColumnByNormalizedName('added_by') || 'added_by';
 
   sanitizedPayload[isActiveCol] = true;
   sanitizedPayload[addedByCol] = state.currentUserLabel || 'unknown-user';
