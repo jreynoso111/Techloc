@@ -204,6 +204,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
     const getCurrentUserId = async () => {
       if (!supabaseClient?.auth?.getSession) return null;
+      try {
+        await ensureSupabaseSession();
+      } catch (_) {
+        // keep fallback below; auth state can still resolve through an existing session
+      }
       const { data, error } = await supabaseClient.auth.getSession();
       if (error) return null;
       return data?.session?.user?.id || null;
@@ -257,7 +262,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const userId = await getCurrentUserId();
       const vin = getVehicleVin(vehicle);
       if (!userId || !vin) return;
-      await supabaseClient
+      const { error } = await supabaseClient
         .from(VEHICLE_CLICK_HISTORY_TABLE)
         .insert({
           user_id: userId,
@@ -268,6 +273,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           action: 'toggle_on_rev',
           metadata: { checked: isChecked },
         });
+      if (error) {
+        console.warn('Vehicle click history save warning: ' + (error?.message || error));
+      }
     };
 
     const formatPayKpi = (value) => {
