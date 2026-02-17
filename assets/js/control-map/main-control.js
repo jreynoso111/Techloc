@@ -195,12 +195,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     };
 
 
-    const getVehicleVin = (vehicle) => String(
+    const normalizeVin = (value) => String(value || '').trim().toUpperCase();
+
+    const getVehicleVin = (vehicle) => normalizeVin(
       getField(vehicle?.details || {}, 'VIN', 'Vin', 'vin')
       || vehicle?.VIN
       || vehicle?.vin
       || ''
-    ).trim();
+    );
 
     const getCurrentUserId = async () => {
       if (!supabaseClient?.auth?.getSession) return null;
@@ -222,18 +224,19 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       const vins = Array.from(new Set(vehicleRows.map((vehicle) => getVehicleVin(vehicle)).filter(Boolean)));
       if (!vins.length) return;
 
+      const queryVins = Array.from(new Set(vins.flatMap((vin) => [vin, vin.toLowerCase()])));
       const { data, error } = await supabaseClient
         .from(VEHICLE_CLICK_HISTORY_TABLE)
         .select('vin, clicked_at, metadata')
         .eq('user_id', userId)
-        .in('vin', vins)
+        .in('vin', queryVins)
         .order('clicked_at', { ascending: false });
 
       if (error || !Array.isArray(data)) return;
 
       const latestByVin = new Map();
       data.forEach((row) => {
-        const vin = String(row?.vin || '').trim();
+        const vin = normalizeVin(row?.vin);
         const clickedAt = String(row?.clicked_at || '').trim();
         if (!vin || !clickedAt || latestByVin.has(vin)) return;
         latestByVin.set(vin, {
