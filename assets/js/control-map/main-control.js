@@ -242,6 +242,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     }
 
     const getVehicleFiltersStorageKey = (userId) => `${VEHICLE_FILTERS_STORAGE_KEY}:${userId || 'anonymous'}`;
+    const getVehicleFiltersStorageKeys = (userId) => {
+      const normalizedUserId = `${userId || ''}`.trim();
+      if (!normalizedUserId) return [getVehicleFiltersStorageKey('anonymous')];
+      return [
+        getVehicleFiltersStorageKey(normalizedUserId),
+        getVehicleFiltersStorageKey('anonymous')
+      ];
+    };
 
     const normalizeVehicleFilterPayload = (payload = {}) => {
       const toArray = (value) => (Array.isArray(value)
@@ -301,7 +309,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       if (typeof window === 'undefined' || !window.localStorage) return;
       try {
         const userId = await getCurrentUserId();
-        const raw = localStorage.getItem(getVehicleFiltersStorageKey(userId));
+        const storageKeys = getVehicleFiltersStorageKeys(userId);
+        const raw = storageKeys
+          .map((storageKey) => localStorage.getItem(storageKey))
+          .find((value) => Boolean(value));
         if (!raw) return;
         const parsed = JSON.parse(raw);
         applyVehicleFilterPayload(parsed);
@@ -314,10 +325,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       if (typeof window === 'undefined' || !window.localStorage) return;
       try {
         const userId = await getCurrentUserId();
-        localStorage.setItem(
-          getVehicleFiltersStorageKey(userId),
-          JSON.stringify(normalizeVehicleFilterPayload(vehicleFilters))
-        );
+        const payload = JSON.stringify(normalizeVehicleFilterPayload(vehicleFilters));
+        getVehicleFiltersStorageKeys(userId).forEach((storageKey) => {
+          localStorage.setItem(storageKey, payload);
+        });
       } catch (error) {
         console.warn('Failed to save vehicle filter preferences.', error);
       }
