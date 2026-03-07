@@ -8376,7 +8376,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
       const syncResetButtonVisibility = () => {
         const shouldShow = !isMapAtDefaultView();
-        button.hidden = !shouldShow;
+        button.classList.toggle('legend-reset-button-hidden', !shouldShow);
+        button.setAttribute('aria-hidden', shouldShow ? 'false' : 'true');
         separator?.classList.toggle('has-button', shouldShow);
       };
 
@@ -8390,8 +8391,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         });
       });
 
-      map?.on?.('moveend zoomend', syncResetButtonVisibility);
-      syncResetButtonVisibility();
+      const syncResetButtonVisibilitySoon = () => {
+        syncResetButtonVisibility();
+        if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(() => syncResetButtonVisibility());
+        }
+        window.setTimeout(() => syncResetButtonVisibility(), 90);
+      };
+
+      map?.on?.('zoom move zoomend moveend viewreset resize', syncResetButtonVisibilitySoon);
+      syncResetButtonVisibilitySoon();
     }
 
     function setupAddressSearch({ formId, inputId, buttonId, statusId, partnerType }) {
