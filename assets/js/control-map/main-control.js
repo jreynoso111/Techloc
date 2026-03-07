@@ -299,6 +299,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       };
     };
 
+    const getVehicleFilterPayloadSavedAt = (payload = {}) => {
+      const savedAt = Number(payload?.savedAt);
+      return Number.isFinite(savedAt) && savedAt > 0 ? savedAt : 0;
+    };
+
     const applyVehicleFilterPayload = (payload = {}) => {
       const normalized = normalizeVehicleFilterPayload(payload);
       Object.assign(vehicleFilters, normalized);
@@ -310,12 +315,22 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       try {
         const userId = await getCurrentUserId();
         const storageKeys = getVehicleFiltersStorageKeys(userId);
-        const raw = storageKeys
-          .map((storageKey) => localStorage.getItem(storageKey))
-          .find((value) => Boolean(value));
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        applyVehicleFilterPayload(parsed);
+        const payloads = storageKeys
+          .map((storageKey) => {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return null;
+            try {
+              return JSON.parse(raw);
+            } catch (_error) {
+              return null;
+            }
+          })
+          .filter(Boolean);
+        if (!payloads.length) return;
+        const selectedPayload = payloads.sort((left, right) => (
+          getVehicleFilterPayloadSavedAt(right) - getVehicleFilterPayloadSavedAt(left)
+        ))[0];
+        applyVehicleFilterPayload(selectedPayload);
       } catch (error) {
         console.warn('Failed to load vehicle filter preferences.', error);
       }
@@ -325,7 +340,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       if (typeof window === 'undefined' || !window.localStorage) return;
       try {
         const userId = await getCurrentUserId();
-        const payload = JSON.stringify(normalizeVehicleFilterPayload(vehicleFilters));
+        const payload = JSON.stringify({
+          ...normalizeVehicleFilterPayload(vehicleFilters),
+          savedAt: Date.now()
+        });
         getVehicleFiltersStorageKeys(userId).forEach((storageKey) => {
           localStorage.setItem(storageKey, payload);
         });
