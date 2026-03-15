@@ -91,6 +91,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
+    const vehicleMarkerHeadingPendingRequests = new Map();
+    const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 24;
+    const VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY = 4;
     let sidebarStateController = null;
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
@@ -321,6 +324,17 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         if (vehicle?.details && typeof vehicle.details === 'object') {
           vehicle.details.avgMovingMilesPerDay = previousAvgMovingMiles;
         }
+      }
+
+      const previousCoords = getVehicleTrailAnchorPoint(previousVehicle);
+      const currentCoords = getVehicleTrailAnchorPoint(vehicle);
+      if (previousCoords && currentCoords) {
+        const distanceMeters = getGpsPointDistanceMeters(previousCoords, currentCoords);
+        if (Number.isFinite(distanceMeters) && distanceMeters >= 5) {
+          vehicle.markerHeadingDegrees = getGpsTrailBearingDegrees(previousCoords, currentCoords);
+        }
+      } else if (Number.isFinite(normalizeHeadingDegrees(previousVehicle?.markerHeadingDegrees))) {
+        vehicle.markerHeadingDegrees = previousVehicle.markerHeadingDegrees;
       }
     };
 
@@ -4714,6 +4728,158 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       return bearing;
     };
 
+    const normalizeHeadingDegrees = (value) => {
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) return null;
+      const normalized = ((parsed % 360) + 360) % 360;
+      return Number.isFinite(normalized) ? normalized : null;
+    };
+
+    const parseGpsHeadingDegrees = (record = {}) => {
+      const headingCandidates = [
+        record?.heading,
+        record?.Heading,
+        record?.course,
+        record?.Course,
+        record?.bearing,
+        record?.Bearing,
+        record?.direction,
+        record?.Direction
+      ];
+
+      for (const candidate of headingCandidates) {
+        const parsed = parseGpsNumericValue(candidate);
+        const normalized = normalizeHeadingDegrees(parsed);
+        if (normalized !== null) return normalized;
+      }
+
+      return null;
+    };
+
+    const getVehicleMarkerHeading = (vehicle = {}) => {
+      const directCandidates = [
+        vehicle?.markerHeadingDegrees,
+        vehicle?.heading,
+        vehicle?.Heading,
+        vehicle?.course,
+        vehicle?.Course,
+        vehicle?.bearing,
+        vehicle?.Bearing,
+        vehicle?.details?.heading,
+        vehicle?.details?.Heading,
+        vehicle?.details?.course,
+        vehicle?.details?.Course,
+        vehicle?.details?.bearing,
+        vehicle?.details?.Bearing
+      ];
+
+      for (const candidate of directCandidates) {
+        const parsed = parseGpsNumericValue(candidate);
+        const normalized = normalizeHeadingDegrees(parsed);
+        if (normalized !== null) return normalized;
+      }
+
+      return 0;
+    };
+
+    const resolveVehicleMarkerHeadingFromTrail = (trailPoints = [], latestRecords = []) => {
+      if (Array.isArray(trailPoints) && trailPoints.length >= 2) {
+        for (let index = trailPoints.length - 1; index > 0; index -= 1) {
+          const currentPoint = trailPoints[index];
+          const previousPoint = trailPoints[index - 1];
+          if (!previousPoint || !currentPoint) continue;
+          const distanceMeters = getGpsPointDistanceMeters(previousPoint, currentPoint);
+          if (!Number.isFinite(distanceMeters) || distanceMeters < 1) continue;
+          return getGpsTrailBearingDegrees(previousPoint, currentPoint);
+        }
+      }
+
+      const latestHeading = [...latestRecords]
+        .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
+        .map((record) => parseGpsHeadingDegrees(record))
+        .find((value) => value !== null);
+      return latestHeading !== undefined ? latestHeading : null;
+    };
+
+    const applyVehicleMarkerHeading = (vehicle = {}, headingDegrees = null) => {
+      const normalizedHeading = normalizeHeadingDegrees(headingDegrees);
+      const previousHeading = normalizeHeadingDegrees(vehicle?.markerHeadingDegrees);
+      if (normalizedHeading === null) return false;
+      if (previousHeading !== null && Math.abs(previousHeading - normalizedHeading) < 0.1) return false;
+      vehicle.markerHeadingDegrees = normalizedHeading;
+      return true;
+    };
+
+    const getVehicleMarkerHeadingRequestKey = (vehicle = {}) => {
+      const vehicleId = `${gpsHistoryManager?.getVehicleId?.(vehicle) || vehicle?.id || ''}`.trim();
+      const vehicleVin = `${gpsHistoryManager?.getVehicleVin?.(vehicle) || vehicle?.vin || ''}`.trim().toUpperCase();
+      if (!vehicleId && !vehicleVin) return '';
+      return `${vehicleId}::${vehicleVin}`;
+    };
+
+    const preloadVehicleMarkerHeading = async (vehicle = {}) => {
+      if (!vehicle || Number.isFinite(normalizeHeadingDegrees(vehicle?.markerHeadingDegrees))) return false;
+
+      const requestKey = getVehicleMarkerHeadingRequestKey(vehicle);
+      if (!requestKey) return false;
+      if (vehicleMarkerHeadingPendingRequests.has(requestKey)) {
+        return vehicleMarkerHeadingPendingRequests.get(requestKey);
+      }
+
+      const requestPromise = (async () => {
+        const vin = gpsHistoryManager.getVehicleVin(vehicle);
+        const vehicleId = gpsHistoryManager.getVehicleId(vehicle);
+        if (!vin && !vehicleId) return false;
+
+        const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vin, vehicleId });
+        if (error || !Array.isArray(records) || !records.length) return false;
+
+        const latestRecords = [...records]
+          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
+          .slice(0, getCurrentTrailPointLimit());
+        const trailPoints = latestRecords
+          .map((record) => {
+            const point = toGpsTrailPoint(record);
+            if (!point) return null;
+            return { ...point, record };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        return applyVehicleMarkerHeading(
+          vehicle,
+          resolveVehicleMarkerHeadingFromTrail(trailPoints, latestRecords)
+        );
+      })()
+        .catch(() => false)
+        .finally(() => {
+          vehicleMarkerHeadingPendingRequests.delete(requestKey);
+        });
+
+      vehicleMarkerHeadingPendingRequests.set(requestKey, requestPromise);
+      return requestPromise;
+    };
+
+    const preloadVisibleVehicleMarkerHeadings = async (visibleVehicles = []) => {
+      if (!Array.isArray(visibleVehicles) || !visibleVehicles.length) return;
+
+      const candidates = visibleVehicles
+        .filter((vehicle) => hasValidCoords(vehicle))
+        .filter((vehicle) => !Number.isFinite(normalizeHeadingDegrees(vehicle?.markerHeadingDegrees)))
+        .slice(0, VEHICLE_MARKER_HEADING_PREFETCH_LIMIT);
+      if (!candidates.length) return;
+
+      const results = await mapWithConcurrency(
+        candidates,
+        (vehicle) => preloadVehicleMarkerHeading(vehicle),
+        VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY
+      );
+
+      if (results.some(Boolean)) {
+        renderVehicles({ preserveScrollTop: true });
+      }
+    };
+
     const isGpsRecordDateField = (key = '') => {
       const normalized = `${key}`.toLowerCase();
       return (
@@ -5691,12 +5857,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       });
       const movingOverrideChanged = applyVehicleMovingOverrideFromGpsHistory(vehicle, records);
       const avgMovingMilesChanged = applyVehicleAverageMovingMilesPerDayFromGpsHistory(vehicle, metricSourceRecords);
-      if (movingOverrideChanged) {
-        renderVehicles({ preserveScrollTop: true });
-      }
-      if (avgMovingMilesChanged) {
-        syncVehicleAverageMovingMilesDayField(vehicle);
-      }
 
       const serialCountsBySerial = countGpsHistoryRecordsBySerial(records, getRecordSerial);
       const latestRecords = [...records]
@@ -5711,6 +5871,17 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         })
         .filter((point) => point !== null)
         .sort((a, b) => a.timestamp - b.timestamp);
+      const headingChanged = applyVehicleMarkerHeading(
+        vehicle,
+        resolveVehicleMarkerHeadingFromTrail(trailPoints, latestRecords)
+      );
+
+      if (movingOverrideChanged || headingChanged) {
+        renderVehicles({ preserveScrollTop: true });
+      }
+      if (avgMovingMilesChanged) {
+        syncVehicleAverageMovingMilesDayField(vehicle);
+      }
 
       let hotspotSourceRecords = selectParkingSpotRecordsByDay(records, {
         getRecordSerial,
@@ -7440,7 +7611,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           getVehicleMarkerColor,
           getVehicleMarkerBorderColor,
           isVehicleNotMoving,
-          getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing
+          getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing,
+          getVehicleMarkerHeading
         });
         return;
       }
@@ -7728,8 +7900,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
           getVehicleMarkerColor,
           getVehicleMarkerBorderColor,
           isVehicleNotMoving,
-          getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing
+          getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing,
+          getVehicleMarkerHeading
         });
+        void preloadVisibleVehicleMarkerHeadings(filtered);
       }
 
     function focusVehicle(vehicle, { autoExpandSidebarCard = false } = {}) {
