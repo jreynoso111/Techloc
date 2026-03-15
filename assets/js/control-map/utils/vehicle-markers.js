@@ -12,9 +12,22 @@ const buildVehicleTruckSvg = () => `
   </svg>
 `;
 
-export const createVehicleMarkerIcon = (markerColor, borderColor, isStopped, opacity = 1) => L.divIcon({
+const normalizeRotationDegrees = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  const normalized = ((parsed % 360) + 360) % 360;
+  return Number.isFinite(normalized) ? normalized : 0;
+};
+
+export const createVehicleMarkerIcon = (
+  markerColor,
+  borderColor,
+  isStopped,
+  opacity = 1,
+  rotationDegrees = 0
+) => L.divIcon({
   className: 'vehicle-marker-wrapper',
-  html: `<div class="vehicle-marker-icon${isStopped ? ' is-stopped' : ''}" style="--vehicle-marker-fill:${markerColor}; --vehicle-marker-stroke:${borderColor}; opacity:${Math.max(0.2, Math.min(1, Number(opacity) || 1)).toFixed(2)}"><span class="vehicle-marker-truck-wrap">${buildVehicleTruckSvg()}</span>${isStopped ? '<span class="vehicle-marker-overlay"><span class="vehicle-cross-badge vehicle-marker-cross">✕</span></span>' : ''}</div>`,
+  html: `<div class="vehicle-marker-icon${isStopped ? ' is-stopped' : ''}" style="--vehicle-marker-fill:${markerColor}; --vehicle-marker-stroke:${borderColor}; opacity:${Math.max(0.2, Math.min(1, Number(opacity) || 1)).toFixed(2)}"><span class="vehicle-marker-truck-wrap" style="display:inline-flex;transform:rotate(${normalizeRotationDegrees(rotationDegrees - 90).toFixed(2)}deg);transform-origin:center center;">${buildVehicleTruckSvg()}</span>${isStopped ? '<span class="vehicle-marker-overlay"><span class="vehicle-cross-badge vehicle-marker-cross">✕</span></span>' : ''}</div>`,
   iconSize: [28, 20],
   iconAnchor: [14, 10]
 });
@@ -28,7 +41,8 @@ export const syncVehicleMarkers = ({
   getVehicleMarkerColor,
   getVehicleMarkerBorderColor,
   isVehicleNotMoving,
-  getVehicleMarkerOpacity
+  getVehicleMarkerOpacity,
+  getVehicleMarkerHeading
 }) => {
   if (!vehicleLayer) return;
 
@@ -56,7 +70,10 @@ export const syncVehicleMarkers = ({
     const markerOpacity = typeof getVehicleMarkerOpacity === 'function'
       ? getVehicleMarkerOpacity(vehicle)
       : 1;
-    const icon = createVehicleMarkerIcon(markerColor, borderColor, isStopped, markerOpacity);
+    const markerHeading = typeof getVehicleMarkerHeading === 'function'
+      ? getVehicleMarkerHeading(vehicle)
+      : 0;
+    const icon = createVehicleMarkerIcon(markerColor, borderColor, isStopped, markerOpacity, markerHeading);
     const marker = L.marker(
       [coords.lat, coords.lng],
       {
