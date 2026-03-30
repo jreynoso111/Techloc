@@ -120,6 +120,21 @@ const getPtLastReadStatus = (value) => {
   return 'fresh';
 };
 
+const getVehicleLastReadCandidate = (vehicle = {}) => {
+  const details = vehicle?.details || {};
+  return vehicle?.lastRead
+    ?? details?.pt_last_read
+    ?? details?.pt_last_ping
+    ?? details?.pt_lastread
+    ?? details?.last_read
+    ?? details?.['PT Last Read']
+    ?? details?.['PT Last Read ']
+    ?? details?.['Last Read']
+    ?? details?.gps_time
+    ?? details?.updated_at
+    ?? '';
+};
+
 const parseMovingIndicator = (...candidates) => {
   for (const candidate of candidates) {
     if (candidate === null || candidate === undefined) continue;
@@ -178,6 +193,8 @@ export const getMovingStatus = (vehicle = {}) => {
   );
 
   const explicitStatus = parseMovingIndicator(
+    vehicle?.historyMovingOverride,
+    vehicle?.details?.historyMovingOverride,
     vehicle?.moving,
     vehicle?.movingCalc,
     vehicle?.gpsMoving,
@@ -191,6 +208,11 @@ export const getMovingStatus = (vehicle = {}) => {
 
   if (explicitStatus === 'moving' || explicitStatus === 'stopped') {
     return explicitStatus;
+  }
+
+  const lastReadStatus = getPtLastReadStatus(getVehicleLastReadCandidate(vehicle));
+  if (lastReadStatus === 'unknown') {
+    return 'unknown';
   }
 
   if (stationaryDays !== null && stationaryDays > 0) {

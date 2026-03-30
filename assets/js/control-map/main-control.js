@@ -239,6 +239,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
     const isVehicleMarkerStaleByLastPing = (vehicle = {}) => getVehicleMarkerOpacityByLastPing(vehicle) < 0.999;
 
+    const parseDaysParkedCandidate = (value) => {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+      if (typeof value === 'string') {
+        const normalized = value.replace(/,/g, '').trim();
+        const parsed = Number.parseFloat(normalized);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return Number.NEGATIVE_INFINITY;
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', (event) => {
         if (event?.key && event.key !== APP_SETTINGS_STORAGE_KEY) return;
@@ -324,6 +334,34 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         vehicle.avgMovingMilesPerDay = previousAvgMovingMiles;
         if (vehicle?.details && typeof vehicle.details === 'object') {
           vehicle.details.avgMovingMilesPerDay = previousAvgMovingMiles;
+        }
+      }
+
+      const previousLastPingMs = getVehicleLastPingTimestampMs(previousVehicle);
+      const currentLastPingMs = getVehicleLastPingTimestampMs(vehicle);
+      const snapshotDidAdvanceLastPing = (
+        Number.isFinite(previousLastPingMs)
+        && Number.isFinite(currentLastPingMs)
+        && currentLastPingMs > previousLastPingMs
+      );
+
+      if (!snapshotDidAdvanceLastPing) {
+        const previousMovingOverride = `${previousVehicle?.historyMovingOverride || previousVehicle?.details?.historyMovingOverride || ''}`.trim().toLowerCase();
+        if (previousMovingOverride) {
+          vehicle.historyMovingOverride = previousMovingOverride;
+          if (vehicle?.details && typeof vehicle.details === 'object') {
+            vehicle.details.historyMovingOverride = previousMovingOverride;
+          }
+        }
+
+        const previousDaysOverrideRaw = previousVehicle?.historyDaysStationaryOverride
+          ?? previousVehicle?.details?.historyDaysStationaryOverride;
+        const previousDaysOverride = Number(previousDaysOverrideRaw);
+        if (Number.isFinite(previousDaysOverride) && previousDaysOverride >= 0) {
+          vehicle.historyDaysStationaryOverride = previousDaysOverride;
+          if (vehicle?.details && typeof vehicle.details === 'object') {
+            vehicle.details.historyDaysStationaryOverride = previousDaysOverride;
+          }
         }
       }
 
@@ -3125,6 +3163,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
         });
         const parkingSourceRecords = selectParkingSpotRecordsByDay(records, {
           getRecordSerial,
+          winnerSerial: resolvedWinnerSerial || configuredWinnerSerial,
           blacklistedWirelessSerials
         });
         const movingOverrideChanged = applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
@@ -3658,10 +3697,18 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       records = [],
       {
         getRecordSerial = () => '',
+        winnerSerial = '',
         blacklistedWirelessSerials = new Map()
       } = {}
     ) => {
       if (!Array.isArray(records) || !records.length || typeof getRecordSerial !== 'function') return [];
+
+      const normalizedWinnerSerial = normalizeGpsSerial(winnerSerial);
+      if (normalizedWinnerSerial) {
+        return records
+          .filter((record) => normalizeGpsSerial(getRecordSerial(record)) === normalizedWinnerSerial)
+          .sort((a, b) => parseGpsTrailTimestamp(a) - parseGpsTrailTimestamp(b));
+      }
 
       const dayBuckets = new Map();
       const fallbackWiredRecords = [];
@@ -3736,6 +3783,12 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       if (!Array.isArray(records) || !records.length || typeof getRecordSerial !== 'function') return [];
 
       const normalizedWinnerSerial = normalizeGpsSerial(winnerSerial);
+      if (normalizedWinnerSerial) {
+        return records
+          .filter((record) => normalizeGpsSerial(getRecordSerial(record)) === normalizedWinnerSerial)
+          .sort((a, b) => parseGpsTrailTimestamp(a) - parseGpsTrailTimestamp(b));
+      }
+
       const configuredSerials = typeof getVehicleConfiguredSerials === 'function'
         ? getVehicleConfiguredSerials(vehicle)
         : [];
@@ -4374,9 +4427,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
         let hotspotSourceRecords = selectParkingSpotRecordsByDay(records, {
           getRecordSerial,
+          winnerSerial,
           blacklistedWirelessSerials
         });
-        if (!hotspotSourceRecords.length) {
+        if (!hotspotSourceRecords.length && !winnerSerial) {
           hotspotSourceRecords = winnerScopedRecords.length ? winnerScopedRecords : records;
         }
 
@@ -5988,6 +6042,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
       });
       const parkingSourceRecords = selectParkingSpotRecordsByDay(records, {
         getRecordSerial,
+        winnerSerial: normalizedWinnerSerial,
         blacklistedWirelessSerials
       });
       const movingOverrideChanged = applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
@@ -6025,9 +6080,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
 
       let hotspotSourceRecords = selectParkingSpotRecordsByDay(records, {
         getRecordSerial,
+        winnerSerial: normalizedWinnerSerial,
         blacklistedWirelessSerials
       });
-      if (!hotspotSourceRecords.length) {
+      if (!hotspotSourceRecords.length && !normalizedWinnerSerial) {
         hotspotSourceRecords = winnerScopedRecords.length ? winnerScopedRecords : records;
       }
       const historyHotspots = buildVehicleHistoryHotspots(hotspotSourceRecords, {
@@ -8189,18 +8245,28 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js';
     }
 
     function getDaysParkedValue(vehicle) {
-      const raw = vehicle?.historyDaysStationaryOverride
+      const historyOverride = parseDaysParkedCandidate(
+        vehicle?.historyDaysStationaryOverride
         ?? vehicle?.details?.historyDaysStationaryOverride
-        ?? vehicle?.daysStationary
+      );
+      if (Number.isFinite(historyOverride)) return historyOverride;
+
+      const raw = vehicle?.daysStationary
         ?? vehicle?.details?.days_stationary
+        ?? vehicle?.details?.['Days Stationary']
+        ?? vehicle?.details?.['Days stationary']
         ?? vehicle?.details?.['Days Parked'];
-      if (typeof raw === 'number') return Number.isFinite(raw) ? raw : Number.NEGATIVE_INFINITY;
-      if (typeof raw === 'string') {
-        const normalized = raw.replace(/,/g, '').trim();
-        const parsed = Number.parseFloat(normalized);
-        if (Number.isFinite(parsed)) return parsed;
+      const parsedDays = parseDaysParkedCandidate(raw);
+      if (!Number.isFinite(parsedDays)) return Number.NEGATIVE_INFINITY;
+
+      const lastPingMs = getVehicleLastPingTimestampMs(vehicle);
+      const isLastPingStale = Number.isFinite(lastPingMs)
+        && (Date.now() - lastPingMs) > GPS_MOVING_UNKNOWN_STALE_READ_MS;
+      if (isLastPingStale && getMovingStatus(vehicle) !== 'stopped') {
+        return 0;
       }
-      return Number.NEGATIVE_INFINITY;
+
+      return parsedDays;
     }
 
     function getDaysParkedDisplay(vehicle) {

@@ -27,6 +27,12 @@ const getRuntimeConfig = () => {
 const runtimeConfig = getRuntimeConfig();
 
 const toSafeString = (value = '') => `${value || ''}`.trim();
+const PLACEHOLDER_KEY_PATTERNS = [
+  'your-anon-or-publishable-key',
+  'your-service-role-key',
+  'replace-me',
+  'changeme',
+];
 
 const decodeBase64 = (value = '') => {
   if (!value) return '';
@@ -122,6 +128,17 @@ export const assertSupabaseTarget = (url = SUPABASE_URL, key = SUPABASE_KEY) => 
       'Missing Supabase Key',
       'SUPABASE_KEY is empty; connection cannot be established.',
       'Set SUPABASE_ANON_KEY (or SUPABASE_PUBLISHABLE_KEY) in server environment variables.'
+    );
+    return false;
+  }
+
+  const lowerKey = normalizedKey.toLowerCase();
+  if (PLACEHOLDER_KEY_PATTERNS.some((pattern) => lowerKey.includes(pattern))) {
+    console.error('Supabase key is still a placeholder value.');
+    reportGlobalIssue(
+      'Invalid Supabase Key',
+      'The configured Supabase key is still a placeholder and cannot authenticate.',
+      'Set SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY in /Users/jreynoso/Downloads/Techloc2/.env.'
     );
     return false;
   }
