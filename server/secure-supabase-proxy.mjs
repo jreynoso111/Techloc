@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
+const DEFAULT_SUPABASE_URL = 'https://lnfmogsjvdkqgwprlmtn.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_HhPw8JLinAfDtUNWXnQg8Q_KhXvprNM';
 
 const loadDotEnvFile = () => {
   const envPath = path.join(ROOT_DIR, '.env');
@@ -38,10 +40,10 @@ const loadDotEnvFile = () => {
 loadDotEnvFile();
 
 const PORT = Number.parseInt(process.env.PORT || '8080', 10);
-const SUPABASE_URL = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
+const SUPABASE_URL = String(process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 const SUPABASE_ANON_KEY = String(
-  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || ''
+  process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY
 ).trim();
 const APP_ORIGIN = String(process.env.APP_ORIGIN || `http://127.0.0.1:${PORT}`).trim().replace(/\/+$/, '');
 const SUPABASE_PROJECT_REF = 'lnfmogsjvdkqgwprlmtn';

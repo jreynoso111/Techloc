@@ -1,4 +1,7 @@
 const DEFAULT_SUPABASE_PROJECT_REF = 'lnfmogsjvdkqgwprlmtn';
+const DEFAULT_SUPABASE_URL = 'https://lnfmogsjvdkqgwprlmtn.supabase.co';
+// Publishable keys are safe to ship in the browser; never place a service-role key here.
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_HhPw8JLinAfDtUNWXnQg8Q_KhXvprNM';
 
 const getRuntimeConfig = () => {
   const browserConfig = (
@@ -18,8 +21,8 @@ const getRuntimeConfig = () => {
     : null;
 
   return {
-    supabaseUrl: browserConfig?.supabaseUrl || nodeConfig?.supabaseUrl || '',
-    supabaseAnonKey: browserConfig?.supabaseAnonKey || nodeConfig?.supabaseAnonKey || '',
+    supabaseUrl: browserConfig?.supabaseUrl || nodeConfig?.supabaseUrl || DEFAULT_SUPABASE_URL,
+    supabaseAnonKey: browserConfig?.supabaseAnonKey || nodeConfig?.supabaseAnonKey || DEFAULT_SUPABASE_PUBLISHABLE_KEY,
     supabaseProjectRef: browserConfig?.supabaseProjectRef || nodeConfig?.supabaseProjectRef || DEFAULT_SUPABASE_PROJECT_REF
   };
 };
