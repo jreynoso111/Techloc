@@ -10,13 +10,26 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
 const PORT = Number.parseInt(process.env.PORT || '8080', 10);
+
+const deriveProjectRefFromUrl = (url = '') => {
+  try {
+    const host = new URL(url).hostname || '';
+    const match = host.match(/^([a-z0-9-]+)\.supabase\.co$/i);
+    return match?.[1] ? String(match[1]).trim() : '';
+  } catch (_error) {
+    return '';
+  }
+};
+
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').trim().replace(/\/+$/, '');
 const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 const SUPABASE_ANON_KEY = String(
   process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || ''
 ).trim();
 const APP_ORIGIN = String(process.env.APP_ORIGIN || `http://127.0.0.1:${PORT}`).trim().replace(/\/+$/, '');
-const SUPABASE_PROJECT_REF = 'lnfmogsjvdkqgwprlmtn';
+const SUPABASE_PROJECT_REF = String(
+  process.env.SUPABASE_PROJECT_REF || deriveProjectRefFromUrl(SUPABASE_URL) || ''
+).trim();
 
 const REPAIR_HISTORY_TABLE = 'repair_history';
 const ALLOWED_ROLES_RAW = String(process.env.REPAIR_HISTORY_ALLOWED_ROLES || '').trim();
@@ -225,21 +238,24 @@ const validateConfig = () => {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  const expectedHost = `${SUPABASE_PROJECT_REF}.supabase.co`;
   let host = '';
   try {
     host = new URL(SUPABASE_URL).hostname;
   } catch (_error) {
     throw new Error(`Invalid SUPABASE_URL: ${SUPABASE_URL}`);
   }
-  if (host !== expectedHost) {
-    throw new Error(`Blocked SUPABASE_URL host: ${host}. Expected ${expectedHost}.`);
+
+  if (SUPABASE_PROJECT_REF) {
+    const expectedHost = `${SUPABASE_PROJECT_REF}.supabase.co`;
+    if (host !== expectedHost) {
+      throw new Error(`Blocked SUPABASE_URL host: ${host}. Expected ${expectedHost}.`);
+    }
   }
 
   if (SUPABASE_SERVICE_ROLE_KEY) {
     const tokenPayload = decodeJwtPayload(SUPABASE_SERVICE_ROLE_KEY);
     const tokenRef = String(tokenPayload?.ref || '').trim();
-    if (tokenRef && tokenRef !== SUPABASE_PROJECT_REF) {
+    if (SUPABASE_PROJECT_REF && tokenRef && tokenRef !== SUPABASE_PROJECT_REF) {
       throw new Error(
         `Blocked SUPABASE_SERVICE_ROLE_KEY ref: ${tokenRef}. Expected ${SUPABASE_PROJECT_REF}.`
       );
@@ -248,7 +264,7 @@ const validateConfig = () => {
 
   const anonPayload = decodeJwtPayload(SUPABASE_ANON_KEY);
   const anonRef = String(anonPayload?.ref || '').trim();
-  if (anonRef && anonRef !== SUPABASE_PROJECT_REF) {
+  if (SUPABASE_PROJECT_REF && anonRef && anonRef !== SUPABASE_PROJECT_REF) {
     throw new Error(
       `Blocked SUPABASE_ANON_KEY ref: ${anonRef}. Expected ${SUPABASE_PROJECT_REF}.`
     );
