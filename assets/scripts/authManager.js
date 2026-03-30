@@ -22,6 +22,7 @@ import {
   const navIds = {
     home: 'nav-home',
     control: 'nav-control-view',
+    inventory: 'nav-inventory-control',
     dashboard: 'nav-dashboard',
     services: 'nav-services',
     login: 'nav-login',
@@ -36,6 +37,7 @@ import {
   // Rutas protegidas (control map served from /pages/control-map.html; root redirect removed)
   const protectedRoutes = [
     (path) => path.endsWith('/pages/control-map.html') || path.endsWith('pages/control-map.html'),
+    (path) => path.endsWith('/pages/inventory-control.html') || path.endsWith('pages/inventory-control.html'),
     (path) => path.endsWith('/services-request.html') || path.endsWith('services-request.html'),
     (path) => path.includes('/admin/'),
   ];
@@ -59,11 +61,13 @@ import {
     whenDomReady.then(() => {
       const homeLink = getNavElement('home');
       const controlLink = getNavElement('control');
+      const inventoryLink = getNavElement('inventory');
       const dashboardLink = getNavElement('dashboard');
       const servicesLink = getNavElement('services');
       const loginLink = getNavElement('login');
       if (homeLink) homeLink.href = mapsTo('index.html');
       if (controlLink) controlLink.href = mapsTo('pages/control-map.html');
+      if (inventoryLink) inventoryLink.href = mapsTo('pages/inventory-control.html');
       if (servicesLink) servicesLink.href = mapsTo('pages/admin/services.html');
       if (dashboardLink) dashboardLink.href = mapsTo('pages/admin/index.html');
       if (loginLink) loginLink.href = mapsTo('pages/login.html');
@@ -251,6 +255,7 @@ import {
     whenDomReady.then(() => {
       const homeLink = getNavElement('home');
       const controlLink = getNavElement('control');
+      const inventoryLink = getNavElement('inventory');
       const dashboardLink = getNavElement('dashboard');
       const servicesLink = getNavElement('services');
       const loginLink = getNavElement('login');
@@ -258,6 +263,7 @@ import {
 
       if (homeLink) homeLink.href = mapsTo('index.html');
       if (controlLink) controlLink.href = mapsTo('pages/control-map.html');
+      if (inventoryLink) inventoryLink.href = mapsTo('pages/inventory-control.html');
       if (servicesLink) servicesLink.href = mapsTo('pages/admin/services.html');
       if (dashboardLink) dashboardLink.href = mapsTo('pages/admin/index.html');
       if (loginLink) loginLink.href = mapsTo('pages/login.html');
@@ -270,6 +276,8 @@ import {
         // Lógica de visualización basada en sesión
         controlLink?.classList.remove('hidden');
         controlLink?.classList.add('md:inline-flex');
+        inventoryLink?.classList.remove('hidden');
+        inventoryLink?.classList.add('md:inline-flex');
 
         if (canShowServices) {
           servicesLink?.classList.remove('hidden');
@@ -290,6 +298,8 @@ import {
       } else {
         controlLink?.classList.add('hidden');
         controlLink?.classList.remove('md:inline-flex');
+        inventoryLink?.classList.add('hidden');
+        inventoryLink?.classList.remove('md:inline-flex');
         servicesLink?.classList.add('hidden');
         dashboardLink?.classList.add('hidden');
         dashboardLink?.classList.remove('md:inline-flex');
