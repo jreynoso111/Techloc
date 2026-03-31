@@ -461,6 +461,31 @@
 
     initHomeEntry3d();
 
+    const loadingStatus = document.querySelector('.home-intro__status');
+    const setBootStatus = (message) => {
+      if (!loadingStatus || !message) return;
+      loadingStatus.textContent = message;
+    };
+
+    window.addEventListener('error', (event) => {
+      const message = String(event?.message || '').trim();
+      if (!message) return;
+      setBootStatus(`Control Map error: ${message}`);
+    });
+
+    window.addEventListener('unhandledrejection', (event) => {
+      const reason = event?.reason;
+      const message = String(reason?.message || reason || '').trim();
+      if (!message) return;
+      setBootStatus(`Control Map error: ${message}`);
+    });
+
+    window.setTimeout(() => {
+      const loadingLayer = document.querySelector('[data-auth-loading][data-auth-loading-mode="defer"]');
+      if (!loadingLayer || !loadingLayer.isConnected) return;
+      setBootStatus('Control Map is taking longer than expected. Check browser console for the failing module or request.');
+    }, 8000);
+
     document.addEventListener('control-map:boot-complete', () => {
       const loadingLayer = document.querySelector('[data-auth-loading][data-auth-loading-mode="defer"]');
       if (!loadingLayer) return;

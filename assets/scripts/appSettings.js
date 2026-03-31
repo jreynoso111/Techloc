@@ -41,7 +41,7 @@ export const normalizeAppSettings = (input = {}) => {
         max: 100000,
         fallback: DEFAULT_APP_SETTINGS.otherUnitMovementThresholdMeters
       })
-    })
+    )
   };
 };
 
