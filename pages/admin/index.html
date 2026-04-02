@@ -375,6 +375,7 @@
     const PT_PING_BATCH_DELAY_MS = 25;
     const PT_PING_MAX_RETRIES_PER_BATCH = 3;
     const PT_PING_RETRY_BASE_DELAY_MS = 500;
+    const PT_PING_ENABLE_RPC_FINALIZATION = false;
     const PT_PING_PRIMARY_CONFLICT_TARGET = 'Serial,read_day,day_half';
     const PT_PING_FALLBACK_CONFLICT_TARGET = 'Serial,Date';
     const PT_PING_HEADER_MAP = (() => {
@@ -2407,23 +2408,52 @@
           }
         }
 
-        setProgress(94, 'Finalizing PT calculations...');
-        let vehicleSyncResult = { updated: 0, skipped: 0, updatedRows: 0, mode: 'rpc_finalize' };
+        setProgress(94, 'Refreshing vehicle data...');
+        let vehicleSyncResult = {
+          updated: 0,
+          skipped: 0,
+          updatedRows: 0,
+          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'rpc_finalize' : 'client_sync_only',
+          warning: ''
+        };
         try {
-          const finalizeResult = await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
-          vehicleSyncResult = {
-            updated: finalizeResult.processedVins,
-            skipped: 0,
-            updatedRows: finalizeResult.updatedRows,
-            mode: 'rpc_finalize'
-          };
+          if (PT_PING_ENABLE_RPC_FINALIZATION) {
+            const finalizeResult = await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
+            vehicleSyncResult = {
+              updated: finalizeResult.processedVins,
+              skipped: 0,
+              updatedRows: finalizeResult.updatedRows,
+              mode: 'rpc_finalize',
+              warning: ''
+            };
+          } else {
+            setStatus('Syncing vehicles directly from uploaded PT rows...');
+            setProgress(96, 'Applying vehicle sync...');
+            const fallbackSyncResult = await syncVehiclesFromPtLastPing(dedupedRows.map((row) => row?.VIN));
+            vehicleSyncResult = {
+              updated: fallbackSyncResult?.updated ?? 0,
+              skipped: fallbackSyncResult?.skipped ?? 0,
+              updatedRows: 0,
+              mode: 'client_sync_only',
+              warning: 'Skipped heavy RPC finalization to avoid timeout.'
+            };
+          }
         } catch (error) {
-          console.error('PT finalization warning:', error);
-          showPtError(error, 'PT upload finalization failed');
+          console.error('PT vehicle sync warning:', error);
+          showPtError(error, 'PT vehicle sync failed after upload');
           showToast(
-            'PT rows uploaded, but finalization RPC failed: ' + (error?.message || 'Unknown error'),
+            'PT rows uploaded, but vehicle sync failed: ' + (error?.message || 'Unknown error'),
             'error'
           );
+          vehicleSyncResult = {
+            updated: 0,
+            skipped: 0,
+            updatedRows: 0,
+            mode: 'finalization_failed',
+            warning: PT_PING_ENABLE_RPC_FINALIZATION
+              ? 'Finalization RPC failed.'
+              : 'Vehicle sync failed after upload.'
+          };
         }
 
         setProgress(100, 'Done');
@@ -2435,6 +2465,8 @@
           '\nSent to database: ' + aggregated.inserted +
           '\nRows finalized by RPC: ' + (vehicleSyncResult?.updatedRows ?? 0) +
           '\nVehicles refreshed by RPC: ' + (vehicleSyncResult?.updated ?? 0) +
+          '\nFinalize mode: ' + (vehicleSyncResult?.mode || 'unknown') +
+          (vehicleSyncResult?.warning ? '\nWarning: ' + vehicleSyncResult.warning : '') +
           '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
           '\nRejected (missing Lat/Long): ' + aggregated.rejectedMissingCoordinates +
           '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
@@ -2447,10 +2479,12 @@
           `Sent: ${aggregated.inserted} ` +
           `Rows finalized: ${vehicleSyncResult?.updatedRows ?? 0} ` +
           `Vehicles refreshed: ${vehicleSyncResult?.updated ?? 0} ` +
+          `${vehicleSyncResult?.mode === 'client_sync_only' ? ' Direct vehicle sync used.' : ''}` +
+          `${vehicleSyncResult?.mode === 'client_sync_fallback' ? ' Fallback sync used.' : ''} ` +
           `Skipped (client dedup): ${aggregated.skippedDeduplication} ` +
           `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
         );
-        showToast(summary, 'success');
+        showToast(summary, vehicleSyncResult?.mode === 'finalization_failed' ? 'error' : 'success');
         if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
         lucide.createIcons();
       } finally {
