@@ -644,55 +644,33 @@ const resolveVehicleWinnerSerialFromRecords = (
   const isBlocked = (serial, timestampMs, record) => (
     resolveSerialBlacklistState(isSerialBlacklisted, serial, timestampMs, record)
   );
-  const settings = getAppSettings();
-  const staleDays = Math.max(0, Number(settings?.vehicleMarkerStalePingDays) || 0);
-  const activeWindowStart = nowMs - (staleDays * GPS_HISTORY_DAY_MS);
-  const isAllowedWirelessNow = (serial) => (
-    serial
-    && isWirelessSerial(serial)
-    && !isBlocked(serial, nowMs)
-  );
+  let freshestAllowedSerial = '';
+  let freshestAllowedTimestamp = Number.NEGATIVE_INFINITY;
+  let freshestAnySerial = '';
+  let freshestAnyTimestamp = Number.NEGATIVE_INFINITY;
 
-  const serialStats = new Map();
   records.forEach((record) => {
     const serial = getRecordSerial(record);
     if (!serial) return;
     const timestamp = getRecordTimestampMs(record);
     if (!Number.isFinite(timestamp)) return;
-    const existing = serialStats.get(serial) || {
-      latestTimestamp: Number.NEGATIVE_INFINITY
-    };
-    if (timestamp >= existing.latestTimestamp) {
-      existing.latestTimestamp = timestamp;
+
+    if (timestamp >= freshestAnyTimestamp) {
+      freshestAnyTimestamp = timestamp;
+      freshestAnySerial = serial;
     }
-    serialStats.set(serial, existing);
+
+    if (!isBlocked(serial, timestamp, record) && timestamp >= freshestAllowedTimestamp) {
+      freshestAllowedTimestamp = timestamp;
+      freshestAllowedSerial = serial;
+    }
   });
 
-  const freshestActiveWiredSerial = [...serialStats.entries()]
-    .filter(([serial, stats]) => isWiredSerial(serial) && stats.latestTimestamp >= activeWindowStart)
-    .sort((a, b) => b[1].latestTimestamp - a[1].latestTimestamp)
-    .map(([serial]) => serial)[0] || '';
-  if (freshestActiveWiredSerial) return freshestActiveWiredSerial;
-
-  const freshestActiveWirelessSerial = [...serialStats.entries()]
-    .filter(([serial, stats]) => isAllowedWirelessNow(serial) && stats.latestTimestamp >= activeWindowStart)
-    .sort((a, b) => b[1].latestTimestamp - a[1].latestTimestamp)
-    .map(([serial]) => serial)[0] || '';
-  if (freshestActiveWirelessSerial) return freshestActiveWirelessSerial;
-
-  const freshestAnyWiredSerial = [...serialStats.entries()]
-    .filter(([serial]) => isWiredSerial(serial))
-    .sort((a, b) => b[1].latestTimestamp - a[1].latestTimestamp)
-    .map(([serial]) => serial)[0] || '';
-  if (freshestAnyWiredSerial) return freshestAnyWiredSerial;
-
-  const freshestAnyWirelessSerial = [...serialStats.entries()]
-    .filter(([serial]) => isAllowedWirelessNow(serial))
-    .sort((a, b) => b[1].latestTimestamp - a[1].latestTimestamp)
-    .map(([serial]) => serial)[0] || '';
-  if (freshestAnyWirelessSerial) return freshestAnyWirelessSerial;
-
-  return configuredWinnerSerial || getMostRecentSerialFromRecords(records);
+  if (freshestAllowedSerial) return freshestAllowedSerial;
+  if (freshestAnySerial) return freshestAnySerial;
+  return configuredWinnerSerial || getMostRecentSerialFromRecords(records, {
+    isSerialAllowed: (serial, record, timestampMs) => !isBlocked(serial, timestampMs, record)
+  }) || getMostRecentSerialFromRecords(records);
 };
 
 const createGpsHistoryManager = ({

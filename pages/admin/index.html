@@ -261,6 +261,10 @@
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
                     <span>Upload</span>
                   </button>
+                  <button id="pt-ping-resync-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-slate-950 px-5 py-3 text-sm font-semibold text-indigo-100 transition hover:border-indigo-400 hover:bg-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60">
+                    <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                    <span>Resync Vehicles From PT</span>
+                  </button>
                 </form>
                 <div id="pt-ping-progress" class="hidden space-y-2">
                   <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
@@ -318,6 +322,7 @@
       persistBackgroundMode,
     } from '../../assets/scripts/backgroundPreference.js';
     import { createGpsHistoryManager } from '../../assets/scripts/gpsHistory.js';
+    import { DEFAULT_APP_SETTINGS, getVehicleMovementThresholdMeters } from '../../assets/scripts/appSettings.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
 
     function cleanHeaderKey(key) {
@@ -607,11 +612,49 @@
 
     const isWirelessGpsSerialValue = (serial = '') => /^8/.test(normalizeGpsSerialValue(serial));
 
+    const PT_SYNC_STALE_WINDOW_MS = Math.max(
+      0,
+      Number(DEFAULT_APP_SETTINGS?.vehicleMarkerStalePingDays) || 0
+    ) * 24 * 60 * 60 * 1000;
+
     const parseBlacklistEffectiveFromTimestamp = (value) => {
       if (value === null || value === undefined || `${value}`.trim() === '') return null;
       const parsed = Date.parse(value);
       if (!Number.isFinite(parsed)) return null;
       return parsed;
+    };
+
+    const fetchGpsBlacklistMap = async () => {
+      const blacklistMap = new Map();
+      const pageSize = 1000;
+      let from = 0;
+      while (true) {
+        const to = from + pageSize - 1;
+        const { data, error } = await supabaseClient
+          .from('gps_blacklist')
+          .select('serial,is_active,effective_from')
+          .range(from, to);
+        if (error) throw error;
+        (data || []).forEach((row) => {
+          if (row?.is_active === false) return;
+          const serial = normalizeGpsSerialValue(row?.serial);
+          if (!serial) return;
+          const effectiveFromTs = parseBlacklistEffectiveFromTimestamp(row?.effective_from);
+          const currentValue = blacklistMap.get(serial);
+          if (currentValue === undefined) {
+            blacklistMap.set(serial, effectiveFromTs);
+            return;
+          }
+          if (currentValue === null || effectiveFromTs === null) {
+            blacklistMap.set(serial, null);
+            return;
+          }
+          blacklistMap.set(serial, Math.min(currentValue, effectiveFromTs));
+        });
+        if (!data || data.length < pageSize) break;
+        from += pageSize;
+      }
+      return blacklistMap;
     };
 
     const hasValidPtCoordinates = (row = {}) => {
@@ -626,7 +669,161 @@
       return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
     };
 
-    const buildVehiclePtSyncPayload = (vehicleRow = {}, records = []) => {
+    const getPtSyncDayKey = (value) => {
+      const timestamp = parsePtComparableTimestamp(value);
+      if (!Number.isFinite(timestamp)) return '';
+      const date = new Date(timestamp);
+      if (Number.isNaN(date.getTime())) return '';
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const getPtSyncPointDistanceMeters = (fromPoint, toPoint) => {
+      if (!fromPoint || !toPoint) return Number.POSITIVE_INFINITY;
+      const fromLat = toNumber(fromPoint?.lat);
+      const fromLng = toNumber(fromPoint?.lng);
+      const toLat = toNumber(toPoint?.lat);
+      const toLng = toNumber(toPoint?.lng);
+      if (!Number.isFinite(fromLat) || !Number.isFinite(fromLng) || !Number.isFinite(toLat) || !Number.isFinite(toLng)) {
+        return Number.POSITIVE_INFINITY;
+      }
+      const toRadians = (value) => value * (Math.PI / 180);
+      const earthRadiusMeters = 6371000;
+      const deltaLat = toRadians(toLat - fromLat);
+      const deltaLng = toRadians(toLng - fromLng);
+      const lat1 = toRadians(fromLat);
+      const lat2 = toRadians(toLat);
+      const a = (Math.sin(deltaLat / 2) ** 2)
+        + (Math.cos(lat1) * Math.cos(lat2) * (Math.sin(deltaLng / 2) ** 2));
+      const boundedA = Math.min(1, Math.max(0, a));
+      const c = 2 * Math.atan2(Math.sqrt(boundedA), Math.sqrt(1 - boundedA));
+      return earthRadiusMeters * c;
+    };
+
+    const isPtSerialBlacklistedAt = (serial = '', timestampMs = Number.NEGATIVE_INFINITY, gpsBlacklistMap = new Map()) => {
+      const normalizedSerial = normalizeGpsSerialValue(serial);
+      if (!normalizedSerial || !(gpsBlacklistMap instanceof Map) || !gpsBlacklistMap.has(normalizedSerial)) {
+        return false;
+      }
+      const effectiveFromTs = gpsBlacklistMap.get(normalizedSerial);
+      if (effectiveFromTs === null || effectiveFromTs === undefined) return true;
+      return Number.isFinite(timestampMs) && timestampMs >= effectiveFromTs;
+    };
+
+    const resolvePtWinnerSerialFromRecords = (records = [], gpsBlacklistMap = new Map()) => {
+      if (!Array.isArray(records) || !records.length) return '';
+      let latestAllowed = { serial: '', timestamp: Number.NEGATIVE_INFINITY };
+      let latestAny = { serial: '', timestamp: Number.NEGATIVE_INFINITY };
+      records.forEach((record) => {
+        const serial = normalizeGpsSerialValue(record?.Serial);
+        const timestamp = parsePtComparableTimestamp(record?.Date);
+        if (!serial || !Number.isFinite(timestamp)) return;
+        if (timestamp >= latestAny.timestamp) {
+          latestAny = { serial, timestamp };
+        }
+        if (!isPtSerialBlacklistedAt(serial, timestamp, gpsBlacklistMap) && timestamp >= latestAllowed.timestamp) {
+          latestAllowed = { serial, timestamp };
+        }
+      });
+      return latestAllowed.serial || latestAny.serial || '';
+    };
+
+    const derivePtSyncMovementSnapshot = (vehicleRow = {}, records = []) => {
+      const unitType = `${vehicleRow?.['Unit Type'] ?? vehicleRow?.unit_type ?? vehicleRow?.type ?? ''}`.trim();
+      const thresholdMeters = getVehicleMovementThresholdMeters(DEFAULT_APP_SETTINGS, unitType);
+      const normalized = (records || [])
+        .map((record) => {
+          const timestamp = parsePtComparableTimestamp(record?.Date);
+          const lat = toNumber(record?.Lat);
+          const lng = toNumber(record?.Long);
+          return {
+            record,
+            timestamp,
+            lat,
+            lng,
+            dayKey: getPtSyncDayKey(record?.Date)
+          };
+        })
+        .filter((entry) => Number.isFinite(entry.timestamp) && Number.isFinite(entry.lat) && Number.isFinite(entry.lng))
+        .sort((left, right) => left.timestamp - right.timestamp);
+
+      const latestEntry = normalized[normalized.length - 1] || null;
+      const previousEntry = normalized.length > 1 ? normalized[normalized.length - 2] : null;
+      if (!latestEntry) {
+        return { status: 'unknown', daysStationary: null, thresholdMeters, unitType };
+      }
+
+      const isStale = PT_SYNC_STALE_WINDOW_MS > 0 && (Date.now() - latestEntry.timestamp) > PT_SYNC_STALE_WINDOW_MS;
+      if (isStale) {
+        return { status: 'unknown', daysStationary: null, thresholdMeters, unitType };
+      }
+
+      if (previousEntry) {
+        const recentDistanceMeters = getPtSyncPointDistanceMeters(previousEntry, latestEntry);
+        if (Number.isFinite(recentDistanceMeters) && recentDistanceMeters > thresholdMeters) {
+          return { status: 'moving', daysStationary: 0, thresholdMeters, unitType };
+        }
+      }
+
+      const dayBuckets = new Map();
+      normalized.forEach((entry) => {
+        if (!entry.dayKey) return;
+        const bucket = dayBuckets.get(entry.dayKey) || {
+          entries: [],
+          totalDistanceMeters: 0,
+          maxSegmentMeters: 0
+        };
+        const previousBucketEntry = bucket.entries[bucket.entries.length - 1] || null;
+        if (previousBucketEntry) {
+          const distanceMeters = getPtSyncPointDistanceMeters(previousBucketEntry, entry);
+          if (Number.isFinite(distanceMeters)) {
+            bucket.totalDistanceMeters += distanceMeters;
+            bucket.maxSegmentMeters = Math.max(bucket.maxSegmentMeters, distanceMeters);
+          }
+        }
+        bucket.entries.push(entry);
+        dayBuckets.set(entry.dayKey, bucket);
+      });
+
+      const dayStates = [...dayBuckets.entries()]
+        .sort((left, right) => left[0].localeCompare(right[0]))
+        .map(([dayKey, bucket]) => {
+          const firstEntry = bucket.entries[0] || null;
+          const lastEntry = bucket.entries[bucket.entries.length - 1] || null;
+          const netDistanceMeters = firstEntry && lastEntry
+            ? getPtSyncPointDistanceMeters(firstEntry, lastEntry)
+            : 0;
+          const isMoving = bucket.maxSegmentMeters > thresholdMeters
+            || netDistanceMeters > thresholdMeters
+            || bucket.totalDistanceMeters > (thresholdMeters * 1.2);
+          return { dayKey, isMoving };
+        });
+
+      const latestDayState = dayStates[dayStates.length - 1] || null;
+      if (!latestDayState) {
+        return { status: 'unknown', daysStationary: null, thresholdMeters, unitType };
+      }
+      if (latestDayState.isMoving) {
+        return { status: 'moving', daysStationary: 0, thresholdMeters, unitType };
+      }
+
+      let consecutiveStoppedDays = 0;
+      for (let index = dayStates.length - 1; index >= 0; index -= 1) {
+        if (dayStates[index]?.isMoving) break;
+        consecutiveStoppedDays += 1;
+      }
+
+      return {
+        status: 'stopped',
+        daysStationary: Math.max(0, consecutiveStoppedDays - 1),
+        thresholdMeters,
+        unitType
+      };
+    };
+
+    const buildVehiclePtSyncPayload = (vehicleRow = {}, records = [], gpsBlacklistMap = new Map()) => {
       if (!vehicleRow?.id || !Array.isArray(records) || !records.length) return null;
 
       const normalizedVehicle = {
@@ -638,9 +835,10 @@
         details: vehicleRow
       };
 
-      const resolvedWinnerSerial = typeof gpsHistoryTools.resolveVehicleWinnerSerialFromRecords === 'function'
-        ? gpsHistoryTools.resolveVehicleWinnerSerialFromRecords(normalizedVehicle, records)
-        : '';
+      const resolvedWinnerSerial = resolvePtWinnerSerialFromRecords(records, gpsBlacklistMap)
+        || (typeof gpsHistoryTools.resolveVehicleWinnerSerialFromRecords === 'function'
+          ? gpsHistoryTools.resolveVehicleWinnerSerialFromRecords(normalizedVehicle, records)
+          : '');
       const scopedRecords = resolvedWinnerSerial
         ? records.filter((record) => {
           const recordSerial = typeof gpsHistoryTools.getRecordSerial === 'function'
@@ -650,7 +848,13 @@
         })
         : records;
       const sourceRecords = (scopedRecords.length ? scopedRecords : records)
-        .filter((record) => hasValidPtCoordinates(record));
+        .filter((record) => {
+          if (!hasValidPtCoordinates(record)) return false;
+          const serial = normalizeGpsSerialValue(record?.Serial);
+          const timestamp = parsePtComparableTimestamp(record?.Date);
+          if (!resolvedWinnerSerial && !serial) return false;
+          return !isPtSerialBlacklistedAt(serial, timestamp, gpsBlacklistMap);
+        });
       if (!sourceRecords.length) return null;
       const orderedRecords = [...sourceRecords].sort((left, right) => (
         parsePtComparableTimestamp(left?.Date) - parsePtComparableTimestamp(right?.Date)
@@ -670,6 +874,7 @@
       const nextLastReadMs = parsePtComparableTimestamp(latestRecord?.Date);
       const lat = toNumber(latestRecord?.Lat);
       const lng = toNumber(latestRecord?.Long);
+      const movementSnapshot = derivePtSyncMovementSnapshot(vehicleRow, orderedRecords);
 
       if (
         Number.isFinite(currentLastReadMs)
@@ -682,18 +887,28 @@
       if (nextSerial) payload['pt serial'] = nextSerial;
       if (firstRead) payload['pt first read'] = firstRead;
       if (lastRead) payload['pt last read'] = lastRead;
-      if (latestRecord?.moved !== undefined && latestRecord?.moved !== null && `${latestRecord.moved}` !== '') {
-        payload.moving = latestRecord.moved;
-      }
-      if (
-        latestRecord?.days_stationary !== undefined
-        && latestRecord?.days_stationary !== null
-        && `${latestRecord.days_stationary}` !== ''
-      ) {
-        payload.days_stationary = latestRecord.days_stationary;
+      if (movementSnapshot?.status) {
+        payload.movement_status_v2 = movementSnapshot.status;
+        payload.movement_threshold_meters_v2 = movementSnapshot.thresholdMeters;
+        payload.movement_unit_type_v2 = movementSnapshot.unitType || null;
+        payload.movement_computed_at_v2 = new Date().toISOString();
+        if (movementSnapshot.status === 'moving') {
+          payload.moving = 1;
+          payload.days_stationary = 0;
+          payload.movement_days_stationary_v2 = 0;
+        } else if (movementSnapshot.status === 'stopped') {
+          payload.moving = -1;
+          payload.days_stationary = Math.max(0, Number(movementSnapshot.daysStationary) || 0);
+          payload.movement_days_stationary_v2 = Math.max(0, Number(movementSnapshot.daysStationary) || 0);
+        } else {
+          payload.moving = null;
+          payload.days_stationary = null;
+          payload.movement_days_stationary_v2 = null;
+        }
       }
       if (lat !== null) payload.lat = lat;
       if (lng !== null) payload.long = lng;
+      if (latestRecord?.address) payload.short_location = latestRecord.address;
 
       return Object.keys(payload).length > 1 ? payload : null;
     };
@@ -722,6 +937,13 @@
           return { updated: 0, skipped: normalizedVins.length };
         }
 
+        let gpsBlacklistMap = new Map();
+        try {
+          gpsBlacklistMap = await fetchGpsBlacklistMap();
+        } catch (error) {
+          console.warn('Unable to load GPS blacklist during PT sync; continuing without blacklist filter.', error);
+        }
+
         const ptRows = [];
         for (const vinChunk of chunkArray(normalizedVins, 50)) {
           const { data, error } = await supabaseClient
@@ -744,7 +966,7 @@
         const payloads = matchingVehicles
           .map((vehicleRow) => {
             const vin = normalizeUpperTrimmedValue(vehicleRow?.VIN);
-            return buildVehiclePtSyncPayload(vehicleRow, recordsByVin.get(vin) || []);
+            return buildVehiclePtSyncPayload(vehicleRow, recordsByVin.get(vin) || [], gpsBlacklistMap);
           })
           .filter(Boolean);
 
@@ -1569,19 +1791,34 @@
       const form = document.getElementById('pt-ping-upload-form');
       const fileInput = document.getElementById('pt-ping-file');
       const submitBtn = document.getElementById('pt-ping-upload-button');
+      const resyncBtn = document.getElementById('pt-ping-resync-button');
       const status = document.getElementById('pt-ping-status');
+      const progressWrap = document.getElementById('pt-ping-progress');
+      const progressBar = document.getElementById('pt-ping-progress-bar');
+      const progressLabel = document.getElementById('pt-ping-progress-label');
+      const progressCount = document.getElementById('pt-ping-progress-count');
 
       const setStatus = (text) => {
         if (status) status.textContent = text;
+      };
+
+      const setProgress = (percent, label) => {
+        const safePercent = Math.max(0, Math.min(100, percent));
+        if (progressWrap) progressWrap.classList.remove('hidden');
+        if (progressBar) progressBar.style.width = `${safePercent}%`;
+        if (progressLabel && label) progressLabel.textContent = label;
+        if (progressCount) progressCount.textContent = `${Math.round(safePercent)}%`;
       };
 
       const requireAdmin = async () => {
         const allowed = await refreshAdminAccess();
         if (fileInput) fileInput.disabled = !allowed;
         if (submitBtn) submitBtn.disabled = !allowed;
+        if (resyncBtn) resyncBtn.disabled = !allowed;
         const titleText = allowed ? '' : 'Administrator access required';
         if (fileInput) fileInput.title = titleText;
         if (submitBtn) submitBtn.title = titleText;
+        if (resyncBtn) resyncBtn.title = titleText;
         return allowed;
       };
 
@@ -1626,6 +1863,65 @@
           showPtError(err, 'PT Last Ping upload failed');
         } finally {
           submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
+          lucide.createIcons();
+        }
+      });
+
+      resyncBtn?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        if (!(await requireAdmin())) {
+          showToast('Only administrators can resync PT vehicle data.', 'error');
+          return;
+        }
+        const hasSession = await ensurePtSession();
+        if (!hasSession) return;
+
+        submitBtn.disabled = true;
+        resyncBtn.disabled = true;
+        resyncBtn.innerHTML = '<span class="animate-pulse">Resyncing…</span>';
+        setProgress(0, 'Loading vehicles...');
+        setStatus('Preparing PT vehicle resync...');
+
+        try {
+          const { data: vehicleRows, error: vehicleError } = await supabaseClient
+            .from('vehicles')
+            .select('VIN');
+          if (vehicleError) throw vehicleError;
+
+          const vins = Array.from(new Set(
+            (vehicleRows || [])
+              .map((row) => normalizeUpperTrimmedValue(row?.VIN))
+              .filter(Boolean)
+          ));
+
+          if (!vins.length) {
+            setProgress(0, 'No vehicles found');
+            setStatus('No vehicles found to resync.');
+            showToast('No vehicles found to resync.', 'error');
+            return;
+          }
+
+          setProgress(10, `Resyncing ${vins.length} vehicles...`);
+          const result = await syncVehiclesFromPtLastPing(vins);
+          setProgress(100, 'Done');
+          setStatus(
+            `PT vehicle resync complete. Updated: ${result?.updated ?? 0}. ` +
+            `Skipped: ${result?.skipped ?? 0}.`
+          );
+          showToast(
+            `PT vehicle resync complete. Updated ${result?.updated ?? 0} vehicles; skipped ${result?.skipped ?? 0}.`,
+            'success'
+          );
+        } catch (error) {
+          console.error('PT vehicle resync failed:', error);
+          showPtError(error, 'PT vehicle resync failed');
+          setStatus('PT vehicle resync failed.');
+          setProgress(0, 'Resync failed');
+          showToast('PT vehicle resync failed: ' + (error?.message || 'Unknown error'), 'error');
+        } finally {
+          await requireAdmin().catch(() => {});
+          resyncBtn.innerHTML = '<i data-lucide="refresh-cw" class="h-4 w-4"></i><span>Resync Vehicles From PT</span>';
           submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
           lucide.createIcons();
         }

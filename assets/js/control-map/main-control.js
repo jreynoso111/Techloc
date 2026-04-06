@@ -99,6 +99,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
+    const vehiclePtRecalcPendingKeys = new Set();
     const vehicleMarkerHeadingPendingRequests = new Map();
     const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 24;
     const VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY = 4;
@@ -3411,6 +3412,157 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         }
       }
       return true;
+    };
+
+    const applyVehiclePtPersistencePatch = (vehicle, patch = {}) => {
+      if (!vehicle || !patch || typeof patch !== 'object') return false;
+      const details = vehicle.details && typeof vehicle.details === 'object'
+        ? vehicle.details
+        : (vehicle.details = {});
+
+      const fieldMappings = [
+        ['pt serial', 'ptSerial', ['pt serial', 'pt_serial', 'PT Serial', 'PT Serial ', 'winner_serial', 'Winner Serial']],
+        ['pt first read', 'firstRead', ['pt first read', 'pt_first_read', 'PT First Read', 'PT First Read ']],
+        ['pt last read', 'lastRead', ['pt last read', 'pt_last_read', 'PT Last Read', 'PT Last Read ']],
+        ['movement_status_v2', 'movementStatusV2', ['movement_status_v2']],
+        ['movement_days_stationary_v2', 'movementDaysStationaryV2', ['movement_days_stationary_v2']],
+        ['movement_threshold_meters_v2', 'movementThresholdMetersV2', ['movement_threshold_meters_v2']],
+        ['movement_unit_type_v2', 'movementUnitTypeV2', ['movement_unit_type_v2']],
+        ['moving', 'moving', ['moving', 'Moving']],
+        ['days_stationary', 'daysStationary', ['days_stationary', 'Days Stationary', 'Days stationary', 'Days Parked']],
+        ['lat', 'lat', ['lat', 'Lat']],
+        ['long', 'lng', ['long', 'Long', 'lng', 'Lng']],
+        ['short_location', 'shortLocation', ['short_location']]
+      ];
+
+      fieldMappings.forEach(([patchKey, vehicleKey, detailKeys]) => {
+        if (!Object.prototype.hasOwnProperty.call(patch, patchKey)) return;
+        const value = patch[patchKey];
+        if (patchKey === 'long') {
+          vehicle.lng = value;
+        } else if (vehicleKey) {
+          vehicle[vehicleKey] = value;
+        }
+        detailKeys.forEach((detailKey) => {
+          details[detailKey] = value;
+        });
+      });
+
+      return true;
+    };
+
+    const recalculateVehicleFromPtHistory = async (vehicle) => {
+      if (!vehicle || !supabaseClient?.from || !gpsHistoryManager) {
+        throw new Error('Database unavailable.');
+      }
+
+      const vin = gpsHistoryManager.getVehicleVin(vehicle);
+      const vehicleId = gpsHistoryManager.getVehicleId(vehicle);
+      if (!vin && !vehicleId) {
+        throw new Error('Vehicle has no VIN or id for PT recalculation.');
+      }
+
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError || !sessionData?.session) {
+        const { data: refreshed, error: refreshError } = await supabaseClient.auth.refreshSession();
+        if (refreshError || !refreshed?.session) {
+          throw refreshError || new Error('Authentication session unavailable.');
+        }
+      }
+
+      const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vin, vehicleId });
+      if (error) throw error;
+      if (!Array.isArray(records) || !records.length) {
+        throw new Error('No PT history found for this vehicle.');
+      }
+
+      const blacklistedWirelessSerials = await getGpsDeviceBlacklistSerials().catch(() => new Map());
+      const getRecordSerial = typeof gpsHistoryManager.getRecordSerial === 'function'
+        ? gpsHistoryManager.getRecordSerial
+        : () => '';
+      const configuredWinnerSerial = typeof gpsHistoryManager.getVehicleWinnerSerial === 'function'
+        ? gpsHistoryManager.getVehicleWinnerSerial(vehicle)
+        : '';
+      const resolvedWinnerSerial = typeof gpsHistoryManager.resolveVehicleWinnerSerialFromRecords === 'function'
+        ? gpsHistoryManager.resolveVehicleWinnerSerialFromRecords(vehicle, records)
+        : configuredWinnerSerial;
+      const winnerSerial = resolvedWinnerSerial || configuredWinnerSerial;
+
+      const movementSourceRecords = selectMovementMetricRecords(records, {
+        vehicle,
+        getRecordSerial,
+        winnerSerial,
+        blacklistedWirelessSerials
+      });
+      const stationarySourceRecords = winnerSerial
+        ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
+        : movementSourceRecords;
+
+      applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
+        movementSourceRecords,
+        stationarySourceRecords,
+        winnerSerial,
+        getRecordSerial
+      });
+
+      const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
+        .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
+      const thresholdMeters = getVehicleMovementThresholdMeters(
+        getAppSettings(),
+        vehicle?.movementUnitTypeV2 || vehicle?.type || vehicle?.details?.['Unit Type'] || ''
+      );
+
+      let status = `${vehicle?.historyMovingOverride || ''}`.trim().toLowerCase();
+      if (status !== 'moving' && status !== 'stopped' && status !== 'unknown') {
+        status = getMovingStatus(vehicle);
+      }
+      const daysStationary = status === 'moving'
+        ? 0
+        : status === 'stopped'
+          ? Math.max(0, Number(vehicle?.historyDaysStationaryOverride ?? 0) || 0)
+          : null;
+
+      const patch = {
+        'pt serial': winnerSerial || null,
+        'pt first read': getVehiclePtFirstReadValue(vehicle) || null,
+        'pt last read': getVehiclePtLastReadValue(vehicle) || null,
+        movement_status_v2: status || 'unknown',
+        movement_days_stationary_v2: daysStationary,
+        movement_threshold_meters_v2: thresholdMeters,
+        movement_unit_type_v2: vehicle?.movementUnitTypeV2 || vehicle?.type || vehicle?.details?.['Unit Type'] || null,
+        movement_computed_at_v2: new Date().toISOString(),
+        moving: status === 'moving' ? 1 : status === 'stopped' ? -1 : null,
+        days_stationary: daysStationary
+      };
+
+      const latestCoords = latestWinnerRecord ? toGpsTrailPoint(latestWinnerRecord) : null;
+      if (latestCoords) {
+        patch.lat = latestCoords.lat;
+        patch.long = latestCoords.lng;
+      }
+      const latestAddress = `${latestWinnerRecord?.address || latestWinnerRecord?.Address || ''}`.trim();
+      if (latestAddress) {
+        patch.short_location = latestAddress;
+      }
+
+      const updateRequest = supabaseClient
+        .from(TABLES.vehicles)
+        .update(patch)
+        .eq('id', vehicle.id);
+      const { error: updateError } = await runWithTimeout(
+        updateRequest,
+        12000,
+        'Vehicle PT recalculation timed out.'
+      );
+      if (updateError) throw updateError;
+
+      applyVehiclePtPersistencePatch(vehicle, patch);
+      return {
+        winnerSerial,
+        status,
+        daysStationary,
+        latestRecord: latestWinnerRecord
+      };
     };
 
     const normalizeGpsSerial = (serial = '') => `${serial ?? ''}`.trim().toUpperCase();
@@ -7586,6 +7738,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       const CONTROL_ACTIONS = new Set([
         'vehicle-expand-toggle',
         'vehicle-view-more',
+        'vehicle-recalc-pt',
         'repair-history',
         'gps-history',
         'vehicle-select-checkbox'
@@ -7612,6 +7765,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       const card = target?.closest('[data-type="vehicle"]') || composedPath.find((node) => node?.dataset?.type === 'vehicle');
       const expandToggleBtn = target?.closest('[data-action="vehicle-expand-toggle"]') || findInPath('vehicle-expand-toggle');
       const viewMoreBtn = target?.closest('[data-action="vehicle-view-more"]') || findInPath('vehicle-view-more');
+      const recalcPtBtn = target?.closest('[data-action="vehicle-recalc-pt"]') || findInPath('vehicle-recalc-pt');
       const repairHistoryBtn = target?.closest('[data-action="repair-history"]') || findInPath('repair-history');
       const gpsHistoryBtn = target?.closest('[data-action="gps-history"]') || findInPath('gps-history');
       const selectCheckbox = target?.closest('[data-action="vehicle-select-checkbox"]') || findInPath('vehicle-select-checkbox');
@@ -7633,6 +7787,31 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         event.stopPropagation();
         event.stopImmediatePropagation?.();
         openVehicleModal(vehicle);
+        return;
+      }
+
+      if (recalcPtBtn) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation?.();
+        const vehicleKey = getVehicleKey(vehicle);
+        if (!vehicleKey || vehiclePtRecalcPendingKeys.has(vehicleKey)) return;
+        vehiclePtRecalcPendingKeys.add(vehicleKey);
+        renderVehicles({ preserveScrollTop: true });
+        const stopLoading = startLoading('Recalculating vehicle PT...');
+        void recalculateVehicleFromPtHistory(vehicle)
+          .then(() => {
+            renderVehicles({ preserveScrollTop: true });
+          })
+          .catch((error) => {
+            console.warn('Failed to recalculate vehicle PT history:', error);
+            alert(error?.message || 'Failed to recalculate PT history for this vehicle.');
+          })
+          .finally(() => {
+            stopLoading();
+            vehiclePtRecalcPendingKeys.delete(vehicleKey);
+            renderVehicles({ preserveScrollTop: true });
+          });
         return;
       }
 
@@ -7948,6 +8127,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           );
           const daysParkedBadge = getDaysParkedBadgePresentation(vehicle, maxDaysParkedAcrossVehicles);
           const isExpanded = isVehicleCardExpanded(currentVehicleKey);
+          const isPtRecalcPending = vehiclePtRecalcPendingKeys.has(currentVehicleKey);
           const expandChevron = isExpanded ? '▾' : '▸';
           card.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/80 hover:border-amber-500/80 transition-all cursor-pointer shadow-sm hover:shadow-amber-500/20 backdrop-blur space-y-3';
           card.dataset.id = currentVehicleKey;
@@ -8040,6 +8220,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                 <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) ? formatDateTime(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) : '--'}</p>
               </div>
               <div class="flex items-center justify-end gap-2">
+                <button type="button" data-action="vehicle-recalc-pt" class="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/40 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-bold text-fuchsia-100 hover:bg-fuchsia-500/20 transition-colors disabled:cursor-not-allowed disabled:opacity-60" ${isPtRecalcPending ? 'disabled' : ''}>
+                  ${svgIcon('refreshCw', 'h-3.5 w-3.5')}
+                  ${isPtRecalcPending ? 'Recalc...' : 'Recalc PT'}
+                </button>
                 <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                   ${svgIcon('info', 'h-3.5 w-3.5')}
                   See more
