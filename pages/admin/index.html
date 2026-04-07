@@ -950,19 +950,44 @@
         return { updated: 0, scanned: ptRows.length };
       }
 
-      for (const updateChunk of chunkArray(updates, 200)) {
-        const chunkResults = await Promise.all(updateChunk.map(async (entry) => {
-          const rowId = entry?.id;
-          if (rowId === undefined || rowId === null || rowId === '') return null;
-          const { id, ...patch } = entry;
-          const { error } = await supabaseClient
-            .from('PT-LastPing')
-            .update(patch)
-            .eq('id', rowId);
-          if (error) throw error;
-          return rowId;
-        }));
-        if (!chunkResults.length) continue;
+      const isTransientPtNetworkError = (error) => {
+        const text = [error?.message, error?.details, error?.hint]
+          .filter(Boolean)
+          .join(' | ')
+          .toLowerCase();
+        return text.includes('failed to fetch')
+          || text.includes('network')
+          || text.includes('timeout')
+          || text.includes('timed out');
+      };
+
+      const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      for (const updateChunk of chunkArray(updates, 25)) {
+        let retryAttempt = 0;
+        let chunkUpdated = false;
+        while (!chunkUpdated) {
+          try {
+            for (const entry of updateChunk) {
+              const rowId = entry?.id;
+              if (rowId === undefined || rowId === null || rowId === '') continue;
+              const { id, ...patch } = entry;
+              const { error } = await supabaseClient
+                .from('PT-LastPing')
+                .update(patch)
+                .eq('id', rowId);
+              if (error) throw error;
+            }
+            chunkUpdated = true;
+          } catch (error) {
+            if (isTransientPtNetworkError(error) && retryAttempt < 2) {
+              retryAttempt += 1;
+              await waitMs(400 * retryAttempt);
+              continue;
+            }
+            throw error;
+          }
+        }
       }
 
       return {
@@ -2907,7 +2932,7 @@
           showPtError(error, 'PT vehicle sync failed after upload');
           showToast(
             'PT rows uploaded, but vehicle sync failed: ' + (error?.message || 'Unknown error'),
-            'error'
+            'success'
           );
           vehicleSyncResult = {
             updated: 0,
