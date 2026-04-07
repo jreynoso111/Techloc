@@ -674,9 +674,9 @@
       if (!Number.isFinite(timestamp)) return '';
       const date = new Date(timestamp);
       if (Number.isNaN(date.getTime())) return '';
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     };
 
@@ -820,6 +820,146 @@
         daysStationary: Math.max(0, consecutiveStoppedDays - 1),
         thresholdMeters,
         unitType
+      };
+    };
+
+    const buildVehicleUnitTypeMap = (vehicleRows = []) => {
+      const map = new Map();
+      (vehicleRows || []).forEach((row) => {
+        const vin = normalizeUpperTrimmedValue(row?.VIN);
+        if (!vin) return;
+        const unitType = `${row?.['Unit Type'] ?? row?.unit_type ?? row?.type ?? row?.movement_unit_type_v2 ?? ''}`.trim();
+        map.set(vin, unitType);
+      });
+      return map;
+    };
+
+    const fetchPtRowsByVins = async (vins = []) => {
+      const normalizedVins = Array.from(new Set((vins || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)));
+      const rows = [];
+      const pageSize = 1000;
+      for (const vinChunk of chunkArray(normalizedVins, 25)) {
+        let from = 0;
+        while (true) {
+          const to = from + pageSize - 1;
+          const { data, error } = await supabaseClient
+            .from('PT-LastPing')
+            .select('id,VIN,Serial,Date,Lat,Long,moved_v2,days_stationary_v2')
+            .in('VIN', vinChunk)
+            .order('Date', { ascending: true })
+            .range(from, to);
+          if (error) throw error;
+          const pageRows = Array.isArray(data) ? data : [];
+          if (!pageRows.length) break;
+          rows.push(...pageRows);
+          if (pageRows.length < pageSize) break;
+          from += pageSize;
+        }
+      }
+      return rows;
+    };
+
+    const buildPtV2BackfillUpdates = (rows = [], vehicleUnitTypeMap = new Map()) => {
+      const grouped = new Map();
+      (rows || []).forEach((row) => {
+        const vin = normalizeUpperTrimmedValue(row?.VIN);
+        const serial = normalizeGpsSerialValue(row?.Serial);
+        const timestamp = parsePtComparableTimestamp(row?.Date);
+        const lat = toNumber(row?.Lat);
+        const lng = toNumber(row?.Long);
+        if (!vin || !serial || !Number.isFinite(timestamp) || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const key = `${vin}__${serial}`;
+        const bucket = grouped.get(key) || [];
+        bucket.push({
+          id: row?.id,
+          vin,
+          serial,
+          timestamp,
+          lat,
+          lng,
+          date: row?.Date,
+          moved_v2: row?.moved_v2,
+          days_stationary_v2: row?.days_stationary_v2
+        });
+        grouped.set(key, bucket);
+      });
+
+      const updates = [];
+      grouped.forEach((entries, groupKey) => {
+        entries.sort((left, right) => left.timestamp - right.timestamp || Number(left.id) - Number(right.id));
+        const [vin] = groupKey.split('__');
+        const unitType = vehicleUnitTypeMap.get(vin) || '';
+        const thresholdMeters = getVehicleMovementThresholdMeters(DEFAULT_APP_SETTINGS, unitType);
+
+        let previousEntry = null;
+        entries.forEach((entry) => {
+          let movedV2 = -1;
+          if (previousEntry) {
+            const distanceMeters = getPtSyncPointDistanceMeters(previousEntry, entry);
+            movedV2 = Number.isFinite(distanceMeters) && distanceMeters >= thresholdMeters ? 1 : -1;
+          }
+          entry.__moved_v2 = movedV2;
+          previousEntry = entry;
+        });
+
+        const dayStates = new Map();
+        entries.forEach((entry) => {
+          const dayKey = getPtSyncDayKey(entry.date);
+          if (!dayKey) return;
+          const current = dayStates.get(dayKey) || false;
+          dayStates.set(dayKey, current || entry.__moved_v2 === 1);
+        });
+
+        const orderedDays = [...dayStates.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+        let consecutiveStoppedDays = 0;
+        const stationaryByDay = new Map();
+        orderedDays.forEach(([dayKey, isMovingDay]) => {
+          if (isMovingDay) {
+            consecutiveStoppedDays = 0;
+            stationaryByDay.set(dayKey, 0);
+            return;
+          }
+          stationaryByDay.set(dayKey, consecutiveStoppedDays);
+          consecutiveStoppedDays += 1;
+        });
+
+        entries.forEach((entry) => {
+          const dayKey = getPtSyncDayKey(entry.date);
+          const nextDaysStationary = dayKey ? (stationaryByDay.get(dayKey) ?? 0) : 0;
+          const movedWasNull = entry.moved_v2 === null || entry.moved_v2 === undefined;
+          const daysWasNull = entry.days_stationary_v2 === null || entry.days_stationary_v2 === undefined;
+          if (!movedWasNull && !daysWasNull) return;
+          updates.push({
+            id: entry.id,
+            moved_v2: entry.__moved_v2,
+            days_stationary_v2: nextDaysStationary
+          });
+        });
+      });
+
+      return updates;
+    };
+
+    const backfillPtV2MetricsForVins = async (vins = [], vehicleRows = []) => {
+      const normalizedVins = Array.from(new Set((vins || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)));
+      if (!normalizedVins.length) return { updated: 0, scanned: 0 };
+      const ptRows = await fetchPtRowsByVins(normalizedVins);
+      const vehicleUnitTypeMap = buildVehicleUnitTypeMap(vehicleRows);
+      const updates = buildPtV2BackfillUpdates(ptRows, vehicleUnitTypeMap);
+      if (!updates.length) {
+        return { updated: 0, scanned: ptRows.length };
+      }
+
+      for (const updateChunk of chunkArray(updates, 200)) {
+        const { error } = await supabaseClient
+          .from('PT-LastPing')
+          .upsert(updateChunk, { onConflict: 'id' });
+        if (error) throw error;
+      }
+
+      return {
+        updated: updates.length,
+        scanned: ptRows.length
       };
     };
 
@@ -1886,7 +2026,7 @@
         try {
           const { data: vehicleRows, error: vehicleError } = await supabaseClient
             .from('vehicles')
-            .select('VIN');
+            .select('*');
           if (vehicleError) throw vehicleError;
 
           const vins = Array.from(new Set(
@@ -1902,15 +2042,18 @@
             return;
           }
 
-          setProgress(10, `Resyncing ${vins.length} vehicles...`);
+          setProgress(10, `Backfilling ${vins.length} vehicles...`);
+          const ptBackfillResult = await backfillPtV2MetricsForVins(vins, vehicleRows || []);
+          setProgress(70, `Resyncing ${vins.length} vehicles...`);
           const result = await syncVehiclesFromPtLastPing(vins);
           setProgress(100, 'Done');
           setStatus(
-            `PT vehicle resync complete. Updated: ${result?.updated ?? 0}. ` +
+            `PT vehicle resync complete. PT rows backfilled: ${ptBackfillResult?.updated ?? 0}. ` +
+            `Updated vehicles: ${result?.updated ?? 0}. ` +
             `Skipped: ${result?.skipped ?? 0}.`
           );
           showToast(
-            `PT vehicle resync complete. Updated ${result?.updated ?? 0} vehicles; skipped ${result?.skipped ?? 0}.`,
+            `PT vehicle resync complete. Backfilled ${ptBackfillResult?.updated ?? 0} PT rows; updated ${result?.updated ?? 0} vehicles; skipped ${result?.skipped ?? 0}.`,
             'success'
           );
         } catch (error) {
@@ -2704,7 +2847,7 @@
           }
         }
 
-        setProgress(94, 'Refreshing vehicle data...');
+        setProgress(92, 'Backfilling PT movement metrics...');
         let vehicleSyncResult = {
           updated: 0,
           skipped: 0,
@@ -2723,15 +2866,32 @@
               warning: ''
             };
           } else {
+            const { data: vehicleRows, error: vehicleRowsError } = await supabaseClient
+              .from('vehicles')
+              .select('*');
+            if (vehicleRowsError) throw vehicleRowsError;
+
+            const matchingVehicleRows = (vehicleRows || []).filter((row) => (
+              dedupedRows.some((ptRow) => normalizeUpperTrimmedValue(ptRow?.VIN) === normalizeUpperTrimmedValue(row?.VIN))
+            ));
+
+            setStatus('Backfilling PT movement metrics for uploaded rows...');
+            const ptBackfillResult = await backfillPtV2MetricsForVins(
+              dedupedRows.map((row) => row?.VIN),
+              matchingVehicleRows
+            );
+
             setStatus('Syncing vehicles directly from uploaded PT rows...');
             setProgress(96, 'Applying vehicle sync...');
-            const fallbackSyncResult = await syncVehiclesFromPtLastPing(dedupedRows.map((row) => row?.VIN));
+            const fallbackSyncResult = await syncVehiclesFromPtLastPing(
+              dedupedRows.map((row) => row?.VIN)
+            );
             vehicleSyncResult = {
               updated: fallbackSyncResult?.updated ?? 0,
               skipped: fallbackSyncResult?.skipped ?? 0,
-              updatedRows: 0,
+              updatedRows: ptBackfillResult?.updated ?? 0,
               mode: 'client_sync_only',
-              warning: 'Skipped heavy RPC finalization to avoid timeout.'
+              warning: 'Skipped heavy RPC finalization; backfilled PT v2 metrics in client batches.'
             };
           }
         } catch (error) {
