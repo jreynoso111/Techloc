@@ -834,6 +834,21 @@
       return map;
     };
 
+    const fetchVehicleRowsByVins = async (vins = []) => {
+      const normalizedVins = Array.from(new Set((vins || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)));
+      if (!normalizedVins.length) return [];
+      const rows = [];
+      for (const vinChunk of chunkArray(normalizedVins, 50)) {
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .select('*')
+          .in('VIN', vinChunk);
+        if (error) throw error;
+        rows.push(...(data || []));
+      }
+      return rows;
+    };
+
     const fetchPtRowsByVins = async (vins = []) => {
       const normalizedVins = Array.from(new Set((vins || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)));
       const rows = [];
@@ -1098,14 +1113,7 @@
 
       const releaseVehiclesAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/vehicles');
       try {
-        const { data: vehicleRows, error: vehicleError } = await supabaseClient
-          .from('vehicles')
-          .select('*');
-        if (vehicleError) throw vehicleError;
-
-        const matchingVehicles = (vehicleRows || []).filter((row) => (
-          normalizedVins.includes(normalizeUpperTrimmedValue(row?.VIN))
-        ));
+        const matchingVehicles = await fetchVehicleRowsByVins(normalizedVins);
         if (!matchingVehicles.length) {
           return { updated: 0, skipped: normalizedVins.length };
         }
@@ -2899,33 +2907,45 @@
               warning: ''
             };
           } else {
-            const { data: vehicleRows, error: vehicleRowsError } = await supabaseClient
-              .from('vehicles')
-              .select('*');
-            if (vehicleRowsError) throw vehicleRowsError;
-
-            const matchingVehicleRows = (vehicleRows || []).filter((row) => (
-              dedupedRows.some((ptRow) => normalizeUpperTrimmedValue(ptRow?.VIN) === normalizeUpperTrimmedValue(row?.VIN))
+            const uploadedVins = Array.from(new Set(
+              dedupedRows.map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean)
             ));
-
-            setStatus('Backfilling PT movement metrics for uploaded rows...');
-            const ptBackfillResult = await backfillPtV2MetricsForVins(
-              dedupedRows.map((row) => row?.VIN),
-              matchingVehicleRows
-            );
-
-            setStatus('Syncing vehicles directly from uploaded PT rows...');
-            setProgress(96, 'Applying vehicle sync...');
-            const fallbackSyncResult = await syncVehiclesFromPtLastPing(
-              dedupedRows.map((row) => row?.VIN)
-            );
             vehicleSyncResult = {
-              updated: fallbackSyncResult?.updated ?? 0,
-              skipped: fallbackSyncResult?.skipped ?? 0,
-              updatedRows: ptBackfillResult?.updated ?? 0,
-              mode: 'client_sync_only',
-              warning: 'Skipped heavy RPC finalization; backfilled PT v2 metrics in client batches.'
+              updated: 0,
+              skipped: 0,
+              updatedRows: 0,
+              mode: 'background_sync',
+              warning: 'PT rows uploaded. Vehicle/PT recalculation continues in background.'
             };
+
+            setProgress(100, 'Upload complete');
+            setStatus(
+              `Upload complete. Sent: ${aggregated.inserted}. ` +
+              `Background recalculation started for ${uploadedVins.length} VINs.`
+            );
+
+            setTimeout(async () => {
+              try {
+                const matchingVehicleRows = await fetchVehicleRowsByVins(uploadedVins);
+                await backfillPtV2MetricsForVins(uploadedVins, matchingVehicleRows);
+                await syncVehiclesFromPtLastPing(uploadedVins);
+                setStatus(
+                  `Upload complete. Background recalculation finished for ${uploadedVins.length} VINs.`
+                );
+                showToast(
+                  `PT upload complete. Background recalculation finished for ${uploadedVins.length} VINs.`,
+                  'success'
+                );
+              } catch (backgroundError) {
+                console.error('PT background sync failed after upload:', backgroundError);
+                showPtError(backgroundError, 'PT background sync failed after upload');
+                setStatus('Upload complete, but background recalculation failed.');
+                showToast(
+                  'PT upload complete, but background recalculation failed: ' + (backgroundError?.message || 'Unknown error'),
+                  'error'
+                );
+              }
+            }, 0);
           }
         } catch (error) {
           console.error('PT vehicle sync warning:', error);
@@ -2945,7 +2965,9 @@
           };
         }
 
-        setProgress(100, 'Done');
+        if (vehicleSyncResult?.mode !== 'background_sync') {
+          setProgress(100, 'Done');
+        }
 
         const summary =
           'Completed.' +
@@ -2970,6 +2992,7 @@
           `Vehicles refreshed: ${vehicleSyncResult?.updated ?? 0} ` +
           `${vehicleSyncResult?.mode === 'client_sync_only' ? ' Direct vehicle sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_fallback' ? ' Fallback sync used.' : ''} ` +
+          `${vehicleSyncResult?.mode === 'background_sync' ? ' Background sync started.' : ''} ` +
           `Skipped (client dedup): ${aggregated.skippedDeduplication} ` +
           `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
         );
