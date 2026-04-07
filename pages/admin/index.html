@@ -951,10 +951,18 @@
       }
 
       for (const updateChunk of chunkArray(updates, 200)) {
-        const { error } = await supabaseClient
-          .from('PT-LastPing')
-          .upsert(updateChunk, { onConflict: 'id' });
-        if (error) throw error;
+        const chunkResults = await Promise.all(updateChunk.map(async (entry) => {
+          const rowId = entry?.id;
+          if (rowId === undefined || rowId === null || rowId === '') return null;
+          const { id, ...patch } = entry;
+          const { error } = await supabaseClient
+            .from('PT-LastPing')
+            .update(patch)
+            .eq('id', rowId);
+          if (error) throw error;
+          return rowId;
+        }));
+        if (!chunkResults.length) continue;
       }
 
       return {

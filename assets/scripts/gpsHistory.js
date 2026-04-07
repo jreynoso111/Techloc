@@ -1358,7 +1358,7 @@ const getRecordMovementDisplay = (record = {}) => {
           : resolvedMovementDisplay === 'Parked'
           ? 'parked'
           : (resolvedMovementDisplay === 'Moving' ? 'moving' : 'unknown');
-        const centerStatusLabel = !hasHistory
+        const baseCenterStatusLabel = !hasHistory
           ? 'NO HISTORY'
           : staleOrUnknown
             ? 'STATUS UNKNOWN'
@@ -1367,6 +1367,9 @@ const getRecordMovementDisplay = (record = {}) => {
             : resolvedMovementDisplay === 'Moving'
               ? 'MOVING'
               : 'STATUS UNKNOWN';
+        const centerStatusLabel = isBlacklistedSerial
+          ? `BLACKLIST · ${baseCenterStatusLabel}`
+          : baseCenterStatusLabel;
         const rowsMarkup = expanded
           ? group.records.map((record) => `
             <tr class="gps-history-record-row" data-gps-serial-row="${safeEscape(group.serial)}">
