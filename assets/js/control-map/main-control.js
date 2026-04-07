@@ -3451,6 +3451,109 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       return true;
     };
 
+    const getPtRowDayKey = (value) => {
+      const timeMs = Date.parse(value);
+      if (!Number.isFinite(timeMs)) return '';
+      const parsed = new Date(timeMs);
+      const year = parsed.getUTCFullYear();
+      const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(parsed.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const recalculateVehiclePtRows = async (vehicle, vin) => {
+      if (!vehicle || !vin || !supabaseClient?.from) return { updated: 0 };
+
+      const { data: ptRows, error: ptRowsError } = await supabaseClient
+        .from('PT-LastPing')
+        .select('id,VIN,Serial,Date,Lat,Long,moved_v2,days_stationary_v2')
+        .eq('VIN', vin)
+        .order('Date', { ascending: true });
+      if (ptRowsError) throw ptRowsError;
+      if (!Array.isArray(ptRows) || !ptRows.length) return { updated: 0 };
+
+      const groupedRows = new Map();
+      ptRows.forEach((row) => {
+        const serial = normalizeGpsSerial(row?.Serial);
+        const timestamp = parseGpsTrailTimestamp(row);
+        const point = toGpsTrailPoint(row);
+        if (!serial || !Number.isFinite(timestamp) || !point) return;
+        const key = `${vin}__${serial}`;
+        const bucket = groupedRows.get(key) || [];
+        bucket.push({
+          id: row?.id,
+          serial,
+          date: row?.Date,
+          timestamp,
+          lat: point.lat,
+          lng: point.lng
+        });
+        groupedRows.set(key, bucket);
+      });
+
+      const unitType = vehicle?.movementUnitTypeV2 || vehicle?.type || vehicle?.details?.['Unit Type'] || '';
+      const thresholdMeters = getVehicleMovementThresholdMeters(getAppSettings(), unitType);
+      const updates = [];
+
+      groupedRows.forEach((entries) => {
+        entries.sort((left, right) => left.timestamp - right.timestamp || Number(left.id) - Number(right.id));
+        let previousEntry = null;
+        entries.forEach((entry) => {
+          let movedV2 = -1;
+          if (previousEntry) {
+            const distanceMeters = getGpsPointDistanceMeters(previousEntry, entry);
+            movedV2 = Number.isFinite(distanceMeters) && distanceMeters >= thresholdMeters ? 1 : -1;
+          }
+          entry.__moved_v2 = movedV2;
+          previousEntry = entry;
+        });
+
+        const dayStates = new Map();
+        entries.forEach((entry) => {
+          const dayKey = getPtRowDayKey(entry.date);
+          if (!dayKey) return;
+          dayStates.set(dayKey, Boolean(dayStates.get(dayKey)) || entry.__moved_v2 === 1);
+        });
+
+        const orderedDays = [...dayStates.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+        let consecutiveStoppedDays = 0;
+        const stationaryByDay = new Map();
+        orderedDays.forEach(([dayKey, isMovingDay]) => {
+          if (isMovingDay) {
+            consecutiveStoppedDays = 0;
+            stationaryByDay.set(dayKey, 0);
+            return;
+          }
+          stationaryByDay.set(dayKey, consecutiveStoppedDays);
+          consecutiveStoppedDays += 1;
+        });
+
+        entries.forEach((entry) => {
+          const dayKey = getPtRowDayKey(entry.date);
+          updates.push({
+            id: entry.id,
+            moved_v2: entry.__moved_v2,
+            days_stationary_v2: dayKey ? (stationaryByDay.get(dayKey) ?? 0) : 0
+          });
+        });
+      });
+
+      for (const updateChunk of chunkArray(updates, 25)) {
+        for (const entry of updateChunk) {
+          const rowId = entry?.id;
+          if (rowId === undefined || rowId === null || rowId === '') continue;
+          const { id, ...patch } = entry;
+          const { error } = await supabaseClient
+            .from('PT-LastPing')
+            .update(patch)
+            .eq('id', rowId);
+          if (error) throw error;
+        }
+      }
+
+      return { updated: updates.length };
+    };
+
     const recalculateVehicleFromPtHistory = async (vehicle) => {
       if (!vehicle || !supabaseClient?.from || !gpsHistoryManager) {
         throw new Error('Database unavailable.');
@@ -3468,6 +3571,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         if (refreshError || !refreshed?.session) {
           throw refreshError || new Error('Authentication session unavailable.');
         }
+      }
+
+      if (vin) {
+        await recalculateVehiclePtRows(vehicle, vin);
       }
 
       const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vin, vehicleId });
@@ -8137,7 +8244,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           card.innerHTML = `
             <div class="relative">
               <div class="min-w-0 space-y-1">
-                <div class="space-y-1 pr-10">
+                <div class="space-y-1 pr-16">
                 <p class="truncate text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model} <span class="text-amber-100">${vehicle.year || '—'}</span></p>
                 <h3 class="truncate font-extrabold text-white text-sm leading-tight">${vehicle.vin || 'VIN N/A'}</h3>
                 </div>
@@ -8163,13 +8270,24 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                data-action="vehicle-expand-toggle"
-                aria-expanded="${isExpanded ? 'true' : 'false'}"
-                class="absolute right-0 top-0 inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-950/70 text-sm font-bold text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
-                title="${isExpanded ? 'Collapse vehicle card' : 'Expand vehicle card'}"
-              >${expandChevron}</button>
+              <div class="absolute right-0 top-0 flex items-center gap-1">
+                <button
+                  type="button"
+                  data-action="vehicle-recalc-pt"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100 transition hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  title="${isPtRecalcPending ? 'Recalculating PT history' : 'Recalculate PT history for this vehicle'}"
+                  ${isPtRecalcPending ? 'disabled' : ''}
+                >
+                  ${svgIcon('refreshCw', `h-3.5 w-3.5 ${isPtRecalcPending ? 'animate-spin' : ''}`)}
+                </button>
+                <button
+                  type="button"
+                  data-action="vehicle-expand-toggle"
+                  aria-expanded="${isExpanded ? 'true' : 'false'}"
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-950/70 text-sm font-bold text-slate-300 transition hover:border-amber-400 hover:text-amber-200"
+                  title="${isExpanded ? 'Collapse vehicle card' : 'Expand vehicle card'}"
+                >${expandChevron}</button>
+              </div>
             </div>
             ${isExpanded ? `
             <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -8220,10 +8338,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                 <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) ? formatDateTime(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) : '--'}</p>
               </div>
               <div class="flex items-center justify-end gap-2">
-                <button type="button" data-action="vehicle-recalc-pt" class="inline-flex items-center gap-1.5 rounded-lg border border-fuchsia-400/40 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-bold text-fuchsia-100 hover:bg-fuchsia-500/20 transition-colors disabled:cursor-not-allowed disabled:opacity-60" ${isPtRecalcPending ? 'disabled' : ''}>
-                  ${svgIcon('refreshCw', 'h-3.5 w-3.5')}
-                  ${isPtRecalcPending ? 'Recalc...' : 'Recalc PT'}
-                </button>
                 <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
                   ${svgIcon('info', 'h-3.5 w-3.5')}
                   See more

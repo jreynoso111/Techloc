@@ -2910,42 +2910,25 @@
             const uploadedVins = Array.from(new Set(
               dedupedRows.map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean)
             ));
-            vehicleSyncResult = {
-              updated: 0,
-              skipped: 0,
-              updatedRows: 0,
-              mode: 'background_sync',
-              warning: 'PT rows uploaded. Vehicle/PT recalculation continues in background.'
-            };
+            const matchingVehicleRows = await fetchVehicleRowsByVins(uploadedVins);
 
-            setProgress(100, 'Upload complete');
-            setStatus(
-              `Upload complete. Sent: ${aggregated.inserted}. ` +
-              `Background recalculation started for ${uploadedVins.length} VINs.`
+            setStatus('Backfilling PT movement metrics for uploaded rows...');
+            setProgress(96, `Recalculating ${uploadedVins.length} VINs...`);
+            const ptBackfillResult = await backfillPtV2MetricsForVins(
+              uploadedVins,
+              matchingVehicleRows
             );
 
-            setTimeout(async () => {
-              try {
-                const matchingVehicleRows = await fetchVehicleRowsByVins(uploadedVins);
-                await backfillPtV2MetricsForVins(uploadedVins, matchingVehicleRows);
-                await syncVehiclesFromPtLastPing(uploadedVins);
-                setStatus(
-                  `Upload complete. Background recalculation finished for ${uploadedVins.length} VINs.`
-                );
-                showToast(
-                  `PT upload complete. Background recalculation finished for ${uploadedVins.length} VINs.`,
-                  'success'
-                );
-              } catch (backgroundError) {
-                console.error('PT background sync failed after upload:', backgroundError);
-                showPtError(backgroundError, 'PT background sync failed after upload');
-                setStatus('Upload complete, but background recalculation failed.');
-                showToast(
-                  'PT upload complete, but background recalculation failed: ' + (backgroundError?.message || 'Unknown error'),
-                  'error'
-                );
-              }
-            }, 0);
+            setStatus('Syncing vehicles directly from uploaded PT rows...');
+            setProgress(98, 'Applying vehicle sync...');
+            const fallbackSyncResult = await syncVehiclesFromPtLastPing(uploadedVins);
+            vehicleSyncResult = {
+              updated: fallbackSyncResult?.updated ?? 0,
+              skipped: fallbackSyncResult?.skipped ?? 0,
+              updatedRows: ptBackfillResult?.updated ?? 0,
+              mode: 'client_sync_only',
+              warning: ''
+            };
           }
         } catch (error) {
           console.error('PT vehicle sync warning:', error);
@@ -2965,9 +2948,7 @@
           };
         }
 
-        if (vehicleSyncResult?.mode !== 'background_sync') {
-          setProgress(100, 'Done');
-        }
+        setProgress(100, 'Done');
 
         const summary =
           'Completed.' +
@@ -2992,7 +2973,6 @@
           `Vehicles refreshed: ${vehicleSyncResult?.updated ?? 0} ` +
           `${vehicleSyncResult?.mode === 'client_sync_only' ? ' Direct vehicle sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_fallback' ? ' Fallback sync used.' : ''} ` +
-          `${vehicleSyncResult?.mode === 'background_sync' ? ' Background sync started.' : ''} ` +
           `Skipped (client dedup): ${aggregated.skippedDeduplication} ` +
           `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
         );
