@@ -117,6 +117,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     let dataSyncRefreshPromise = null;
     const serviceSearchFilters = { tech: '', reseller: '', repair: '', custom: '' };
     const serviceFilterIds = { ...getServiceFilterIds() };
+    const chunkArray = (items = [], chunkSize = 100) => {
+      const safeChunkSize = Math.max(1, Number(chunkSize) || 100);
+      const chunks = [];
+      for (let index = 0; index < items.length; index += safeChunkSize) {
+        chunks.push(items.slice(index, index + safeChunkSize));
+      }
+      return chunks;
+    };
     const vehicleFilters = {
       invPrep: [],
       physLoc: [],
