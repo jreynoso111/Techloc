@@ -163,6 +163,8 @@ const getRecordSerial = (record = {}) => {
 const GPS_HISTORY_DAY_MS = 24 * 60 * 60 * 1000;
 const GPS_WINNER_RECENCY_WINDOW_MS = 14 * GPS_HISTORY_DAY_MS;
 const GPS_SERIAL_ALARM_MOVEMENT_DISTANCE_METERS = 220;
+const GPS_HISTORY_INITIAL_WINDOW_DAYS = 30;
+const GPS_HISTORY_WINDOW_STEP_DAYS = 30;
 
 const parseCoordinate = (record = {}, key = 'lat') => {
   const candidates = key === 'lat'
@@ -715,29 +717,46 @@ const createGpsHistoryManager = ({
     })
   );
 
-  const fetchGpsHistory = async ({ vin, vehicleId } = {}) => {
+  const fetchGpsHistory = async ({ vin, vehicleId, windowStartMs = null } = {}) => {
     const normalizedVin = typeof vin === 'string' ? vin.trim().toUpperCase() : '';
     const normalizedVehicleId = typeof vehicleId === 'string' ? vehicleId.trim() : '';
     const vinSuffix = getVinSuffix(normalizedVin);
+    const effectiveWindowStartMs = Number.isFinite(windowStartMs)
+      ? windowStartMs
+      : (Date.now() - (GPS_HISTORY_INITIAL_WINDOW_DAYS * GPS_HISTORY_DAY_MS));
     if (!supabaseClient || (!normalizedVin && !normalizedVehicleId)) {
-      return { records: [], error: supabaseClient ? new Error('VIN missing') : new Error('Database unavailable') };
+      return {
+        records: [],
+        error: supabaseClient ? new Error('VIN missing') : new Error('Database unavailable'),
+        windowStartMs: effectiveWindowStartMs,
+        hasOlderRecords: false
+      };
     }
     try {
       await ensureSupabaseSession?.();
       const sourceTable = tableName || 'PT-LastPing';
       const pageSize = 1000;
+      const windowStartIso = Number.isFinite(effectiveWindowStartMs)
+        ? new Date(effectiveWindowStartMs).toISOString()
+        : '';
+      const dateColumn = sourceTable === 'PT-LastPing' ? 'Date' : 'created_at';
       const fetchRecordsByFilter = async ({ column, value, operator = 'eq' } = {}) => {
         const records = [];
         let offset = 0;
         let hasMore = true;
+        let hasOlderRecords = false;
         while (hasMore) {
           let pageQuery = supabaseClient
             .from(sourceTable)
             .select('*')
+            .order(dateColumn, { ascending: false })
             .range(offset, offset + pageSize - 1);
           pageQuery = operator === 'ilike'
             ? pageQuery.ilike(column, value)
             : pageQuery.eq(column, value);
+          if (windowStartIso) {
+            pageQuery = pageQuery.gte(dateColumn, windowStartIso);
+          }
           const { data, error } = await runWithTimeout(
             pageQuery,
             timeoutMs,
@@ -750,7 +769,27 @@ const createGpsHistoryManager = ({
           hasMore = pageRows.length === pageSize;
           offset += pageSize;
         }
-        return records;
+
+        if (windowStartIso) {
+          let probeQuery = supabaseClient
+            .from(sourceTable)
+            .select(dateColumn)
+            .order(dateColumn, { ascending: false })
+            .limit(1);
+          probeQuery = operator === 'ilike'
+            ? probeQuery.ilike(column, value)
+            : probeQuery.eq(column, value);
+          probeQuery = probeQuery.lt(dateColumn, windowStartIso);
+          const { data: probeData, error: probeError } = await runWithTimeout(
+            probeQuery,
+            timeoutMs,
+            'GPS history older-record probe timed out.'
+          );
+          if (probeError) throw probeError;
+          hasOlderRecords = Array.isArray(probeData) && probeData.length > 0;
+        }
+
+        return { records, hasOlderRecords };
       };
 
       const lookupFilters = [];
@@ -761,10 +800,13 @@ const createGpsHistoryManager = ({
       }
 
       let records = [];
+      let hasOlderRecords = false;
       let lastError = null;
       for (const filter of lookupFilters) {
         try {
-          records = await fetchRecordsByFilter(filter);
+          const result = await fetchRecordsByFilter(filter);
+          records = result?.records || [];
+          hasOlderRecords = hasOlderRecords || Boolean(result?.hasOlderRecords);
           if (records.length && filter.operator === 'ilike' && vinSuffix) {
             records = records.filter((record) => getVinSuffix(record?.VIN ?? record?.vin) === vinSuffix);
           }
@@ -797,10 +839,20 @@ const createGpsHistoryManager = ({
         return idB - idA;
       });
       records = records.filter((record) => hasValidGpsHistoryCoordinates(record));
-      return { records, error: null };
+      return {
+        records,
+        error: null,
+        windowStartMs: effectiveWindowStartMs,
+        hasOlderRecords
+      };
     } catch (error) {
       console.error('Failed to load GPS history:', error);
-      return { records: [], error };
+      return {
+        records: [],
+        error,
+        windowStartMs: effectiveWindowStartMs,
+        hasOlderRecords: false
+      };
     }
   };
 
@@ -823,6 +875,7 @@ const createGpsHistoryManager = ({
     const viewWinnerButton = body.querySelector('[data-gps-view="winner"]');
     const viewAllButton = body.querySelector('[data-gps-view="all"]');
     const winnerInfo = body.querySelector('[data-gps-winner-info]');
+    const historyRangeActions = body.querySelector('[data-gps-history-range-actions]');
 
     let gpsCache = [];
     let gpsColumns = [];
@@ -838,6 +891,9 @@ const createGpsHistoryManager = ({
     let suppressSortUntil = 0;
     let headerDragEnabledBeforeResize = [];
     let viewMode = 'all';
+    let historyWindowStartMs = Date.now() - (GPS_HISTORY_INITIAL_WINDOW_DAYS * GPS_HISTORY_DAY_MS);
+    let hasOlderHistory = false;
+    let historyLoadPending = false;
     const serialSectionState = new Map();
 
     const COLUMN_STORAGE_KEY_BASE = 'gpsHistoryColumnPrefs';
@@ -912,6 +968,30 @@ const createGpsHistoryManager = ({
           ? `Winner serial: ${winnerSerial}${statusSuffix}`
           : 'Winner serial not available for this vehicle.';
       }
+    };
+
+    const renderHistoryRangeActions = () => {
+      if (!historyRangeActions) return;
+      if (!hasOlderHistory) {
+        historyRangeActions.innerHTML = '';
+        return;
+      }
+
+      const loadedDays = Math.max(
+        GPS_HISTORY_INITIAL_WINDOW_DAYS,
+        Math.ceil((Date.now() - historyWindowStartMs) / GPS_HISTORY_DAY_MS)
+      );
+      historyRangeActions.innerHTML = `
+        <button
+          type="button"
+          class="rounded border border-slate-700 bg-slate-900 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
+          data-gps-load-older
+          ${historyLoadPending ? 'disabled' : ''}
+        >
+          ${historyLoadPending ? 'Loading…' : `Load older ${GPS_HISTORY_WINDOW_STEP_DAYS}d`}
+        </button>
+        <span class="text-[10px] text-slate-500">Showing last ${loadedDays} day${loadedDays === 1 ? '' : 's'} first</span>
+      `;
     };
 
     const setViewMode = (nextMode) => {
@@ -1286,6 +1366,10 @@ const getRecordMovementDisplay = (record = {}) => {
       )).length;
 
       if (statusText) {
+        const loadedDays = Math.max(
+          GPS_HISTORY_INITIAL_WINDOW_DAYS,
+          Math.ceil((Date.now() - historyWindowStartMs) / GPS_HISTORY_DAY_MS)
+        );
         const modeSuffix = viewMode === 'winner' && winnerSerial
           ? ` (winner serial ${winnerSerial})`
           : '';
@@ -1295,14 +1379,20 @@ const getRecordMovementDisplay = (record = {}) => {
         const configuredSuffix = configuredWithoutHistoryCount
           ? ` · ${configuredWithoutHistoryCount} configured serial${configuredWithoutHistoryCount === 1 ? '' : 's'} with no history`
           : '';
-        statusText.textContent = `${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'} shown in ${serialGroups.length} serial section${serialGroups.length === 1 ? '' : 's'}${modeSuffix}${alertSuffix}${configuredSuffix}.`;
+        const olderSuffix = hasOlderHistory ? ' · Older history available' : '';
+        statusText.textContent = `${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'} shown in ${serialGroups.length} serial section${serialGroups.length === 1 ? '' : 's'} · Last ${loadedDays} day${loadedDays === 1 ? '' : 's'}${modeSuffix}${alertSuffix}${configuredSuffix}${olderSuffix}.`;
       }
 
       if (!filteredRecords.length && !serialGroups.length) {
         const colSpan = Math.max(visibleColumns.length, 1);
         const emptyMessage = viewMode === 'winner' && winnerSerial
           ? `No GPS history found for winner serial ${safeEscape(winnerSerial)}.`
-          : 'No GPS history found.';
+          : hasOlderHistory
+            ? `No GPS history found in the last ${Math.max(
+              GPS_HISTORY_INITIAL_WINDOW_DAYS,
+              Math.ceil((Date.now() - historyWindowStartMs) / GPS_HISTORY_DAY_MS)
+            )} days. Load older history to continue.`
+            : 'No GPS history found.';
         historyBody.innerHTML = `
           <tr>
             <td class="py-2 pr-3 text-slate-400" colspan="${colSpan}">${emptyMessage}</td>
@@ -1649,6 +1739,7 @@ const getRecordMovementDisplay = (record = {}) => {
     const finalizeRender = (records, error) => {
       winnerSerial = resolveWinnerSerial(vehicle, records);
       syncViewControls();
+      renderHistoryRangeActions();
       renderHistory(applyDisplayOverrides(records, { vehicle }));
       if (statusText && error) statusText.textContent = 'Unable to load GPS history.';
       if (error) {
@@ -1690,8 +1781,27 @@ const getRecordMovementDisplay = (record = {}) => {
     loadPreferences();
     resolvePreferenceScope();
     syncViewControls();
+    renderHistoryRangeActions();
     if (statusText) statusText.textContent = 'Loading GPS history...';
     loadColumnMetadata();
+    const loadHistoryWindow = async (nextWindowStartMs, { appendOlder = false } = {}) => {
+      historyLoadPending = true;
+      historyWindowStartMs = nextWindowStartMs;
+      renderHistoryRangeActions();
+      setConnectionStatus('Connecting…', 'warning');
+      if (statusText) {
+        statusText.textContent = appendOlder ? 'Loading older GPS history...' : 'Loading GPS history...';
+      }
+      const { records, error, hasOlderRecords, windowStartMs } = await fetchGpsHistory({
+        vin: VIN,
+        vehicleId,
+        windowStartMs: nextWindowStartMs
+      });
+      historyLoadPending = false;
+      historyWindowStartMs = Number.isFinite(windowStartMs) ? windowStartMs : nextWindowStartMs;
+      hasOlderHistory = Boolean(hasOlderRecords);
+      finalizeRender(records, error);
+    };
     if (!VIN && !vehicleId) {
       renderHistory([]);
       if (statusText) statusText.textContent = 'No VIN or vehicle ID available for this vehicle.';
@@ -1703,10 +1813,7 @@ const getRecordMovementDisplay = (record = {}) => {
     } else if (Array.isArray(preloadedRecords)) {
       finalizeRender(preloadedRecords, preloadedError);
     } else {
-      setConnectionStatus('Connecting…', 'warning');
-      fetchGpsHistory({ vin: VIN, vehicleId }).then(({ records, error }) => {
-        finalizeRender(records, error);
-      });
+      void loadHistoryWindow(historyWindowStartMs);
     }
 
     if (columnsToggle && columnsPanel) {
@@ -1714,6 +1821,16 @@ const getRecordMovementDisplay = (record = {}) => {
         columnsPanel.classList.toggle('hidden');
       }, { signal });
     }
+
+    body.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const loadOlderButton = target?.closest('[data-gps-load-older]');
+      if (!loadOlderButton) return;
+      event.preventDefault();
+      if (historyLoadPending) return;
+      const nextWindowStartMs = historyWindowStartMs - (GPS_HISTORY_WINDOW_STEP_DAYS * GPS_HISTORY_DAY_MS);
+      void loadHistoryWindow(nextWindowStartMs, { appendOlder: true });
+    }, { signal });
 
     if (viewWinnerButton) {
       viewWinnerButton.addEventListener('click', () => {

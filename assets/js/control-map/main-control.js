@@ -3484,6 +3484,49 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       return true;
     };
 
+    const refreshVehicleSidebarSnapshot = async (vehicle) => {
+      if (!vehicle || !supabaseClient?.from) {
+        throw new Error('Database unavailable.');
+      }
+
+      const vehicleId = `${vehicle?.id ?? ''}`.trim();
+      if (!vehicleId) {
+        throw new Error('Vehicle has no id to refresh.');
+      }
+
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError || !sessionData?.session) {
+        const { data: refreshed, error: refreshError } = await supabaseClient.auth.refreshSession();
+        if (refreshError || !refreshed?.session) {
+          throw refreshError || new Error('Authentication session unavailable.');
+        }
+      }
+
+      const data = await runWithTimeout(
+        vehicleService.getVehicleById(vehicleId),
+        12000,
+        'Vehicle sidebar refresh timed out.'
+      );
+      if (!data || typeof data !== 'object') {
+        throw new Error('Vehicle row not found.');
+      }
+
+      const vehicleIndex = vehicles.findIndex((entry) => `${entry?.id ?? ''}`.trim() === vehicleId);
+      const normalizedVehicle = normalizeVehicle(
+        data,
+        Math.max(0, vehicleIndex),
+        { getField, toStateCode, resolveCoords }
+      );
+      applyManualVehicleMetadataOverride(normalizedVehicle);
+      applyDerivedVehicleMetricsFromPreviousSnapshot(normalizedVehicle, vehicle);
+
+      if (vehicleIndex >= 0) {
+        vehicles[vehicleIndex] = normalizedVehicle;
+      }
+
+      return normalizedVehicle;
+    };
+
     const getPtRowDayKey = (value) => {
       const timeMs = Date.parse(value);
       if (!Number.isFinite(timeMs)) return '';
@@ -7966,14 +8009,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         if (!vehicleKey || vehiclePtRecalcPendingKeys.has(vehicleKey)) return;
         vehiclePtRecalcPendingKeys.add(vehicleKey);
         renderVehicles({ preserveScrollTop: true });
-        const stopLoading = startLoading('Recalculating vehicle PT...');
-        void recalculateVehicleFromPtHistory(vehicle)
+        const stopLoading = startLoading('Refreshing vehicle card...');
+        void refreshVehicleSidebarSnapshot(vehicle)
           .then(() => {
             renderVehicles({ preserveScrollTop: true });
           })
           .catch((error) => {
-            console.warn('Failed to recalculate vehicle PT history:', error);
-            alert(error?.message || 'Failed to recalculate PT history for this vehicle.');
+            console.warn('Failed to refresh vehicle sidebar snapshot:', error);
+            alert(error?.message || 'Failed to refresh this vehicle card.');
           })
           .finally(() => {
             stopLoading();
@@ -8336,7 +8379,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                   type="button"
                   data-action="vehicle-recalc-pt"
                   class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100 transition hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  title="${isPtRecalcPending ? 'Recalculating PT history' : 'Recalculate PT history for this vehicle'}"
+                  title="${isPtRecalcPending ? 'Refreshing vehicle card' : 'Refresh this vehicle card'}"
                   ${isPtRecalcPending ? 'disabled' : ''}
                 >
                   ${svgIcon('refreshCw', `h-3.5 w-3.5 ${isPtRecalcPending ? 'animate-spin' : ''}`)}
@@ -10275,6 +10318,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                 <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">GPS History</p>
                 <p class="text-[10px] text-slate-500" data-gps-status>Loading GPS history...</p>
                 <p class="text-[10px] text-slate-500" data-gps-winner-info></p>
+                <div class="mt-2 flex flex-wrap items-center gap-2" data-gps-history-range-actions></div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <button type="button" class="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-950/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300" data-gps-connection-status>
