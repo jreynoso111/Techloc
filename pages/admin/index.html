@@ -1229,6 +1229,99 @@
       return filtered;
     };
 
+    const fetchVehicleRowsForDealsSync = async ({ vins = [], stockNumbers = [] } = {}) => {
+      const normalizedVins = Array.from(new Set((vins || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)));
+      const normalizedStocks = Array.from(new Set((stockNumbers || []).map((stock) => normalizeStockNumber(stock)).filter(Boolean)));
+      const rows = [];
+
+      for (const vinChunk of chunkArray(normalizedVins, 50)) {
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .select('*')
+          .in('VIN', vinChunk);
+        if (error) throw error;
+        rows.push(...(data || []));
+      }
+
+      for (const stockChunk of chunkArray(normalizedStocks, 50)) {
+        const { data, error } = await supabaseClient
+          .from('vehicles')
+          .select('*')
+          .in('Current Stock No', stockChunk);
+        if (error) throw error;
+        rows.push(...(data || []));
+      }
+
+      const deduped = new Map();
+      rows.forEach((row) => {
+        const key = `${row?.id ?? ''}`.trim();
+        if (!key) return;
+        deduped.set(key, row);
+      });
+      return Array.from(deduped.values());
+    };
+
+    const syncVehiclesFromUploadedDealsRows = async (dealRows = []) => {
+      if (!supabaseClient?.from || !Array.isArray(dealRows) || !dealRows.length) {
+        return { updated: 0, skipped: 0 };
+      }
+
+      const vehicleColumns = await fetchTableColumns('vehicles');
+      const normalizedVins = Array.from(new Set(
+        dealRows.map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean)
+      ));
+      const normalizedStocks = Array.from(new Set(
+        dealRows.map((row) => normalizeStockNumber(row?.['Current Stock No'])).filter(Boolean)
+      ));
+      const vehicleRows = await fetchVehicleRowsForDealsSync({
+        vins: normalizedVins,
+        stockNumbers: normalizedStocks
+      });
+      if (!vehicleRows.length) {
+        return { updated: 0, skipped: dealRows.length };
+      }
+
+      const vehiclesByVin = new Map();
+      const vehiclesByStock = new Map();
+      vehicleRows.forEach((row) => {
+        const vin = normalizeUpperTrimmedValue(row?.VIN);
+        const stock = normalizeStockNumber(row?.['Current Stock No']);
+        if (vin) vehiclesByVin.set(vin, row);
+        if (stock) vehiclesByStock.set(stock, row);
+      });
+
+      const payloads = [];
+      dealRows.forEach((dealRow) => {
+        const vin = normalizeUpperTrimmedValue(dealRow?.VIN);
+        const stock = normalizeStockNumber(dealRow?.['Current Stock No']);
+        const vehicleRow = vehiclesByVin.get(vin) || vehiclesByStock.get(stock);
+        if (!vehicleRow?.id) return;
+
+        const patch = { id: vehicleRow.id };
+        Object.entries(dealRow).forEach(([key, value]) => {
+          if (key === 'id' || key === 'created_at' || key === 'updated_at') return;
+          if (!vehicleColumns.has(key)) return;
+          patch[key] = value ?? null;
+        });
+
+        if (vin && vehicleColumns.has('VIN')) patch.VIN = vin;
+        if (stock && vehicleColumns.has('Current Stock No')) patch['Current Stock No'] = stock;
+        if (Object.keys(patch).length > 1) payloads.push(patch);
+      });
+
+      for (const payloadChunk of chunkArray(payloads, 100)) {
+        const { error } = await supabaseClient
+          .from('vehicles')
+          .upsert(payloadChunk, { onConflict: 'id' });
+        if (error) throw error;
+      }
+
+      return {
+        updated: payloads.length,
+        skipped: Math.max(0, dealRows.length - payloads.length)
+      };
+    };
+
     const mapInvoiceRow = (normalizedRow = {}, columnMap) => {
       const mapped = {};
       columnMap.forEach((originalHeader, normalizedKey) => {
@@ -1601,12 +1694,23 @@
       console.info('DealsJP1 last-deal recalculation updated rows:', recalcData);
       console.info('DealsJP1 vehicle sync updated rows:', syncData);
 
+      setProgress(100, 'Applying uploaded DealsJP1 rows to vehicles...');
+      let fallbackSyncData = { updated: 0, skipped: 0 };
+      try {
+        fallbackSyncData = await syncVehiclesFromUploadedDealsRows(filteredRows);
+        console.info('DealsJP1 client vehicle sync updated rows:', fallbackSyncData);
+      } catch (fallbackError) {
+        console.error('DealsJP1 client fallback sync error:', fallbackError);
+        showToast('DealsJP1 upload completed, but targeted vehicle refresh failed: ' + shortSupabaseError(fallbackError), 'error');
+      }
+
       const summary =
         'Completed.' +
         '\nTotal rows processed: ' + rows.length +
         '\nProcessed (Unique by Stock No): ' + filteredRows.length +
         '\nUpserted: ' + totalUpserted +
         '\nLast Deal recalculated rows: ' + (recalcData ?? 0) +
+        '\nVehicles refreshed by uploaded rows: ' + (fallbackSyncData?.updated ?? 0) +
         '\nSkipped (Invalid Sales Channel): ' + skippedInvalidSalesChannel +
         '\nSkipped (Missing Stock No or VIN): ' + skippedMissingRequired +
         '\nDuplicates Removed: ' + duplicatesRemoved + 
