@@ -137,10 +137,19 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       trailPoints: DEFAULT_GPS_TRAIL_POINT_LIMIT,
       payKpiPositiveOnly: false,
       stalePingOnly: false,
+      sortRotationIndex: null,
+      sortDirection: null,
+      sortCycleStage: 0,
     };
     let gpsTrailPointLimit = DEFAULT_GPS_TRAIL_POINT_LIMIT;
     let vehicleFiltersCollapsed = false;
     let mapAppSettings = getAppSettings();
+    const VEHICLE_SORT_ROTATION_OPTIONS = Object.freeze([
+      { key: 'vin_last6', label: 'VIN 6' },
+      { key: 'days_parked', label: 'Parked' },
+      { key: 'pay_kpi', label: 'Balance' },
+      { key: 'pt_last_read', label: 'Last Ping' }
+    ]);
     const STALE_PING_DAY_MS = 24 * 60 * 60 * 1000;
     const CONTROL_MAP_BOOT_VEHICLE_TIMEOUT_MS = 12000;
     const APP_SETTINGS_TABLE = 'app_settings';
@@ -316,6 +325,19 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         : DEFAULT_GPS_TRAIL_POINT_LIMIT;
       const payKpiPositiveOnly = Boolean(payload.payKpiPositiveOnly);
       const stalePingOnly = Boolean(payload.stalePingOnly);
+      const sortRotationIndexRaw = Number(payload.sortRotationIndex);
+      const sortRotationIndex = Number.isInteger(sortRotationIndexRaw)
+        && sortRotationIndexRaw >= 0
+        && sortRotationIndexRaw < VEHICLE_SORT_ROTATION_OPTIONS.length
+        ? sortRotationIndexRaw
+        : null;
+      const sortDirection = payload.sortDirection === 'asc' || payload.sortDirection === 'desc'
+        ? payload.sortDirection
+        : null;
+      const sortCycleStageRaw = Number(payload.sortCycleStage);
+      const sortCycleStage = Number.isInteger(sortCycleStageRaw) && sortCycleStageRaw >= 0 && sortCycleStageRaw <= 2
+        ? sortCycleStageRaw
+        : 0;
 
       return {
         invPrep: toArray(payload.invPrep),
@@ -329,6 +351,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         trailPoints,
         payKpiPositiveOnly,
         stalePingOnly,
+        sortRotationIndex,
+        sortDirection,
+        sortCycleStage,
       };
     };
 
@@ -8721,6 +8746,83 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       return [...list].sort((a, b) => getPayKpiValue(b) - getPayKpiValue(a));
     }
 
+    function getVehicleVinLast6Value(vehicle) {
+      return getVehicleVin(vehicle).slice(-6);
+    }
+
+    function getVehiclePtLastReadTimestampValue(vehicle) {
+      const timeMs = Date.parse(getVehiclePtLastReadValue(vehicle) || '');
+      return Number.isFinite(timeMs) ? timeMs : Number.NEGATIVE_INFINITY;
+    }
+
+    function sortVehiclesByRotationCriterion(list, criterionKey, direction = 'desc') {
+      const multiplier = direction === 'asc' ? 1 : -1;
+      const decorated = [...list].map((vehicle, index) => ({ vehicle, index }));
+      decorated.sort((left, right) => {
+        let comparison = 0;
+        if (criterionKey === 'vin_last6') {
+          comparison = getVehicleVinLast6Value(left.vehicle).localeCompare(getVehicleVinLast6Value(right.vehicle), undefined, { numeric: true });
+        } else if (criterionKey === 'days_parked') {
+          comparison = getDaysParkedValue(left.vehicle) - getDaysParkedValue(right.vehicle);
+        } else if (criterionKey === 'pay_kpi') {
+          comparison = getPayKpiValue(left.vehicle) - getPayKpiValue(right.vehicle);
+        } else if (criterionKey === 'pt_last_read') {
+          comparison = getVehiclePtLastReadTimestampValue(left.vehicle) - getVehiclePtLastReadTimestampValue(right.vehicle);
+        }
+        if (comparison !== 0) return comparison * multiplier;
+        return left.index - right.index;
+      });
+      return decorated.map((entry) => entry.vehicle);
+    }
+
+    function getVehicleSortRotationMeta() {
+      const index = Number(vehicleFilters.sortRotationIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= VEHICLE_SORT_ROTATION_OPTIONS.length) return null;
+      const option = VEHICLE_SORT_ROTATION_OPTIONS[index];
+      if (!option) return null;
+      const direction = vehicleFilters.sortDirection === 'asc' || vehicleFilters.sortDirection === 'desc'
+        ? vehicleFilters.sortDirection
+        : 'desc';
+      return { ...option, direction };
+    }
+
+    function updateVehicleSortRotationUi() {
+      const label = document.getElementById('vehicle-sort-rotation-label');
+      const meta = getVehicleSortRotationMeta();
+      if (label) {
+        label.textContent = meta
+          ? `Sort: ${meta.label} ${meta.direction === 'asc' ? '↑' : '↓'}`
+          : 'Sort: Auto';
+        label.title = meta
+          ? `Card sort: ${meta.label} ${meta.direction === 'asc' ? 'ascending' : 'descending'}`
+          : 'Card sort: automatic';
+      }
+    }
+
+    function rotateVehicleSort(direction = 'desc') {
+      const requestedDirection = direction === 'asc' ? 'asc' : 'desc';
+      const currentMeta = getVehicleSortRotationMeta();
+      const currentIndex = currentMeta ? VEHICLE_SORT_ROTATION_OPTIONS.findIndex((option) => option.key === currentMeta.key) : -1;
+      const currentStage = Number.isInteger(Number(vehicleFilters.sortCycleStage)) ? Number(vehicleFilters.sortCycleStage) : 0;
+
+      if (!currentMeta || currentIndex < 0) {
+        vehicleFilters.sortRotationIndex = 0;
+        vehicleFilters.sortDirection = requestedDirection;
+        vehicleFilters.sortCycleStage = 1;
+      } else if (currentStage < 2) {
+        vehicleFilters.sortDirection = requestedDirection === 'asc' ? 'asc' : 'desc';
+        vehicleFilters.sortCycleStage = requestedDirection === currentMeta.direction ? 1 : 2;
+      } else {
+        vehicleFilters.sortRotationIndex = (currentIndex + 1) % VEHICLE_SORT_ROTATION_OPTIONS.length;
+        vehicleFilters.sortDirection = requestedDirection;
+        vehicleFilters.sortCycleStage = 1;
+      }
+
+      updateVehicleSortRotationUi();
+      renderVehicles();
+      persistVehicleFilterPrefs();
+    }
+
     function sortVehiclesMissingCoordsLast(list) {
       return list
         .map((vehicle, index) => ({ vehicle, index }))
@@ -8931,6 +9033,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         }
       }
       updateVehicleFilterLabels();
+      updateVehicleSortRotationUi();
     }
 
     function resetVehicleFilters() {
@@ -8945,6 +9048,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       vehicleFilters.trailPoints = DEFAULT_GPS_TRAIL_POINT_LIMIT;
       vehicleFilters.payKpiPositiveOnly = false;
       vehicleFilters.stalePingOnly = false;
+      vehicleFilters.sortRotationIndex = null;
+      vehicleFilters.sortDirection = null;
+      vehicleFilters.sortCycleStage = 0;
       gpsTrailPointLimit = DEFAULT_GPS_TRAIL_POINT_LIMIT;
       syncVehicleFilterInputs();
       renderVehicles();
@@ -9086,8 +9192,19 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         applyVehicleFiltersCollapsedState(!vehicleFiltersCollapsed);
       });
 
+      document.getElementById('vehicle-sort-rotate-desc')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        rotateVehicleSort('desc');
+      });
+
+      document.getElementById('vehicle-sort-rotate-asc')?.addEventListener('click', (event) => {
+        event.preventDefault();
+        rotateVehicleSort('asc');
+      });
+
       bindVehicleFilterDropdowns();
       applyVehicleFiltersCollapsedState(loadVehicleFiltersCollapsedPref(), { persist: false });
+      updateVehicleSortRotationUi();
     }
 
     function getVehicleList(query) {
@@ -9117,7 +9234,11 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       if (shouldPrioritizeOnRev) {
         list = sortVehiclesByOnRevChecked(list);
       }
-      if (!hasActiveVehicleSidebarRefinements(query)) {
+      const sortMeta = getVehicleSortRotationMeta();
+      if (sortMeta?.key) {
+        list = sortVehiclesByRotationCriterion(list, sortMeta.key, sortMeta.direction);
+      }
+      if (!sortMeta?.key && !hasActiveVehicleSidebarRefinements(query)) {
         list = sortVehiclesMissingCoordsLast(list);
       }
       return list;
@@ -10439,11 +10560,20 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       return getNearestFromList(vehicle, list, type);
     }
 
+    function formatRouteTimeEstimate(distanceMiles) {
+      if (!Number.isFinite(distanceMiles) || distanceMiles <= 0) return '';
+      const estimatedMinutes = Math.max(1, Math.round((distanceMiles / 32) * 60));
+      const hours = Math.floor(estimatedMinutes / 60);
+      const minutes = estimatedMinutes % 60;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m`;
+    }
+
     function addLabeledConnection(layer, start, end, distance, color, options = {}) {
       if (!layer || !start || !end) return null;
       const { dashArray = '6 4', weight = 3, opacity = 0.85 } = options;
 
-      L.polyline(
+      const polyline = L.polyline(
         [
           [start.lat, start.lng],
           [end.lat, end.lng]
@@ -10451,20 +10581,21 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         { color, weight, opacity, dashArray }
       ).addTo(layer);
 
-      const midLat = (start.lat + end.lat) / 2;
-      const midLng = (start.lng + end.lng) / 2;
-      const label = L.marker([midLat, midLng], {
-        icon: L.divIcon({
-          className: 'distance-label-wrapper',
-          html: `<div class="distance-label" style="--line-color:${color}">${distance.toFixed(1)} mi</div>`,
-          iconSize: [0, 0],
-          iconAnchor: [0, 0]
-        }),
-        interactive: false
+      const routeTimeEstimate = formatRouteTimeEstimate(distance);
+      const labelMarkup = `
+        <div class="distance-label" style="--line-color:${color}">
+          <span>${distance.toFixed(1)} mi</span>
+          ${routeTimeEstimate ? `<span>•</span><span>${routeTimeEstimate}</span>` : ''}
+        </div>
+      `;
+      polyline.bindTooltip(labelMarkup, {
+        permanent: true,
+        direction: 'center',
+        className: 'distance-label-tooltip',
+        opacity: 1
       });
-
-      label.addTo(layer);
-      return label;
+      polyline.openTooltip(polyline.getCenter());
+      return polyline;
     }
 
     function showServicesFromOrigin(origin, { forceType = null } = {}) {
