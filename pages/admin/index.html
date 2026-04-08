@@ -1038,6 +1038,174 @@
       };
     };
 
+    const buildPtV2UpdatesForUploadedRows = (rows = [], vehicleRows = []) => {
+      const vehicleUnitTypeMap = buildVehicleUnitTypeMap(vehicleRows);
+      const grouped = new Map();
+      (rows || []).forEach((row) => {
+        const vin = normalizeUpperTrimmedValue(row?.VIN);
+        const serial = normalizeGpsSerialValue(row?.Serial);
+        const timestamp = parsePtComparableTimestamp(row?.Date);
+        const lat = toNumber(row?.Lat);
+        const lng = toNumber(row?.Long);
+        if (!vin || !serial || !Number.isFinite(timestamp) || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const key = `${vin}__${serial}`;
+        const bucket = grouped.get(key) || [];
+        bucket.push({
+          vin,
+          serial,
+          timestamp,
+          date: row?.Date,
+          lat,
+          lng
+        });
+        grouped.set(key, bucket);
+      });
+
+      const updates = [];
+      grouped.forEach((entries, groupKey) => {
+        entries.sort((left, right) => left.timestamp - right.timestamp);
+        const [vin] = groupKey.split('__');
+        const unitType = vehicleUnitTypeMap.get(vin) || '';
+        const thresholdMeters = getVehicleMovementThresholdMeters(DEFAULT_APP_SETTINGS, unitType);
+
+        let previousEntry = null;
+        entries.forEach((entry) => {
+          let movedV2 = -1;
+          if (previousEntry) {
+            const distanceMeters = getPtSyncPointDistanceMeters(previousEntry, entry);
+            movedV2 = Number.isFinite(distanceMeters) && distanceMeters >= thresholdMeters ? 1 : -1;
+          }
+          entry.__moved_v2 = movedV2;
+          previousEntry = entry;
+        });
+
+        const dayBuckets = new Map();
+        entries.forEach((entry) => {
+          const dayKey = getPtSyncDayKey(entry.date);
+          if (!dayKey) return;
+          const bucket = dayBuckets.get(dayKey) || {
+            entries: [],
+            totalDistanceMeters: 0,
+            maxSegmentMeters: 0
+          };
+          const previousBucketEntry = bucket.entries[bucket.entries.length - 1] || null;
+          if (previousBucketEntry) {
+            const distanceMeters = getPtSyncPointDistanceMeters(previousBucketEntry, entry);
+            if (Number.isFinite(distanceMeters)) {
+              bucket.totalDistanceMeters += distanceMeters;
+              bucket.maxSegmentMeters = Math.max(bucket.maxSegmentMeters, distanceMeters);
+            }
+          }
+          bucket.entries.push(entry);
+          dayBuckets.set(dayKey, bucket);
+        });
+
+        const orderedDays = [...dayBuckets.entries()]
+          .sort((left, right) => left[0].localeCompare(right[0]))
+          .map(([dayKey, bucket]) => {
+            const firstEntry = bucket.entries[0] || null;
+            const lastEntry = bucket.entries[bucket.entries.length - 1] || null;
+            const netDistanceMeters = firstEntry && lastEntry
+              ? getPtSyncPointDistanceMeters(firstEntry, lastEntry)
+              : 0;
+            const isMovingDay = bucket.maxSegmentMeters > thresholdMeters
+              || netDistanceMeters > thresholdMeters
+              || bucket.totalDistanceMeters > (thresholdMeters * 1.2);
+            return [dayKey, isMovingDay];
+          });
+
+        let consecutiveStoppedDays = 0;
+        const stationaryByDay = new Map();
+        orderedDays.forEach(([dayKey, isMovingDay]) => {
+          if (isMovingDay) {
+            consecutiveStoppedDays = 0;
+            stationaryByDay.set(dayKey, 0);
+            return;
+          }
+          consecutiveStoppedDays += 1;
+          stationaryByDay.set(dayKey, consecutiveStoppedDays);
+        });
+
+        entries.forEach((entry) => {
+          const dayKey = getPtSyncDayKey(entry.date);
+          updates.push({
+            Serial: entry.serial,
+            Date: entry.date,
+            moved_v2: entry.__moved_v2,
+            days_stationary_v2: dayKey ? (stationaryByDay.get(dayKey) ?? 0) : 0
+          });
+        });
+      });
+
+      return updates;
+    };
+
+    const applyPtV2UpdatesToUploadedRows = async (rows = [], vehicleRows = []) => {
+      const updates = buildPtV2UpdatesForUploadedRows(rows, vehicleRows);
+      if (!updates.length) return { updated: 0, scanned: rows.length };
+
+      for (const updateChunk of chunkArray(updates, 100)) {
+        const { error } = await supabaseClient
+          .from('PT-LastPing')
+          .upsert(updateChunk, { onConflict: 'Serial,Date' });
+        if (error) throw error;
+      }
+
+      return {
+        updated: updates.length,
+        scanned: rows.length
+      };
+    };
+
+    const syncVehiclesFromUploadedPtRows = async (rows = [], vehicleRows = []) => {
+      if (!supabaseClient) return { updated: 0, skipped: 0 };
+      const normalizedRows = Array.isArray(rows) ? rows : [];
+      if (!normalizedRows.length) return { updated: 0, skipped: 0 };
+
+      const rowsByVin = new Map();
+      normalizedRows.forEach((row) => {
+        const vin = normalizeUpperTrimmedValue(row?.VIN);
+        if (!vin) return;
+        const bucket = rowsByVin.get(vin) || [];
+        bucket.push(row);
+        rowsByVin.set(vin, bucket);
+      });
+
+      const vins = [...rowsByVin.keys()];
+      const matchingVehicles = Array.isArray(vehicleRows) && vehicleRows.length
+        ? vehicleRows.filter((row) => vins.includes(normalizeUpperTrimmedValue(row?.VIN)))
+        : await fetchVehicleRowsByVins(vins);
+      if (!matchingVehicles.length) return { updated: 0, skipped: vins.length };
+
+      let gpsBlacklistMap = new Map();
+      try {
+        gpsBlacklistMap = await fetchGpsBlacklistMap();
+      } catch (error) {
+        console.warn('Unable to load GPS blacklist during uploaded PT sync; continuing without blacklist filter.', error);
+      }
+
+      const payloads = matchingVehicles
+        .map((vehicleRow) => {
+          const vin = normalizeUpperTrimmedValue(vehicleRow?.VIN);
+          return buildVehiclePtSyncPayload(vehicleRow, rowsByVin.get(vin) || [], gpsBlacklistMap);
+        })
+        .filter(Boolean);
+
+      if (!payloads.length) return { updated: 0, skipped: vins.length };
+
+      for (const payloadChunk of chunkArray(payloads, 100)) {
+        const { error } = await supabaseClient
+          .from('vehicles')
+          .upsert(payloadChunk, { onConflict: 'id' });
+        if (error) throw error;
+      }
+
+      return {
+        updated: payloads.length,
+        skipped: Math.max(0, vins.length - payloads.length)
+      };
+    };
+
     const buildVehiclePtSyncPayload = (vehicleRow = {}, records = [], gpsBlacklistMap = new Map()) => {
       if (!vehicleRow?.id || !Array.isArray(records) || !records.length) return null;
 
@@ -3036,12 +3204,12 @@
           }
         }
 
-        setProgress(92, 'Backfilling PT movement metrics...');
+        setProgress(92, 'Post-processing uploaded PT rows...');
         let vehicleSyncResult = {
           updated: 0,
           skipped: 0,
           updatedRows: 0,
-          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'rpc_finalize' : 'client_sync_only',
+          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'rpc_finalize' : 'uploaded_rows_sync_only',
           warning: ''
         };
         try {
@@ -3061,20 +3229,23 @@
             const matchingVehicleRows = await fetchVehicleRowsByVins(uploadedVins);
 
             setStatus('Backfilling PT movement metrics for uploaded rows...');
-            setProgress(96, `Recalculating ${uploadedVins.length} VINs...`);
-            const ptBackfillResult = await backfillPtV2MetricsForVins(
-              uploadedVins,
+            setProgress(96, `Recalculating ${dedupedRows.length} uploaded rows...`);
+            const ptBackfillResult = await applyPtV2UpdatesToUploadedRows(
+              dedupedRows,
               matchingVehicleRows
             );
 
             setStatus('Syncing vehicles directly from uploaded PT rows...');
             setProgress(98, 'Applying vehicle sync...');
-            const fallbackSyncResult = await syncVehiclesFromPtLastPing(uploadedVins);
+            const fallbackSyncResult = await syncVehiclesFromUploadedPtRows(
+              dedupedRows,
+              matchingVehicleRows
+            );
             vehicleSyncResult = {
               updated: fallbackSyncResult?.updated ?? 0,
               skipped: fallbackSyncResult?.skipped ?? 0,
               updatedRows: ptBackfillResult?.updated ?? 0,
-              mode: 'client_sync_only',
+              mode: 'uploaded_rows_sync_only',
               warning: ''
             };
           }
@@ -3103,9 +3274,9 @@
           '\nBatches: ' + aggregated.batches +
           '\nDeleted existing rows without coordinates: ' + aggregated.deletedMissingCoordinates +
           '\nSent to database: ' + aggregated.inserted +
-          '\nRows finalized by RPC: ' + (vehicleSyncResult?.updatedRows ?? 0) +
-          '\nVehicles refreshed by RPC: ' + (vehicleSyncResult?.updated ?? 0) +
-          '\nFinalize mode: ' + (vehicleSyncResult?.mode || 'unknown') +
+          '\nPT rows recalculated: ' + (vehicleSyncResult?.updatedRows ?? 0) +
+          '\nVehicles refreshed: ' + (vehicleSyncResult?.updated ?? 0) +
+          '\nPost-process mode: ' + (vehicleSyncResult?.mode || 'unknown') +
           (vehicleSyncResult?.warning ? '\nWarning: ' + vehicleSyncResult.warning : '') +
           '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
           '\nRejected (missing Lat/Long): ' + aggregated.rejectedMissingCoordinates +
@@ -3117,8 +3288,9 @@
         setStatus(
           `Upload complete. Removed invalid existing rows: ${aggregated.deletedMissingCoordinates} ` +
           `Sent: ${aggregated.inserted} ` +
-          `Rows finalized: ${vehicleSyncResult?.updatedRows ?? 0} ` +
+          `Rows recalculated: ${vehicleSyncResult?.updatedRows ?? 0} ` +
           `Vehicles refreshed: ${vehicleSyncResult?.updated ?? 0} ` +
+          `${vehicleSyncResult?.mode === 'uploaded_rows_sync_only' ? ' Uploaded rows sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_only' ? ' Direct vehicle sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_fallback' ? ' Fallback sync used.' : ''} ` +
           `Skipped (client dedup): ${aggregated.skippedDeduplication} ` +
