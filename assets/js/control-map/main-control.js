@@ -2912,8 +2912,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
             stationaryStartTimeMs = bucket.firstPointTimeMs;
           }
           bucket.parkedDays = Math.max(
-            0,
-            Math.floor((bucket.dayStartMs - stationaryStartDayMs) / GPS_HISTORY_DAY_MS)
+            1,
+            Math.floor((bucket.dayStartMs - stationaryStartDayMs) / GPS_HISTORY_DAY_MS) + 1
           );
           bucket.parkedStartTimeMs = stationaryStartTimeMs;
           bucket.status = 'stopped';
@@ -3541,14 +3541,40 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           previousEntry = entry;
         });
 
-        const dayStates = new Map();
+        const dayBuckets = new Map();
         entries.forEach((entry) => {
           const dayKey = getPtRowDayKey(entry.date);
           if (!dayKey) return;
-          dayStates.set(dayKey, Boolean(dayStates.get(dayKey)) || entry.__moved_v2 === 1);
+          const bucket = dayBuckets.get(dayKey) || {
+            entries: [],
+            totalDistanceMeters: 0,
+            maxSegmentMeters: 0
+          };
+          const previousBucketEntry = bucket.entries[bucket.entries.length - 1] || null;
+          if (previousBucketEntry) {
+            const distanceMeters = getGpsPointDistanceMeters(previousBucketEntry, entry);
+            if (Number.isFinite(distanceMeters)) {
+              bucket.totalDistanceMeters += distanceMeters;
+              bucket.maxSegmentMeters = Math.max(bucket.maxSegmentMeters, distanceMeters);
+            }
+          }
+          bucket.entries.push(entry);
+          dayBuckets.set(dayKey, bucket);
         });
 
-        const orderedDays = [...dayStates.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+        const orderedDays = [...dayBuckets.entries()]
+          .sort((left, right) => left[0].localeCompare(right[0]))
+          .map(([dayKey, bucket]) => {
+            const firstEntry = bucket.entries[0] || null;
+            const lastEntry = bucket.entries[bucket.entries.length - 1] || null;
+            const netDistanceMeters = firstEntry && lastEntry
+              ? getGpsPointDistanceMeters(firstEntry, lastEntry)
+              : 0;
+            const isMovingDay = bucket.maxSegmentMeters > thresholdMeters
+              || netDistanceMeters > thresholdMeters
+              || bucket.totalDistanceMeters > (thresholdMeters * 1.2);
+            return [dayKey, isMovingDay];
+          });
         let consecutiveStoppedDays = 0;
         const stationaryByDay = new Map();
         orderedDays.forEach(([dayKey, isMovingDay]) => {
@@ -3557,8 +3583,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
             stationaryByDay.set(dayKey, 0);
             return;
           }
-          stationaryByDay.set(dayKey, consecutiveStoppedDays);
           consecutiveStoppedDays += 1;
+          stationaryByDay.set(dayKey, consecutiveStoppedDays);
         });
 
         entries.forEach((entry) => {
@@ -3841,6 +3867,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
 
     const parseGpsRecordMovingStatus = (record = {}) => {
       const movementCandidates = [
+        record?.moved_v2,
         record?.moved,
         record?.Moved,
         record?.moving,
@@ -5564,6 +5591,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     const parseGpsRecordDaysParked = (record = {}) => {
       if (!record || typeof record !== 'object') return null;
       const candidates = [
+        record?.days_stationary_v2,
         record?.days_stationary,
         record?.days_parked,
         record?.days_stationary_calc,

@@ -145,7 +145,14 @@ const normalizeVehicle = (row, idx = 0, { getField: fieldGetter, toStateCode, re
     status: dealStatus || 'ACTIVE',
     dealStatus: dealStatus || 'ACTIVE',
     vehicleStatus: vehicleStatus || '',
-    invPrepStatus: field(row, 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat'),
+    invPrepStatus: field(
+      row,
+      'Inventory Preparation Status',
+      'inventory_preparation_status',
+      'INV Prep Stat',
+      'Inv. Prep. Stat.',
+      'Inv Prep Stat'
+    ),
     physicalLocation: physicalLocation || '',
     dealCompletion,
     type: field(row, 'Unit Type', 'type') || 'Vehicle',

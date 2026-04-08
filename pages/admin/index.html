@@ -817,7 +817,7 @@
 
       return {
         status: 'stopped',
-        daysStationary: Math.max(0, consecutiveStoppedDays - 1),
+        daysStationary: Math.max(1, consecutiveStoppedDays),
         thresholdMeters,
         unitType
       };
@@ -917,15 +917,40 @@
           previousEntry = entry;
         });
 
-        const dayStates = new Map();
+        const dayBuckets = new Map();
         entries.forEach((entry) => {
           const dayKey = getPtSyncDayKey(entry.date);
           if (!dayKey) return;
-          const current = dayStates.get(dayKey) || false;
-          dayStates.set(dayKey, current || entry.__moved_v2 === 1);
+          const bucket = dayBuckets.get(dayKey) || {
+            entries: [],
+            totalDistanceMeters: 0,
+            maxSegmentMeters: 0
+          };
+          const previousBucketEntry = bucket.entries[bucket.entries.length - 1] || null;
+          if (previousBucketEntry) {
+            const distanceMeters = getPtSyncPointDistanceMeters(previousBucketEntry, entry);
+            if (Number.isFinite(distanceMeters)) {
+              bucket.totalDistanceMeters += distanceMeters;
+              bucket.maxSegmentMeters = Math.max(bucket.maxSegmentMeters, distanceMeters);
+            }
+          }
+          bucket.entries.push(entry);
+          dayBuckets.set(dayKey, bucket);
         });
 
-        const orderedDays = [...dayStates.entries()].sort((left, right) => left[0].localeCompare(right[0]));
+        const orderedDays = [...dayBuckets.entries()]
+          .sort((left, right) => left[0].localeCompare(right[0]))
+          .map(([dayKey, bucket]) => {
+            const firstEntry = bucket.entries[0] || null;
+            const lastEntry = bucket.entries[bucket.entries.length - 1] || null;
+            const netDistanceMeters = firstEntry && lastEntry
+              ? getPtSyncPointDistanceMeters(firstEntry, lastEntry)
+              : 0;
+            const isMovingDay = bucket.maxSegmentMeters > thresholdMeters
+              || netDistanceMeters > thresholdMeters
+              || bucket.totalDistanceMeters > (thresholdMeters * 1.2);
+            return [dayKey, isMovingDay];
+          });
         let consecutiveStoppedDays = 0;
         const stationaryByDay = new Map();
         orderedDays.forEach(([dayKey, isMovingDay]) => {
@@ -934,16 +959,18 @@
             stationaryByDay.set(dayKey, 0);
             return;
           }
-          stationaryByDay.set(dayKey, consecutiveStoppedDays);
           consecutiveStoppedDays += 1;
+          stationaryByDay.set(dayKey, consecutiveStoppedDays);
         });
 
         entries.forEach((entry) => {
           const dayKey = getPtSyncDayKey(entry.date);
           const nextDaysStationary = dayKey ? (stationaryByDay.get(dayKey) ?? 0) : 0;
-          const movedWasNull = entry.moved_v2 === null || entry.moved_v2 === undefined;
-          const daysWasNull = entry.days_stationary_v2 === null || entry.days_stationary_v2 === undefined;
-          if (!movedWasNull && !daysWasNull) return;
+          const currentMovedV2 = Number.isFinite(Number(entry.moved_v2)) ? Number(entry.moved_v2) : null;
+          const currentDaysStationary = Number.isFinite(Number(entry.days_stationary_v2))
+            ? Number(entry.days_stationary_v2)
+            : null;
+          if (currentMovedV2 === entry.__moved_v2 && currentDaysStationary === nextDaysStationary) return;
           updates.push({
             id: entry.id,
             moved_v2: entry.__moved_v2,
@@ -1290,6 +1317,15 @@
         if (stock) vehiclesByStock.set(stock, row);
       });
 
+      const dealToVehicleAliases = new Map([
+        ['Inventory Preparation Status', ['INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat', 'inventory_preparation_status']],
+        ['Inventory Preparation Status Changed On', ['inventory_preparation_status_changed_on']],
+        ['Inventory Preparation Status Changed By', ['inventory_preparation_status_changed_by']],
+        ['Current Stock No', ['current_stock_no', 'Stock No', 'stock_no']],
+        ['Deal Status', ['deal status', 'deal_status']],
+        ['Vehicle Status', ['vehicle status', 'vehicle_status']]
+      ]);
+
       const payloads = [];
       dealRows.forEach((dealRow) => {
         const vin = normalizeUpperTrimmedValue(dealRow?.VIN);
@@ -1302,6 +1338,14 @@
           if (key === 'id' || key === 'created_at' || key === 'updated_at') return;
           if (!vehicleColumns.has(key)) return;
           patch[key] = value ?? null;
+        });
+
+        dealToVehicleAliases.forEach((aliases, sourceKey) => {
+          if (!Object.prototype.hasOwnProperty.call(dealRow, sourceKey)) return;
+          aliases.forEach((aliasKey) => {
+            if (!vehicleColumns.has(aliasKey)) return;
+            patch[aliasKey] = dealRow[sourceKey] ?? null;
+          });
         });
 
         if (vin && vehicleColumns.has('VIN')) patch.VIN = vin;
