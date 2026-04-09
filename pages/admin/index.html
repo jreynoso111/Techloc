@@ -3237,15 +3237,12 @@
 
             setStatus('Syncing vehicles directly from uploaded PT rows...');
             setProgress(98, 'Applying vehicle sync...');
-            const fallbackSyncResult = await syncVehiclesFromUploadedPtRows(
-              dedupedRows,
-              matchingVehicleRows
-            );
+            const fallbackSyncResult = await syncVehiclesFromPtLastPing(uploadedVins);
             vehicleSyncResult = {
               updated: fallbackSyncResult?.updated ?? 0,
               skipped: fallbackSyncResult?.skipped ?? 0,
               updatedRows: ptBackfillResult?.updated ?? 0,
-              mode: 'uploaded_rows_sync_only',
+              mode: 'uploaded_rows_backfill_full_vehicle_sync',
               warning: ''
             };
           }
@@ -3290,6 +3287,7 @@
           `Sent: ${aggregated.inserted} ` +
           `Rows recalculated: ${vehicleSyncResult?.updatedRows ?? 0} ` +
           `Vehicles refreshed: ${vehicleSyncResult?.updated ?? 0} ` +
+          `${vehicleSyncResult?.mode === 'uploaded_rows_backfill_full_vehicle_sync' ? ' Full vehicle sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'uploaded_rows_sync_only' ? ' Uploaded rows sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_only' ? ' Direct vehicle sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_fallback' ? ' Fallback sync used.' : ''} ` +

@@ -10,8 +10,8 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     } from '../../scripts/appSettings.js?v=movement-v2-20250403-11';
     import { supabase as supabaseClient } from '../supabaseClient.js?v=movement-v2-20250403-11';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js?v=movement-v2-20250403-11';
-    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20250403-11';
-    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20250403-11';
+    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20260408-01';
+    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20260408-01';
     import { createRepairHistoryManager } from '../../scripts/repairHistory.js?v=movement-v2-20250403-11';
     import { createPartnerClusterGroup } from './utils/cluster.js';
     import { attachDistances, debounce, debounceAsync, getOriginKey, runWithTimeout } from './utils/helpers.js';
@@ -36,7 +36,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js?v=movement-v2-20250403-11';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';
-    import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20250403-11';
+    import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20260408-01';
     import { SERVICE_HEADER_LABELS, getServiceModalHeaders, loadServiceModalPrefs, renderServiceModalColumnsList, saveServiceModalPrefs } from './components/service-modal.js?v=movement-v2-20250403-11';
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js?v=movement-v2-20250403-11';
     import { createLayerToggle } from './utils/layer-toggles.js?v=movement-v2-20250403-11';
@@ -8009,14 +8009,15 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         if (!vehicleKey || vehiclePtRecalcPendingKeys.has(vehicleKey)) return;
         vehiclePtRecalcPendingKeys.add(vehicleKey);
         renderVehicles({ preserveScrollTop: true });
-        const stopLoading = startLoading('Refreshing vehicle card...');
-        void refreshVehicleSidebarSnapshot(vehicle)
+        const stopLoading = startLoading('Recalculating vehicle card from PT history...');
+        void recalculateVehicleFromPtHistory(vehicle)
+          .then(() => refreshVehicleSidebarSnapshot(vehicle))
           .then(() => {
             renderVehicles({ preserveScrollTop: true });
           })
           .catch((error) => {
-            console.warn('Failed to refresh vehicle sidebar snapshot:', error);
-            alert(error?.message || 'Failed to refresh this vehicle card.');
+            console.warn('Failed to recalculate vehicle PT history:', error);
+            alert(error?.message || 'Failed to recalculate this vehicle card from PT history.');
           })
           .finally(() => {
             stopLoading();
@@ -8379,7 +8380,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                   type="button"
                   data-action="vehicle-recalc-pt"
                   class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 text-fuchsia-100 transition hover:bg-fuchsia-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  title="${isPtRecalcPending ? 'Refreshing vehicle card' : 'Refresh this vehicle card'}"
+                  title="${isPtRecalcPending ? 'Recalculating vehicle card from PT history' : 'Recalculate this vehicle card from PT history'}"
                   ${isPtRecalcPending ? 'disabled' : ''}
                 >
                   ${svgIcon('refreshCw', `h-3.5 w-3.5 ${isPtRecalcPending ? 'animate-spin' : ''}`)}
