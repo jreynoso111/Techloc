@@ -92,7 +92,7 @@ export const initializeSupabaseRealtime = ({ supabaseClient, setConnectionStatus
   if (DashboardState.realtime.channel) return;
 
   const channel = supabaseClient
-    .channel('inventory-control-changes')
+    .channel('dashboard-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'DealsJP1' }, handleVehicleChange);
 
   DashboardState.realtime.channel = channel;

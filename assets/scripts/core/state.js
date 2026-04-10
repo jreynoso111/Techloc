@@ -70,10 +70,10 @@ export const DEAL_STATUS_COLORS_ALT = [
 ];
 export const DEFAULT_SEGMENT_KEY = 'dealStatus';
 
-export const COLUMN_STORAGE_KEY = 'inventoryControlTableColumns';
-export const PREFERENCES_STORAGE_KEY = 'inventoryControlPreferences';
+export const COLUMN_STORAGE_KEY = 'dashboardTableColumns';
+export const PREFERENCES_STORAGE_KEY = 'dashboardPreferences';
 export const CONFIG_TABLE = 'user_table_configs';
-export const CONFIG_TABLE_NAME = 'Inventory Control';
+export const CONFIG_TABLE_NAME = 'Dashboard';
 
 export const formatDate = (value) => {
   if (!value) return '--';
