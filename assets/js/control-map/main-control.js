@@ -41,7 +41,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
     import { SERVICE_HEADER_LABELS, getServiceModalHeaders, loadServiceModalPrefs, renderServiceModalColumnsList, saveServiceModalPrefs } from './components/service-modal.js?v=movement-v2-20250403-11';
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js?v=movement-v2-20250403-11';
     import { createLayerToggle } from './utils/layer-toggles.js?v=movement-v2-20250403-11';
-    import { syncVehicleMarkers } from './utils/vehicle-markers.js?v=movement-v2-20250403-11';
+    import { syncVehicleMarkers } from './utils/vehicle-markers.js?v=movement-v2-20260410-04';
     import {
       bindNavigationStorageListener,
       getSelectedVehicle,
@@ -3250,14 +3250,45 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       return request;
     };
 
-    const hydrateInitialVisibleVehicleSnapshots = async () => {
+    const collectPriorityVehicleSnapshotTargets = () => {
       const searchBox = document.getElementById('vehicle-search');
       const visibleVehicles = getVehicleList(searchBox?.value || '')
         .slice(0, VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT);
-      if (!visibleVehicles.length) return;
+      const orderedVehicles = [];
+      const seenVehicleKeys = new Set();
+
+      const pushVehicle = (vehicle) => {
+        const vehicleKey = getVehicleKey(vehicle);
+        if (!vehicle || !vehicleKey || seenVehicleKeys.has(vehicleKey)) return;
+        seenVehicleKeys.add(vehicleKey);
+        orderedVehicles.push(vehicle);
+      };
+
+      if (selectedVehicleKey) {
+        pushVehicle(findVehicleByKey(selectedVehicleKey));
+      } else if (selectedVehicleId !== null && selectedVehicleId !== undefined) {
+        pushVehicle(
+          vehicles.find((vehicle) => `${vehicle?.id ?? ''}`.trim() === `${selectedVehicleId}`.trim()) || null
+        );
+      }
+
+      expandedVehicleCardKeys.forEach((vehicleKey) => {
+        pushVehicle(findVehicleByKey(vehicleKey));
+      });
+
+      visibleVehicles.forEach((vehicle) => {
+        pushVehicle(vehicle);
+      });
+
+      return orderedVehicles;
+    };
+
+    const hydrateInitialVisibleVehicleSnapshots = async () => {
+      const priorityVehicles = collectPriorityVehicleSnapshotTargets();
+      if (!priorityVehicles.length) return;
 
       const results = await mapWithConcurrency(
-        visibleVehicles,
+        priorityVehicles,
         (vehicle) => hydrateVehiclePtSnapshotQuick(vehicle, { force: true, rerenderOnChange: false }),
         VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY
       );
