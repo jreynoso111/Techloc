@@ -2336,6 +2336,7 @@
         inserted: 0,
         batches: 0,
         deletedMissingCoordinates: 0,
+        cleanupWarning: '',
         rejectedMissingRequired: 0,
         rejectedMissingCoordinates: 0,
         rejectedInvalidDate: 0,
@@ -2532,11 +2533,14 @@
         aggregated.deletedMissingCoordinates = await purgePtRowsMissingCoordinates();
       } catch (err) {
         console.error('Failed to purge PT rows without coordinates', err);
-        showToast('Unable to remove PT rows without coordinates.', 'error');
-        setStatus('PT cleanup failed.');
-        setProgress(0, 'Cleanup failed');
-        showPtError(err, 'PT rows without coordinates cleanup failed');
-        return;
+        aggregated.cleanupWarning = shortSupabaseError(err) || 'Unable to remove PT rows without coordinates.';
+        showToast(
+          'Unable to remove existing PT rows without coordinates. Upload will continue and invalid rows will still be rejected during validation.',
+          'error'
+        );
+        setStatus('PT cleanup skipped. Continuing with validation...');
+        setProgress(2, 'Cleanup skipped');
+        showPtError(err, 'PT rows without coordinates cleanup skipped');
       }
 
       setStatus(`Validating ${cleanedRows.length} rows (Serial, Date, Lat and Long required)...`);
@@ -2926,6 +2930,7 @@
           'Completed.' +
           '\nBatches: ' + aggregated.batches +
           '\nDeleted existing rows without coordinates: ' + aggregated.deletedMissingCoordinates +
+          (aggregated.cleanupWarning ? '\nCleanup warning: ' + aggregated.cleanupWarning : '') +
           '\nSent to database: ' + aggregated.inserted +
           '\nPT rows recalculated: ' + (vehicleSyncResult?.updatedRows ?? 0) +
           '\nVehicles refreshed: ' + (vehicleSyncResult?.updated ?? 0) +
@@ -2940,6 +2945,7 @@
           '\nErrors: ' + parseErrors;
         setStatus(
           `Upload complete. Removed invalid existing rows: ${aggregated.deletedMissingCoordinates} ` +
+          `${aggregated.cleanupWarning ? 'Cleanup skipped. ' : ''}` +
           `Sent: ${aggregated.inserted} ` +
           `Rows recalculated: ${vehicleSyncResult?.updatedRows ?? 0} ` +
           `Vehicles refreshed: ${vehicleSyncResult?.updated ?? 0} ` +
