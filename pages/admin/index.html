@@ -2339,6 +2339,7 @@
         cleanupWarning: '',
         rejectedMissingRequired: 0,
         rejectedMissingCoordinates: 0,
+        rejectedInvalidCoordinateFormat: 0,
         rejectedInvalidDate: 0,
         skippedDeduplication: 0,
         skippedSupabaseDuplicates: 0,
@@ -2651,6 +2652,17 @@
         );
       };
 
+      const isPtCoordinateCastError = (error) => {
+        const text = getPtBatchErrorText(error);
+        return (
+          text.includes('st_makepoint') ||
+          text.includes('double precision') ||
+          text.includes('invalid input syntax for type double precision') ||
+          text.includes('function st_makepoint') ||
+          text.includes('invalid input syntax for type numeric')
+        );
+      };
+
       const isPtOnConflictConfigError = (error) => {
         const text = getPtBatchErrorText(error);
         return (
@@ -2822,6 +2834,42 @@
               return;
             }
 
+            if (isPtCoordinateCastError(error)) {
+              if (batchSize > 1) {
+                const nextBatchSize = Math.max(1, Math.floor(batchSize / 2));
+                if (nextBatchSize < batchSize) {
+                  batchSize = nextBatchSize;
+                  targetBatchSize = Math.min(targetBatchSize, nextBatchSize);
+                  retryAttempt = 0;
+                  setStatus(
+                    `Detected invalid coordinate format in batch ${batchNumber}. ` +
+                    `Reducing batch size to ${batchSize} to isolate bad rows...`
+                  );
+                  await waitMs(PT_PING_RETRY_BASE_DELAY_MS);
+                  continue;
+                }
+              }
+
+              const invalidRow = batchRows[0] || null;
+              if (invalidRow) {
+                aggregated.rejectedInvalidCoordinateFormat += 1;
+                rejectedRows.push({
+                  ...invalidRow,
+                  error: 'Invalid coordinate format for database trigger'
+                });
+              }
+              nextIndex = sliceEnd;
+              uploaded = true;
+              setStatus(
+                `Skipped 1 row with invalid coordinate format in batch ${batchNumber}. Continuing upload...`
+              );
+              setProgress(
+                (nextIndex / dedupedRows.length) * 90,
+                `Skipped invalid row at ${nextIndex} of ${dedupedRows.length}`
+              );
+              continue;
+            }
+
             if (isPtOnConflictConfigError(error) && ptConflictTarget !== PT_PING_FALLBACK_CONFLICT_TARGET) {
               ptConflictTarget = PT_PING_FALLBACK_CONFLICT_TARGET;
               retryAttempt = 0;
@@ -2938,6 +2986,7 @@
           (vehicleSyncResult?.warning ? '\nWarning: ' + vehicleSyncResult.warning : '') +
           '\nRejected (missing Serial/Date): ' + aggregated.rejectedMissingRequired +
           '\nRejected (missing Lat/Long): ' + aggregated.rejectedMissingCoordinates +
+          '\nRejected (invalid coordinate format): ' + aggregated.rejectedInvalidCoordinateFormat +
           '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
           '\nSkipped duplicates (client 8-hour bucket): ' + aggregated.skippedDeduplication +
           '\nDuplicate handling: ON CONFLICT DO NOTHING' +
@@ -2954,7 +3003,7 @@
           `${vehicleSyncResult?.mode === 'client_sync_only' ? ' Direct vehicle sync used.' : ''}` +
           `${vehicleSyncResult?.mode === 'client_sync_fallback' ? ' Fallback sync used.' : ''} ` +
           `Skipped (client dedup): ${aggregated.skippedDeduplication} ` +
-          `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
+          `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidCoordinateFormat + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
         );
         showToast(summary, vehicleSyncResult?.mode === 'finalization_failed' ? 'error' : 'success');
         emitDataSyncSignal({
