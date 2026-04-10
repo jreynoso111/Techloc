@@ -13,7 +13,6 @@ const buildRepairSnapshot = (vehicle, getRepairVehicleVin) => ({
   phys_loc: vehicle?.phys_loc ?? vehicle?.lastLocation,
   VIN: getRepairVehicleVin(vehicle),
   vehicle_status: vehicle?.vehicle_status ?? vehicle?.status,
-  open_balance: vehicle?.open_balance ?? vehicle?.openBalance,
   days_stationary: vehicle?.days_stationary ?? vehicle?.daysStationary,
   short_location: vehicle?.short_location ?? vehicle?.shortLocation ?? vehicle?.city,
   current_stock_no: vehicle?.details?.['Current Stock No'] ?? vehicle?.current_stock_no
@@ -73,34 +72,12 @@ const createRepairHistoryManager = ({
   const safeEscape = escapeHTML || helpers.escapeHTML;
   const safeFormatDateTime = formatDateTime || helpers.formatDateTime;
 
-  const getAccessToken = async () => {
-    if (!supabaseClient?.auth?.getSession) {
-      throw new Error('Authentication session is unavailable.');
-    }
-    const { data, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-    const accessToken = data?.session?.access_token || '';
-    if (!accessToken) {
-      throw new Error('You need an active authenticated session to access Repair History.');
-    }
-    return accessToken;
-  };
-
-  const requestRepairHistory = async (path, { method = 'GET', payload = null } = {}) => {
-    const accessToken = await getAccessToken();
-    const request = fetch(path, {
-      method,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        ...(payload ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(payload ? { body: JSON.stringify(payload) } : {}),
-    }).then(async (response) => {
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(body?.error?.message || `Repair history request failed (${response.status}).`);
+  const requestRepairHistory = async (operation) => {
+    const request = operation().then(({ data, error }) => {
+      if (error) {
+        throw new Error(error.message || 'Repair history request failed.');
       }
-      return body?.data || [];
+      return data || [];
     });
 
     return runWithTimeout
@@ -114,8 +91,13 @@ const createRepairHistoryManager = ({
       return { data: [], error: new Error('Missing VIN.') };
     }
     try {
-      const params = new URLSearchParams({ vin: normalizedVin });
-      const data = await requestRepairHistory(`/api/repair-history?${params.toString()}`);
+      const data = await requestRepairHistory(() =>
+        supabaseClient
+          .from(tableName)
+          .select('*')
+          .ilike('VIN', `%${normalizedVin}%`)
+          .order('created_at', { ascending: false })
+      );
       return { data: data || [], error: null };
     } catch (error) {
       console.error('Failed to load repair history:', error);
@@ -142,9 +124,18 @@ const createRepairHistoryManager = ({
         repair_price: cleanPrice,
         repair_notes: formData.get('repair_notes') || null
       };
-      const path = editId ? `/api/repair-history/${encodeURIComponent(editId)}` : '/api/repair-history';
-      const method = editId ? 'PATCH' : 'POST';
-      return await requestRepairHistory(path, { method, payload });
+      return await requestRepairHistory(() => (
+        editId
+          ? supabaseClient
+            .from(tableName)
+            .update(payload)
+            .eq('id', editId)
+            .select('*')
+          : supabaseClient
+            .from(tableName)
+            .insert([payload])
+            .select('*')
+      ));
     } catch (error) {
       console.error('Failed to save repair entry:', error);
       throw error;
@@ -398,9 +389,13 @@ const createRepairHistoryManager = ({
       if (!repairId) return;
       const confirmed = window.confirm('Are you sure you want to delete this repair entry?');
       if (!confirmed) return;
-      await requestRepairHistory(`/api/repair-history/${encodeURIComponent(repairId)}`, {
-        method: 'DELETE',
-      });
+      await requestRepairHistory(() =>
+        supabaseClient
+          .from(tableName)
+          .delete()
+          .eq('id', repairId)
+          .select('*')
+      );
       await loadRepairs({ showLoading: false });
     };
 

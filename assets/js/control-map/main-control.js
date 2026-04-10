@@ -1,5 +1,6 @@
 import '../../scripts/authManager.js?v=movement-v2-20250403-11';
-import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=movement-v2-20250403-11';
+    import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=movement-v2-20250403-11';
+    import { subscribeDataSyncSignal } from '../../scripts/dataSyncSignal.js?v=movement-v2-20260410-01';
     import {
       APP_SETTINGS_STORAGE_KEY,
       getAppSettings,
@@ -101,8 +102,16 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     const vehicleMarkers = new Map();
     const vehiclePtRecalcPendingKeys = new Set();
     const vehicleMarkerHeadingPendingRequests = new Map();
-    const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 24;
-    const VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY = 4;
+    const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 8;
+    const VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY = 2;
+    const VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT = 8;
+    const VEHICLE_PT_SNAPSHOT_PREFETCH_CONCURRENCY = 2;
+    const VEHICLE_PT_SNAPSHOT_REFRESH_TTL_MS = 5 * 60 * 1000;
+    const VEHICLE_PT_PRIORITY_SNAPSHOT_WINDOW_DAYS = 7;
+    const VEHICLE_PT_PRIORITY_SNAPSHOT_LIMIT = 24;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 12;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 3;
+    const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 180;
     let sidebarStateController = null;
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
@@ -115,6 +124,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     let lastOriginPoint = null;
     let lastDataSyncRefreshAt = 0;
     let dataSyncRefreshPromise = null;
+    let vehicleBackgroundPrefetchTimer = null;
     const serviceSearchFilters = { tech: '', reseller: '', repair: '', custom: '' };
     const serviceFilterIds = { ...getServiceFilterIds() };
     const chunkArray = (items = [], chunkSize = 100) => {
@@ -1251,17 +1261,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       if (value === null || value === undefined || !Number.isFinite(value)) return '—';
       return value.toFixed(2);
     };
-    const formatInvoiceDate = (value) => {
-      if (!value) return '—';
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return '—';
-      return parsed.toLocaleDateString('en-US', {
-        month: '2-digit',
-        day: '2-digit',
-        year: '2-digit'
-      });
-    };
-    let oldestOpenInvoiceLookupWarningShown = false;
     const GPS_READ_BOUNDS_CACHE_TTL_MS = 10 * 60 * 1000;
     let gpsReadBoundsByVinCache = new Map();
     let gpsReadBoundsByVinCacheUpdatedAt = 0;
@@ -1296,138 +1295,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         });
       }
       return results;
-    };
-
-    const fetchOpenInvoiceSummaryByStockNumbers = async (stockNumbers = []) => {
-      if (!supabaseClient?.from || !stockNumbers.length) return new Map();
-      const unique = Array.from(new Set(stockNumbers.filter(Boolean)));
-      if (!unique.length) return new Map();
-      const tableCandidates = Array.from(new Set([
-        `${TABLES.invoices || ''}`.trim(),
-        'NS-Invoices&pays'
-      ].filter(Boolean)));
-      const stockKeyCandidates = ['Current Stock No', 'current_stock_no', 'Stock No', 'stock_no', 'stock'];
-      const remainingKeyCandidates = ['Amount Remaining', 'amount_remaining', 'Remaining Balance', 'remaining_balance', 'Open Balance', 'open_balance', 'remaining'];
-      const dateKeyCandidates = ['Date', 'date', 'Invoice Date', 'invoice_date', 'created_at', 'updated_at'];
-      const normalizeName = (value = '') => `${value}`.trim().toLowerCase();
-      const quoteColumn = (column = '') => {
-        const normalized = `${column || ''}`.trim();
-        if (!normalized) return '';
-        if (normalized.startsWith('"') && normalized.endsWith('"')) return normalized;
-        if (/^[a-z_][a-z0-9_]*$/i.test(normalized)) return normalized;
-        return `"${normalized.replace(/"/g, '""')}"`;
-      };
-      const resolveColumnKey = (availableKeys = [], candidates = []) => {
-        if (!Array.isArray(availableKeys) || !availableKeys.length) return '';
-        const lookup = new Map(availableKeys.map((key) => [normalizeName(key), key]));
-        for (const candidate of candidates) {
-          const hit = lookup.get(normalizeName(candidate));
-          if (hit) return hit;
-        }
-        return '';
-      };
-
-      const chunkSize = 500;
-      const pageSize = 1000;
-      for (const tableName of tableCandidates) {
-        try {
-          const probe = await runWithTimeout(
-            supabaseClient.from(tableName).select('*').limit(1),
-            8000,
-            'Invoice probe query timed out.'
-          );
-          if (probe.error) throw probe.error;
-          const probeRows = Array.isArray(probe.data) ? probe.data : [];
-          const availableKeys = probeRows.length ? Object.keys(probeRows[0] || {}) : [];
-          if (!availableKeys.length) return new Map();
-
-          const stockKey = resolveColumnKey(availableKeys, stockKeyCandidates);
-          const remainingKey = resolveColumnKey(availableKeys, remainingKeyCandidates);
-          const dateKey = resolveColumnKey(availableKeys, dateKeyCandidates);
-
-          if (!stockKey || !remainingKey || !dateKey) return new Map();
-
-          const stockColumn = quoteColumn(stockKey);
-          const remainingColumn = quoteColumn(remainingKey);
-          const dateColumn = quoteColumn(dateKey);
-          const selectColumns = [stockColumn, dateColumn, remainingColumn].filter(Boolean).join(',');
-          const results = new Map();
-
-          for (let i = 0; i < unique.length; i += chunkSize) {
-            const chunk = unique.slice(i, i + chunkSize);
-            let offset = 0;
-            let hasMore = true;
-
-            while (hasMore) {
-              let query = supabaseClient
-                .from(tableName)
-                .select(selectColumns)
-                .in(stockColumn, chunk)
-                .range(offset, offset + pageSize - 1);
-
-              if (remainingColumn) {
-                query = query.gt(remainingColumn, 0);
-              }
-
-              const { data, error } = await runWithTimeout(
-                query,
-                8000,
-                'Invoice query timed out.'
-              );
-              if (error) throw error;
-
-              const pageRows = Array.isArray(data) ? data : [];
-              pageRows.forEach((row) => {
-                const stockNo = normalizeStockNumber(row?.[stockKey]);
-                if (!stockNo) return;
-
-                const remaining = parseNumber(row?.[remainingKey]);
-                if (remainingColumn && (!Number.isFinite(remaining) || remaining <= 0)) return;
-
-                const dateRaw = row?.[dateKey];
-                if (!dateRaw) return;
-                const timestamp = Date.parse(dateRaw);
-                if (Number.isNaN(timestamp)) return;
-
-                const existing = results.get(stockNo) || {
-                  timestamp: null,
-                  value: '',
-                  openBalanceSum: 0
-                };
-                existing.openBalanceSum += remaining;
-                if (existing.timestamp === null || timestamp < existing.timestamp) {
-                  existing.timestamp = timestamp;
-                  existing.value = new Date(timestamp).toISOString();
-                }
-                results.set(stockNo, existing);
-              });
-
-              hasMore = pageRows.length === pageSize;
-              offset += pageSize;
-            }
-          }
-
-          return results;
-        } catch (lastError) {
-          const code = `${lastError?.code || ''}`.trim();
-          const message = `${lastError?.message || ''}`.toLowerCase();
-          const missingTable = code === 'PGRST205' || message.includes('could not find the table');
-          if (missingTable) {
-            continue;
-          }
-          if (!oldestOpenInvoiceLookupWarningShown) {
-            oldestOpenInvoiceLookupWarningShown = true;
-            console.warn('Oldest open invoice lookup warning: ' + (lastError?.message || lastError));
-          }
-          throw lastError;
-        }
-      }
-
-      if (!oldestOpenInvoiceLookupWarningShown) {
-        oldestOpenInvoiceLookupWarningShown = true;
-        console.warn('Oldest open invoice lookup warning: invoice table not found.');
-      }
-      throw new Error('Invoice table not found.');
     };
 
     const normalizeVehicleIdKey = (value) => `${value ?? ''}`.trim();
@@ -2614,7 +2481,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
     const vehicleHistoryHotspotCache = new Map();
     const vehicleHistoryHotspotPendingRequests = new Map();
     const vehicleAvgMovingMilesPendingRequests = new Map();
+    const vehiclePtPrioritySnapshotPendingRequests = new Map();
     const vehiclePtSnapshotPendingRequests = new Map();
+    const vehiclePtSnapshotHydratedAt = new Map();
+    const vehiclePtPatchPersistPendingRequests = new Map();
     let activeVehicleHistoryHotspots = [];
     const activeVehicleHistoryHotspotLayersByKey = new Map();
     const relatedHotspotVehiclesCache = new Map();
@@ -3185,6 +3055,218 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       return request;
     };
 
+    const fetchVehiclePriorityPtSnapshotRecords = async (
+      vehicle,
+      {
+        limit = VEHICLE_PT_PRIORITY_SNAPSHOT_LIMIT,
+        windowDays = VEHICLE_PT_PRIORITY_SNAPSHOT_WINDOW_DAYS
+      } = {}
+    ) => {
+      if (!vehicle || !supabaseClient?.from) return [];
+
+      const vin = gpsHistoryManager.getVehicleVin(vehicle);
+      const vehicleId = gpsHistoryManager.getVehicleId(vehicle);
+      const vinSuffix = getVinSuffixKey(vin);
+      if (!vin && !vehicleId) return [];
+
+      const sourceTable = TABLES.gpsHistory;
+      const dateColumn = sourceTable === 'PT-LastPing' ? 'Date' : 'created_at';
+      const windowStartMs = Date.now() - (Math.max(1, Number(windowDays) || 1) * GPS_HISTORY_DAY_MS);
+      const windowStartIso = new Date(windowStartMs).toISOString();
+      const lookupFilters = [];
+      if (vehicleId) lookupFilters.push({ column: 'vehicle_id', value: vehicleId });
+      if (vin) lookupFilters.push({ column: 'VIN', value: vin });
+      if (vinSuffix.length >= 4) {
+        lookupFilters.push({ column: 'VIN', value: `%${vinSuffix}`, operator: 'ilike' });
+      }
+
+      for (const filter of lookupFilters) {
+        let query = supabaseClient
+          .from(sourceTable)
+          .select('*')
+          .order(dateColumn, { ascending: false })
+          .limit(limit)
+          .gte(dateColumn, windowStartIso);
+        query = filter.operator === 'ilike'
+          ? query.ilike(filter.column, filter.value)
+          : query.eq(filter.column, filter.value);
+
+        const { data, error } = await runWithTimeout(
+          query,
+          SUPABASE_TIMEOUT_MS,
+          'Vehicle PT priority snapshot timed out.'
+        );
+        if (error) throw error;
+
+        let rows = Array.isArray(data) ? data : [];
+        if (rows.length && filter.operator === 'ilike' && vinSuffix) {
+          rows = rows.filter((record) => getVinSuffixKey(record?.VIN ?? record?.vin) === vinSuffix);
+        }
+        if (rows.length) return rows;
+      }
+
+      return [];
+    };
+
+    const hydrateVehiclePtSnapshotQuick = async (
+      vehicle,
+      { force = false, rerenderOnChange = true } = {}
+    ) => {
+      if (!vehicle || !gpsHistoryManager || typeof gpsHistoryManager.fetchGpsHistory !== 'function') return false;
+
+      const vehicleKey = getVehicleKey(vehicle);
+      if (!vehicleKey) return false;
+      const pending = vehiclePtPrioritySnapshotPendingRequests.get(vehicleKey);
+      if (pending) return pending;
+
+      const hasRecentLastRead = hasParsableTime(getVehiclePtLastReadValue(vehicle));
+      if (!force && hasRecentLastRead && hasValidCoords(vehicle)) return false;
+
+      const request = (async () => {
+        const records = await fetchVehiclePriorityPtSnapshotRecords(vehicle).catch(() => []);
+        if (!Array.isArray(records) || !records.length) return false;
+
+        const blacklistedWirelessSerials = await getGpsDeviceBlacklistSerials().catch(() => new Map());
+        const getRecordSerial = typeof gpsHistoryManager.getRecordSerial === 'function'
+          ? gpsHistoryManager.getRecordSerial
+          : () => '';
+        const configuredWinnerSerial = typeof gpsHistoryManager.getVehicleWinnerSerial === 'function'
+          ? gpsHistoryManager.getVehicleWinnerSerial(vehicle)
+          : '';
+        const winnerSerial = typeof gpsHistoryManager.resolveVehicleWinnerSerialFromRecords === 'function'
+          ? gpsHistoryManager.resolveVehicleWinnerSerialFromRecords(vehicle, records)
+          : configuredWinnerSerial;
+
+        let changed = false;
+        if (winnerSerial) {
+          const currentSerial = getVehiclePtSerialValue(vehicle);
+          if (`${currentSerial}`.trim() !== `${winnerSerial}`.trim()) {
+            vehicle.ptSerial = winnerSerial;
+            if (vehicle?.details && typeof vehicle.details === 'object') {
+              vehicle.details['pt serial'] = winnerSerial;
+              vehicle.details.pt_serial = winnerSerial;
+              vehicle.details['PT Serial'] = winnerSerial;
+              vehicle.details['PT Serial '] = winnerSerial;
+              vehicle.details.winner_serial = winnerSerial;
+              vehicle.details['Winner Serial'] = winnerSerial;
+            }
+            changed = true;
+          }
+        }
+
+        const movementSourceRecords = selectMovementMetricRecords(records, {
+          vehicle,
+          getRecordSerial,
+          winnerSerial,
+          blacklistedWirelessSerials
+        });
+        const stationarySourceRecords = winnerSerial
+          ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
+          : movementSourceRecords;
+
+        if (applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
+          movementSourceRecords,
+          stationarySourceRecords,
+          winnerSerial,
+          getRecordSerial
+        })) {
+          changed = true;
+        }
+
+        const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
+          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
+        const latestCoords = latestWinnerRecord ? toGpsTrailPoint(latestWinnerRecord) : null;
+        const latestTimeMs = parseGpsTrailTimeMs(latestWinnerRecord || {});
+        const latestAddress = `${latestWinnerRecord?.address || latestWinnerRecord?.Address || ''}`.trim();
+        let status = `${vehicle?.historyMovingOverride || ''}`.trim().toLowerCase();
+        if (status !== 'moving' && status !== 'stopped' && status !== 'unknown') {
+          status = `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase();
+        }
+        if (status !== 'moving' && status !== 'stopped' && status !== 'unknown') {
+          status = 'unknown';
+        }
+        const nextDays = status === 'moving'
+          ? 0
+          : status === 'stopped'
+            ? Math.max(0, Number(vehicle?.historyDaysStationaryOverride ?? vehicle?.movementDaysStationaryV2 ?? 0) || 0)
+            : null;
+        const patch = {};
+
+        if (winnerSerial) {
+          patch['pt serial'] = winnerSerial;
+        }
+        if (Number.isFinite(latestTimeMs)) {
+          const latestReadIso = new Date(latestTimeMs).toISOString();
+          patch['pt last read'] = latestReadIso;
+        }
+        const firstReadValue = getVehiclePtFirstReadValue(vehicle);
+        if (hasParsableTime(firstReadValue)) {
+          patch['pt first read'] = firstReadValue;
+        } else if (Number.isFinite(latestTimeMs)) {
+          patch['pt first read'] = new Date(latestTimeMs).toISOString();
+        }
+        patch.movement_status_v2 = status;
+        patch.movement_days_stationary_v2 = nextDays;
+        patch.moving = status === 'moving' ? 1 : status === 'stopped' ? -1 : null;
+        patch.days_stationary = nextDays;
+        if (latestCoords) {
+          const currentLat = parseGpsNumericValue(vehicle?.lat ?? vehicle?.details?.lat ?? vehicle?.details?.Lat);
+          const currentLng = parseGpsNumericValue(
+            vehicle?.lng
+            ?? vehicle?.long
+            ?? vehicle?.details?.long
+            ?? vehicle?.details?.Long
+            ?? vehicle?.details?.lng
+            ?? vehicle?.details?.Lng
+          );
+          if (currentLat !== latestCoords.lat) patch.lat = latestCoords.lat;
+          if (currentLng !== latestCoords.lng) patch.long = latestCoords.lng;
+        }
+        if (latestAddress) {
+          const currentShortLocation = `${vehicle?.shortLocation ?? vehicle?.details?.short_location ?? ''}`.trim();
+          if (currentShortLocation !== latestAddress) {
+            patch.short_location = latestAddress;
+          }
+        }
+
+        if (Object.keys(patch).length) {
+          applyVehiclePtPersistencePatch(vehicle, patch);
+          void persistVehiclePtPersistencePatch(vehicle, patch);
+          changed = true;
+        }
+
+        if (changed) {
+          vehiclePtSnapshotHydratedAt.set(vehicleKey, Date.now());
+          if (rerenderOnChange) {
+            renderVehicles({ preserveScrollTop: true });
+          }
+        }
+        return changed;
+      })().finally(() => {
+        vehiclePtPrioritySnapshotPendingRequests.delete(vehicleKey);
+      });
+
+      vehiclePtPrioritySnapshotPendingRequests.set(vehicleKey, request);
+      return request;
+    };
+
+    const hydrateInitialVisibleVehicleSnapshots = async () => {
+      const searchBox = document.getElementById('vehicle-search');
+      const visibleVehicles = getVehicleList(searchBox?.value || '')
+        .slice(0, VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT);
+      if (!visibleVehicles.length) return;
+
+      const results = await mapWithConcurrency(
+        visibleVehicles,
+        (vehicle) => hydrateVehiclePtSnapshotQuick(vehicle, { force: true, rerenderOnChange: false }),
+        VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY
+      );
+
+      if (results.some(Boolean)) {
+        renderVehicles({ preserveScrollTop: true });
+      }
+    };
+
     const hydrateVehiclePtSnapshotFromGpsHistory = async (
       vehicle,
       { force = false } = {}
@@ -3194,10 +3276,22 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       const hasPtSerial = Boolean(getVehiclePtSerialValue(vehicle));
       const hasFirstRead = hasParsableTime(getVehiclePtFirstReadValue(vehicle));
       const hasLastRead = hasParsableTime(getVehiclePtLastReadValue(vehicle));
-      if (!force && hasPtSerial && hasFirstRead && hasLastRead) return false;
-
       const vehicleKey = getVehicleKey(vehicle);
       if (!vehicleKey) return false;
+      const hasMovementStatus = ['moving', 'stopped', 'unknown'].includes(
+        `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase()
+      );
+      const lastHydratedAt = Number(vehiclePtSnapshotHydratedAt.get(vehicleKey) || 0);
+      const recentlyHydrated = lastHydratedAt > 0 && (Date.now() - lastHydratedAt) < VEHICLE_PT_SNAPSHOT_REFRESH_TTL_MS;
+      const needsHydration = force
+        || !hasPtSerial
+        || !hasFirstRead
+        || !hasLastRead
+        || !hasValidCoords(vehicle)
+        || !hasMovementStatus
+        || !recentlyHydrated;
+      if (!needsHydration) return false;
+
       const pending = vehiclePtSnapshotPendingRequests.get(vehicleKey);
       if (pending) return pending;
 
@@ -3209,7 +3303,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vin, vehicleId });
         if (error || !Array.isArray(records) || !records.length) return false;
 
-        await getGpsDeviceBlacklistSerials().catch(() => new Map());
+        const blacklistedWirelessSerials = await getGpsDeviceBlacklistSerials().catch(() => new Map());
         const winnerSerial = typeof gpsHistoryManager.resolveVehicleWinnerSerialFromRecords === 'function'
           ? gpsHistoryManager.resolveVehicleWinnerSerialFromRecords(vehicle, records)
           : gpsHistoryManager.getVehicleWinnerSerial(vehicle);
@@ -3238,16 +3332,148 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           changed = true;
         }
 
+        const movementSourceRecords = selectMovementMetricRecords(records, {
+          vehicle,
+          getRecordSerial,
+          winnerSerial,
+          blacklistedWirelessSerials
+        });
+        const stationarySourceRecords = winnerSerial
+          ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
+          : movementSourceRecords;
+
+        if (applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
+          movementSourceRecords,
+          stationarySourceRecords,
+          winnerSerial,
+          getRecordSerial
+        })) {
+          changed = true;
+        }
+
+        let status = `${vehicle?.historyMovingOverride || ''}`.trim().toLowerCase();
+        if (status !== 'moving' && status !== 'stopped' && status !== 'unknown') {
+          status = `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase();
+        }
+        if (status !== 'moving' && status !== 'stopped' && status !== 'unknown') {
+          status = 'unknown';
+        }
+
+        const currentDaysRaw = vehicle?.movementDaysStationaryV2 ?? vehicle?.details?.movement_days_stationary_v2;
+        const currentDays = Number.isFinite(Number(currentDaysRaw)) ? Number(currentDaysRaw) : null;
+        const nextDays = status === 'moving'
+          ? 0
+          : status === 'stopped'
+            ? Math.max(0, Number(vehicle?.historyDaysStationaryOverride ?? 0) || 0)
+            : null;
+        const currentStatus = `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase();
+        const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
+          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
+        const latestCoords = latestWinnerRecord ? toGpsTrailPoint(latestWinnerRecord) : null;
+        const latestAddress = `${latestWinnerRecord?.address || latestWinnerRecord?.Address || ''}`.trim();
+        const currentLat = parseGpsNumericValue(vehicle?.lat ?? vehicle?.details?.lat ?? vehicle?.details?.Lat);
+        const currentLng = parseGpsNumericValue(
+          vehicle?.lng
+          ?? vehicle?.long
+          ?? vehicle?.details?.long
+          ?? vehicle?.details?.Long
+          ?? vehicle?.details?.lng
+          ?? vehicle?.details?.Lng
+        );
+        const currentShortLocation = `${vehicle?.shortLocation ?? vehicle?.details?.short_location ?? ''}`.trim();
+        const patch = {};
+
+        if (currentStatus !== status) {
+          patch.movement_status_v2 = status;
+        }
+        if ((currentDays ?? null) !== (nextDays ?? null)) {
+          patch.movement_days_stationary_v2 = nextDays;
+        }
+        if (latestCoords) {
+          if (currentLat !== latestCoords.lat) patch.lat = latestCoords.lat;
+          if (currentLng !== latestCoords.lng) patch.long = latestCoords.lng;
+        }
+        if (latestAddress && currentShortLocation !== latestAddress) {
+          patch.short_location = latestAddress;
+        }
+
+        if (Object.keys(patch).length) {
+          applyVehiclePtPersistencePatch(vehicle, patch);
+          void persistVehiclePtPersistencePatch(vehicle, patch);
+          changed = true;
+        }
+
         if (changed) {
           renderVehicles({ preserveScrollTop: true });
         }
         return changed;
       })().finally(() => {
         vehiclePtSnapshotPendingRequests.delete(vehicleKey);
+        vehiclePtSnapshotHydratedAt.set(vehicleKey, Date.now());
       });
 
       vehiclePtSnapshotPendingRequests.set(vehicleKey, request);
       return request;
+    };
+
+    const preloadVisibleVehiclePtSnapshots = async (
+      visibleVehicles = [],
+      { rerenderOnChange = true } = {}
+    ) => {
+      if (!Array.isArray(visibleVehicles) || !visibleVehicles.length) return;
+
+      const candidates = visibleVehicles
+        .filter((vehicle) => Boolean(getVehicleKey(vehicle)))
+        .filter((vehicle) => {
+          const vehicleKey = getVehicleKey(vehicle);
+          const hasPtSerial = Boolean(getVehiclePtSerialValue(vehicle));
+          const hasFirstRead = hasParsableTime(getVehiclePtFirstReadValue(vehicle));
+          const hasLastRead = hasParsableTime(getVehiclePtLastReadValue(vehicle));
+          const hasMovementStatus = ['moving', 'stopped', 'unknown'].includes(
+            `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase()
+          );
+          const lastHydratedAt = Number(vehiclePtSnapshotHydratedAt.get(vehicleKey) || 0);
+          const recentlyHydrated = lastHydratedAt > 0 && (Date.now() - lastHydratedAt) < VEHICLE_PT_SNAPSHOT_REFRESH_TTL_MS;
+          return !recentlyHydrated
+            || !hasPtSerial
+            || !hasFirstRead
+            || !hasLastRead
+            || !hasValidCoords(vehicle)
+            || !hasMovementStatus;
+        })
+        .slice(0, VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT);
+      if (!candidates.length) return;
+
+      const results = await mapWithConcurrency(
+        candidates,
+        (vehicle) => hydrateVehiclePtSnapshotFromGpsHistory(vehicle),
+        VEHICLE_PT_SNAPSHOT_PREFETCH_CONCURRENCY
+      );
+
+      if (rerenderOnChange && results.some(Boolean)) {
+        renderVehicles({ preserveScrollTop: true });
+      }
+    };
+
+    const scheduleVehicleBackgroundPrefetch = (visibleVehicles = []) => {
+      if (vehicleBackgroundPrefetchTimer) {
+        window.clearTimeout(vehicleBackgroundPrefetchTimer);
+        vehicleBackgroundPrefetchTimer = null;
+      }
+
+      const candidates = Array.isArray(visibleVehicles) ? [...visibleVehicles] : [];
+      vehicleBackgroundPrefetchTimer = window.setTimeout(() => {
+        vehicleBackgroundPrefetchTimer = null;
+        const run = () => {
+          void preloadVisibleVehiclePtSnapshots(candidates);
+          void preloadVisibleVehicleMarkerHeadings(candidates);
+        };
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(() => run(), { timeout: 1000 });
+          return;
+        }
+        window.setTimeout(run, 0);
+      }, VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS);
     };
 
     const toComparableTimeMs = (value) => {
@@ -3482,6 +3708,48 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       });
 
       return true;
+    };
+
+    const persistVehiclePtPersistencePatch = async (vehicle, patch = {}) => {
+      if (!vehicle || !supabaseClient?.from || !patch || typeof patch !== 'object') return false;
+
+      const vehicleId = `${vehicle?.id ?? ''}`.trim();
+      if (!vehicleId) return false;
+
+      const persistedPatch = Object.fromEntries(
+        Object.entries(patch).filter(([, value]) => value !== undefined)
+      );
+      if (!Object.keys(persistedPatch).length) return false;
+
+      const pendingKey = `${vehicleId}:${Object.keys(persistedPatch).sort().join('|')}`;
+      const existing = vehiclePtPatchPersistPendingRequests.get(pendingKey);
+      if (existing) return existing;
+
+      const request = (async () => {
+        const { error } = await runWithTimeout(
+          supabaseClient
+            .from(TABLES.vehicles)
+            .update({
+              ...persistedPatch,
+              movement_computed_at_v2: new Date().toISOString()
+            })
+            .eq('id', vehicleId),
+          12000,
+          'Vehicle PT snapshot persistence timed out.'
+        );
+        if (error) throw error;
+        return true;
+      })()
+        .catch((error) => {
+          console.warn('Failed to persist vehicle PT snapshot patch:', error?.message || error);
+          return false;
+        })
+        .finally(() => {
+          vehiclePtPatchPersistPendingRequests.delete(pendingKey);
+        });
+
+      vehiclePtPatchPersistPendingRequests.set(pendingKey, request);
+      return request;
     };
 
     const refreshVehicleSidebarSnapshot = async (vehicle) => {
@@ -6988,27 +7256,18 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         normalizedVehicles.forEach((vehicle) => applyManualVehicleMetadataOverride(vehicle));
 
         let dealsByStockNo = new Map();
-        let openInvoiceSummaryByStockNo = new Map();
-        let invoiceSummaryAvailable = false;
         if (supabaseClient) {
           const stockNumbers = normalizedVehicles
             .map((vehicle) => normalizeStockNumber(vehicle.stockNo))
             .filter(Boolean);
           try {
-            const [dealsResult, invoicesResult] = await Promise.allSettled([
-              fetchDealsByStockNumbers(stockNumbers),
-              fetchOpenInvoiceSummaryByStockNumbers(stockNumbers)
+            const [dealsResult] = await Promise.allSettled([
+              fetchDealsByStockNumbers(stockNumbers)
             ]);
             if (dealsResult.status === 'fulfilled') {
               dealsByStockNo = dealsResult.value;
             } else {
               console.warn('DealsJP1 load warning: ' + (dealsResult.reason?.message || dealsResult.reason));
-            }
-            if (invoicesResult.status === 'fulfilled') {
-              openInvoiceSummaryByStockNo = invoicesResult.value;
-              invoiceSummaryAvailable = true;
-            } else {
-              console.warn('Invoices load warning: ' + (invoicesResult.reason?.message || invoicesResult.reason));
             }
           } catch (error) {
             console.warn('Vehicle financial enrich warning: ' + (error?.message || error));
@@ -7030,19 +7289,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           }
           const regularAmount = dealValues?.regularAmount ?? null;
           const openBalance = dealValues?.openBalance ?? null;
-          const openInvoiceSummary = openInvoiceSummaryByStockNo.get(stockNo) ?? null;
-          const invoiceOpenBalance = Number.isFinite(openInvoiceSummary?.openBalanceSum)
-            ? openInvoiceSummary.openBalanceSum
-            : null;
-          const effectiveOpenBalance = invoiceSummaryAvailable
-            ? (invoiceOpenBalance ?? 0)
-            : openBalance;
-          const payKpi = effectiveOpenBalance !== null && regularAmount ? effectiveOpenBalance / regularAmount : null;
-          const oldestOpenInvoice = openInvoiceSummary ?? null;
+          const payKpi = openBalance !== null && regularAmount ? openBalance / regularAmount : null;
           vehicle.payKpi = payKpi;
           vehicle.payKpiDisplay = formatPayKpi(payKpi);
-          vehicle.oldestOpenInvoiceDate = oldestOpenInvoice?.value || '';
-          vehicle.oldestOpenInvoiceDateDisplay = formatInvoiceDate(vehicle.oldestOpenInvoiceDate);
           return true;
         });
 
@@ -7052,12 +7301,14 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         relatedHotspotVehiclesCache.clear();
         hotspotFastCoordinatePairs = [];
         hotspotFastCoordinatePairLookupPromise = null;
-        await preloadVisibleVehicleMarkerHeadings(vehicles, { rerenderOnChange: false });
+        vehiclePtSnapshotHydratedAt.clear();
         await hydrateVehicleClickHistory(vehicles);
         vehicleHeaders = data.length ? ensureRequiredVehicleHeaders(Object.keys(data[0])) : [...REQUIRED_VEHICLE_HEADERS];
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
         renderVehicles();
+        await hydrateInitialVisibleVehicleSnapshots();
+        scheduleVehicleBackgroundPrefetch(vehicles);
         // PT read bounds now come from vehicles table columns.
         syncVehicleSelectionFromStore(getSelectedVehicle(), { shouldFocus: true });
       } catch (err) {
@@ -7938,8 +8189,9 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       } else {
         expandedVehicleCardKeys.add(key);
       }
-      renderVehicles({ preserveScrollTop: true });
+      renderVehicles({ preserveScrollTop: true, syncMarkers: false });
       if (willExpand && vehicle) {
+        void hydrateVehiclePtSnapshotQuick(vehicle, { force: true });
         void hydrateVehiclePtSnapshotFromGpsHistory(vehicle);
         void hydrateVehicleAverageMovingMilesPerDay(vehicle);
       }
@@ -8194,7 +8446,7 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       });
     }
 
-    function renderVehicles({ preserveScrollTop = false } = {}) {
+    function renderVehicles({ preserveScrollTop = false, syncMarkers = true } = {}) {
       const container = document.getElementById('vehicle-list');
       if (!container) return;
       const previousScrollTop = preserveScrollTop ? container.scrollTop : null;
@@ -8242,18 +8494,20 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
         empty.className = 'text-center mt-10 text-slate-600 text-xs';
         empty.textContent = 'No vehicles match your search.';
         container.replaceChildren(empty);
-        syncVehicleMarkers({
-          vehiclesWithCoords: [],
-          vehicleLayer,
-          vehicleMarkers,
-          visible: vehicleMarkersVisible,
-          getVehicleMarkerKey: getVehicleKey,
-          getVehicleMarkerColor,
-          getVehicleMarkerBorderColor,
-          isVehicleNotMoving,
-          getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing,
-          getVehicleMarkerHeading
-        });
+        if (syncMarkers) {
+          syncVehicleMarkers({
+            vehiclesWithCoords: [],
+            vehicleLayer,
+            vehicleMarkers,
+            visible: vehicleMarkersVisible,
+            getVehicleMarkerKey: getVehicleKey,
+            getVehicleMarkerColor,
+            getVehicleMarkerBorderColor,
+            isVehicleNotMoving,
+            getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing,
+            getVehicleMarkerHeading
+          });
+        }
         return;
       }
 
@@ -8326,7 +8580,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           const gpsReasonClasses = hasNoGps ? 'text-[10px] text-red-200/90' : 'text-[10px] text-slate-400';
           const latLabel = Number.isFinite(Number(vehicle.lat)) ? Number(vehicle.lat).toFixed(5) : '—';
           const longLabel = Number.isFinite(Number(vehicle.lng)) ? Number(vehicle.lng).toFixed(5) : '—';
-          const oldestOpenInvoiceDateLabel = escapeHTML(vehicle.oldestOpenInvoiceDateDisplay || '—');
           const ptSerialLabel = escapeHTML(getVehiclePtSerialValue(vehicle) || '—');
           const ptLastReadLabel = formatDateTime(getVehiclePtLastReadValue(vehicle));
           const ptFirstReadLabel = formatDateTime(getVehiclePtFirstReadValue(vehicle));
@@ -8419,7 +8672,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Pay KPI</p>
                   <p class="text-[11px] font-semibold text-slate-100">${vehicle.payKpiDisplay || '—'}</p>
-                  <p class="text-[9px] text-slate-400 mt-0.5">${oldestOpenInvoiceDateLabel}</p>
                 </div>
                 <div class="rounded border px-2 py-1.5 ${prepStatusStyles.card}">
                   <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">Prep</p>
@@ -8527,19 +8779,20 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           });
         }
 
-        syncVehicleMarkers({
-          vehiclesWithCoords: vehiclesForMarkers,
-          vehicleLayer,
-          vehicleMarkers,
-          visible: vehicleMarkersVisible,
-          getVehicleMarkerKey: getVehicleKey,
-          getVehicleMarkerColor,
-          getVehicleMarkerBorderColor,
-          isVehicleNotMoving,
-          getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing,
-          getVehicleMarkerHeading
-        });
-        void preloadVisibleVehicleMarkerHeadings(filtered);
+        if (syncMarkers) {
+          syncVehicleMarkers({
+            vehiclesWithCoords: vehiclesForMarkers,
+            vehicleLayer,
+            vehicleMarkers,
+            visible: vehicleMarkersVisible,
+            getVehicleMarkerKey: getVehicleKey,
+            getVehicleMarkerColor,
+            getVehicleMarkerBorderColor,
+            isVehicleNotMoving,
+            getVehicleMarkerOpacity: getVehicleMarkerOpacityByLastPing,
+            getVehicleMarkerHeading
+          });
+        }
       }
 
     function focusVehicle(vehicle, { autoExpandSidebarCard = false } = {}) {
@@ -8557,8 +8810,10 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
       if (shouldAutoExpandCard) {
         pinVehicleListCardPosition(vehicleKey);
         expandedVehicleCardKeys.add(vehicleKey);
+        void hydrateVehiclePtSnapshotQuick(vehicle, { force: true });
         void hydrateVehicleAverageMovingMilesPerDay(vehicle);
       }
+      void hydrateVehiclePtSnapshotQuick(vehicle, { force: true });
       const storedMarker = vehicleMarkers.get(vehicleKey)?.marker;
       const markerColor = getVehicleMarkerColor(vehicle);
       const anchorMarker = storedMarker || L.circleMarker([vehicleCoords.lat, vehicleCoords.lng], {
@@ -11115,13 +11370,17 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
 	          vehicleSearchInput.addEventListener('input', () => {
 	            syncVehicleSearchClearButton();
 	            clearTimeout(vehicleSearchTimer);
-	            vehicleSearchTimer = setTimeout(() => renderVehicles(), 250);
+	            vehicleSearchTimer = setTimeout(() => {
+	              renderVehicles();
+	              scheduleVehicleBackgroundPrefetch(getVehicleList(vehicleSearchInput.value || ''));
+	            }, 250);
 	          });
 	          vehicleSearchClearButton?.addEventListener('click', () => {
 	            vehicleSearchInput.value = '';
 	            syncVehicleSearchClearButton();
 	            clearTimeout(vehicleSearchTimer);
 	            renderVehicles();
+	            scheduleVehicleBackgroundPrefetch(getVehicleList(''));
 	            vehicleSearchInput.focus();
 	          });
 	          syncVehicleSearchClearButton();
@@ -11172,7 +11431,6 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
             handlers: {
               vehicles: refreshVehicles,
               deals: refreshVehicles,
-              invoices: refreshVehicles,
               hotspots: refreshHotspots,
               blacklist: refreshBlacklist,
               services: refreshServices
@@ -11180,6 +11438,17 @@ import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=mov
           });
 
           startDataSyncWatchdog();
+
+          subscribeDataSyncSignal((payload = {}) => {
+            const scope = String(payload?.scope || 'all').toLowerCase();
+            const shouldRefreshVehicles = ['all', 'vehicles', 'deals', 'pt-lastping', 'pt_lastping', 'pt'].includes(scope);
+            const shouldRefreshMapData = shouldRefreshVehicles || ['hotspots', 'blacklist', 'services'].includes(scope);
+            if (!shouldRefreshMapData) return;
+            void refreshControlMapData({
+              includeServices: scope === 'all' || scope === 'services',
+              silent: true
+            });
+          });
 
           startSupabaseKeepAlive({ supabaseClient, table: TABLES.vehicles });
 

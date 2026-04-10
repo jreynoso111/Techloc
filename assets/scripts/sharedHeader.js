@@ -23,7 +23,7 @@ scheduleNonCriticalBoot(() => {
 });
 
 const headerSlot = document.querySelector('[data-shared-header]');
-const HEADER_TEMPLATE_CACHE_KEY = 'techloc:shared-header-template:v1';
+const HEADER_TEMPLATE_CACHE_KEY = 'techloc:shared-header-template:v2';
 const HEADER_TEMPLATE_CACHE_TS_KEY = `${HEADER_TEMPLATE_CACHE_KEY}:ts`;
 const HEADER_TEMPLATE_CACHE_TTL_MS = 15 * 60 * 1000;
 

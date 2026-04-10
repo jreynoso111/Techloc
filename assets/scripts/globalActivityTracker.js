@@ -2,7 +2,7 @@ import { logAdminEvent } from './adminAudit.js';
 
 const ACTIVITY_TABLE = 'web_activity';
 const MAX_LABEL_LENGTH = 90;
-const DEDUPE_WINDOW_MS = 8000;
+const DEDUPE_WINDOW_MS = 60 * 1000;
 const seenEvents = new Map();
 
 const sanitizeLabel = (value) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, MAX_LABEL_LENGTH);
@@ -24,6 +24,8 @@ const resolveProfile = () => {
   };
 };
 
+const isAdminRoute = () => String(window.location.pathname || '').toLowerCase().includes('/admin/');
+
 const track = async ({
   action = 'activity',
   summary = 'Web activity',
@@ -31,6 +33,7 @@ const track = async ({
   details = {},
   dedupeKey = null,
 } = {}) => {
+  if (isAdminRoute()) return false;
   const profile = resolveProfile();
   const key = dedupeKey || `${action}:${summary}:${profile.pagePath}`;
   if (shouldSkipEvent(key)) return false;
@@ -76,6 +79,7 @@ const bindClickTracking = () => {
   document.addEventListener(
     'click',
     (event) => {
+      if (isAdminRoute()) return;
       const clickable = event.target?.closest?.('a,button,[data-track-activity]');
       if (!clickable) return;
       if (clickable.hasAttribute('data-no-activity-track')) return;
@@ -100,6 +104,7 @@ const bindFormTracking = () => {
   document.addEventListener(
     'submit',
     (event) => {
+      if (isAdminRoute()) return;
       const form = event.target;
       if (!(form instanceof HTMLFormElement)) return;
       if (form.hasAttribute('data-no-activity-track')) return;

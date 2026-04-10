@@ -1,7 +1,7 @@
-const DEFAULT_SUPABASE_PROJECT_REF = 'lnfmogsjvdkqgwprlmtn';
-const DEFAULT_SUPABASE_URL = 'https://lnfmogsjvdkqgwprlmtn.supabase.co';
-// Publishable keys are safe to ship in the browser; never place a service-role key here.
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_HhPw8JLinAfDtUNWXnQg8Q_KhXvprNM';
+const DEFAULT_BACKEND_PROVIDER = 'insforge';
+const DEFAULT_SUPABASE_PROJECT_REF = '3m4gbnnf';
+const DEFAULT_SUPABASE_URL = 'https://3m4gbnnf.us-east.insforge.app';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3ODIyMTZ9._iXoO7BJ8C1qAb5ANBWQfL23PTzjcFtu7v3tHgeIdQs';
 
 const getRuntimeConfig = () => {
   const browserConfig = (
@@ -14,16 +14,39 @@ const getRuntimeConfig = () => {
 
   const nodeConfig = (typeof process !== 'undefined' && process?.env)
     ? {
+      provider: process.env.BACKEND_PROVIDER || process.env.INSFORGE_PROVIDER,
+      insforgeUrl: process.env.INSFORGE_URL,
+      insforgeAnonKey: process.env.INSFORGE_ANON_KEY,
+      insforgeProjectRef: process.env.INSFORGE_PROJECT_REF || process.env.INSFORGE_APPKEY,
       supabaseUrl: process.env.SUPABASE_URL,
       supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY,
-      supabaseProjectRef: process.env.SUPABASE_PROJECT_REF
+      supabaseProjectRef: process.env.SUPABASE_PROJECT_REF,
     }
     : null;
 
   return {
-    supabaseUrl: browserConfig?.supabaseUrl || nodeConfig?.supabaseUrl || DEFAULT_SUPABASE_URL,
-    supabaseAnonKey: browserConfig?.supabaseAnonKey || nodeConfig?.supabaseAnonKey || DEFAULT_SUPABASE_PUBLISHABLE_KEY,
-    supabaseProjectRef: browserConfig?.supabaseProjectRef || nodeConfig?.supabaseProjectRef || DEFAULT_SUPABASE_PROJECT_REF
+    provider:
+      browserConfig?.provider
+      || nodeConfig?.provider
+      || DEFAULT_BACKEND_PROVIDER,
+    insforgeUrl:
+      browserConfig?.insforgeUrl
+      || browserConfig?.supabaseUrl
+      || nodeConfig?.insforgeUrl
+      || nodeConfig?.supabaseUrl
+      || DEFAULT_SUPABASE_URL,
+    insforgeAnonKey:
+      browserConfig?.insforgeAnonKey
+      || browserConfig?.supabaseAnonKey
+      || nodeConfig?.insforgeAnonKey
+      || nodeConfig?.supabaseAnonKey
+      || DEFAULT_SUPABASE_PUBLISHABLE_KEY,
+    insforgeProjectRef:
+      browserConfig?.insforgeProjectRef
+      || browserConfig?.supabaseProjectRef
+      || nodeConfig?.insforgeProjectRef
+      || nodeConfig?.supabaseProjectRef
+      || DEFAULT_SUPABASE_PROJECT_REF,
   };
 };
 
@@ -64,22 +87,25 @@ const decodeJwtPayload = (token) => {
 const deriveProjectRefFromUrl = (url = '') => {
   try {
     const host = new URL(url).hostname || '';
-    const match = host.match(/^([a-z0-9-]+)\.supabase\.co$/i);
-    return match?.[1] ? String(match[1]).trim() : '';
+    const supabaseMatch = host.match(/^([a-z0-9-]+)\.supabase\.co$/i);
+    if (supabaseMatch?.[1]) return String(supabaseMatch[1]).trim();
+    const insforgeMatch = host.match(/^([a-z0-9-]+)\.[a-z0-9-]+\.insforge\.app$/i);
+    return insforgeMatch?.[1] ? String(insforgeMatch[1]).trim() : '';
   } catch (_error) {
     return '';
   }
 };
 
-export const SUPABASE_URL = toSafeString(runtimeConfig.supabaseUrl);
-export const SUPABASE_KEY = toSafeString(runtimeConfig.supabaseAnonKey);
+export const BACKEND_PROVIDER = toSafeString(runtimeConfig.provider || DEFAULT_BACKEND_PROVIDER) || DEFAULT_BACKEND_PROVIDER;
+export const SUPABASE_URL = toSafeString(runtimeConfig.insforgeUrl);
+export const SUPABASE_KEY = toSafeString(runtimeConfig.insforgeAnonKey);
 const keyProjectRef = toSafeString(decodeJwtPayload(SUPABASE_KEY)?.ref);
 export const SUPABASE_PROJECT_REF = (
-  toSafeString(runtimeConfig.supabaseProjectRef)
+  toSafeString(runtimeConfig.insforgeProjectRef)
   || deriveProjectRefFromUrl(SUPABASE_URL)
   || keyProjectRef
 );
-export const SUPABASE_DB_HOST = SUPABASE_PROJECT_REF ? `db.${SUPABASE_PROJECT_REF}.supabase.co` : '';
+export const SUPABASE_DB_HOST = '';
 export const SUPABASE_DB_PORT = 5432;
 export const SUPABASE_DB_NAME = 'postgres';
 export const SUPABASE_DB_USER = 'postgres';
@@ -95,11 +121,11 @@ export const assertSupabaseTarget = (url = SUPABASE_URL, key = SUPABASE_KEY) => 
   const normalizedKey = toSafeString(key);
 
   if (!normalizedUrl) {
-    console.error('Missing Supabase URL.');
+    console.error('Missing backend URL.');
     reportGlobalIssue(
-      'Missing Supabase URL',
+      'Missing Backend URL',
       'SUPABASE_URL is empty; connection cannot be established.',
-      'Set SUPABASE_URL in server environment variables.'
+      'Set SUPABASE_URL or INSFORGE_URL in server environment variables.'
     );
     return false;
   }
@@ -108,52 +134,32 @@ export const assertSupabaseTarget = (url = SUPABASE_URL, key = SUPABASE_KEY) => 
   try {
     parsedUrl = new URL(normalizedUrl);
   } catch (_error) {
-    console.error('Invalid Supabase URL format.');
+    console.error('Invalid backend URL format.');
     return false;
   }
 
-  if (SUPABASE_PROJECT_REF) {
-    const allowedHost = `${SUPABASE_PROJECT_REF}.supabase.co`;
-    if (parsedUrl.hostname !== allowedHost) {
-      console.error(`Blocked Supabase host: ${parsedUrl.hostname}. Allowed host: ${allowedHost}.`);
-      reportGlobalIssue(
-        'Blocked Supabase Host',
-        `Detected ${parsedUrl.hostname}, expected ${allowedHost}.`,
-        `URL: ${normalizedUrl}`
-      );
-      return false;
-    }
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    console.error(`Blocked backend protocol: ${parsedUrl.protocol}.`);
+    return false;
   }
 
   if (!normalizedKey) {
-    console.error('Missing Supabase anon/publishable key.');
+    console.error('Missing backend anon key.');
     reportGlobalIssue(
-      'Missing Supabase Key',
+      'Missing Backend Key',
       'SUPABASE_KEY is empty; connection cannot be established.',
-      'Set SUPABASE_ANON_KEY (or SUPABASE_PUBLISHABLE_KEY) in server environment variables.'
+      'Set SUPABASE_ANON_KEY, SUPABASE_PUBLISHABLE_KEY, or INSFORGE_ANON_KEY.'
     );
     return false;
   }
 
   const lowerKey = normalizedKey.toLowerCase();
   if (PLACEHOLDER_KEY_PATTERNS.some((pattern) => lowerKey.includes(pattern))) {
-    console.error('Supabase key is still a placeholder value.');
+    console.error('Backend anon key is still a placeholder value.');
     reportGlobalIssue(
-      'Invalid Supabase Key',
-      'The configured Supabase key is still a placeholder and cannot authenticate.',
-      'Set SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY in /Users/jreynoso/Downloads/Techloc2/.env.'
-    );
-    return false;
-  }
-
-  const payload = decodeJwtPayload(normalizedKey);
-  const keyRef = payload?.ref ? String(payload.ref).trim() : '';
-  if (SUPABASE_PROJECT_REF && keyRef && keyRef !== SUPABASE_PROJECT_REF) {
-    console.error(`Blocked Supabase key ref: ${keyRef}. Expected: ${SUPABASE_PROJECT_REF}.`);
-    reportGlobalIssue(
-      'Blocked Supabase Key',
-      `JWT ref ${keyRef} does not match allowed project ${SUPABASE_PROJECT_REF}.`,
-      'Use the anon/publishable key from the allowed Supabase project.'
+      'Invalid Backend Key',
+      'The configured anon key is still a placeholder and cannot authenticate.',
+      'Update /Users/jreynoso/Downloads/Techloc2/.env with the real InsForge anon key.'
     );
     return false;
   }

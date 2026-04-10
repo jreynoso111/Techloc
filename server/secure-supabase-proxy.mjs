@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DEFAULT_SUPABASE_URL = 'https://lnfmogsjvdkqgwprlmtn.supabase.co';
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_HhPw8JLinAfDtUNWXnQg8Q_KhXvprNM';
+const DEFAULT_SUPABASE_URL = 'https://3m4gbnnf.us-east.insforge.app';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3ODIyMTZ9._iXoO7BJ8C1qAb5ANBWQfL23PTzjcFtu7v3tHgeIdQs';
 
 const loadDotEnvFile = () => {
   const envPath = path.join(ROOT_DIR, '.env');
@@ -103,7 +103,6 @@ const ALLOWED_REPAIR_FIELDS = new Set([
   'phys_loc',
   'VIN',
   'vehicle_status',
-  'open_balance',
   'days_stationary',
   'short_location',
   'current_stock_no',
@@ -134,6 +133,10 @@ const buildClientRuntimeConfig = () => ({
   supabaseUrl: SUPABASE_URL,
   supabaseAnonKey: SUPABASE_ANON_KEY,
   supabaseProjectRef: SUPABASE_PROJECT_REF,
+  insforgeUrl: SUPABASE_URL,
+  insforgeAnonKey: SUPABASE_ANON_KEY,
+  insforgeProjectRef: SUPABASE_PROJECT_REF,
+  provider: 'insforge',
 });
 
 const renderClientRuntimeConfigScript = () => {
@@ -271,31 +274,6 @@ const validateConfig = () => {
     host = new URL(SUPABASE_URL).hostname;
   } catch (_error) {
     throw new Error(`Invalid SUPABASE_URL: ${SUPABASE_URL}`);
-  }
-
-  if (SUPABASE_PROJECT_REF) {
-    const expectedHost = `${SUPABASE_PROJECT_REF}.supabase.co`;
-    if (host !== expectedHost) {
-      throw new Error(`Blocked SUPABASE_URL host: ${host}. Expected ${expectedHost}.`);
-    }
-  }
-
-  if (SUPABASE_SERVICE_ROLE_KEY) {
-    const tokenPayload = decodeJwtPayload(SUPABASE_SERVICE_ROLE_KEY);
-    const tokenRef = String(tokenPayload?.ref || '').trim();
-    if (SUPABASE_PROJECT_REF && tokenRef && tokenRef !== SUPABASE_PROJECT_REF) {
-      throw new Error(
-        `Blocked SUPABASE_SERVICE_ROLE_KEY ref: ${tokenRef}. Expected ${SUPABASE_PROJECT_REF}.`
-      );
-    }
-  }
-
-  const anonPayload = decodeJwtPayload(SUPABASE_ANON_KEY);
-  const anonRef = String(anonPayload?.ref || '').trim();
-  if (SUPABASE_PROJECT_REF && anonRef && anonRef !== SUPABASE_PROJECT_REF) {
-    throw new Error(
-      `Blocked SUPABASE_ANON_KEY ref: ${anonRef}. Expected ${SUPABASE_PROJECT_REF}.`
-    );
   }
 
   let appOriginUrl = null;

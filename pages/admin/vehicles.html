@@ -327,6 +327,7 @@
     } from '../../assets/scripts/backgroundPreference.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
     import { logAdminEvent } from '../../assets/scripts/adminAudit.js';
+    import { emitDataSyncSignal } from '../../assets/scripts/dataSyncSignal.js';
     import { bindStorageListener, setSelectedVehicle } from '../../assets/js/shared/selectedVehicleStore.js';
 
 
@@ -1234,6 +1235,11 @@
       logChange({
         action: 'bulk_upsert',
         summary: `Uploaded ${mapped.length} vehicle rows via CSV`,
+      });
+      emitDataSyncSignal({
+        scope: 'vehicles',
+        source: 'admin-vehicles-upload',
+        detail: { rows: mapped.length },
       });
 
     };

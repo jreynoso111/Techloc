@@ -805,11 +805,14 @@ const createGpsHistoryManager = ({
       for (const filter of lookupFilters) {
         try {
           const result = await fetchRecordsByFilter(filter);
-          records = result?.records || [];
+          const fetchedRecords = Array.isArray(result?.records) ? [...result.records] : [];
           hasOlderRecords = hasOlderRecords || Boolean(result?.hasOlderRecords);
-          if (records.length && filter.operator === 'ilike' && vinSuffix) {
-            records = records.filter((record) => getVinSuffix(record?.VIN ?? record?.vin) === vinSuffix);
+          if (fetchedRecords.length && filter.operator === 'ilike' && vinSuffix) {
+            records = fetchedRecords.filter((record) => getVinSuffix(record?.VIN ?? record?.vin) === vinSuffix);
+          } else {
+            records = fetchedRecords;
           }
+          records = records.filter((record) => hasValidGpsHistoryCoordinates(record));
           if (records.length) break;
         } catch (error) {
           lastError = error;
@@ -838,7 +841,6 @@ const createGpsHistoryManager = ({
         const idB = Number(b?.id) || 0;
         return idB - idA;
       });
-      records = records.filter((record) => hasValidGpsHistoryCoordinates(record));
       return {
         records,
         error: null,

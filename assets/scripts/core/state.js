@@ -191,7 +191,6 @@ export const DATE_COLUMNS = new Set([
   'Deal Date',
   'Calc. End',
   'Inv. Prep. Stat. On',
-  'Oldest Invoice (Open)',
   'Last Payment date',
   'Last Ping',
 ]);

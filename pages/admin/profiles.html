@@ -465,41 +465,11 @@
       const confirmed = confirm(`Send password reset email to ${profile.email}?`);
       if (!confirmed) return;
 
-      if (!supabase?.auth?.getSession) {
-        alert('Authentication session is unavailable.');
-        return;
-      }
-
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error('Could not resolve admin session', sessionError);
-        alert(sessionError.message || 'Could not validate current admin session.');
-        return;
-      }
-
-      const accessToken = sessionData?.session?.access_token;
-      if (!accessToken) {
-        alert('You need an active authenticated admin session to reset passwords.');
-        return;
-      }
-
       try {
-        const response = await fetch('/api/admin/password-reset', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            userId: profile.id,
-            email: profile.email,
-          }),
-        });
-
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          const message = payload?.error?.message || `Reset failed (${response.status}).`;
-          throw new Error(message);
+        const redirectTo = new URL('../reset-password.html', window.location.href).toString();
+        const { error } = await supabase.auth.resetPasswordForEmail(profile.email, { redirectTo });
+        if (error) {
+          throw error;
         }
 
         await recordAudit({

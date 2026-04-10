@@ -28,7 +28,6 @@ export const createVehicleService = ({ client, tableName }) => {
     ['pt_last_read', 'PT Last Read', 'PT Last Read '],
     ['days_stationary', 'Days Stationary', 'Days stationary', 'Days Parked'],
     ['current_stock_no', 'Current Stock No', 'Stock No'],
-    ['open_balance', 'Open Balance'],
     ['short_location', 'Short Location'],
     ['state', 'State', 'State Loc'],
     ['state_code'],

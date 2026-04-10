@@ -5,7 +5,6 @@ export const initializeControlMapRealtime = ({
   tables,
   onVehiclesChange,
   onDealsChange,
-  onInvoicesChange,
   onHotspotsChange,
   onBlacklistChange,
   onServicesChange
@@ -29,7 +28,6 @@ export const initializeControlMapRealtime = ({
 
   bindTable(tables?.vehicles, onVehiclesChange);
   bindTable(tables?.deals, onDealsChange);
-  bindTable(tables?.invoices, onInvoicesChange);
   bindTable(tables?.hotspots, onHotspotsChange);
   bindTable(tables?.blacklist, onBlacklistChange);
   bindTable(tables?.services, onServicesChange);

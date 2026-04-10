@@ -36,7 +36,6 @@ export const createControlMapApiService = ({
   const handlerMap = new Map([
     ['vehicles', handlers.vehicles],
     ['deals', handlers.deals],
-    ['invoices', handlers.invoices],
     ['hotspots', handlers.hotspots],
     ['blacklist', handlers.blacklist],
     ['services', handlers.services]
@@ -53,7 +52,6 @@ export const createControlMapApiService = ({
     tables,
     onVehiclesChange: handleEvent('vehicles'),
     onDealsChange: handleEvent('deals'),
-    onInvoicesChange: handleEvent('invoices'),
     onHotspotsChange: handleEvent('hotspots'),
     onBlacklistChange: handleEvent('blacklist'),
     onServicesChange: handleEvent('services')

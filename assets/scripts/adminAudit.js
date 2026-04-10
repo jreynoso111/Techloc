@@ -2,8 +2,10 @@ import { supabase as sharedSupabase } from '../js/supabaseClient.js';
 
 const CHANGE_LOG_TABLE = 'admin_change_log';
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
 
 let cachedActor = { value: null, expiresAt: 0 };
+let writeCooldownUntil = 0;
 
 const now = () => Date.now();
 const normalizeValue = (value) => {
@@ -83,6 +85,7 @@ export const logAdminEvent = async ({
     (typeof window !== 'undefined' ? window.supabaseClient : null);
 
   if (!supabaseClient) return false;
+  if (writeCooldownUntil > now()) return false;
 
   try {
     const profile = resolveProfile();
@@ -90,7 +93,7 @@ export const logAdminEvent = async ({
     const normalizedAction = String(action || 'edit').toLowerCase();
     const fallbackSummary = `Admin ${normalizedAction} on ${tableName}`;
 
-    await supabaseClient.from(CHANGE_LOG_TABLE).insert([
+    const { error } = await supabaseClient.from(CHANGE_LOG_TABLE).insert([
       {
         table_name: tableName,
         action: normalizedAction,
@@ -109,9 +112,15 @@ export const logAdminEvent = async ({
         created_at: new Date().toISOString(),
       },
     ]);
+    if (error) throw error;
 
     return true;
   } catch (error) {
+    const message = String(error?.message || '').toLowerCase();
+    const details = String(error?.details || '').toLowerCase();
+    if (message.includes('429') || message.includes('too many requests') || details.includes('too many requests')) {
+      writeCooldownUntil = now() + RATE_LIMIT_COOLDOWN_MS;
+    }
     console.warn('Admin audit: unable to write change log entry', error?.message || error);
     return false;
   }

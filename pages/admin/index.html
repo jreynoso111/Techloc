@@ -211,40 +211,6 @@
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
-                  <h3 class="text-lg font-bold text-white">Import NS Invoices &amp; Payments CSV</h3>
-                  <p class="text-sm text-slate-400">Upsert into NS-Invoices&amp;pays (Document Number key).</p>
-                </div>
-                <span class="shrink-0 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Document #</span>
-              </div>
-
-              <div class="mt-auto space-y-4">
-                <form id="ns-invoices-upload-form" class="grid gap-3">
-                  <div class="space-y-2">
-                    <label for="ns-invoices-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
-                    <input id="ns-invoices-file" name="ns-invoices-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-amber-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-amber-500 focus:outline-none" />
-                  </div>
-                  <button id="ns-invoices-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-amber-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60">
-                    <i data-lucide="upload-cloud" class="h-4 w-4"></i>
-                    <span>Upload</span>
-                  </button>
-                </form>
-                <div id="ns-invoices-progress" class="hidden space-y-2">
-                  <div class="flex items-center justify-between text-[11px] font-semibold text-slate-300">
-                    <span id="ns-invoices-progress-label">Initializing…</span>
-                    <span id="ns-invoices-progress-count">0%</span>
-                  </div>
-                  <div class="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div id="ns-invoices-progress-bar" class="h-2 w-0 bg-amber-500 transition-all duration-200"></div>
-                  </div>
-                </div>
-                <p class="text-xs leading-relaxed text-slate-400">Requires: Document Number column. Amount fields are normalized to numbers when possible.</p>
-              </div>
-            </section>
-
-            <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">Secure upload</p>
                   <h3 class="text-lg font-bold text-white">Import PT Last Ping</h3>
                   <p class="text-sm text-slate-400">Upload PT-LastPing data to the live database (Serial required).</p>
                 </div>
@@ -324,6 +290,7 @@
     import { createGpsHistoryManager } from '../../assets/scripts/gpsHistory.js';
     import { DEFAULT_APP_SETTINGS, getVehicleMovementThresholdMeters } from '../../assets/scripts/appSettings.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js';
+    import { emitDataSyncSignal } from '../../assets/scripts/dataSyncSignal.js';
 
     function cleanHeaderKey(key) {
       return (key || '')
@@ -337,30 +304,6 @@
     }
 
     const DEALS_TABLE = 'DealsJP1';
-    const NS_INVOICES_TABLE = 'NS-Invoices&pays';
-    const NS_INVOICES_COLUMNS = [
-      'Date',
-      'Due Date/Receive By',
-      'Type',
-      'Document Number',
-      'Amount',
-      'Amount Remaining',
-      'Stock No',
-      'Payment Through',
-      'Invoice Type',
-      'Status',
-      'Name',
-      'Subsidiary',
-      'TAM Legacy Stock #',
-      'Payment Method'
-    ];
-    const FALLBACK_NS_INVOICES_COLUMNS = [
-      'Date',
-      'Document Number',
-      'Stock No',
-      'Amount',
-      'Amount Remaining',
-    ];
     const PT_PING_COLUMNS = [
       'Serial',
       'Year',
@@ -440,13 +383,6 @@
         title: 'Active Deals',
         description: 'Imported deals data (VIN + Stock No).',
         displayName: 'Deals'
-      },
-      {
-        table: NS_INVOICES_TABLE,
-        scope: 'Finance',
-        title: 'NS Invoices & Payments',
-        description: 'NetSuite feed mapped by Document Number.',
-        displayName: 'NS Invoices'
       },
       {
         table: 'PT-LastPing',
@@ -1534,23 +1470,6 @@
       };
     };
 
-    const mapInvoiceRow = (normalizedRow = {}, columnMap) => {
-      const mapped = {};
-      columnMap.forEach((originalHeader, normalizedKey) => {
-        if (!originalHeader) return;
-        let value = normalizedRow[normalizedKey];
-        if (value === undefined) return;
-        if (normalizedKey === 'amount' || normalizedKey === 'amount remaining') {
-          const numeric = toNumber(value);
-          value = numeric !== null ? numeric : value;
-        }
-        const cleaned = cleanValue(value);
-        if (cleaned === null) return;
-        mapped[originalHeader] = cleaned;
-      });
-      return mapped;
-    };
-
     const isRlsBlocked = (error) => {
       const message = (error?.message || '').toLowerCase();
       return message.includes('row-level') || message.includes('rls') || message.includes('permission');
@@ -1930,6 +1849,14 @@
       
       showToast(summary, 'success');
       setProgress(100, 'Upload complete.');
+      emitDataSyncSignal({
+        scope: 'deals',
+        source: 'admin-deals-upload',
+        detail: {
+          rows: filteredRows.length,
+          vehiclesUpdated: fallbackSyncData?.updated ?? 0,
+        },
+      });
     };
 
     const fetchDealsStockNumberSet = async () => {
@@ -1951,217 +1878,6 @@
         from += pageSize;
       }
       return stockNumberSet;
-    };
-
-    const uploadInvoicesRows = async (rows, parseErrors = 0, rawHeaders = []) => {
-      if (!supabaseClient) throw new Error('Database client unavailable.');
-      if (!(await refreshAdminAccess())) throw new Error('Only administrators can upload invoice data.');
-
-      const submitBtn = document.getElementById('ns-invoices-upload-button');
-      const progressWrap = document.getElementById('ns-invoices-progress');
-      const progressBar = document.getElementById('ns-invoices-progress-bar');
-      const progressLabel = document.getElementById('ns-invoices-progress-label');
-      const progressCount = document.getElementById('ns-invoices-progress-count');
-
-      const setProgress = (percent, label) => {
-        if (progressWrap) progressWrap.classList.remove('hidden');
-        if (progressBar) progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
-        if (progressLabel) progressLabel.textContent = label;
-        if (progressCount) progressCount.textContent = `${Math.round(Math.max(0, Math.min(100, percent)))}%`;
-      };
-      const formatPercent = (processedCount, totalCount) =>
-        totalCount ? Math.round((processedCount / totalCount) * 100) : 0;
-      const formatProgressLabel = (prefix, processedCount, totalCount) => {
-        const percent = formatPercent(processedCount, totalCount);
-        return `${prefix} (${percent}%) - ${processedCount} of ${totalCount} rows`;
-      };
-
-      const columnMap = buildColumnMap(NS_INVOICES_COLUMNS);
-      const tableColumns = await fetchTableColumns(NS_INVOICES_TABLE, NS_INVOICES_COLUMNS);
-      const usingFallbackSchema = !tableColumns.size;
-      const effectiveColumns = usingFallbackSchema ? new Set(FALLBACK_NS_INVOICES_COLUMNS) : tableColumns;
-      if (usingFallbackSchema) {
-        console.warn('NS invoices schema introspection unavailable. Upload will continue with core columns only.');
-      }
-      const allowedColumnMap = filterColumnMapByTable(columnMap, effectiveColumns);
-      const conflictColumn = allowedColumnMap.get('document number');
-      const conflictParts = ['stock no', 'document number', 'date'];
-      const conflictMappedColumns = conflictParts
-        .map((part) => allowedColumnMap.get(part))
-        .filter(Boolean);
-      const conflictColumns = conflictMappedColumns.join(',');
-      const normalizedHeaders = new Set(rawHeaders.map((header) => cleanHeaderKey(header)));
-      const hasDocumentNumberHeader = normalizedHeaders.has('document number');
-      const hasStockNoHeader = normalizedHeaders.has('stock no');
-
-      if (!conflictColumn || !hasDocumentNumberHeader) {
-        showToast('Local configuration error: "Document Number" missing from invoice columns.', 'error');
-        return;
-      }
-      if (conflictMappedColumns.length !== conflictParts.length) {
-        showToast('NS invoices table is missing one or more conflict columns (Stock No, Document Number, Date).', 'error');
-        return;
-      }
-
-      setProgress(0, 'Loading Deals stock numbers...');
-
-      let dealsStockNumberSet;
-      try {
-        dealsStockNumberSet = await fetchDealsStockNumberSet();
-      } catch (err) {
-        console.error('Database fetch error (Deals stock numbers):', err);
-        showToast('Unable to load Deals stock numbers for validation.', 'error');
-        setProgress(0, 'Failed to load Deals stock numbers.');
-        return;
-      }
-
-      if (!dealsStockNumberSet.size) {
-        showToast('No Deals stock numbers found. Upload stopped.', 'error');
-        setProgress(0, 'No Deals stock numbers found.');
-        return;
-      }
-
-      setProgress(5, 'Clearing previous invoice data...');
-
-      const { error: truncateError } = await supabaseClient.rpc('truncate_ns_invoices');
-      if (truncateError) {
-        console.error('Database truncate error:', truncateError);
-        if (isRlsBlocked(truncateError)) {
-          showToast('Cannot clear previous NS invoices due to database permissions: ' + shortSupabaseError(truncateError), 'error');
-        } else if (isSchemaMismatchError(truncateError)) {
-          showToast('Cannot clear previous NS invoices due to schema mismatch: ' + shortSupabaseError(truncateError), 'error');
-        } else {
-          showToast('Cannot clear previous NS invoices: ' + shortSupabaseError(truncateError), 'error');
-        }
-        setProgress(5, 'Failed to clear previous invoice data.');
-        return;
-      }
-
-      setProgress(5, 'Preparing invoice rows...');
-
-      const uniqueInvoices = new Map();
-      let skippedInvalid = 0;
-      let duplicatesRemoved = 0;
-      let rejectedStockMismatch = 0;
-
-      rows.forEach((rawRow) => {
-        const normalizedRow = normalizeRow(rawRow);
-        const documentNumber = normalizedRow['document number'];
-        const stockNumberRaw =
-          normalizedRow['stock no'] || normalizedRow['stock number'] || normalizedRow['tam legacy stock #'];
-        const normalizedStockNo = normalizeStockNumber(stockNumberRaw);
-
-        if (!documentNumber) {
-          skippedInvalid++;
-          return;
-        }
-
-        if (!normalizedStockNo || !dealsStockNumberSet.has(normalizedStockNo)) {
-          rejectedStockMismatch++;
-          return;
-        }
-
-        const mapped = mapInvoiceRow(normalizedRow, allowedColumnMap);
-        if (!mapped[conflictColumn]) mapped[conflictColumn] = documentNumber;
-        if (allowedColumnMap.has('stock no') && normalizedStockNo && hasStockNoHeader) {
-          mapped[allowedColumnMap.get('stock no')] = normalizedStockNo;
-        }
-
-        const uniqueKey = `${documentNumber}_${normalizedStockNo}`;
-        if (uniqueInvoices.has(uniqueKey)) {
-          duplicatesRemoved++;
-        }
-        uniqueInvoices.set(uniqueKey, mapped);
-      });
-
-      const filteredRows = Array.from(uniqueInvoices.values());
-
-      if (!filteredRows.length) {
-        setProgress(0, 'No valid invoice rows found.');
-        showToast('No valid rows detected. Each row must include a Document Number value.', 'error');
-        return;
-      }
-
-      const BATCH_SIZE = 1000;
-      let totalUpserted = 0;
-      const totalBatches = Math.ceil(filteredRows.length / BATCH_SIZE);
-      let processed = 0;
-
-      for (let i = 0; i < filteredRows.length; i += BATCH_SIZE) {
-        const batch = filteredRows.slice(i, i + BATCH_SIZE);
-        const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
-
-        const startRow = processed + 1;
-        const endRow = Math.min(processed + batch.length, filteredRows.length);
-        if (submitBtn) {
-          submitBtn.innerHTML =
-            `<span class="animate-pulse">Uploading batch ${currentBatch}/${totalBatches} ` +
-            `(${formatPercent(processed, filteredRows.length)}%)...</span>`;
-        }
-        setProgress(
-          formatPercent(processed, filteredRows.length),
-          formatProgressLabel(`Uploading batch ${currentBatch} of ${totalBatches}`, processed, filteredRows.length),
-        );
-
-        const { data, error } = await supabaseClient
-          .from(NS_INVOICES_TABLE)
-          .upsert(batch, { onConflict: conflictColumns, ignoreDuplicates: true });
-
-        if (error) {
-          console.error('Database upsert error:', error);
-          if (isSchemaMismatchError(error)) {
-            showToast('Invoices upload schema mismatch: ' + shortSupabaseError(error), 'error');
-            return;
-          }
-          if (isRlsBlocked(error)) {
-            showToast('Upload blocked by security policy (RLS).', 'error');
-            return;
-          }
-          const percent = formatPercent(processed, filteredRows.length);
-          showToast(
-            `Upload stopped at batch ${currentBatch}/${totalBatches} ` +
-              `(rows ${startRow}-${endRow}). ` +
-              `Uploaded ${processed} of ${filteredRows.length} rows (${percent}%).`,
-            'error',
-          );
-          setProgress(
-            percent,
-            `Stopped at batch ${currentBatch}/${totalBatches} (${percent}%) - uploaded ${processed} of ${filteredRows.length} rows.`,
-          );
-          return;
-        }
-        totalUpserted += (data ? data.length : 0);
-        processed += batch.length;
-        setProgress(
-          formatPercent(processed, filteredRows.length),
-          formatProgressLabel('Uploaded', Math.min(processed, filteredRows.length), filteredRows.length),
-        );
-      }
-
-      setProgress(95, 'Recalculating open balances...');
-      const { error: recalcError } = await supabaseClient.rpc('recalc_open_balance_all_ns_invoices');
-      if (recalcError) {
-        console.error('Database open balance recalculation error:', recalcError);
-        if (isRlsBlocked(recalcError)) {
-          showToast('Open balance recalculation blocked by database permissions: ' + shortSupabaseError(recalcError), 'error');
-        } else if (isSchemaMismatchError(recalcError)) {
-          showToast('Open balance recalculation failed due to schema mismatch: ' + shortSupabaseError(recalcError), 'error');
-        } else {
-          showToast('Open balance recalculation failed: ' + shortSupabaseError(recalcError), 'error');
-        }
-      }
-
-      const summary =
-        'Completed.' +
-        '\nProcessed (Unique): ' + filteredRows.length +
-        '\nUpserted: ' + totalUpserted +
-        '\nSkipped (Missing Document Number): ' + skippedInvalid +
-        '\nRejected (Stock No not in DealsJP1): ' + rejectedStockMismatch +
-        '\nDuplicates Removed: ' + duplicatesRemoved +
-        '\nErrors: ' + parseErrors;
-
-      showToast(summary, 'success');
-      setProgress(100, 'Upload complete.');
     };
 
     const wireDealsUpload = () => {
@@ -2205,66 +1921,6 @@
               const parseErrors = results.errors?.length || 0;
               submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
               await uploadDealsRows(results.data || [], parseErrors, results.meta?.fields || []);
-            } catch (err) {
-              console.error('Upload failed:', err);
-              showToast('Upload failed: ' + formatSupabaseError(err), 'error');
-            } finally {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-              lucide.createIcons();
-            }
-          },
-          error: (err) => {
-            showToast('CSV parse error: ' + err.message, 'error');
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
-            lucide.createIcons();
-          },
-        });
-      });
-    };
-
-    const wireInvoicesUpload = () => {
-      const form = document.getElementById('ns-invoices-upload-form');
-      const fileInput = document.getElementById('ns-invoices-file');
-      const submitBtn = document.getElementById('ns-invoices-upload-button');
-      const requireAdmin = async () => {
-        const allowed = await refreshAdminAccess();
-        if (fileInput) fileInput.disabled = !allowed;
-        if (submitBtn) submitBtn.disabled = !allowed;
-        const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
-        if (submitBtn) submitBtn.title = titleText;
-        return allowed;
-      };
-      if (!form || !fileInput || !submitBtn) return;
-      const syncAccess = () => requireAdmin().catch((error) => console.warn('Unable to verify invoice admin access', error));
-      syncAccess();
-      window.addEventListener('auth:role-updated', syncAccess);
-
-      submitBtn.addEventListener('click', async (event) => {
-        event.preventDefault();
-        if (!(await requireAdmin())) {
-          showToast('Only administrators can upload invoice data.', 'error');
-          return;
-        }
-        const file = fileInput.files?.[0];
-        if (!file) {
-          showToast('Please select a CSV file to upload.', 'error');
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="animate-pulse">Reading file…</span>';
-        window.Papa.parse(file, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (h) => h.trim(),
-          worker: false,
-          complete: async (results) => {
-            try {
-              const parseErrors = results.errors?.length || 0;
-              submitBtn.innerHTML = '<span class="animate-pulse">Processing…</span>';
-              await uploadInvoicesRows(results.data || [], parseErrors, results.meta?.fields || []);
             } catch (err) {
               console.error('Upload failed:', err);
               showToast('Upload failed: ' + formatSupabaseError(err), 'error');
@@ -3295,6 +2951,16 @@
           `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
         );
         showToast(summary, vehicleSyncResult?.mode === 'finalization_failed' ? 'error' : 'success');
+        emitDataSyncSignal({
+          scope: 'pt-lastping',
+          source: 'admin-pt-upload',
+          detail: {
+            inserted: aggregated.inserted,
+            vehiclesUpdated: vehicleSyncResult?.updated ?? 0,
+            rowsUpdated: vehicleSyncResult?.updatedRows ?? 0,
+            mode: vehicleSyncResult?.mode || 'unknown',
+          },
+        });
         if (submitBtn) submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
         lucide.createIcons();
       } finally {
@@ -3319,7 +2985,6 @@
     );
     mount();
     wireDealsUpload();
-    wireInvoicesUpload();
     wirePtPingUpload();
   </script>
   <script type="module">
