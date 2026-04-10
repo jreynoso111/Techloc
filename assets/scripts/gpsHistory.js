@@ -799,21 +799,45 @@ const createGpsHistoryManager = ({
         lookupFilters.push({ column: 'VIN', value: `%${vinSuffix}`, operator: 'ilike' });
       }
 
-      let records = [];
+      const records = [];
+      const seenRecordKeys = new Set();
       let hasOlderRecords = false;
       let lastError = null;
+      const buildRecordKey = (record = {}) => {
+        const id = record?.id;
+        if (id !== undefined && id !== null && `${id}`.trim() !== '') {
+          return `id:${id}`;
+        }
+        const timestamp = getRecordTimestampMs(record);
+        const serial = getRecordSerial(record);
+        const recordVin = normalizeVinComparable(record?.VIN ?? record?.vin);
+        const lat = parseCoordinate(record, 'lat');
+        const lng = parseCoordinate(record, 'long');
+        return [
+          'sig',
+          recordVin,
+          serial,
+          Number.isFinite(timestamp) ? timestamp : '',
+          Number.isFinite(lat) ? lat : '',
+          Number.isFinite(lng) ? lng : ''
+        ].join(':');
+      };
       for (const filter of lookupFilters) {
         try {
           const result = await fetchRecordsByFilter(filter);
-          const fetchedRecords = Array.isArray(result?.records) ? [...result.records] : [];
+          let fetchedRecords = Array.isArray(result?.records) ? [...result.records] : [];
           hasOlderRecords = hasOlderRecords || Boolean(result?.hasOlderRecords);
           if (fetchedRecords.length && filter.operator === 'ilike' && vinSuffix) {
-            records = fetchedRecords.filter((record) => getVinSuffix(record?.VIN ?? record?.vin) === vinSuffix);
-          } else {
-            records = fetchedRecords;
+            fetchedRecords = fetchedRecords.filter((record) => getVinSuffix(record?.VIN ?? record?.vin) === vinSuffix);
           }
-          records = records.filter((record) => hasValidGpsHistoryCoordinates(record));
-          if (records.length) break;
+          fetchedRecords
+            .filter((record) => hasValidGpsHistoryCoordinates(record))
+            .forEach((record) => {
+              const key = buildRecordKey(record);
+              if (!key || seenRecordKeys.has(key)) return;
+              seenRecordKeys.add(key);
+              records.push(record);
+            });
         } catch (error) {
           lastError = error;
           if (lookupFilters.length === 1) throw error;

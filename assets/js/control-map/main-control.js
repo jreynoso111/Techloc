@@ -3080,6 +3080,23 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         lookupFilters.push({ column: 'VIN', value: `%${vinSuffix}`, operator: 'ilike' });
       }
 
+      const aggregatedRows = [];
+      const seenRowKeys = new Set();
+      const buildRowKey = (row = {}) => {
+        const rowId = row?.id;
+        if (rowId !== undefined && rowId !== null && `${rowId}`.trim() !== '') {
+          return `id:${rowId}`;
+        }
+        return [
+          'sig',
+          getVinSuffixKey(row?.VIN ?? row?.vin),
+          normalizeGpsSerial(row?.Serial ?? row?.serial ?? ''),
+          parseGpsTrailTimestamp(row),
+          parseGpsTrailCoordinate(row, 'lat'),
+          parseGpsTrailCoordinate(row, 'long')
+        ].join(':');
+      };
+
       for (const filter of lookupFilters) {
         let query = supabaseClient
           .from(sourceTable)
@@ -3102,10 +3119,17 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         if (rows.length && filter.operator === 'ilike' && vinSuffix) {
           rows = rows.filter((record) => getVinSuffixKey(record?.VIN ?? record?.vin) === vinSuffix);
         }
-        if (rows.length) return rows;
+        rows.forEach((row) => {
+          const key = buildRowKey(row);
+          if (!key || seenRowKeys.has(key)) return;
+          seenRowKeys.add(key);
+          aggregatedRows.push(row);
+        });
       }
 
-      return [];
+      if (!aggregatedRows.length) return [];
+      aggregatedRows.sort((left, right) => parseGpsTrailTimestamp(right) - parseGpsTrailTimestamp(left));
+      return aggregatedRows.slice(0, limit);
     };
 
     const hydrateVehiclePtSnapshotQuick = async (

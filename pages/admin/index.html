@@ -512,7 +512,7 @@
         Color: clean(row?.['Color']),
         Customer: clean(row?.['Customer']),
         'Vehicle Status': clean(row?.['Vehicle Status']),
-        VIN: clean(row?.['VIN']),
+        VIN: normalizeUpperTrimmedValue(row?.['VIN']) || null,
         Date: clean(row?.['Date']),
         address: clean(row?.['address']),
         Lat: toNumber(row?.['Lat']),
@@ -1256,24 +1256,67 @@
           console.warn('Unable to load GPS blacklist during PT sync; continuing without blacklist filter.', error);
         }
 
-        const ptRows = [];
-        for (const vinChunk of chunkArray(normalizedVins, 50)) {
-          const { data, error } = await supabaseClient
-            .from('PT-LastPing')
-            .select('VIN,Date,Serial,moved,days_stationary,Lat,Long,address')
-            .in('VIN', vinChunk);
-          if (error) throw error;
-          ptRows.push(...(data || []));
-        }
-
         const recordsByVin = new Map();
-        ptRows.forEach((row) => {
-          const vin = normalizeUpperTrimmedValue(row?.VIN);
-          if (!vin) return;
-          const bucket = recordsByVin.get(vin) || [];
-          bucket.push(row);
-          recordsByVin.set(vin, bucket);
-        });
+        const recordKeySet = new Set();
+        const appendVehicleRecords = (vehicleVin, rows = []) => {
+          const normalizedVehicleVin = normalizeUpperTrimmedValue(vehicleVin);
+          if (!normalizedVehicleVin) return;
+          rows.forEach((row) => {
+            const rowKey = [
+              row?.id ?? '',
+              normalizeUpperTrimmedValue(row?.VIN),
+              normalizeUpperTrimmedValue(row?.Serial),
+              row?.Date ?? '',
+              row?.Lat ?? '',
+              row?.Long ?? ''
+            ].join('::');
+            if (recordKeySet.has(rowKey)) return;
+            recordKeySet.add(rowKey);
+            const bucket = recordsByVin.get(normalizedVehicleVin) || [];
+            bucket.push(row);
+            recordsByVin.set(normalizedVehicleVin, bucket);
+          });
+        };
+
+        for (const vehicleRow of matchingVehicles) {
+          const vehicleVin = normalizeUpperTrimmedValue(vehicleRow?.VIN);
+          const vehicleId = `${vehicleRow?.id ?? ''}`.trim();
+          const vinSuffix = vehicleVin.replace(/[^A-Z0-9]/g, '').slice(-6);
+          const selectClause = 'id,VIN,Date,Serial,moved,days_stationary,Lat,Long,address,vehicle_id';
+
+          if (vehicleId) {
+            const { data, error } = await supabaseClient
+              .from('PT-LastPing')
+              .select(selectClause)
+              .eq('vehicle_id', vehicleId);
+            if (error) throw error;
+            appendVehicleRecords(vehicleVin, data || []);
+          }
+
+          if (vehicleVin) {
+            const { data, error } = await supabaseClient
+              .from('PT-LastPing')
+              .select(selectClause)
+              .eq('VIN', vehicleVin);
+            if (error) throw error;
+            appendVehicleRecords(vehicleVin, data || []);
+          }
+
+          if (!(recordsByVin.get(vehicleVin) || []).length && vinSuffix.length >= 4) {
+            const { data, error } = await supabaseClient
+              .from('PT-LastPing')
+              .select(selectClause)
+              .ilike('VIN', `%${vinSuffix}`);
+            if (error) throw error;
+            appendVehicleRecords(
+              vehicleVin,
+              (data || []).filter((row) => {
+                const rowVinComparable = normalizeUpperTrimmedValue(row?.VIN).replace(/[^A-Z0-9]/g, '');
+                return rowVinComparable.endsWith(vinSuffix);
+              })
+            );
+          }
+        }
 
         const payloads = matchingVehicles
           .map((vehicleRow) => {
