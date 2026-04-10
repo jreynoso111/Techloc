@@ -26,6 +26,11 @@ const headerSlot = document.querySelector('[data-shared-header]');
 const HEADER_TEMPLATE_CACHE_KEY = 'techloc:shared-header-template:v4';
 const HEADER_TEMPLATE_CACHE_TS_KEY = `${HEADER_TEMPLATE_CACHE_KEY}:ts`;
 const HEADER_TEMPLATE_CACHE_TTL_MS = 15 * 60 * 1000;
+const LEGACY_HEADER_CACHE_KEYS = [
+  'techloc:shared-header-template:v1',
+  'techloc:shared-header-template:v2',
+  'techloc:shared-header-template:v3',
+];
 
 const getBasePath = () => {
   const bodyBase = document.body?.dataset.basePath;
@@ -132,6 +137,17 @@ const writeCachedHeaderTemplate = (template) => {
   }
 };
 
+const clearLegacyHeaderTemplateCaches = () => {
+  try {
+    LEGACY_HEADER_CACHE_KEYS.forEach((key) => {
+      window.sessionStorage?.removeItem(key);
+      window.sessionStorage?.removeItem(`${key}:ts`);
+    });
+  } catch (_error) {
+    // Cache cleanup failures are non-blocking.
+  }
+};
+
 const renderHeaderTemplate = (template, { basePath, pageTitle, activeNav }) => {
   if (!headerSlot || !template) return;
   const rendered = template
@@ -147,6 +163,7 @@ const renderHeaderTemplate = (template, { basePath, pageTitle, activeNav }) => {
 
 const hydrateHeader = async () => {
   if (!headerSlot) return;
+  clearLegacyHeaderTemplateCaches();
   const basePath = getBasePath();
   const pageTitle = document.body?.dataset.pageTitle || document.title;
   const activeNav = document.body?.dataset.activeNav || '';
@@ -159,7 +176,9 @@ const hydrateHeader = async () => {
   }
 
   try {
-    const response = await fetch(`${basePath}assets/templates/site-header.html`);
+    const response = await fetch(`${basePath}assets/templates/site-header.html`, {
+      cache: 'no-store',
+    });
     if (!response.ok) throw new Error(`Header template not found (${response.status})`);
     const template = await response.text();
     writeCachedHeaderTemplate(template);
