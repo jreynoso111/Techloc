@@ -122,14 +122,24 @@ import {
   };
 
   const resolveFallbackProfileForSession = (session) => {
-    const sessionRole = session?.user?.app_metadata?.role || null;
-    const sessionStatus = session?.user?.app_metadata?.status || null;
+    const sessionRole =
+      session?.user?.profile?.role
+      || session?.user?.user_metadata?.role
+      || session?.user?.app_metadata?.role
+      || window.currentUserRole
+      || null;
+    const sessionStatus =
+      session?.user?.profile?.status
+      || session?.user?.user_metadata?.status
+      || session?.user?.app_metadata?.status
+      || window.currentUserStatus
+      || null;
     const fallbackRole = normalizeAccessValue(sessionRole, 'user');
     const fallbackStatus = normalizeAccessValue(sessionStatus, 'active');
     return {
       role: fallbackRole,
       status: fallbackStatus,
-      email: session?.user?.email || null,
+      email: session?.user?.profile?.email || session?.user?.email || null,
     };
   };
 

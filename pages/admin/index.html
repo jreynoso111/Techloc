@@ -323,7 +323,7 @@
     const PT_PING_BATCH_DELAY_MS = 25;
     const PT_PING_MAX_RETRIES_PER_BATCH = 3;
     const PT_PING_RETRY_BASE_DELAY_MS = 500;
-    const PT_PING_ENABLE_RPC_FINALIZATION = false;
+    const PT_PING_ENABLE_RPC_FINALIZATION = true;
     const PT_PING_HEADER_MAP = (() => {
       const map = new Map();
       PT_PING_COLUMNS.forEach((col) => {
@@ -2984,7 +2984,10 @@
 
             const { error } = await supabaseClient
               .from('PT-LastPing')
-              .insert(batch);
+              .upsert(batch, {
+                onConflict: 'Serial,Date',
+                ignoreDuplicates: true,
+              });
 
             if (!error) {
               aggregated.batches += 1;
