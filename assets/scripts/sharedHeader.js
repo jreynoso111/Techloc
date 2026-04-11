@@ -19,7 +19,7 @@ const scheduleNonCriticalBoot = (task) => {
 
 scheduleNonCriticalBoot(() => {
   initGlobalAlerts();
-  initGlobalActivityTracker();
+  // Disabled to avoid non-essential write traffic while stabilizing auth/upload flows.
 });
 
 const headerSlot = document.querySelector('[data-shared-header]');

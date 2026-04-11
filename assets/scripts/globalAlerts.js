@@ -162,7 +162,7 @@ const pushAlert = (payload) => {
   }
 };
 
-export const notifyGlobalAlert = ({ title, message, details = '', level = 'error', trackActivity = true } = {}) => {
+export const notifyGlobalAlert = ({ title, message, details = '', level = 'error', trackActivity = false } = {}) => {
   pushAlert({ title, message, details, level });
   if (trackActivity && typeof window !== 'undefined' && typeof window.techlocLogActivity === 'function') {
     window.techlocLogActivity({

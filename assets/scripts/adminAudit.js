@@ -3,6 +3,7 @@ import { supabase as sharedSupabase } from '../js/supabaseClient.js';
 const CHANGE_LOG_TABLE = 'admin_change_log';
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
+const AUDIT_ENABLED = false;
 
 let cachedActor = { value: null, expiresAt: 0 };
 let writeCooldownUntil = 0;
@@ -107,6 +108,7 @@ export const logAdminEvent = async ({
   source = 'web',
   details = {},
 } = {}) => {
+  if (!AUDIT_ENABLED) return false;
   const supabaseClient =
     client ||
     sharedSupabase ||

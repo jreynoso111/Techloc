@@ -54,6 +54,17 @@ const parseJsonSafely = async (response) => {
   }
 };
 
+const parseResponseBody = async (response) => {
+  const jsonPayload = await parseJsonSafely(response);
+  if (jsonPayload !== null) return jsonPayload;
+  try {
+    const text = await response.text();
+    return text ? { message: text } : null;
+  } catch (_error) {
+    return null;
+  }
+};
+
 const createError = (payload, fallbackMessage) => {
   if (!payload && fallbackMessage) return { message: fallbackMessage };
   if (payload?.error && payload?.message) return payload;
@@ -537,7 +548,7 @@ class InsForgeQueryBuilder {
         }),
         body: request.body,
       });
-      const payload = await parseJsonSafely(response);
+      const payload = await parseResponseBody(response);
       return { response, payload };
     };
 
@@ -684,7 +695,7 @@ class InsForgeCompatClient {
         }),
         body: JSON.stringify(args || {}),
       });
-      const payload = await parseJsonSafely(response);
+      const payload = await parseResponseBody(response);
       return { response, payload };
     };
 
@@ -720,9 +731,20 @@ const authApi = {
       }),
       body: JSON.stringify({ email, password }),
     });
-    const payload = await parseJsonSafely(response);
+    const payload = await parseResponseBody(response);
     if (!response.ok) {
-      return { data: null, error: createError(payload, 'Unable to sign in.') };
+      const retryAfter = String(response.headers.get('retry-after') || '').trim();
+      const fallbackMessage = response.status === 429
+        ? `Too many requests from this IP.${retryAfter ? ` Retry after ${retryAfter}s.` : ''}`
+        : 'Unable to sign in.';
+      return {
+        data: null,
+        error: {
+          ...createError(payload, fallbackMessage),
+          status: response.status,
+          statusCode: response.status,
+        },
+      };
     }
 
     const profile = await resolveProfileForAuthUser(payload?.user, payload?.accessToken);
@@ -756,7 +778,7 @@ const authApi = {
         method: 'GET',
         headers: buildHeaders({ authToken, extra: SILENT_REQUEST_HEADERS }),
       });
-      const payload = await parseJsonSafely(response);
+      const payload = await parseResponseBody(response);
       return { response, payload };
     };
 
@@ -794,7 +816,7 @@ const authApi = {
       }),
       body: JSON.stringify({ refreshToken: session.refresh_token }),
     });
-    const payload = await parseJsonSafely(response);
+    const payload = await parseResponseBody(response);
     if (!response.ok) {
       return { data: { session: null }, error: createError(payload, 'Unable to refresh session.') };
     }
