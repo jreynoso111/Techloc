@@ -1279,7 +1279,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         const { data, error } = await runWithTimeout(
           supabaseClient
             .from(TABLES.deals)
-            .select('"Current Stock No","Regular Amount","Open Balance","Vehicle Status"')
+            .select('"Current Stock No","Regular Amount","Vehicle Status"')
             .in(stockNoColumn, chunk),
           8000,
           'Database communication error.'
@@ -1288,10 +1288,9 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         (data || []).forEach((row) => {
           const stockNo = normalizeStockNumber(row?.['Current Stock No']);
           const regularAmount = parseNumber(row?.['Regular Amount']);
-          const openBalance = parseNumber(row?.['Open Balance']);
           const vehicleStatus = String(row?.['Vehicle Status'] ?? '').trim();
-          if (!stockNo || regularAmount === null || openBalance === null) return;
-          results.set(stockNo, { regularAmount, openBalance, vehicleStatus });
+          if (!stockNo || regularAmount === null) return;
+          results.set(stockNo, { regularAmount, openBalance: null, vehicleStatus });
         });
       }
       return results;
