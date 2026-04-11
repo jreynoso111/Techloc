@@ -182,6 +182,12 @@
       moderator: 'key-round',
       user: 'user'
     };
+    const isRateLimitedError = (error) => {
+      const status = Number(error?.status || error?.statusCode);
+      const message = String(error?.message || '').toLowerCase();
+      const details = String(error?.details || '').toLowerCase();
+      return status === 429 || message.includes('too many requests') || details.includes('too many requests');
+    };
     const actionHandlers = {
       edit: (id) => window.editProfile(id),
       reset: (id) => window.resetProfilePassword(id),
@@ -195,11 +201,35 @@
         redirectToAdminHome();
         return false;
       }
+      const fallbackRole = String(
+        session?.user?.profile?.role
+        || session?.user?.app_metadata?.role
+        || window.currentUserRole
+        || ''
+      ).toLowerCase();
+      const fallbackStatus = String(
+        session?.user?.profile?.status
+        || session?.user?.app_metadata?.status
+        || window.currentUserStatus
+        || 'active'
+      ).toLowerCase();
+      if (fallbackRole === 'administrator' && fallbackStatus !== 'suspended') {
+        hasAdministratorAccess = true;
+        adminRoot?.classList.remove('hidden');
+        return true;
+      }
       const { data, error } = await supabase
         .from('profiles')
         .select('role, status')
         .eq('id', userId)
         .maybeSingle();
+      if (isRateLimitedError(error)) {
+        hasAdministratorAccess = fallbackRole === 'administrator' && fallbackStatus !== 'suspended';
+        if (hasAdministratorAccess) {
+          adminRoot?.classList.remove('hidden');
+          return true;
+        }
+      }
       if (error) {
         console.error('Could not validate administrator access', error);
         hasAdministratorAccess = false;

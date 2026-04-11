@@ -9,8 +9,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script type="module" src="../../assets/js/supabaseClient.js?v=20260410-03"></script>
-  <script type="module" src="../../assets/scripts/authManager.js?v=20260410-03"></script>
+  <script type="module" src="../../assets/js/supabaseClient.js?v=20260411-01"></script>
+  <script type="module" src="../../assets/scripts/authManager.js?v=20260411-01"></script>
   <script type="module" src="../../assets/scripts/admin-auth.js"></script>
   <script>
     tailwind.config = {
@@ -289,7 +289,7 @@
     } from '../../assets/scripts/backgroundPreference.js';
     import { createGpsHistoryManager } from '../../assets/scripts/gpsHistory.js';
     import { DEFAULT_APP_SETTINGS, getVehicleMovementThresholdMeters } from '../../assets/scripts/appSettings.js';
-    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260410-03';
+    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260411-01';
     import { emitDataSyncSignal } from '../../assets/scripts/dataSyncSignal.js';
 
     function cleanHeaderKey(key) {
@@ -324,8 +324,6 @@
     const PT_PING_MAX_RETRIES_PER_BATCH = 3;
     const PT_PING_RETRY_BASE_DELAY_MS = 500;
     const PT_PING_ENABLE_RPC_FINALIZATION = false;
-    const PT_PING_PRIMARY_CONFLICT_TARGET = 'Serial,read_day,day_half';
-    const PT_PING_FALLBACK_CONFLICT_TARGET = 'Serial,Date';
     const PT_PING_HEADER_MAP = (() => {
       const map = new Map();
       PT_PING_COLUMNS.forEach((col) => {
@@ -395,19 +393,41 @@
     const ADMIN_ROLE = 'administrator';
     let hasVerifiedAdminAccess = false;
     const isAdminUser = () => hasVerifiedAdminAccess;
+    const isRateLimitedError = (error) => {
+      const status = Number(error?.status || error?.statusCode);
+      const message = String(error?.message || '').toLowerCase();
+      const details = String(error?.details || '').toLowerCase();
+      return status === 429 || message.includes('too many requests') || details.includes('too many requests');
+    };
     const refreshAdminAccess = async () => {
-      if (!supabaseClient?.auth?.getSession || !supabaseClient?.from) {
+      if (!supabaseClient?.auth?.getCurrentUser || !supabaseClient?.from) {
         hasVerifiedAdminAccess = false;
         return hasVerifiedAdminAccess;
       }
-      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
-      if (sessionError) {
+      const { data: currentUserData, error: currentUserError } = await supabaseClient.auth.getCurrentUser();
+      if (currentUserError) {
         hasVerifiedAdminAccess = false;
         return hasVerifiedAdminAccess;
       }
-      const userId = sessionData?.session?.user?.id;
+      const userId = currentUserData?.user?.id;
       if (!userId) {
         hasVerifiedAdminAccess = false;
+        return hasVerifiedAdminAccess;
+      }
+      const fallbackRole = String(
+        currentUserData?.user?.profile?.role
+        || currentUserData?.user?.app_metadata?.role
+        || window.currentUserRole
+        || ''
+      ).toLowerCase();
+      const fallbackStatus = String(
+        currentUserData?.user?.profile?.status
+        || currentUserData?.user?.app_metadata?.status
+        || window.currentUserStatus
+        || 'active'
+      ).toLowerCase();
+      if (fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended') {
+        hasVerifiedAdminAccess = true;
         return hasVerifiedAdminAccess;
       }
       const { data: profile, error: profileError } = await supabaseClient
@@ -415,6 +435,10 @@
         .select('role')
         .eq('id', userId)
         .maybeSingle();
+      if (isRateLimitedError(profileError)) {
+        hasVerifiedAdminAccess = fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended';
+        return hasVerifiedAdminAccess;
+      }
       hasVerifiedAdminAccess = !profileError && String(profile?.role || '').toLowerCase() === ADMIN_ROLE;
       return hasVerifiedAdminAccess;
     };
@@ -539,6 +563,14 @@
     const normalizeUpperTrimmedValue = (value) => {
       const normalized = String(value || '').trim().toUpperCase();
       return normalized || '';
+    };
+
+    const normalizeComparableVin = (value) => normalizeUpperTrimmedValue(value).replace(/[^A-Z0-9]/g, '');
+
+    const getComparableVinSuffix = (value, length = 6) => {
+      const comparable = normalizeComparableVin(value);
+      if (!comparable) return '';
+      return comparable.slice(-Math.max(1, Number(length) || 6));
     };
 
     const normalizeGpsSerialValue = (value) => normalizeUpperTrimmedValue(value);
@@ -772,16 +804,49 @@
     const fetchVehicleRowsByVins = async (vins = []) => {
       const normalizedVins = Array.from(new Set((vins || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)));
       if (!normalizedVins.length) return [];
-      const rows = [];
+      const dedupedRows = new Map();
       for (const vinChunk of chunkArray(normalizedVins, 50)) {
         const { data, error } = await supabaseClient
           .from('vehicles')
           .select('*')
           .in('VIN', vinChunk);
         if (error) throw error;
-        rows.push(...(data || []));
+        (data || []).forEach((row) => {
+          const key = `${row?.id ?? ''}`.trim();
+          if (!key) return;
+          dedupedRows.set(key, row);
+        });
       }
-      return rows;
+
+      const matchedComparableVins = new Set(
+        [...dedupedRows.values()]
+          .map((row) => normalizeComparableVin(row?.VIN))
+          .filter(Boolean)
+      );
+      const unresolvedVins = normalizedVins.filter((vin) => !matchedComparableVins.has(normalizeComparableVin(vin)));
+
+      if (unresolvedVins.length) {
+        const { data: allVehicleRows, error: allVehicleRowsError } = await supabaseClient
+          .from('vehicles')
+          .select('*');
+        if (allVehicleRowsError) throw allVehicleRowsError;
+
+        const unresolvedComparables = new Set(unresolvedVins.map((vin) => normalizeComparableVin(vin)).filter(Boolean));
+        const unresolvedSuffixes = new Set(unresolvedVins.map((vin) => getComparableVinSuffix(vin)).filter((suffix) => suffix.length >= 4));
+
+        (allVehicleRows || []).forEach((row) => {
+          const key = `${row?.id ?? ''}`.trim();
+          if (!key || dedupedRows.has(key)) return;
+          const comparableVin = normalizeComparableVin(row?.VIN);
+          const comparableSuffix = getComparableVinSuffix(row?.VIN);
+          if (!comparableVin) return;
+          if (unresolvedComparables.has(comparableVin) || (comparableSuffix.length >= 4 && unresolvedSuffixes.has(comparableSuffix))) {
+            dedupedRows.set(key, row);
+          }
+        });
+      }
+
+      return [...dedupedRows.values()];
     };
 
     const fetchPtRowsByVins = async (vins = []) => {
@@ -1079,11 +1144,33 @@
       const updates = buildPtV2UpdatesForUploadedRows(rows, vehicleRows);
       if (!updates.length) return { updated: 0, scanned: rows.length };
 
-      for (const updateChunk of chunkArray(updates, 100)) {
-        const { error } = await supabaseClient
-          .from('PT-LastPing')
-          .upsert(updateChunk, { onConflict: 'Serial,Date' });
-        if (error) throw error;
+      const uploadedVins = Array.from(new Set(
+        (rows || []).map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean)
+      ));
+      const ptRows = await fetchPtRowsByVins(uploadedVins);
+      const rowIdByKey = new Map();
+
+      (ptRows || []).forEach((row) => {
+        const serial = normalizeGpsSerialValue(row?.Serial);
+        const date = String(row?.Date || '').trim();
+        const rowId = row?.id;
+        if (!serial || !date || rowId === undefined || rowId === null || rowId === '') return;
+        rowIdByKey.set(`${serial}__${date}`, rowId);
+      });
+
+      for (const updateChunk of chunkArray(updates, 25)) {
+        for (const entry of updateChunk) {
+          const serial = normalizeGpsSerialValue(entry?.Serial);
+          const date = String(entry?.Date || '').trim();
+          const rowId = rowIdByKey.get(`${serial}__${date}`);
+          if (rowId === undefined || rowId === null || rowId === '') continue;
+          const { Serial, Date, ...patch } = entry;
+          const { error } = await supabaseClient
+            .from('PT-LastPing')
+            .update(patch)
+            .eq('id', rowId);
+          if (error) throw error;
+        }
       }
 
       return {
@@ -1165,7 +1252,7 @@
           return recordSerial === resolvedWinnerSerial;
         })
         : records;
-      const sourceRecords = (scopedRecords.length ? scopedRecords : records)
+      const movementSourceRecords = (scopedRecords.length ? scopedRecords : records)
         .filter((record) => {
           if (!hasValidPtCoordinates(record)) return false;
           const serial = normalizeGpsSerialValue(record?.Serial);
@@ -1173,12 +1260,23 @@
           if (!resolvedWinnerSerial && !serial) return false;
           return !isPtSerialBlacklistedAt(serial, timestamp, gpsBlacklistMap);
         });
-      if (!sourceRecords.length) return null;
-      const orderedRecords = [...sourceRecords].sort((left, right) => (
+      const positionSourceRecords = records
+        .filter((record) => {
+          if (!hasValidPtCoordinates(record)) return false;
+          const serial = normalizeGpsSerialValue(record?.Serial);
+          const timestamp = parsePtComparableTimestamp(record?.Date);
+          if (!serial) return false;
+          return !isPtSerialBlacklistedAt(serial, timestamp, gpsBlacklistMap);
+        });
+      if (!movementSourceRecords.length || !positionSourceRecords.length) return null;
+      const orderedRecords = [...movementSourceRecords].sort((left, right) => (
         parsePtComparableTimestamp(left?.Date) - parsePtComparableTimestamp(right?.Date)
       ));
-      const firstRecord = orderedRecords[0] || null;
-      const latestRecord = orderedRecords[orderedRecords.length - 1] || null;
+      const orderedPositionRecords = [...positionSourceRecords].sort((left, right) => (
+        parsePtComparableTimestamp(left?.Date) - parsePtComparableTimestamp(right?.Date)
+      ));
+      const firstRecord = orderedPositionRecords[0] || null;
+      const latestRecord = orderedPositionRecords[orderedPositionRecords.length - 1] || null;
       if (!latestRecord) return null;
 
       const payload = { id: vehicleRow.id };
@@ -1373,6 +1471,27 @@
 
     const tableColumnCache = new Map();
 
+    const buildActualColumnLookup = (columns = []) => {
+      const lookup = new Map();
+      (columns || []).forEach((column) => {
+        const normalized = cleanHeaderKey(column);
+        if (!normalized || lookup.has(normalized)) return;
+        lookup.set(normalized, column);
+      });
+      return lookup;
+    };
+
+    const resolveActualColumnName = (columnLookup, ...candidates) => {
+      if (!(columnLookup instanceof Map)) return '';
+      for (const candidate of candidates) {
+        const normalized = cleanHeaderKey(candidate);
+        if (!normalized) continue;
+        const actualColumn = columnLookup.get(normalized);
+        if (actualColumn) return actualColumn;
+      }
+      return '';
+    };
+
     const fetchTableColumns = async (tableName, fallbackColumns = []) => {
       if (tableColumnCache.has(tableName)) return tableColumnCache.get(tableName);
       const fallbackSet = new Set((fallbackColumns || []).filter(Boolean));
@@ -1440,6 +1559,8 @@
       }
 
       const vehicleColumns = await fetchTableColumns('vehicles');
+      const vehicleColumnLookup = buildActualColumnLookup([...vehicleColumns]);
+      const resolveVehicleColumn = (...candidates) => resolveActualColumnName(vehicleColumnLookup, ...candidates);
       const normalizedVins = Array.from(new Set(
         dealRows.map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean)
       ));
@@ -1464,12 +1585,13 @@
       });
 
       const dealToVehicleAliases = new Map([
-        ['Inventory Preparation Status', ['INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat', 'inventory_preparation_status']],
-        ['Inventory Preparation Status Changed On', ['inventory_preparation_status_changed_on']],
-        ['Inventory Preparation Status Changed By', ['inventory_preparation_status_changed_by']],
-        ['Current Stock No', ['current_stock_no', 'Stock No', 'stock_no']],
-        ['Deal Status', ['deal status', 'deal_status']],
-        ['Vehicle Status', ['vehicle status', 'vehicle_status']]
+        ['Inventory Preparation Status', ['Inventory Preparation Status', 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat', 'inv. prep. stat.', 'inventory_preparation_status']],
+        ['Inventory Preparation Status Changed On', ['Inventory Preparation Status Changed On', 'inventory_preparation_status_changed_on']],
+        ['Inventory Preparation Status Changed By', ['Inventory Preparation Status Changed By', 'inventory_preparation_status_changed_by']],
+        ['Current Stock No', ['Current Stock No', 'current_stock_no', 'Stock No', 'stock_no']],
+        ['Deal Status', ['Deal Status', 'deal status', 'deal_status']],
+        ['Vehicle Status', ['Vehicle Status', 'vehicle status', 'vehicle_status']],
+        ['Physical Location', ['Physical Location', 'phys_loc', 'physical_location']]
       ]);
 
       const payloads = [];
@@ -1482,20 +1604,22 @@
         const patch = { id: vehicleRow.id };
         Object.entries(dealRow).forEach(([key, value]) => {
           if (key === 'id' || key === 'created_at' || key === 'updated_at') return;
-          if (!vehicleColumns.has(key)) return;
-          patch[key] = value ?? null;
+          const actualColumn = resolveVehicleColumn(key);
+          if (!actualColumn) return;
+          patch[actualColumn] = value ?? null;
         });
 
         dealToVehicleAliases.forEach((aliases, sourceKey) => {
           if (!Object.prototype.hasOwnProperty.call(dealRow, sourceKey)) return;
-          aliases.forEach((aliasKey) => {
-            if (!vehicleColumns.has(aliasKey)) return;
-            patch[aliasKey] = dealRow[sourceKey] ?? null;
-          });
+          const actualColumn = resolveVehicleColumn(...aliases);
+          if (!actualColumn) return;
+          patch[actualColumn] = dealRow[sourceKey] ?? null;
         });
 
-        if (vin && vehicleColumns.has('VIN')) patch.VIN = vin;
-        if (stock && vehicleColumns.has('Current Stock No')) patch['Current Stock No'] = stock;
+        const vinColumn = resolveVehicleColumn('VIN');
+        const stockColumn = resolveVehicleColumn('Current Stock No', 'current_stock_no', 'Stock No', 'stock_no');
+        if (vin && vinColumn) patch[vinColumn] = vin;
+        if (stock && stockColumn) patch[stockColumn] = stock;
         if (Object.keys(patch).length > 1) payloads.push(patch);
       });
 
@@ -1606,8 +1730,10 @@
     };
 
     const updateDatasetCardStats = (els, stats) => {
-      els.rows.textContent = stats.rows ? stats.rows.toLocaleString() : '--';
-      els.columns.textContent = stats.columns || '--';
+      const rowCount = Number.isFinite(Number(stats?.rows)) ? Number(stats.rows) : null;
+      const columnCount = Number.isFinite(Number(stats?.columns)) ? Number(stats.columns) : null;
+      els.rows.textContent = rowCount === null ? '--' : rowCount.toLocaleString();
+      els.columns.textContent = columnCount === null ? '--' : String(columnCount);
       if (stats.restricted) {
         els.status.textContent = 'Restricted';
         els.status.className = 'rounded-full border border-amber-600 bg-amber-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200';
@@ -1928,10 +2054,9 @@
       const submitBtn = document.getElementById('deals-upload-button');
       const requireAdmin = async () => {
         const allowed = await refreshAdminAccess();
-        if (fileInput) fileInput.disabled = !allowed;
         if (submitBtn) submitBtn.disabled = !allowed;
         const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
+        if (fileInput) fileInput.title = '';
         if (submitBtn) submitBtn.title = titleText;
         return allowed;
       };
@@ -2007,11 +2132,10 @@
 
       const requireAdmin = async () => {
         const allowed = await refreshAdminAccess();
-        if (fileInput) fileInput.disabled = !allowed;
         if (submitBtn) submitBtn.disabled = !allowed;
         if (resyncBtn) resyncBtn.disabled = !allowed;
         const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = titleText;
+        if (fileInput) fileInput.title = '';
         if (submitBtn) submitBtn.title = titleText;
         if (resyncBtn) resyncBtn.title = titleText;
         return allowed;
@@ -2739,18 +2863,6 @@
         );
       };
 
-      const isPtOnConflictConfigError = (error) => {
-        const text = getPtBatchErrorText(error);
-        return (
-          text.includes('on conflict') ||
-          text.includes('on_conflict') ||
-          text.includes('schema cache') ||
-          text.includes('read_day') ||
-          text.includes('day_half') ||
-          text.includes('no unique or exclusion constraint')
-        );
-      };
-
       const waitMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
       const finalizePtPingUpload = async (vinValues = []) => {
@@ -2845,7 +2957,6 @@
       });
       let nextIndex = 0;
       let targetBatchSize = Math.min(PT_PING_INITIAL_BATCH_SIZE, dedupedRows.length);
-      let ptConflictTarget = PT_PING_PRIMARY_CONFLICT_TARGET;
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
       try {
@@ -2873,9 +2984,7 @@
 
             const { error } = await supabaseClient
               .from('PT-LastPing')
-              .upsert(batch, {
-                onConflict: ptConflictTarget,
-              });
+              .insert(batch);
 
             if (!error) {
               aggregated.batches += 1;
@@ -2900,7 +3009,6 @@
               nextIndex,
               batchSize,
               retryAttempt,
-              ptConflictTarget,
             });
 
             if (isRlsBlocked(error)) {
@@ -2947,14 +3055,6 @@
               continue;
             }
 
-            if (isPtOnConflictConfigError(error) && ptConflictTarget !== PT_PING_FALLBACK_CONFLICT_TARGET) {
-              ptConflictTarget = PT_PING_FALLBACK_CONFLICT_TARGET;
-              retryAttempt = 0;
-              setStatus('Conflict key read_day/day_half unavailable. Switching to Serial + Date and retrying...');
-              await waitMs(PT_PING_RETRY_BASE_DELAY_MS);
-              continue;
-            }
-
             if (isPtBatchRetryable(error) && batchSize > PT_PING_MIN_BATCH_SIZE) {
               const nextBatchSize = Math.max(PT_PING_MIN_BATCH_SIZE, Math.floor(batchSize / 2));
               if (nextBatchSize < batchSize) {
@@ -2983,7 +3083,7 @@
             setProgress((nextIndex / dedupedRows.length) * 90, `Batch ${batchNumber} failed`);
             showPtError(
               error,
-              `Batch ${batchNumber} failed (batch size ${batchSize}, conflict target ${ptConflictTarget}).`
+              `Batch ${batchNumber} failed (batch size ${batchSize}).`
             );
             throw error;
           }
@@ -3065,8 +3165,8 @@
           '\nRejected (missing Lat/Long): ' + aggregated.rejectedMissingCoordinates +
           '\nRejected (invalid coordinate format): ' + aggregated.rejectedInvalidCoordinateFormat +
           '\nRejected (invalid Date): ' + aggregated.rejectedInvalidDate +
-          '\nSkipped duplicates (client 8-hour bucket): ' + aggregated.skippedDeduplication +
-          '\nDuplicate handling: ON CONFLICT DO NOTHING' +
+          '\nSkipped duplicates (client reduction): ' + aggregated.skippedDeduplication +
+          '\nDatabase mode: INSERT history after client-side reduction' +
           '\nRejected (VIN not in Deals): ' + aggregated.rejectedNoMatchVin +
           '\nErrors: ' + parseErrors;
         setStatus(
@@ -3121,7 +3221,7 @@
     wirePtPingUpload();
   </script>
   <script type="module">
-    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260410-03';
+    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260411-01';
 
     const redirectToLogin = async () => {
       if (!supabaseClient?.auth?.getSession) {
@@ -3136,7 +3236,7 @@
 
     redirectToLogin();
   </script>
-  <script type="module" src="../../assets/scripts/sharedHeader.js?v=20260410-03"></script>
+  <script type="module" src="../../assets/scripts/sharedHeader.js?v=20260411-01"></script>
   <script type="module" src="../../assets/scripts/adminNav.js"></script>
 </body>
 </html>

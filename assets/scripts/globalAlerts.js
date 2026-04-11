@@ -4,6 +4,7 @@ const DEFAULT_IGNORED_REQUEST_PATTERNS = [
   'ipapi.co',
   'ipwho.is',
   '/rest/v1/admin_change_log',
+  '/api/database/records/admin_change_log',
   '/rest/v1/app_settings',
 ];
 

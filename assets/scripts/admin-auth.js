@@ -80,6 +80,12 @@ const normalizeStatusValue = (value, fallback = 'active') => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized || fallback;
 };
+const isRateLimitedError = (error) => {
+  const status = Number(error?.status || error?.statusCode);
+  const message = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+  return status === 429 || message.includes('too many requests') || details.includes('too many requests');
+};
 
 const isMissingProfilesStatusColumnError = (error) => {
   const code = String(error?.code || '').trim().toUpperCase();
@@ -159,6 +165,15 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
   const fallbackRole = fallbackAccess.role;
   const fallbackStatus = fallbackAccess.status;
 
+  if (fallbackAccess.confident) {
+    cachedUserRole = fallbackRole;
+    cachedUserStatus = fallbackStatus;
+    window.currentUserRole = fallbackRole;
+    window.currentUserStatus = fallbackStatus;
+    broadcastRoleStatus(fallbackRole, fallbackStatus);
+    return fallbackAccess;
+  }
+
   if (preferCache && cachedUserRole && cachedUserStatus) {
     window.currentUserRole = fallbackRole;
     window.currentUserStatus = fallbackStatus;
@@ -199,6 +214,13 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
   const { data, error } = response;
 
   if (error) {
+    if (isRateLimitedError(error)) {
+      console.warn('Profile access lookup rate-limited; using fallback role/status.');
+      window.currentUserRole = fallbackRole;
+      window.currentUserStatus = fallbackStatus;
+      broadcastRoleStatus(fallbackRole, fallbackStatus);
+      return fallbackAccess;
+    }
     if (isMissingProfilesStatusColumnError(error)) {
       try {
         const roleOnlyResponse = await withTimeout(
@@ -252,12 +274,20 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
 
 const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS } = {}) => {
   const fallbackProfile = {
-    name: null,
-    email: session?.user?.email || null,
+    name: session?.user?.profile?.name || session?.user?.user_metadata?.name || null,
+    email: session?.user?.profile?.email || session?.user?.email || null,
   };
 
   if (window.currentUserProfile) return window.currentUserProfile;
   if (cachedUserProfile) {
+    window.currentUserProfile = cachedUserProfile;
+    return cachedUserProfile;
+  }
+  if (session?.user?.profile?.email || session?.user?.profile?.name) {
+    cachedUserProfile = {
+      name: session?.user?.profile?.name || fallbackProfile.name,
+      email: session?.user?.profile?.email || fallbackProfile.email,
+    };
     window.currentUserProfile = cachedUserProfile;
     return cachedUserProfile;
   }
@@ -291,6 +321,10 @@ const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS }
   const { data, error } = response;
 
   if (error) {
+    if (isRateLimitedError(error)) {
+      console.warn('Profile header lookup rate-limited; using fallback profile.');
+      return fallbackProfile;
+    }
     console.warn('Unable to fetch user profile', error);
     return fallbackProfile;
   }

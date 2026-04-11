@@ -20,6 +20,34 @@ const normalizeDetails = (value) => {
   return { value: String(value) };
 };
 
+const isAuthTokenError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+  return (
+    message.includes('invalid token')
+    || message.includes('jwt')
+    || message.includes('auth_unauthorized')
+    || details.includes('invalid token')
+  );
+};
+
+const ensureAuditSession = async (client) => {
+  if (!client?.auth || typeof client.auth.getSession !== 'function') return false;
+  try {
+    const { data, error } = await client.auth.getSession();
+    if (!error && data?.session) return true;
+  } catch (_error) {
+    // best effort
+  }
+  if (typeof client.auth.refreshSession !== 'function') return false;
+  try {
+    const { data: refreshed, error: refreshError } = await client.auth.refreshSession();
+    return !refreshError && Boolean(refreshed?.session);
+  } catch (_error) {
+    return false;
+  }
+};
+
 const resolveActor = async (client, explicitActor) => {
   if (explicitActor) return explicitActor;
 
@@ -93,25 +121,35 @@ export const logAdminEvent = async ({
     const normalizedAction = String(action || 'edit').toLowerCase();
     const fallbackSummary = `Admin ${normalizedAction} on ${tableName}`;
 
-    const { error } = await supabaseClient.from(CHANGE_LOG_TABLE).insert([
-      {
-        table_name: tableName,
-        action: normalizedAction,
-        summary: summary || fallbackSummary,
-        actor: actorName || 'anon',
-        record_id: recordId ?? null,
-        column_name: columnName ?? null,
-        previous_value: normalizeValue(previousValue),
-        new_value: normalizeValue(newValue),
-        profile_email: profileEmail || profile.email || actorName || null,
-        profile_role: profileRole || profile.role || 'guest',
-        profile_status: profileStatus || profile.status || 'unknown',
-        page_path: pagePath || profile.pagePath || null,
-        source: String(source || 'web').toLowerCase(),
-        details: normalizeDetails(details),
-        created_at: new Date().toISOString(),
-      },
-    ]);
+    const payload = {
+      table_name: tableName,
+      action: normalizedAction,
+      summary: summary || fallbackSummary,
+      actor: actorName || 'anon',
+      record_id: recordId ?? null,
+      column_name: columnName ?? null,
+      previous_value: normalizeValue(previousValue),
+      new_value: normalizeValue(newValue),
+      profile_email: profileEmail || profile.email || actorName || null,
+      profile_role: profileRole || profile.role || 'guest',
+      profile_status: profileStatus || profile.status || 'unknown',
+      page_path: pagePath || profile.pagePath || null,
+      source: String(source || 'web').toLowerCase(),
+      details: normalizeDetails(details),
+      created_at: new Date().toISOString(),
+    };
+
+    let { error } = await supabaseClient.from(CHANGE_LOG_TABLE).insert([payload]);
+    if (error && isAuthTokenError(error)) {
+      const restored = await ensureAuditSession(supabaseClient);
+      if (restored) {
+        cachedActor = { value: null, expiresAt: 0 };
+        const retryActor = await resolveActor(supabaseClient, actor);
+        payload.actor = retryActor || payload.actor;
+        payload.profile_email = profileEmail || profile.email || retryActor || payload.profile_email || null;
+        ({ error } = await supabaseClient.from(CHANGE_LOG_TABLE).insert([payload]));
+      }
+    }
     if (error) throw error;
 
     return true;

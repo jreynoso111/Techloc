@@ -8,6 +8,10 @@ const BASE_URL = String(SUPABASE_URL || '').trim().replace(/\/+$/, '');
 const DEFAULT_FETCH_TIMEOUT_MS = 300_000;
 const MAX_GET_URL_LENGTH = 3500;
 const DEFAULT_IN_FILTER_CHUNK_SIZE = 60;
+const JWT_REFRESH_SKEW_MS = 60_000;
+const SILENT_REQUEST_HEADERS = {
+  'x-techloc-silent-request': 'true',
+};
 const SESSION_EVENTS = {
   SIGNED_IN: 'SIGNED_IN',
   SIGNED_OUT: 'SIGNED_OUT',
@@ -77,6 +81,30 @@ const getStoredSession = () => {
   } catch (_error) {
     return null;
   }
+};
+
+const decodeJwtPayload = (token = '') => {
+  const parts = String(token || '').split('.');
+  if (parts.length < 2) return null;
+  try {
+    const normalized = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padding = '='.repeat((4 - (normalized.length % 4)) % 4);
+    return JSON.parse(atob(normalized + padding));
+  } catch (_error) {
+    return null;
+  }
+};
+
+const getJwtExpirationMs = (token = '') => {
+  const exp = Number(decodeJwtPayload(token)?.exp || 0);
+  if (!Number.isFinite(exp) || exp <= 0) return null;
+  return exp * 1000;
+};
+
+const shouldRefreshSessionToken = (token = '') => {
+  const expirationMs = getJwtExpirationMs(token);
+  if (!expirationMs) return false;
+  return expirationMs - Date.now() <= JWT_REFRESH_SKEW_MS;
 };
 
 const setStoredSession = (session) => {
@@ -238,7 +266,7 @@ const recoverSessionForUnauthorizedToken = async (failedAuthToken = '') => {
       const response = await fetchWithTimeout(`${BASE_URL}/api/auth/refresh?client_type=desktop`, {
         method: 'POST',
         headers: buildHeaders({
-          extra: { 'Content-Type': 'application/json' },
+          extra: { 'Content-Type': 'application/json', ...SILENT_REQUEST_HEADERS },
         }),
         body: JSON.stringify({ refreshToken: currentSession.refresh_token }),
       });
@@ -266,6 +294,24 @@ const recoverSessionForUnauthorizedToken = async (failedAuthToken = '') => {
   persistSession(null, SESSION_EVENTS.SIGNED_OUT);
   setRecoveryTokenValue('');
   return { authToken: SUPABASE_KEY, recoveredSession: null };
+};
+
+const ensureActiveSession = async () => {
+  const session = getStoredSession();
+  if (!session?.access_token) return null;
+
+  if (shouldRefreshSessionToken(session.access_token)) {
+    const recovery = await recoverSessionForUnauthorizedToken(session.access_token);
+    return recovery?.recoveredSession || null;
+  }
+
+  const expirationMs = getJwtExpirationMs(session.access_token);
+  if (expirationMs && expirationMs <= Date.now() && !session?.refresh_token) {
+    persistSession(null, SESSION_EVENTS.SIGNED_OUT);
+    return null;
+  }
+
+  return session;
 };
 
 class InsForgeQueryBuilder {
@@ -442,6 +488,9 @@ class InsForgeQueryBuilder {
     if (this.upsertOptions?.onConflict) {
       url.searchParams.set('on_conflict', this.upsertOptions.onConflict);
     }
+    if (this.countMode) {
+      preferParts.push(`count=${this.countMode}`);
+    }
 
     if (this.operation === 'insert' || this.operation === 'upsert') {
       method = 'POST';
@@ -604,7 +653,7 @@ class InsForgeQueryBuilder {
   }
 
   async execute() {
-    const session = getStoredSession();
+    const session = await ensureActiveSession();
     const authToken = session?.access_token || SUPABASE_KEY;
     const request = this.buildRequest(authToken);
     if (
@@ -624,7 +673,7 @@ class InsForgeCompatClient {
   }
 
   async rpc(functionName, args = {}) {
-    const session = getStoredSession();
+    const session = await ensureActiveSession();
     const requestUrl = `${BASE_URL}/api/database/rpc/${encodeURIComponent(functionName)}`;
     const send = async (authToken) => {
       const response = await fetchWithTimeout(requestUrl, {
@@ -667,7 +716,7 @@ const authApi = {
     const response = await fetchWithTimeout(`${BASE_URL}/api/auth/sessions?client_type=desktop`, {
       method: 'POST',
       headers: buildHeaders({
-        extra: { 'Content-Type': 'application/json' },
+        extra: { 'Content-Type': 'application/json', ...SILENT_REQUEST_HEADERS },
       }),
       body: JSON.stringify({ email, password }),
     });
@@ -687,10 +736,7 @@ const authApi = {
   },
 
   async getSession() {
-    const session = getStoredSession();
-    if (session?.access_token && !session?.refresh_token) {
-      return { data: { session }, error: null };
-    }
+    const session = await ensureActiveSession();
     return { data: { session }, error: null };
   },
 
@@ -700,7 +746,7 @@ const authApi = {
   },
 
   async getCurrentUser() {
-    const session = getStoredSession();
+    const session = await ensureActiveSession();
     if (!session?.access_token) {
       return { data: { user: null }, error: null };
     }
@@ -708,7 +754,7 @@ const authApi = {
     const send = async (authToken) => {
       const response = await fetchWithTimeout(`${BASE_URL}/api/auth/sessions/current`, {
         method: 'GET',
-        headers: buildHeaders({ authToken }),
+        headers: buildHeaders({ authToken, extra: SILENT_REQUEST_HEADERS }),
       });
       const payload = await parseJsonSafely(response);
       return { response, payload };
@@ -736,7 +782,7 @@ const authApi = {
   },
 
   async refreshSession() {
-    const session = getStoredSession();
+    const session = await ensureActiveSession();
     if (!session?.refresh_token) {
       return { data: { session: null }, error: createError(null, 'Refresh token is unavailable.') };
     }
@@ -744,7 +790,7 @@ const authApi = {
     const response = await fetchWithTimeout(`${BASE_URL}/api/auth/refresh?client_type=desktop`, {
       method: 'POST',
       headers: buildHeaders({
-        extra: { 'Content-Type': 'application/json' },
+        extra: { 'Content-Type': 'application/json', ...SILENT_REQUEST_HEADERS },
       }),
       body: JSON.stringify({ refreshToken: session.refresh_token }),
     });
@@ -767,12 +813,12 @@ const authApi = {
   },
 
   async signOut() {
-    const session = getStoredSession();
+    const session = await ensureActiveSession();
     if (session?.access_token) {
       try {
         await fetchWithTimeout(`${BASE_URL}/api/auth/logout`, {
           method: 'POST',
-          headers: buildHeaders({ authToken: session.access_token }),
+          headers: buildHeaders({ authToken: session.access_token, extra: SILENT_REQUEST_HEADERS }),
         });
       } catch (_error) {
         // Best effort.
@@ -811,7 +857,7 @@ const authApi = {
       const response = await fetchWithTimeout(`${BASE_URL}/api/auth/email/reset-password`, {
         method: 'POST',
         headers: buildHeaders({
-          extra: { 'Content-Type': 'application/json' },
+          extra: { 'Content-Type': 'application/json', ...SILENT_REQUEST_HEADERS },
         }),
         body: JSON.stringify({
           newPassword: attributes.password,
@@ -826,7 +872,7 @@ const authApi = {
       return { data: payload, error: null };
     }
 
-    const session = getStoredSession();
+    const session = await ensureActiveSession();
     if (!session?.access_token) {
       return { data: null, error: createError(null, 'Active session is required.') };
     }

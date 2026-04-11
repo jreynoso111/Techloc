@@ -130,10 +130,10 @@ const json = (res, statusCode, payload) => {
 const CLIENT_RUNTIME_CONFIG_GLOBAL = '__TECHLOC_RUNTIME_CONFIG__';
 
 const buildClientRuntimeConfig = () => ({
-  supabaseUrl: SUPABASE_URL,
+  supabaseUrl: APP_ORIGIN,
   supabaseAnonKey: SUPABASE_ANON_KEY,
   supabaseProjectRef: SUPABASE_PROJECT_REF,
-  insforgeUrl: SUPABASE_URL,
+  insforgeUrl: APP_ORIGIN,
   insforgeAnonKey: SUPABASE_ANON_KEY,
   insforgeProjectRef: SUPABASE_PROJECT_REF,
   provider: 'insforge',
@@ -205,6 +205,23 @@ const parseJsonBody = async (req) =>
         reject(new Error('Invalid JSON payload.'));
       }
     });
+    req.on('error', reject);
+  });
+
+const readRawBody = async (req) =>
+  new Promise((resolve, reject) => {
+    let total = 0;
+    const chunks = [];
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > MAX_BODY_BYTES) {
+        reject(new Error('Request body is too large.'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(chunks.length ? Buffer.concat(chunks) : null));
     req.on('error', reject);
   });
 
@@ -616,6 +633,63 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
   json(res, 405, { error: { message: 'Method not allowed.' } });
 };
 
+const copyResponseHeaders = (sourceHeaders, overrides = {}) => {
+  const headers = {};
+  sourceHeaders.forEach((value, key) => {
+    const normalizedKey = String(key || '').toLowerCase();
+    if (normalizedKey === 'content-length') return;
+    headers[key] = value;
+  });
+  return {
+    ...headers,
+    'cache-control': 'no-store',
+    ...overrides,
+  };
+};
+
+const handleClientApiProxy = async (req, res, pathname, searchParams) => {
+  const proxiedPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  const targetUrl = `${SUPABASE_URL}${proxiedPath}`;
+  const method = String(req.method || 'GET').toUpperCase();
+  const rawBody = ['GET', 'HEAD'].includes(method) ? null : await readRawBody(req);
+  const requestHeaders = {
+    apikey: SUPABASE_ANON_KEY,
+  };
+
+  const authHeader = String(req.headers.authorization || '').trim();
+  if (authHeader) {
+    requestHeaders.authorization = authHeader;
+  } else {
+    requestHeaders.authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+  }
+
+  const passthroughHeaders = [
+    'content-type',
+    'prefer',
+    'range',
+    'x-client-info',
+  ];
+  passthroughHeaders.forEach((headerName) => {
+    const value = req.headers[headerName];
+    if (!value) return;
+    requestHeaders[headerName] = Array.isArray(value) ? value.join(', ') : String(value);
+  });
+
+  const response = await fetch(targetUrl, {
+    method,
+    headers: requestHeaders,
+    body: rawBody,
+  });
+
+  const responseBuffer = Buffer.from(await response.arrayBuffer());
+  res.writeHead(response.status, copyResponseHeaders(response.headers));
+  if (method === 'HEAD') {
+    res.end();
+    return;
+  }
+  res.end(responseBuffer);
+};
+
 const serveStatic = async (req, res, pathname) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     json(res, 405, { error: { message: 'Method not allowed.' } });
@@ -683,6 +757,11 @@ const start = () => {
 
       if (pathname === '/api/repair-history' || pathname.startsWith('/api/repair-history/')) {
         await handleRepairHistoryApi(req, res, pathname, searchParams);
+        return;
+      }
+
+      if (pathname.startsWith('/api/database/') || pathname.startsWith('/api/auth/')) {
+        await handleClientApiProxy(req, res, pathname, searchParams);
         return;
       }
 

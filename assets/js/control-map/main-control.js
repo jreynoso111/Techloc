@@ -1,4 +1,4 @@
-import '../../scripts/authManager.js?v=movement-v2-20250403-11';
+import '../../scripts/authManager.js?v=movement-v2-20260411-01';
     import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=movement-v2-20250403-11';
     import { subscribeDataSyncSignal } from '../../scripts/dataSyncSignal.js?v=movement-v2-20260410-01';
     import {
@@ -9,10 +9,10 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       normalizeAppSettings,
       saveAppSettings
     } from '../../scripts/appSettings.js?v=movement-v2-20250403-11';
-    import { supabase as supabaseClient } from '../supabaseClient.js?v=movement-v2-20250403-11';
+    import { supabase as supabaseClient } from '../supabaseClient.js?v=movement-v2-20260411-01';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js?v=movement-v2-20250403-11';
     import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20260408-01';
-    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20260408-01';
+    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20260411-01';
     import { createRepairHistoryManager } from '../../scripts/repairHistory.js?v=movement-v2-20250403-11';
     import { createPartnerClusterGroup } from './utils/cluster.js';
     import { attachDistances, debounce, debounceAsync, getOriginKey, runWithTimeout } from './utils/helpers.js';
@@ -37,11 +37,11 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js?v=movement-v2-20250403-11';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';
-    import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20260408-01';
+    import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20260411-01';
     import { SERVICE_HEADER_LABELS, getServiceModalHeaders, loadServiceModalPrefs, renderServiceModalColumnsList, saveServiceModalPrefs } from './components/service-modal.js?v=movement-v2-20250403-11';
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js?v=movement-v2-20250403-11';
     import { createLayerToggle } from './utils/layer-toggles.js?v=movement-v2-20250403-11';
-    import { syncVehicleMarkers } from './utils/vehicle-markers.js?v=movement-v2-20260410-04';
+    import { syncVehicleMarkers } from './utils/vehicle-markers.js?v=movement-v2-20260411-01';
     import {
       bindNavigationStorageListener,
       getSelectedVehicle,
@@ -109,9 +109,9 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
     const VEHICLE_PT_SNAPSHOT_REFRESH_TTL_MS = 5 * 60 * 1000;
     const VEHICLE_PT_PRIORITY_SNAPSHOT_WINDOW_DAYS = 7;
     const VEHICLE_PT_PRIORITY_SNAPSHOT_LIMIT = 24;
-    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 12;
-    const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 3;
-    const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 180;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 8;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 1;
+    const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 420;
     let sidebarStateController = null;
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
@@ -1505,7 +1505,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       return Number.isFinite(Date.parse(value));
     };
 
-    const fetchGpsReadBoundsByHistoryManager = async (vehicleList = [], { concurrency = 3 } = {}) => {
+    const fetchGpsReadBoundsByHistoryManager = async (vehicleList = [], { concurrency = 1 } = {}) => {
       if (!Array.isArray(vehicleList) || !vehicleList.length) return new Map();
       if (!gpsHistoryManager || typeof gpsHistoryManager.fetchGpsHistory !== 'function') return new Map();
 
@@ -1516,7 +1516,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       });
       if (!pendingVehicles.length) return results;
 
-      const workerCount = Math.max(1, Math.min(Number(concurrency) || 3, pendingVehicles.length));
+      const workerCount = Math.max(1, Math.min(Number(concurrency) || 1, pendingVehicles.length));
       let cursor = 0;
       const runWorker = async () => {
         while (cursor < pendingVehicles.length) {
@@ -1556,7 +1556,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       return results;
     };
 
-    const fetchVehicleFirstReadsByTargetedQueries = async (vehicleList = [], { concurrency = 6 } = {}) => {
+    const fetchVehicleFirstReadsByTargetedQueries = async (vehicleList = [], { concurrency = 2 } = {}) => {
       if (!supabaseClient?.from || !Array.isArray(vehicleList) || !vehicleList.length) return new Map();
       await ensureSupabaseSession();
 
@@ -3188,11 +3188,12 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
           changed = true;
         }
 
-        const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
-          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
-        const latestCoords = latestWinnerRecord ? toGpsTrailPoint(latestWinnerRecord) : null;
-        const latestTimeMs = parseGpsTrailTimeMs(latestWinnerRecord || {});
-        const latestAddress = `${latestWinnerRecord?.address || latestWinnerRecord?.Address || ''}`.trim();
+        const latestPositionRecord = [...records]
+          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
+          .find((record) => Boolean(toGpsTrailPoint(record))) || null;
+        const latestCoords = latestPositionRecord ? toGpsTrailPoint(latestPositionRecord) : null;
+        const latestTimeMs = parseGpsTrailTimeMs(latestPositionRecord || {});
+        const latestAddress = `${latestPositionRecord?.address || latestPositionRecord?.Address || ''}`.trim();
         let status = `${vehicle?.historyMovingOverride || ''}`.trim().toLowerCase();
         if (status !== 'moving' && status !== 'stopped' && status !== 'unknown') {
           status = `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase();
@@ -3413,10 +3414,11 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
             ? Math.max(0, Number(vehicle?.historyDaysStationaryOverride ?? 0) || 0)
             : null;
         const currentStatus = `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase();
-        const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
-          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
-        const latestCoords = latestWinnerRecord ? toGpsTrailPoint(latestWinnerRecord) : null;
-        const latestAddress = `${latestWinnerRecord?.address || latestWinnerRecord?.Address || ''}`.trim();
+        const latestPositionRecord = [...records]
+          .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
+          .find((record) => Boolean(toGpsTrailPoint(record))) || null;
+        const latestCoords = latestPositionRecord ? toGpsTrailPoint(latestPositionRecord) : null;
+        const latestAddress = `${latestPositionRecord?.address || latestPositionRecord?.Address || ''}`.trim();
         const currentLat = parseGpsNumericValue(vehicle?.lat ?? vehicle?.details?.lat ?? vehicle?.details?.Lat);
         const currentLng = parseGpsNumericValue(
           vehicle?.lng
@@ -3537,11 +3539,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       } = {}
     ) => {
       if (!vehicle || !Array.isArray(records) || !records.length) return false;
-
-      const scopedRecords = winnerSerial
-        ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
-        : records;
-      const sourceRecords = scopedRecords.length ? scopedRecords : records;
+      const sourceRecords = records;
 
       let earliestMs = Number.POSITIVE_INFINITY;
       let latestMs = Number.NEGATIVE_INFINITY;
@@ -4030,6 +4028,17 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
 
       const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
         .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
+      const latestPositionRecord = [...records]
+        .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
+        .find((record) => {
+          const point = toGpsTrailPoint(record);
+          if (!point) return false;
+          const serial = normalizeGpsSerial(getRecordSerial(record));
+          const timeMs = parseGpsTrailTimeMs(record);
+          return !serial || !isGpsDeviceSerialBlacklistedAt(serial, timeMs, {
+            blacklistBySerial: blacklistedWirelessSerials
+          });
+        }) || null;
       const thresholdMeters = getVehicleMovementThresholdMeters(
         getAppSettings(),
         vehicle?.movementUnitTypeV2 || vehicle?.type || vehicle?.details?.['Unit Type'] || ''
@@ -4058,12 +4067,12 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         days_stationary: daysStationary
       };
 
-      const latestCoords = latestWinnerRecord ? toGpsTrailPoint(latestWinnerRecord) : null;
+      const latestCoords = latestPositionRecord ? toGpsTrailPoint(latestPositionRecord) : null;
       if (latestCoords) {
         patch.lat = latestCoords.lat;
         patch.long = latestCoords.lng;
       }
-      const latestAddress = `${latestWinnerRecord?.address || latestWinnerRecord?.Address || ''}`.trim();
+      const latestAddress = `${latestPositionRecord?.address || latestPositionRecord?.Address || ''}`.trim();
       if (latestAddress) {
         patch.short_location = latestAddress;
       }
@@ -4084,8 +4093,46 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         winnerSerial,
         status,
         daysStationary,
-        latestRecord: latestWinnerRecord
+        latestRecord: latestPositionRecord || latestWinnerRecord
       };
+    };
+
+    const refreshVehicleRowFromPtHistory = async (vehicle) => {
+      if (!vehicle || !supabaseClient?.from) {
+        throw new Error('Database unavailable.');
+      }
+
+      const vin = gpsHistoryManager?.getVehicleVin?.(vehicle) || `${vehicle?.vin ?? vehicle?.details?.VIN ?? vehicle?.details?.vin ?? ''}`.trim();
+      let lastError = null;
+
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError || !sessionData?.session) {
+        const { data: refreshed, error: refreshError } = await supabaseClient.auth.refreshSession();
+        if (refreshError || !refreshed?.session) {
+          throw refreshError || new Error('Authentication session unavailable.');
+        }
+      }
+
+      if (vin && typeof supabaseClient.rpc === 'function') {
+        const { error } = await runWithTimeout(
+          supabaseClient.rpc('refresh_vehicle_movement_v2', { p_vin: vin }),
+          12000,
+          'Vehicle PT refresh timed out.'
+        );
+        if (!error) {
+          return refreshVehicleSidebarSnapshot(vehicle);
+        }
+        lastError = error;
+        console.warn('Vehicle PT RPC refresh failed, falling back to client recalculation:', error?.message || error);
+      }
+
+      await recalculateVehicleFromPtHistory(vehicle);
+      try {
+        return await refreshVehicleSidebarSnapshot(vehicle);
+      } catch (refreshError) {
+        if (lastError) throw lastError;
+        throw refreshError;
+      }
     };
 
     const normalizeGpsSerial = (serial = '') => `${serial ?? ''}`.trim().toUpperCase();
@@ -8303,8 +8350,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         vehiclePtRecalcPendingKeys.add(vehicleKey);
         renderVehicles({ preserveScrollTop: true });
         const stopLoading = startLoading('Recalculating vehicle card from PT history...');
-        void recalculateVehicleFromPtHistory(vehicle)
-          .then(() => refreshVehicleSidebarSnapshot(vehicle))
+        void refreshVehicleRowFromPtHistory(vehicle)
           .then(() => {
             renderVehicles({ preserveScrollTop: true });
           })

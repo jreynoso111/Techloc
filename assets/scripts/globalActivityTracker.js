@@ -1,4 +1,4 @@
-import { logAdminEvent } from './adminAudit.js';
+import { logAdminEvent } from './adminAudit.js?v=20260411-01';
 
 const ACTIVITY_TABLE = 'web_activity';
 const MAX_LABEL_LENGTH = 90;

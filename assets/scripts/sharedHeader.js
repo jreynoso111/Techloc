@@ -1,5 +1,5 @@
-import { initGlobalAlerts } from './globalAlerts.js';
-import { initGlobalActivityTracker } from './globalActivityTracker.js';
+import { initGlobalAlerts } from './globalAlerts.js?v=20260411-01';
+import { initGlobalActivityTracker } from './globalActivityTracker.js?v=20260411-01';
 
 const scheduleNonCriticalBoot = (task) => {
   if (typeof window === 'undefined' || typeof task !== 'function') return;

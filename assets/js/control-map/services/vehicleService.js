@@ -54,6 +54,20 @@ export const createVehicleService = ({ client, tableName }) => {
 
   const normalizeName = (value = '') => `${value ?? ''}`.trim().toLowerCase();
 
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const isTransientVehicleReadError = (error) => {
+    const message = `${error?.message || ''}`.toLowerCase();
+    const details = `${error?.details || ''}`.toLowerCase();
+    return (
+      message.includes('socket hang up')
+      || message.includes('econnreset')
+      || message.includes('timeout')
+      || details.includes('socket hang up')
+      || details.includes('econnreset')
+    );
+  };
+
   const resolveVehicleColumns = async () => {
     if (resolvedVehicleColumnsPromise) return resolvedVehicleColumnsPromise;
     resolvedVehicleColumnsPromise = (async () => {
@@ -105,13 +119,24 @@ export const createVehicleService = ({ client, tableName }) => {
     }
 
     const { selectClause } = await resolveVehicleColumns();
-    const { data, error } = await client
-      .from(tableName)
-      .select(selectClause)
-      .eq('id', normalizedVehicleId)
-      .maybeSingle();
-    if (error) throw error;
-    return data || null;
+    const maxAttempts = 3;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const { data, error } = await client
+        .from(tableName)
+        .select(selectClause)
+        .eq('id', normalizedVehicleId)
+        .maybeSingle();
+      if (!error) return data || null;
+      lastError = error;
+      if (!isTransientVehicleReadError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+      await wait(150 * attempt);
+    }
+
+    throw lastError || new Error('Vehicle row lookup failed.');
   };
 
   return { listVehicles, getVehicleById };
