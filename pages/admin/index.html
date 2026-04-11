@@ -2955,12 +2955,42 @@
         const normalizedRightTime = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
         return normalizedLeftTime - normalizedRightTime;
       });
+      const uploadAllPtRowsAtOnce = async () => {
+        if (!dedupedRows.length) return true;
+        setStatus(`Uploading ${dedupedRows.length} filtered rows in one request...`);
+        setProgress(5, `Uploading ${dedupedRows.length} filtered rows`);
+        const payload = dedupedRows.map(buildSlimPtPayload);
+        const { error } = await supabaseClient
+          .from('PT-LastPing')
+          .upsert(payload, {
+            onConflict: 'Serial,Date',
+            ignoreDuplicates: true,
+          });
+        if (error) throw error;
+        aggregated.batches = 1;
+        aggregated.inserted = payload.length;
+        setProgress(90, `Uploaded ${payload.length} of ${dedupedRows.length} rows`);
+        return true;
+      };
       let nextIndex = 0;
       let targetBatchSize = Math.min(PT_PING_INITIAL_BATCH_SIZE, dedupedRows.length);
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
       try {
-        while (nextIndex < dedupedRows.length) {
+        let uploadedInSingleRequest = false;
+        try {
+          uploadedInSingleRequest = await uploadAllPtRowsAtOnce();
+          nextIndex = dedupedRows.length;
+        } catch (error) {
+          if (!isPtBatchRetryable(error) && !isPtCoordinateCastError(error)) {
+            throw error;
+          }
+          console.warn('Single PT upload request failed; falling back to batched upload.', error);
+          setStatus('Single-request upload failed. Falling back to batched upload...');
+          setProgress(0, 'Retrying with smaller batches');
+        }
+
+        while (!uploadedInSingleRequest && nextIndex < dedupedRows.length) {
           const remaining = dedupedRows.length - nextIndex;
           let batchSize = Math.min(targetBatchSize, remaining);
           let retryAttempt = 0;

@@ -68,7 +68,7 @@ const ALLOWED_ROLES = new Set(
     .filter(Boolean)
 );
 
-const MAX_BODY_BYTES = 512_000;
+const MAX_BODY_BYTES = 10 * 1024 * 1024;
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
