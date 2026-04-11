@@ -145,7 +145,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       dealOperator: 'gt',
       dealValue: null,
       trailPoints: DEFAULT_GPS_TRAIL_POINT_LIMIT,
-      payKpiPositiveOnly: false,
       stalePingOnly: false,
       sortRotationIndex: null,
       sortDirection: null,
@@ -157,7 +156,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
     const VEHICLE_SORT_ROTATION_OPTIONS = Object.freeze([
       { key: 'vin_last6', label: 'VIN 6' },
       { key: 'days_parked', label: 'Parked' },
-      { key: 'pay_kpi', label: 'Balance' },
       { key: 'pt_last_read', label: 'Last Ping' }
     ]);
     const STALE_PING_DAY_MS = 24 * 60 * 60 * 1000;
@@ -333,7 +331,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       const trailPoints = Number.isFinite(parsedTrailPoints)
         ? Math.max(MIN_GPS_TRAIL_POINT_LIMIT, Math.min(parsedTrailPoints, MAX_GPS_TRAIL_POINT_LIMIT))
         : DEFAULT_GPS_TRAIL_POINT_LIMIT;
-      const payKpiPositiveOnly = Boolean(payload.payKpiPositiveOnly);
       const stalePingOnly = Boolean(payload.stalePingOnly);
       const sortRotationIndexRaw = Number(payload.sortRotationIndex);
       const sortRotationIndex = Number.isInteger(sortRotationIndexRaw)
@@ -359,7 +356,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         dealOperator,
         dealValue: Number.isFinite(dealValue) ? dealValue : null,
         trailPoints,
-        payKpiPositiveOnly,
         stalePingOnly,
         sortRotationIndex,
         sortDirection,
@@ -1257,10 +1253,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       }
     };
 
-    const formatPayKpi = (value) => {
-      if (value === null || value === undefined || !Number.isFinite(value)) return '—';
-      return value.toFixed(2);
-    };
     const GPS_READ_BOUNDS_CACHE_TTL_MS = 10 * 60 * 1000;
     let gpsReadBoundsByVinCache = new Map();
     let gpsReadBoundsByVinCacheUpdatedAt = 0;
@@ -1290,7 +1282,7 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
           const regularAmount = parseNumber(row?.['Regular Amount']);
           const vehicleStatus = String(row?.['Vehicle Status'] ?? '').trim();
           if (!stockNo || regularAmount === null) return;
-          results.set(stockNo, { regularAmount, openBalance: null, vehicleStatus });
+          results.set(stockNo, { regularAmount, vehicleStatus });
         });
       }
       return results;
@@ -7341,11 +7333,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
           if (normalizedStatus) {
             vehicle.vehicleStatus = normalizedStatus;
           }
-          const regularAmount = dealValues?.regularAmount ?? null;
-          const openBalance = dealValues?.openBalance ?? null;
-          const payKpi = openBalance !== null && regularAmount ? openBalance / regularAmount : null;
-          vehicle.payKpi = payKpi;
-          vehicle.payKpiDisplay = formatPayKpi(payKpi);
           return true;
         });
 
@@ -8723,10 +8710,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
                 <p class="text-[11px] text-slate-400 flex items-center gap-1">${svgIcon('mapPin')} ${escapeHTML(locationDisplay)}</p>
                 ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
                 <div class="grid grid-cols-4 gap-2">
-                <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
-                  <p class="text-[9px] uppercase text-slate-500 font-bold">Pay KPI</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.payKpiDisplay || '—'}</p>
-                </div>
                 <div class="rounded border px-2 py-1.5 ${prepStatusStyles.card}">
                   <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">Prep</p>
                   <p class="text-[11px] font-semibold ${prepStatusStyles.value}">${prepStatusDisplay}</p>
@@ -8933,11 +8916,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       const movingStatus = getMovingStatus(vehicle);
       if (vehicleFilters.moving.length && !vehicleFilters.moving.includes(movingStatus)) return false;
 
-      if (vehicleFilters.payKpiPositiveOnly) {
-        const payKpi = Number(vehicle?.payKpi);
-        if (!Number.isFinite(payKpi) || payKpi <= 0) return false;
-      }
-
       if (vehicleFilters.stalePingOnly && !isVehicleMarkerStaleByLastPing(vehicle)) return false;
 
       return true;
@@ -9118,15 +9096,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       return [...list].sort((a, b) => Number(isVehicleOnRevChecked(b)) - Number(isVehicleOnRevChecked(a)));
     }
 
-    function getPayKpiValue(vehicle) {
-      const value = Number(vehicle?.payKpi);
-      return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
-    }
-
-    function sortVehiclesByPayKpiDesc(list) {
-      return [...list].sort((a, b) => getPayKpiValue(b) - getPayKpiValue(a));
-    }
-
     function getVehicleVinLast6Value(vehicle) {
       return getVehicleVin(vehicle).slice(-6);
     }
@@ -9145,8 +9114,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
           comparison = getVehicleVinLast6Value(left.vehicle).localeCompare(getVehicleVinLast6Value(right.vehicle), undefined, { numeric: true });
         } else if (criterionKey === 'days_parked') {
           comparison = getDaysParkedValue(left.vehicle) - getDaysParkedValue(right.vehicle);
-        } else if (criterionKey === 'pay_kpi') {
-          comparison = getPayKpiValue(left.vehicle) - getPayKpiValue(right.vehicle);
         } else if (criterionKey === 'pt_last_read') {
           comparison = getVehiclePtLastReadTimestampValue(left.vehicle) - getVehiclePtLastReadTimestampValue(right.vehicle);
         }
@@ -9230,7 +9197,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         || vehicleFilters.dealStatus.length
         || vehicleFilters.ptStatus.length
         || Number.isFinite(vehicleFilters.dealValue)
-        || vehicleFilters.payKpiPositiveOnly
         || vehicleFilters.stalePingOnly
       );
     }
@@ -9362,7 +9328,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       const dealOperatorInput = document.getElementById('filter-deal-operator');
       const dealValueInput = document.getElementById('filter-deal-value');
       const trailPointsInput = document.getElementById('filter-trail-points');
-      const kpiPositiveToggle = document.getElementById('filter-kpi-positive-toggle');
       const stalePingToggle = document.getElementById('filter-stale-ping-toggle');
 
       const syncCheckboxes = (container, selections) => {
@@ -9381,22 +9346,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       if (dealOperatorInput) dealOperatorInput.value = vehicleFilters.dealOperator === 'lt' ? 'lt' : 'gt';
       if (dealValueInput) dealValueInput.value = Number.isFinite(vehicleFilters.dealValue) ? String(vehicleFilters.dealValue) : '';
       if (trailPointsInput) trailPointsInput.value = String(vehicleFilters.trailPoints);
-      if (kpiPositiveToggle) {
-        const isActive = Boolean(vehicleFilters.payKpiPositiveOnly);
-        const stateLabel = kpiPositiveToggle.querySelector('[data-kpi-filter-state]');
-        kpiPositiveToggle.setAttribute('aria-pressed', String(isActive));
-        kpiPositiveToggle.classList.toggle('border-emerald-400/60', isActive);
-        kpiPositiveToggle.classList.toggle('bg-emerald-500/20', isActive);
-        kpiPositiveToggle.classList.toggle('text-emerald-100', isActive);
-        kpiPositiveToggle.classList.toggle('border-slate-800', !isActive);
-        kpiPositiveToggle.classList.toggle('bg-slate-950', !isActive);
-        kpiPositiveToggle.classList.toggle('text-slate-300', !isActive);
-        if (stateLabel) {
-          stateLabel.textContent = isActive ? 'On' : 'Off';
-          stateLabel.classList.toggle('text-emerald-200', isActive);
-          stateLabel.classList.toggle('text-slate-500', !isActive);
-        }
-      }
       if (stalePingToggle) {
         const isActive = Boolean(vehicleFilters.stalePingOnly);
         const stateLabel = stalePingToggle.querySelector('[data-stale-filter-state]');
@@ -9427,7 +9376,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       vehicleFilters.dealOperator = 'gt';
       vehicleFilters.dealValue = null;
       vehicleFilters.trailPoints = DEFAULT_GPS_TRAIL_POINT_LIMIT;
-      vehicleFilters.payKpiPositiveOnly = false;
       vehicleFilters.stalePingOnly = false;
       vehicleFilters.sortRotationIndex = null;
       vehicleFilters.sortDirection = null;
@@ -9541,16 +9489,6 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
         trailPointsInput.addEventListener('blur', applyTrailPoints);
       }
 
-      const kpiPositiveToggle = document.getElementById('filter-kpi-positive-toggle');
-      if (kpiPositiveToggle) {
-        kpiPositiveToggle.addEventListener('click', () => {
-          vehicleFilters.payKpiPositiveOnly = !vehicleFilters.payKpiPositiveOnly;
-          syncVehicleFilterInputs();
-          renderVehicles();
-          persistVehicleFilterPrefs();
-        });
-      }
-
       const stalePingToggle = document.getElementById('filter-stale-ping-toggle');
       if (stalePingToggle) {
         stalePingToggle.addEventListener('click', () => {
@@ -9603,15 +9541,11 @@ import '../../scripts/authManager.js?v=movement-v2-20250403-11';
       }
 
       const filtered = filterVehicles(baseList, query);
-      const shouldSortByPayKpiDesc = vehicleFilters.payKpiPositiveOnly;
       const shouldSortByDaysParked = vehicleFilters.moving.includes('stopped');
       const shouldPrioritizeOnRev = vehicleFilters.invPrep.includes('available for deals')
-        && vehicleFilters.moving.includes('moving')
-        && !shouldSortByPayKpiDesc;
+        && vehicleFilters.moving.includes('moving');
 
-      let list = shouldSortByPayKpiDesc
-        ? sortVehiclesByPayKpiDesc(filtered)
-        : (shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered);
+      let list = shouldSortByDaysParked ? sortVehiclesByDaysParked(filtered) : filtered;
       if (shouldPrioritizeOnRev) {
         list = sortVehiclesByOnRevChecked(list);
       }
