@@ -1,5 +1,6 @@
 import { initGlobalAlerts } from './globalAlerts.js?v=20260411-01';
 import { initGlobalActivityTracker } from './globalActivityTracker.js?v=20260411-01';
+import { subscribePendingDataVersionState, subscribeToDataVersionStream } from './dataVersionClient.js?v=20260411-01';
 
 const scheduleNonCriticalBoot = (task) => {
   if (typeof window === 'undefined' || typeof task !== 'function') return;
@@ -31,6 +32,8 @@ const LEGACY_HEADER_CACHE_KEYS = [
   'techloc:shared-header-template:v2',
   'techloc:shared-header-template:v3',
 ];
+let stopPendingIndicatorSubscription = null;
+let stopDataVersionStream = null;
 
 const getBasePath = () => {
   const bodyBase = document.body?.dataset.basePath;
@@ -158,7 +161,24 @@ const renderHeaderTemplate = (template, { basePath, pageTitle, activeNav }) => {
   setActiveNav(headerSlot, activeNav);
   setupMobileMenu(headerSlot);
   setupContactDropdown(headerSlot);
+  stopPendingIndicatorSubscription?.();
+  stopPendingIndicatorSubscription = subscribePendingDataVersionState((state) => {
+    const indicator = headerSlot.querySelector('[data-header-sync-indicator]');
+    if (!indicator) return;
+    const hasPending = Object.keys(state || {}).length > 0;
+    indicator.classList.toggle('hidden', !hasPending);
+    indicator.setAttribute('aria-hidden', hasPending ? 'false' : 'true');
+  });
   window.dispatchEvent(new CustomEvent('shared-header:ready'));
+};
+
+const ensureHeaderDataVersionStream = () => {
+  if (stopDataVersionStream) return;
+  stopDataVersionStream = subscribeToDataVersionStream({
+    onError: (error) => {
+      console.warn('Header data-version stream error.', error);
+    },
+  });
 };
 
 const hydrateHeader = async () => {
@@ -189,3 +209,4 @@ const hydrateHeader = async () => {
 };
 
 hydrateHeader();
+ensureHeaderDataVersionStream();

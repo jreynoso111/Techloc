@@ -4,6 +4,8 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -58,6 +60,15 @@ const APP_ORIGIN = String(process.env.APP_ORIGIN || `http://127.0.0.1:${PORT}`).
 const SUPABASE_PROJECT_REF = String(
   process.env.SUPABASE_PROJECT_REF || deriveProjectRefFromUrl(SUPABASE_URL) || ''
 ).trim();
+const SUPABASE_DB_HOST = String(process.env.SUPABASE_DB_HOST || '').trim();
+const SUPABASE_DB_PORT = String(process.env.SUPABASE_DB_PORT || '5432').trim();
+const SUPABASE_DB_NAME = String(process.env.SUPABASE_DB_NAME || 'postgres').trim();
+const SUPABASE_DB_USER = String(process.env.SUPABASE_DB_USER || '').trim();
+const SUPABASE_DB_PASSWORD = String(process.env.SUPABASE_DB_PASSWORD || '').trim();
+const SUPABASE_DB_SSLMODE = String(process.env.SUPABASE_DB_SSLMODE || 'require').trim();
+const DIRECT_PG_ENABLED = Boolean(SUPABASE_DB_HOST && SUPABASE_DB_USER && SUPABASE_DB_PASSWORD);
+const LOCAL_PROXY_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
+const PYTHON_BRIDGE_PATH = path.join(ROOT_DIR, 'scripts', 'supabase_pg_bridge.py');
 
 const REPAIR_HISTORY_TABLE = 'repair_history';
 const ALLOWED_ROLES_RAW = String(process.env.REPAIR_HISTORY_ALLOWED_ROLES || '').trim();
@@ -69,6 +80,15 @@ const ALLOWED_ROLES = new Set(
 );
 
 const MAX_BODY_BYTES = 10 * 1024 * 1024;
+const CLIENT_GET_CACHE = new Map();
+const CLIENT_GET_CACHE_MAX_ENTRIES = 300;
+const DATA_VERSION_STATE = new Map();
+const DATA_VERSION_SUBSCRIBERS = new Set();
+const DATA_VERSION_HEARTBEAT_MS = 25000;
+const ACCESS_TOKEN_TTL_MS = 1000 * 60 * 60 * 8;
+const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 14;
+const ACCESS_SESSIONS = new Map();
+const REFRESH_SESSIONS = new Map();
 
 const JSON_HEADERS = {
   'content-type': 'application/json; charset=utf-8',
@@ -127,16 +147,245 @@ const json = (res, statusCode, payload) => {
   res.end(JSON.stringify(payload));
 };
 
+const now = () => Date.now();
+
+const buildClientCacheKey = ({ pathname = '', search = '', authHeader = '' } = {}) =>
+  `${pathname}?${search}::${authHeader || 'anon'}`;
+
+const getClientCacheTtlMs = (pathname = '') => {
+  const normalized = String(pathname || '').toLowerCase();
+  if (normalized.includes('/api/database/records/services')) return 5 * 60 * 1000;
+  if (normalized.includes('/api/database/records/profiles')) return 5 * 60 * 1000;
+  if (normalized.includes('/api/database/records/app_settings')) return 10 * 60 * 1000;
+  if (normalized.includes('/api/database/records/admin_change_log')) return 60 * 1000;
+  return 60 * 1000;
+};
+
+const getCachedClientGetResponse = (cacheKey = '') => {
+  const entry = CLIENT_GET_CACHE.get(cacheKey);
+  if (!entry) return null;
+  if (entry.expiresAt <= now()) {
+    CLIENT_GET_CACHE.delete(cacheKey);
+    return null;
+  }
+  return entry;
+};
+
+const setCachedClientGetResponse = (cacheKey = '', entry = null) => {
+  if (!cacheKey || !entry) return;
+  CLIENT_GET_CACHE.set(cacheKey, entry);
+  if (CLIENT_GET_CACHE.size <= CLIENT_GET_CACHE_MAX_ENTRIES) return;
+  const oldestKey = CLIENT_GET_CACHE.keys().next().value;
+  if (oldestKey) CLIENT_GET_CACHE.delete(oldestKey);
+};
+
+const invalidateClientCacheByPathname = (pathname = '') => {
+  const normalized = String(pathname || '');
+  if (!normalized) return;
+  [...CLIENT_GET_CACHE.keys()].forEach((key) => {
+    if (key.startsWith(`${normalized}?`)) {
+      CLIENT_GET_CACHE.delete(key);
+    }
+  });
+};
+
+const normalizeDataScope = (value = '') => String(value || '').trim().toLowerCase();
+
+const normalizeDataTableName = (value = '') => {
+  const normalized = normalizeDataScope(value);
+  return normalized ? normalized.replace(/\s+/g, '_') : '';
+};
+
+const getDataVersionEntry = (tableName = '') => {
+  const normalized = normalizeDataTableName(tableName);
+  if (!normalized) return null;
+  const existing = DATA_VERSION_STATE.get(normalized);
+  if (existing) return existing;
+  const initial = {
+    table: normalized,
+    version: 1,
+    updatedAt: new Date(0).toISOString(),
+    reason: 'initial',
+  };
+  DATA_VERSION_STATE.set(normalized, initial);
+  return initial;
+};
+
+const buildDataVersionSnapshot = (tables = []) => {
+  const normalizedTables = Array.isArray(tables)
+    ? [...new Set(tables.map(normalizeDataTableName).filter(Boolean))]
+    : [];
+
+  if (!normalizedTables.length) {
+    return {
+      versions: Object.fromEntries(
+        [...DATA_VERSION_STATE.entries()].map(([table, entry]) => [table, entry])
+      ),
+      emittedAt: new Date().toISOString(),
+    };
+  }
+
+  const versions = {};
+  normalizedTables.forEach((table) => {
+    versions[table] = getDataVersionEntry(table);
+  });
+  return {
+    versions,
+    emittedAt: new Date().toISOString(),
+  };
+};
+
+const shouldNotifySubscriber = (subscriber, changedTables = [], scope = 'tables') => {
+  if (!subscriber) return false;
+  if (scope === 'all') return true;
+  if (!Array.isArray(changedTables) || !changedTables.length) return true;
+  if (!subscriber.tables?.size) return true;
+  return changedTables.some((table) => subscriber.tables.has(normalizeDataTableName(table)));
+};
+
+const writeSseEvent = (res, eventName, payload) => {
+  res.write(`event: ${eventName}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+};
+
+const notifyDataVersionSubscribers = ({ tables = [], scope = 'tables', reason = 'write' } = {}) => {
+  const normalizedTables = [...new Set((tables || []).map(normalizeDataTableName).filter(Boolean))];
+  const snapshot = buildDataVersionSnapshot(normalizedTables);
+  const payload = {
+    scope,
+    reason,
+    tables: normalizedTables,
+    snapshot,
+  };
+
+  [...DATA_VERSION_SUBSCRIBERS].forEach((subscriber) => {
+    if (!shouldNotifySubscriber(subscriber, normalizedTables, scope)) return;
+    try {
+      writeSseEvent(subscriber.res, 'version', payload);
+    } catch (_error) {
+      DATA_VERSION_SUBSCRIBERS.delete(subscriber);
+      clearInterval(subscriber.heartbeat);
+    }
+  });
+};
+
+const bumpDataVersions = ({ tables = [], scope = 'tables', reason = 'write' } = {}) => {
+  const normalizedTables = [...new Set((tables || []).map(normalizeDataTableName).filter(Boolean))];
+  const changedTables = [];
+
+  if (scope === 'all') {
+    DATA_VERSION_STATE.forEach((entry, table) => {
+      const nextEntry = {
+        table,
+        version: Number(entry?.version || 0) + 1,
+        updatedAt: new Date().toISOString(),
+        reason,
+      };
+      DATA_VERSION_STATE.set(table, nextEntry);
+      changedTables.push(table);
+    });
+    notifyDataVersionSubscribers({ tables: changedTables, scope, reason });
+    return;
+  }
+
+  normalizedTables.forEach((table) => {
+    const current = getDataVersionEntry(table);
+    const nextEntry = {
+      table,
+      version: Number(current?.version || 0) + 1,
+      updatedAt: new Date().toISOString(),
+      reason,
+    };
+    DATA_VERSION_STATE.set(table, nextEntry);
+    changedTables.push(table);
+  });
+
+  if (changedTables.length) {
+    notifyDataVersionSubscribers({ tables: changedTables, scope, reason });
+  }
+};
+
+const extractTablesFromVersionQuery = (searchParams) => {
+  const rawTables = String(searchParams.get('tables') || '').trim();
+  return rawTables
+    .split(',')
+    .map((value) => normalizeDataTableName(value))
+    .filter(Boolean);
+};
+
+const getTableNameFromDatabasePath = (pathname = '') => {
+  const match = String(pathname || '').match(/^\/api\/database\/records\/([^/]+)/i);
+  if (!match?.[1]) return '';
+  return normalizeDataTableName(decodeURIComponent(match[1]));
+};
+
+const handleDataVersionApi = async (req, res, pathname, searchParams) => {
+  const method = String(req.method || 'GET').toUpperCase();
+  if (method !== 'GET') {
+    json(res, 405, { error: { message: 'Method not allowed.' } });
+    return;
+  }
+
+  const tables = extractTablesFromVersionQuery(searchParams);
+  if (pathname === '/api/data-version/snapshot') {
+    json(res, 200, {
+      data: buildDataVersionSnapshot(tables),
+    });
+    return;
+  }
+
+  if (pathname !== '/api/data-version/stream') {
+    json(res, 404, { error: { message: 'Not found.' } });
+    return;
+  }
+
+  res.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-store',
+    connection: 'keep-alive',
+    'x-accel-buffering': 'no',
+  });
+
+  const subscriber = {
+    res,
+    tables: new Set(tables),
+    heartbeat: null,
+  };
+  DATA_VERSION_SUBSCRIBERS.add(subscriber);
+
+  writeSseEvent(res, 'ready', {
+    ok: true,
+    snapshot: buildDataVersionSnapshot(tables),
+  });
+
+  subscriber.heartbeat = setInterval(() => {
+    try {
+      res.write(`: keep-alive ${Date.now()}\n\n`);
+    } catch (_error) {
+      clearInterval(subscriber.heartbeat);
+      DATA_VERSION_SUBSCRIBERS.delete(subscriber);
+    }
+  }, DATA_VERSION_HEARTBEAT_MS);
+
+  const cleanup = () => {
+    clearInterval(subscriber.heartbeat);
+    DATA_VERSION_SUBSCRIBERS.delete(subscriber);
+  };
+
+  req.on('close', cleanup);
+  req.on('error', cleanup);
+};
+
 const CLIENT_RUNTIME_CONFIG_GLOBAL = '__TECHLOC_RUNTIME_CONFIG__';
 
 const buildClientRuntimeConfig = () => ({
   supabaseUrl: APP_ORIGIN,
-  supabaseAnonKey: SUPABASE_ANON_KEY,
+  supabaseAnonKey: SUPABASE_ANON_KEY || LOCAL_PROXY_PUBLISHABLE_KEY,
   supabaseProjectRef: SUPABASE_PROJECT_REF,
   insforgeUrl: APP_ORIGIN,
-  insforgeAnonKey: SUPABASE_ANON_KEY,
+  insforgeAnonKey: SUPABASE_ANON_KEY || LOCAL_PROXY_PUBLISHABLE_KEY,
   insforgeProjectRef: SUPABASE_PROJECT_REF,
-  provider: 'insforge',
+  provider: DIRECT_PG_ENABLED ? 'supabase' : 'insforge',
 });
 
 const renderClientRuntimeConfigScript = () => {
@@ -265,6 +514,109 @@ const parseSupabaseError = async (response) => {
   }
 };
 
+const runPgBridge = async (payload = {}) => {
+  return new Promise((resolve, reject) => {
+    const child = spawn('python3', [PYTHON_BRIDGE_PATH], {
+      cwd: ROOT_DIR,
+      env: {
+        ...process.env,
+        SUPABASE_DB_HOST,
+        SUPABASE_DB_PORT,
+        SUPABASE_DB_NAME,
+        SUPABASE_DB_USER,
+        SUPABASE_DB_PASSWORD,
+        SUPABASE_DB_SSLMODE,
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += String(chunk || '');
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += String(chunk || '');
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(stderr || `Bridge exited with code ${code}`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout || '{}'));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    child.stdin.write(JSON.stringify(payload));
+    child.stdin.end();
+  });
+};
+
+const buildSessionUser = (bundle = null) => {
+  if (!bundle?.id) return null;
+  return {
+    id: bundle.id,
+    email: bundle.email || null,
+    app_metadata: bundle.raw_app_meta_data || {},
+    user_metadata: bundle.raw_user_meta_data || {},
+    profile: {
+      role: bundle.role || 'user',
+      status: bundle.status || 'active',
+      email: bundle.email || null,
+      name: bundle.name || null,
+      background_mode: bundle.background_mode || 'auto',
+    },
+  };
+};
+
+const createLocalSession = (bundle = null) => {
+  const user = buildSessionUser(bundle);
+  if (!user?.id) return null;
+  const accessToken = randomBytes(24).toString('hex');
+  const refreshToken = randomBytes(32).toString('hex');
+  const session = {
+    userId: user.id,
+    user,
+    accessToken,
+    refreshToken,
+    accessExpiresAt: now() + ACCESS_TOKEN_TTL_MS,
+    refreshExpiresAt: now() + REFRESH_TOKEN_TTL_MS,
+  };
+  ACCESS_SESSIONS.set(accessToken, session);
+  REFRESH_SESSIONS.set(refreshToken, session);
+  return session;
+};
+
+const readAccessSession = (token = '') => {
+  const session = ACCESS_SESSIONS.get(String(token || '').trim());
+  if (!session) return null;
+  if (session.accessExpiresAt <= now()) {
+    ACCESS_SESSIONS.delete(session.accessToken);
+    return null;
+  }
+  return session;
+};
+
+const readRefreshSession = (token = '') => {
+  const session = REFRESH_SESSIONS.get(String(token || '').trim());
+  if (!session) return null;
+  if (session.refreshExpiresAt <= now()) {
+    REFRESH_SESSIONS.delete(session.refreshToken);
+    ACCESS_SESSIONS.delete(session.accessToken);
+    return null;
+  }
+  return session;
+};
+
+const destroyLocalSession = (session = null) => {
+  if (!session) return;
+  ACCESS_SESSIONS.delete(session.accessToken);
+  REFRESH_SESSIONS.delete(session.refreshToken);
+};
+
 const decodeJwtPayload = (token) => {
   const parts = String(token || '').split('.');
   if (parts.length < 2) return null;
@@ -280,17 +632,24 @@ const decodeJwtPayload = (token) => {
 
 const validateConfig = () => {
   const missing = [];
-  if (!SUPABASE_URL) missing.push('SUPABASE_URL');
-  if (!SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY (or SUPABASE_PUBLISHABLE_KEY)');
+  if (!DIRECT_PG_ENABLED) {
+    if (!SUPABASE_URL) missing.push('SUPABASE_URL');
+    if (!SUPABASE_ANON_KEY) missing.push('SUPABASE_ANON_KEY (or SUPABASE_PUBLISHABLE_KEY)');
+  } else {
+    if (!SUPABASE_DB_HOST) missing.push('SUPABASE_DB_HOST');
+    if (!SUPABASE_DB_USER) missing.push('SUPABASE_DB_USER');
+    if (!SUPABASE_DB_PASSWORD) missing.push('SUPABASE_DB_PASSWORD');
+  }
   if (missing.length) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 
-  let host = '';
-  try {
-    host = new URL(SUPABASE_URL).hostname;
-  } catch (_error) {
-    throw new Error(`Invalid SUPABASE_URL: ${SUPABASE_URL}`);
+  if (!DIRECT_PG_ENABLED) {
+    try {
+      new URL(SUPABASE_URL).hostname;
+    } catch (_error) {
+      throw new Error(`Invalid SUPABASE_URL: ${SUPABASE_URL}`);
+    }
   }
 
   let appOriginUrl = null;
@@ -309,6 +668,10 @@ const buildResetPasswordRedirect = () =>
 
 const getUserFromAccessToken = async (token) => {
   if (!token) return null;
+  if (DIRECT_PG_ENABLED) {
+    const session = readAccessSession(token);
+    return session?.user || null;
+  }
   const keyForValidation = SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
   const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     method: 'GET',
@@ -323,6 +686,16 @@ const getUserFromAccessToken = async (token) => {
 
 const getUserProfile = async (userId) => {
   if (!userId) return null;
+  if (DIRECT_PG_ENABLED) {
+    const payload = await runPgBridge({ action: 'get_user_bundle', userId });
+    return payload?.user?.profile || {
+      role: payload?.user?.role || 'user',
+      status: payload?.user?.status || 'active',
+      email: payload?.user?.email || null,
+      name: payload?.user?.name || null,
+      background_mode: payload?.user?.background_mode || 'auto',
+    };
+  }
   const response = await supabaseRequest(
     `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,email&limit=1`
   );
@@ -332,7 +705,7 @@ const getUserProfile = async (userId) => {
 };
 
 const requireAuthorizedRole = async (req, res) => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
     json(res, 500, {
       error: {
         message: 'Secure Supabase proxy is not configured.',
@@ -379,7 +752,7 @@ const requireAuthorizedRole = async (req, res) => {
 };
 
 const requireActiveAdministrator = async (req, res) => {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
     json(res, 500, {
       error: {
         message: 'Secure Supabase proxy is not configured.',
@@ -444,6 +817,15 @@ const resolveUserEmailForReset = async ({ userId }) => {
 const handleAdminApi = async (req, res, pathname) => {
   if (req.method !== 'POST' || pathname !== '/api/admin/password-reset') {
     json(res, 404, { error: { message: 'Not found.' } });
+    return;
+  }
+
+  if (DIRECT_PG_ENABLED) {
+    json(res, 501, {
+      error: {
+        message: 'Password reset link generation is not configured in local Supabase proxy mode.',
+      },
+    });
     return;
   }
 
@@ -516,6 +898,96 @@ const handleAdminApi = async (req, res, pathname) => {
   });
 };
 
+const handleDirectAuthApi = async (req, res, pathname) => {
+  const method = String(req.method || 'GET').toUpperCase();
+
+  if (method === 'POST' && pathname === '/api/auth/sessions') {
+    const body = await parseJsonBody(req);
+    const email = String(body?.email || '').trim().toLowerCase();
+    const password = String(body?.password || '');
+    if (!email || !password) {
+      json(res, 400, { error: { message: 'Email and password are required.' } });
+      return;
+    }
+    const payload = await runPgBridge({ action: 'verify_user_password', email, password });
+    if (!payload?.ok || !payload?.user?.id) {
+      json(res, 401, { error: { message: 'Invalid login credentials.' } });
+      return;
+    }
+    const session = createLocalSession(payload.user);
+    json(res, 200, {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      user: session.user,
+    });
+    return;
+  }
+
+  if (method === 'GET' && pathname === '/api/auth/sessions/current') {
+    const session = readAccessSession(getBearerToken(req));
+    if (!session?.userId) {
+      json(res, 401, { error: { message: 'Invalid or expired access token.' } });
+      return;
+    }
+    const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    const user = buildSessionUser(payload?.user) || session.user;
+    session.user = user;
+    json(res, 200, { user });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/auth/refresh') {
+    const body = await parseJsonBody(req);
+    const session = readRefreshSession(body?.refreshToken || '');
+    if (!session?.userId) {
+      json(res, 401, { error: { message: 'Refresh token is invalid or expired.' } });
+      return;
+    }
+    const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    const nextSession = createLocalSession(payload?.user || session.user);
+    destroyLocalSession(session);
+    json(res, 200, {
+      accessToken: nextSession.accessToken,
+      refreshToken: nextSession.refreshToken,
+      user: nextSession.user,
+    });
+    return;
+  }
+
+  if (method === 'POST' && pathname === '/api/auth/logout') {
+    const session = readAccessSession(getBearerToken(req));
+    destroyLocalSession(session);
+    json(res, 200, { ok: true });
+    return;
+  }
+
+  if (method === 'PATCH' && pathname === '/api/auth/profiles/current') {
+    const session = readAccessSession(getBearerToken(req));
+    if (!session?.userId) {
+      json(res, 401, { error: { message: 'Invalid or expired access token.' } });
+      return;
+    }
+    const body = await parseJsonBody(req);
+    const payload = await runPgBridge({
+      action: 'update_profile',
+      userId: session.userId,
+      profile: body?.profile || {},
+    });
+    json(res, 200, { profile: payload?.profile || null });
+    return;
+  }
+
+  if (
+    (method === 'POST' && pathname === '/api/auth/email/send-reset-password')
+    || (method === 'POST' && pathname === '/api/auth/email/reset-password')
+  ) {
+    json(res, 501, { error: { message: 'Password reset is not configured in local proxy mode.' } });
+    return;
+  }
+
+  json(res, 404, { error: { message: 'Not found.' } });
+};
+
 const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
   const auth = await requireAuthorizedRole(req, res);
   if (!auth) return;
@@ -538,13 +1010,24 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
       order: 'created_at.desc',
     });
 
-    const response = await supabaseRequest(`/rest/v1/${REPAIR_HISTORY_TABLE}?${params.toString()}`);
-    if (!response.ok) {
-      const parsed = await parseSupabaseError(response);
-      json(res, response.status, { error: parsed });
-      return;
-    }
-    const rows = await response.json();
+    const rows = DIRECT_PG_ENABLED
+      ? (await runPgBridge({
+        action: 'query_table',
+        table: REPAIR_HISTORY_TABLE,
+        method: 'GET',
+        query: Object.fromEntries([...params.keys()].map((key) => [key, params.getAll(key)])),
+        prefer: '',
+      }))?.rows || []
+      : await (async () => {
+        const response = await supabaseRequest(`/rest/v1/${REPAIR_HISTORY_TABLE}?${params.toString()}`);
+        if (!response.ok) {
+          const parsed = await parseSupabaseError(response);
+          json(res, response.status, { error: parsed });
+          return null;
+        }
+        return response.json();
+      })();
+    if (rows === null) return;
     json(res, 200, { data: rows || [] });
     return;
   }
@@ -561,17 +1044,29 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
       return;
     }
 
-    const response = await supabaseRequest(`/rest/v1/${REPAIR_HISTORY_TABLE}?select=*`, {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: payload,
-    });
-    if (!response.ok) {
-      const parsed = await parseSupabaseError(response);
-      json(res, response.status, { error: parsed });
-      return;
-    }
-    const rows = await response.json();
+    const rows = DIRECT_PG_ENABLED
+      ? (await runPgBridge({
+        action: 'query_table',
+        table: REPAIR_HISTORY_TABLE,
+        method: 'POST',
+        query: { select: ['*'] },
+        prefer: 'return=representation',
+        body: payload,
+      }))?.rows || []
+      : await (async () => {
+        const response = await supabaseRequest(`/rest/v1/${REPAIR_HISTORY_TABLE}?select=*`, {
+          method: 'POST',
+          headers: { Prefer: 'return=representation' },
+          body: payload,
+        });
+        if (!response.ok) {
+          const parsed = await parseSupabaseError(response);
+          json(res, response.status, { error: parsed });
+          return null;
+        }
+        return response.json();
+      })();
+    if (rows === null) return;
     json(res, 200, { data: rows || [] });
     return;
   }
@@ -594,38 +1089,61 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
       json(res, 400, { error: { message: 'No editable fields in payload.' } });
       return;
     }
-    const response = await supabaseRequest(
-      `/rest/v1/${REPAIR_HISTORY_TABLE}?id=eq.${encodeURIComponent(repairId)}&select=*`,
-      {
+    const rows = DIRECT_PG_ENABLED
+      ? (await runPgBridge({
+        action: 'query_table',
+        table: REPAIR_HISTORY_TABLE,
         method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
+        query: { id: [`eq.${repairId}`], select: ['*'] },
+        prefer: 'return=representation',
         body: payload,
-      }
-    );
-    if (!response.ok) {
-      const parsed = await parseSupabaseError(response);
-      json(res, response.status, { error: parsed });
-      return;
-    }
-    const rows = await response.json();
+      }))?.rows || []
+      : await (async () => {
+        const response = await supabaseRequest(
+          `/rest/v1/${REPAIR_HISTORY_TABLE}?id=eq.${encodeURIComponent(repairId)}&select=*`,
+          {
+            method: 'PATCH',
+            headers: { Prefer: 'return=representation' },
+            body: payload,
+          }
+        );
+        if (!response.ok) {
+          const parsed = await parseSupabaseError(response);
+          json(res, response.status, { error: parsed });
+          return null;
+        }
+        return response.json();
+      })();
+    if (rows === null) return;
     json(res, 200, { data: rows || [] });
     return;
   }
 
   if (req.method === 'DELETE') {
-    const response = await supabaseRequest(
-      `/rest/v1/${REPAIR_HISTORY_TABLE}?id=eq.${encodeURIComponent(repairId)}&select=*`,
-      {
+    const rows = DIRECT_PG_ENABLED
+      ? (await runPgBridge({
+        action: 'query_table',
+        table: REPAIR_HISTORY_TABLE,
         method: 'DELETE',
-        headers: { Prefer: 'return=representation' },
-      }
-    );
-    if (!response.ok) {
-      const parsed = await parseSupabaseError(response);
-      json(res, response.status, { error: parsed });
-      return;
-    }
-    const rows = await response.json();
+        query: { id: [`eq.${repairId}`], select: ['*'] },
+        prefer: 'return=representation',
+      }))?.rows || []
+      : await (async () => {
+        const response = await supabaseRequest(
+          `/rest/v1/${REPAIR_HISTORY_TABLE}?id=eq.${encodeURIComponent(repairId)}&select=*`,
+          {
+            method: 'DELETE',
+            headers: { Prefer: 'return=representation' },
+          }
+        );
+        if (!response.ok) {
+          const parsed = await parseSupabaseError(response);
+          json(res, response.status, { error: parsed });
+          return null;
+        }
+        return response.json();
+      })();
+    if (rows === null) return;
     json(res, 200, { data: rows || [] });
     return;
   }
@@ -647,7 +1165,87 @@ const copyResponseHeaders = (sourceHeaders, overrides = {}) => {
   };
 };
 
+const handleDirectDatabaseApi = async (req, res, pathname, searchParams) => {
+  const method = String(req.method || 'GET').toUpperCase();
+  const authHeader = String(req.headers.authorization || '').trim();
+  const cacheKey = buildClientCacheKey({
+    pathname,
+    search: searchParams.toString(),
+    authHeader,
+  });
+  const cachedGetResponse = method === 'GET' ? getCachedClientGetResponse(cacheKey) : null;
+  if (method !== 'GET' && method !== 'HEAD') {
+    invalidateClientCacheByPathname(pathname);
+  }
+
+  if (pathname.startsWith('/api/database/records/')) {
+    const table = decodeURIComponent(pathname.split('/').pop() || '');
+    const body = ['GET', 'HEAD'].includes(method) ? null : await parseJsonBody(req);
+    const payload = await runPgBridge({
+      action: 'query_table',
+      table,
+      method,
+      query: Object.fromEntries(
+        [...searchParams.keys()].map((key) => [key, searchParams.getAll(key)])
+      ),
+      prefer: String(req.headers.prefer || ''),
+      body,
+    });
+    const responseBody = method === 'HEAD' ? null : Buffer.from(JSON.stringify(payload?.rows || []));
+    const headers = {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+    };
+    if (payload?.count !== null && payload?.count !== undefined) {
+      headers['x-total-count'] = String(payload.count);
+    }
+    if (method === 'GET') {
+      setCachedClientGetResponse(cacheKey, {
+        status: 200,
+        headers: { ...headers, 'x-techloc-cache': 'MISS' },
+        body: responseBody,
+        expiresAt: now() + getClientCacheTtlMs(pathname),
+      });
+    } else {
+      const mutatedTable = getTableNameFromDatabasePath(pathname);
+      if (mutatedTable) {
+        bumpDataVersions({ tables: [mutatedTable], reason: `${method} ${pathname}` });
+      }
+    }
+    res.writeHead(200, headers);
+    res.end(responseBody);
+    return;
+  }
+
+  if (pathname.startsWith('/api/database/rpc/')) {
+    const functionName = decodeURIComponent(pathname.split('/').pop() || '');
+    const body = ['GET', 'HEAD'].includes(method) ? {} : await parseJsonBody(req);
+    const payload = await runPgBridge({
+      action: 'rpc',
+      function: functionName,
+      args: body || {},
+    });
+    if (method !== 'GET' && method !== 'HEAD') {
+      bumpDataVersions({ scope: 'all', reason: `${method} ${pathname}` });
+    }
+    json(res, 200, payload?.result ?? null);
+    return;
+  }
+
+  if (method === 'GET' && cachedGetResponse) {
+    res.writeHead(cachedGetResponse.status, cachedGetResponse.headers);
+    res.end(cachedGetResponse.body);
+    return;
+  }
+
+  json(res, 404, { error: { message: 'Not found.' } });
+};
+
 const handleClientApiProxy = async (req, res, pathname, searchParams) => {
+  if (DIRECT_PG_ENABLED) {
+    await handleDirectDatabaseApi(req, res, pathname, searchParams);
+    return;
+  }
   const proxiedPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
   const targetUrl = `${SUPABASE_URL}${proxiedPath}`;
   const method = String(req.method || 'GET').toUpperCase();
@@ -662,6 +1260,16 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   } else {
     requestHeaders.authorization = `Bearer ${SUPABASE_ANON_KEY}`;
   }
+  const cacheKey = buildClientCacheKey({
+    pathname,
+    search: searchParams.toString(),
+    authHeader: requestHeaders.authorization,
+  });
+  const cachedGetResponse = method === 'GET' ? getCachedClientGetResponse(cacheKey) : null;
+  const mutatedTable = getTableNameFromDatabasePath(pathname);
+  if (method !== 'GET' && method !== 'HEAD') {
+    invalidateClientCacheByPathname(pathname);
+  }
 
   const passthroughHeaders = [
     'content-type',
@@ -675,19 +1283,71 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     requestHeaders[headerName] = Array.isArray(value) ? value.join(', ') : String(value);
   });
 
-  const response = await fetch(targetUrl, {
-    method,
-    headers: requestHeaders,
-    body: rawBody,
-  });
+  try {
+    const response = await fetch(targetUrl, {
+      method,
+      headers: requestHeaders,
+      body: rawBody,
+    });
 
-  const responseBuffer = Buffer.from(await response.arrayBuffer());
-  res.writeHead(response.status, copyResponseHeaders(response.headers));
-  if (method === 'HEAD') {
-    res.end();
-    return;
+    const responseBuffer = Buffer.from(await response.arrayBuffer());
+    if (method === 'GET' && response.ok) {
+      setCachedClientGetResponse(cacheKey, {
+        status: response.status,
+        headers: copyResponseHeaders(response.headers, { 'x-techloc-cache': 'MISS' }),
+        body: responseBuffer,
+        expiresAt: now() + getClientCacheTtlMs(pathname),
+      });
+    }
+
+    if (method === 'GET' && response.status === 429 && cachedGetResponse) {
+      res.writeHead(
+        cachedGetResponse.status,
+        {
+          ...cachedGetResponse.headers,
+          'x-techloc-cache': 'STALE',
+          'x-techloc-upstream-status': '429',
+        }
+      );
+      res.end(cachedGetResponse.body);
+      return;
+    }
+
+    if (response.ok && method !== 'GET' && method !== 'HEAD') {
+      if (mutatedTable) {
+        bumpDataVersions({
+          tables: [mutatedTable],
+          reason: `${method} ${pathname}`,
+        });
+      } else if (pathname.startsWith('/api/database/rpc/')) {
+        bumpDataVersions({
+          scope: 'all',
+          reason: `${method} ${pathname}`,
+        });
+      }
+    }
+
+    res.writeHead(response.status, copyResponseHeaders(response.headers));
+    if (method === 'HEAD') {
+      res.end();
+      return;
+    }
+    res.end(responseBuffer);
+  } catch (error) {
+    if (method === 'GET' && cachedGetResponse) {
+      res.writeHead(
+        cachedGetResponse.status,
+        {
+          ...cachedGetResponse.headers,
+          'x-techloc-cache': 'STALE',
+          'x-techloc-upstream-status': 'NETWORK_ERROR',
+        }
+      );
+      res.end(cachedGetResponse.body);
+      return;
+    }
+    throw error;
   }
-  res.end(responseBuffer);
 };
 
 const serveStatic = async (req, res, pathname) => {
@@ -755,8 +1415,18 @@ const start = () => {
         return;
       }
 
+      if (pathname === '/api/data-version/snapshot' || pathname === '/api/data-version/stream') {
+        await handleDataVersionApi(req, res, pathname, searchParams);
+        return;
+      }
+
       if (pathname === '/api/repair-history' || pathname.startsWith('/api/repair-history/')) {
         await handleRepairHistoryApi(req, res, pathname, searchParams);
+        return;
+      }
+
+      if (DIRECT_PG_ENABLED && pathname.startsWith('/api/auth/')) {
+        await handleDirectAuthApi(req, res, pathname);
         return;
       }
 

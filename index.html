@@ -117,6 +117,7 @@
   <script type="module">
     import { setupBackgroundManager } from './assets/scripts/backgroundManager.js';
     import { supabase as supabaseClient } from './assets/js/supabaseClient.js?v=20260411-02';
+    import { clearPendingDataVersion, fetchDataVersionSnapshot, subscribeToDataVersionStream } from './assets/scripts/dataVersionClient.js?v=20260411-01';
 
     const getValidClient = () => {
       const client = supabaseClient || window.supabaseClient || null;
@@ -124,20 +125,53 @@
       return client;
     };
 
-    const safeSessionStorageGet = (key) => {
+    const HOME_STATS_TABLE = 'services';
+    const HOME_STATS_CACHE_KEY = 'techloc_home_stats:v2';
+    const HOME_STATS_CACHE_DURATION = 24 * 60 * 60 * 1000;
+    let latestHomeStatsVersion = 0;
+    let activeHomeStatsRefresh = null;
+    let homeStatsStreamCleanup = null;
+
+    const safeStorageGet = (key) => {
       try {
-        return sessionStorage.getItem(key);
+        return localStorage.getItem(key);
       } catch (_error) {
         return null;
       }
     };
 
-    const safeSessionStorageSet = (key, value) => {
+    const safeStorageSet = (key, value) => {
       try {
-        sessionStorage.setItem(key, value);
+        localStorage.setItem(key, value);
       } catch (_error) {
         // Non-blocking on restricted storage environments.
       }
+    };
+
+    const readCachedHomeStats = () => {
+      const raw = safeStorageGet(HOME_STATS_CACHE_KEY);
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw);
+      } catch (_error) {
+        return null;
+      }
+    };
+
+    const renderHomeStats = ({ totalCount = 0, availableCount = 0, uniqueStates = 0, avgRating = 0 } = {}) => {
+      animateValue('tech-count', 0, totalCount ?? 0, 1200);
+      animateValue('available-count', 0, availableCount ?? 0, 1200);
+      animateValue('states-count', 0, uniqueStates ?? 0, 1200);
+      animateValue('avg-rating', 0, avgRating ?? 0, 1200);
+    };
+
+    const acknowledgeHomeStatsVersion = (version = latestHomeStatsVersion) => {
+      const normalizedVersion = Number(version || 0);
+      if (!normalizedVersion) return;
+      clearPendingDataVersion({
+        table: HOME_STATS_TABLE,
+        version: normalizedVersion,
+      });
     };
 
     // --- 1. LÓGICA DE ESTADÍSTICAS (SUPABASE) ---
@@ -174,11 +208,7 @@
       requestAnimationFrame(step);
     };
 
-    const fetchServiceStats = async () => {
-      const CACHE_KEY = 'techloc_home_stats';
-      const CACHE_DURATION = 300000; // 5 minutos
-
-      // Intentamos obtener el cliente desde window (definido en supabaseClient.js)
+    const fetchServiceStats = async ({ force = false, version = latestHomeStatsVersion } = {}) => {
       const client = getValidClient();
 
       if (!client) {
@@ -186,75 +216,112 @@
         return;
       }
 
-      const cachedStats = safeSessionStorageGet(CACHE_KEY);
-      if (cachedStats) {
-        try {
-          const { totalCount, availableCount, uniqueStates, avgRating, timestamp } = JSON.parse(cachedStats);
-
-          const isFresh = typeof timestamp === 'number'
-            && (Date.now() - timestamp) < CACHE_DURATION;
-
-          if (isFresh) {
-            animateValue('tech-count', 0, totalCount ?? 0, 2000);
-            animateValue('available-count', 0, availableCount ?? 0, 2000);
-            animateValue('states-count', 0, uniqueStates ?? 0, 2000);
-            animateValue('avg-rating', 0, avgRating ?? 0, 2000);
-            return;
-          }
-        } catch (parseError) {
-          console.warn('Invalid cached stats, fetching fresh data.');
-        }
+      const cachedStats = readCachedHomeStats();
+      const cacheVersion = Number(cachedStats?.version || 0);
+      const cacheAgeMs = Date.now() - Number(cachedStats?.timestamp || 0);
+      const hasFreshCache = Boolean(cachedStats) && Number.isFinite(cacheAgeMs) && cacheAgeMs < HOME_STATS_CACHE_DURATION;
+      const shouldUseCache = !force && hasFreshCache && cacheVersion >= Number(version || 0);
+      if (shouldUseCache) {
+        latestHomeStatsVersion = Math.max(latestHomeStatsVersion, cacheVersion);
+        renderHomeStats(cachedStats);
+        acknowledgeHomeStatsVersion(cacheVersion);
+        return cachedStats;
       }
 
-      try {
-        // Consultamos la tabla 'Services' en Supabase para obtener las métricas en vivo.
+      if (activeHomeStatsRefresh) {
+        return activeHomeStatsRefresh;
+      }
+
+      activeHomeStatsRefresh = (async () => {
         const { data = [], error, count } = await client
           .from('Services')
           .select('state, status, availability', { count: 'exact' });
 
         if (error) {
-            console.error('Error fetching stats:', error);
-            throw error;
+          console.error('Error fetching stats:', error);
+          throw error;
         }
 
-        // A. Total Partners: Total de filas retornadas
         const totalCount = count ?? data.length ?? 0;
-
-        // B. Available Now: Filtramos filas que tengan "24/7", "Available" o "Active"
         const availableCount = data.filter(row => {
-            const availText = String(row.availability || '').toLowerCase();
-            const statusText = String(row.status || '').toLowerCase();
-            return availText.includes('24/7') || statusText === 'available' || statusText === 'active';
+          const availText = String(row.availability || '').toLowerCase();
+          const statusText = String(row.status || '').toLowerCase();
+          return availText.includes('24/7') || statusText === 'available' || statusText === 'active';
         }).length;
-
-        // C. States Active: Contamos estados únicos (ignorando mayúsculas/minúsculas)
         const uniqueStates = new Set(
-            data
+          data
             .map(row => row.state ? row.state.trim().toUpperCase() : null)
-            .filter(Boolean) // Elimina valores nulos
+            .filter(Boolean)
         ).size;
-
-        // D. SLA Rating: Valor estático alto (hasta que tengas columna de rating real)
         const avgRating = 4.8;
-
-        safeSessionStorageSet(CACHE_KEY, JSON.stringify({
+        const nextVersion = Number(version || latestHomeStatsVersion || 1);
+        const payload = {
           totalCount,
           availableCount,
           uniqueStates,
           avgRating,
           timestamp: Date.now(),
-        }));
+          version: nextVersion,
+        };
 
-        // Actualizamos el DOM con animación
-        animateValue('tech-count', 0, totalCount, 2000);
-        animateValue('available-count', 0, availableCount, 2000);
-        animateValue('states-count', 0, uniqueStates, 2000);
-        animateValue('avg-rating', 0, avgRating, 2000);
+        latestHomeStatsVersion = nextVersion;
+        safeStorageSet(HOME_STATS_CACHE_KEY, JSON.stringify(payload));
+        renderHomeStats(payload);
+        acknowledgeHomeStatsVersion(nextVersion);
+        return payload;
+      })()
+        .catch((err) => {
+          const fallback = readCachedHomeStats();
+          if (fallback) {
+            renderHomeStats(fallback);
+            acknowledgeHomeStatsVersion(fallback.version || latestHomeStatsVersion);
+            return fallback;
+          }
+          throw err;
+        })
+        .finally(() => {
+          activeHomeStatsRefresh = null;
+        });
 
+      try {
+        return await activeHomeStatsRefresh;
       } catch (err) {
-        // En caso de error, dejamos los guiones o ponemos 0
         console.warn('Could not load live stats');
+        return null;
       }
+    };
+
+    const initializeHomeStatsSync = async () => {
+      const cachedStats = readCachedHomeStats();
+      if (cachedStats) {
+        latestHomeStatsVersion = Number(cachedStats.version || 0);
+        renderHomeStats(cachedStats);
+      }
+
+      try {
+        const versions = await fetchDataVersionSnapshot({ tables: [HOME_STATS_TABLE] });
+        const currentVersion = Number(versions?.[HOME_STATS_TABLE]?.version || 0);
+        latestHomeStatsVersion = Math.max(latestHomeStatsVersion, currentVersion);
+        const shouldRefresh = !cachedStats || Number(cachedStats?.version || 0) < currentVersion;
+        await fetchServiceStats({ force: shouldRefresh, version: currentVersion });
+        if (!shouldRefresh) acknowledgeHomeStatsVersion(currentVersion || cachedStats?.version || 0);
+      } catch (error) {
+        await fetchServiceStats({ force: !cachedStats });
+      }
+
+      homeStatsStreamCleanup?.();
+      homeStatsStreamCleanup = subscribeToDataVersionStream({
+        tables: [HOME_STATS_TABLE],
+        onVersion: async (payload) => {
+          const nextVersion = Number(payload?.snapshot?.versions?.[HOME_STATS_TABLE]?.version || 0);
+          if (!nextVersion || nextVersion <= latestHomeStatsVersion) return;
+          latestHomeStatsVersion = nextVersion;
+          await fetchServiceStats({ force: true, version: nextVersion });
+        },
+        onError: (error) => {
+          console.warn('Home stats data-version stream error.', error);
+        },
+      });
     };
 
     // --- 2. LÓGICA DE LOG IN / LOG OUT ---
@@ -344,12 +411,11 @@
       // Ejecutar lógica de autenticación
       handleAuthUI();
 
-      // Cargar estadísticas de la base de datos
-      fetchServiceStats().catch((error) => {
+      initializeHomeStatsSync().catch((error) => {
         console.warn('Home stats load warning:', error);
       });
     });
   </script>
-  <script type="module" src="assets/scripts/sharedHeader.js?v=20260410-03"></script>
+  <script type="module" src="assets/scripts/sharedHeader.js?v=20260411-02"></script>
 </body>
 </html>

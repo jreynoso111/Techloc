@@ -112,6 +112,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
     const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 8;
     const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 1;
     const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 420;
+    const VEHICLE_TABLE_IS_CANONICAL_SOURCE = true;
     let sidebarStateController = null;
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
@@ -3125,7 +3126,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
 
     const hydrateVehiclePtSnapshotQuick = async (
       vehicle,
-      { force = false, rerenderOnChange = true } = {}
+      { force = false, rerenderOnChange = true, persistChanges = !VEHICLE_TABLE_IS_CANONICAL_SOURCE } = {}
     ) => {
       if (!vehicle || !gpsHistoryManager || typeof gpsHistoryManager.fetchGpsHistory !== 'function') return false;
 
@@ -3247,7 +3248,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
 
         if (Object.keys(patch).length) {
           applyVehiclePtPersistencePatch(vehicle, patch);
-          void persistVehiclePtPersistencePatch(vehicle, patch);
+          if (persistChanges) {
+            void persistVehiclePtPersistencePatch(vehicle, patch);
+          }
           changed = true;
         }
 
@@ -3300,6 +3303,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
     };
 
     const hydrateInitialVisibleVehicleSnapshots = async () => {
+      if (VEHICLE_TABLE_IS_CANONICAL_SOURCE) return;
       const priorityVehicles = collectPriorityVehicleSnapshotTargets();
       if (!priorityVehicles.length) return;
 
@@ -3316,7 +3320,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
 
     const hydrateVehiclePtSnapshotFromGpsHistory = async (
       vehicle,
-      { force = false } = {}
+      { force = false, persistChanges = !VEHICLE_TABLE_IS_CANONICAL_SOURCE } = {}
     ) => {
       if (!vehicle || !gpsHistoryManager || typeof gpsHistoryManager.fetchGpsHistory !== 'function') return false;
 
@@ -3447,7 +3451,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
 
         if (Object.keys(patch).length) {
           applyVehiclePtPersistencePatch(vehicle, patch);
-          void persistVehiclePtPersistencePatch(vehicle, patch);
+          if (persistChanges) {
+            void persistVehiclePtPersistencePatch(vehicle, patch);
+          }
           changed = true;
         }
 
@@ -3468,6 +3474,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
       visibleVehicles = [],
       { rerenderOnChange = true } = {}
     ) => {
+      if (VEHICLE_TABLE_IS_CANONICAL_SOURCE) return;
       if (!Array.isArray(visibleVehicles) || !visibleVehicles.length) return;
 
       const candidates = visibleVehicles
@@ -3513,7 +3520,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
       vehicleBackgroundPrefetchTimer = window.setTimeout(() => {
         vehicleBackgroundPrefetchTimer = null;
         const run = () => {
-          void preloadVisibleVehiclePtSnapshots(candidates);
+          if (!VEHICLE_TABLE_IS_CANONICAL_SOURCE) {
+            void preloadVisibleVehiclePtSnapshots(candidates);
+          }
           void preloadVisibleVehicleMarkerHeadings(candidates);
         };
         if (typeof window.requestIdleCallback === 'function') {
@@ -8279,8 +8288,13 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
       }
       renderVehicles({ preserveScrollTop: true, syncMarkers: false });
       if (willExpand && vehicle) {
-        void hydrateVehiclePtSnapshotQuick(vehicle, { force: true });
-        void hydrateVehiclePtSnapshotFromGpsHistory(vehicle);
+        void hydrateVehiclePtSnapshotQuick(vehicle, {
+          force: true,
+          persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+        });
+        void hydrateVehiclePtSnapshotFromGpsHistory(vehicle, {
+          persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+        });
         void hydrateVehicleAverageMovingMilesPerDay(vehicle);
       }
     }
@@ -8893,10 +8907,16 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
       if (shouldAutoExpandCard) {
         pinVehicleListCardPosition(vehicleKey);
         expandedVehicleCardKeys.add(vehicleKey);
-        void hydrateVehiclePtSnapshotQuick(vehicle, { force: true });
+        void hydrateVehiclePtSnapshotQuick(vehicle, {
+          force: true,
+          persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+        });
         void hydrateVehicleAverageMovingMilesPerDay(vehicle);
       }
-      void hydrateVehiclePtSnapshotQuick(vehicle, { force: true });
+      void hydrateVehiclePtSnapshotQuick(vehicle, {
+        force: true,
+        persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+      });
       const storedMarker = vehicleMarkers.get(vehicleKey)?.marker;
       const markerColor = getVehicleMarkerColor(vehicle);
       const anchorMarker = storedMarker || L.circleMarker([vehicleCoords.lat, vehicleCoords.lng], {

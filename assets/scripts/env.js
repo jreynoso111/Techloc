@@ -1,7 +1,7 @@
-const DEFAULT_BACKEND_PROVIDER = 'insforge';
-const DEFAULT_SUPABASE_PROJECT_REF = '3m4gbnnf';
-const DEFAULT_SUPABASE_URL = 'https://3m4gbnnf.us-east.insforge.app';
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3ODIyMTZ9._iXoO7BJ8C1qAb5ANBWQfL23PTzjcFtu7v3tHgeIdQs';
+const DEFAULT_BACKEND_PROVIDER = 'supabase';
+const DEFAULT_SUPABASE_PROJECT_REF = 'blgpsrmcahjpihdkkkrk';
+const DEFAULT_SUPABASE_URL = 'http://127.0.0.1:8080';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
 
 const getRuntimeConfig = () => {
   const browserConfig = (

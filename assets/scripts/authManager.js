@@ -10,6 +10,8 @@ import {
     console.warn('Supabase session APIs unavailable.');
   }
   const PROFILE_LOOKUP_TIMEOUT_MS = 2200;
+  const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+  const profileCache = new Map();
 
   const whenDomReady = new Promise((resolve) => {
     if (document.readyState !== 'loading') {
@@ -145,6 +147,10 @@ import {
 
   // --- NUEVO: Función para obtener el rol y estado desde la tabla profiles ---
   const fetchUserProfile = async (userId, fallbackProfile = { role: 'user', status: 'active', email: null }) => {
+    const cached = profileCache.get(userId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
     try {
       const { data, error } = await withTimeout(
         supabaseClient
@@ -159,11 +165,13 @@ import {
       if (error || !data)
         return fallbackProfile; // Valores por defecto si falla
 
-      return {
+      const resolvedProfile = {
         role: normalizeAccessValue(data.role, fallbackProfile.role || 'user'),
         status: normalizeAccessValue(data.status, fallbackProfile.status || 'active'),
         email: data.email || fallbackProfile.email || null,
       };
+      profileCache.set(userId, { value: resolvedProfile, expiresAt: Date.now() + PROFILE_CACHE_TTL_MS });
+      return resolvedProfile;
     } catch (err) {
       const isTimeout = String(err?.name || '') === 'TimeoutError';
       console.warn(isTimeout ? 'Profile lookup timed out; using fallback role.' : 'Error fetching role:', err);
