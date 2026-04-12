@@ -66,7 +66,8 @@ const SUPABASE_DB_NAME = String(process.env.SUPABASE_DB_NAME || 'postgres').trim
 const SUPABASE_DB_USER = String(process.env.SUPABASE_DB_USER || '').trim();
 const SUPABASE_DB_PASSWORD = String(process.env.SUPABASE_DB_PASSWORD || '').trim();
 const SUPABASE_DB_SSLMODE = String(process.env.SUPABASE_DB_SSLMODE || 'require').trim();
-const DIRECT_PG_ENABLED = Boolean(SUPABASE_DB_HOST && SUPABASE_DB_USER && SUPABASE_DB_PASSWORD);
+const IS_VERCEL_RUNTIME = String(process.env.VERCEL || '').trim() === '1';
+const DIRECT_PG_ENABLED = !IS_VERCEL_RUNTIME && Boolean(SUPABASE_DB_HOST && SUPABASE_DB_USER && SUPABASE_DB_PASSWORD);
 const LOCAL_PROXY_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
 const PYTHON_BRIDGE_PATH = path.join(ROOT_DIR, 'scripts', 'supabase_pg_bridge.py');
 
@@ -1246,10 +1247,9 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     await handleDirectDatabaseApi(req, res, pathname, searchParams);
     return;
   }
-  const proxiedPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-  const targetUrl = `${SUPABASE_URL}${proxiedPath}`;
   const method = String(req.method || 'GET').toUpperCase();
   const rawBody = ['GET', 'HEAD'].includes(method) ? null : await readRawBody(req);
+  let targetUrl = '';
   const requestHeaders = {
     apikey: SUPABASE_ANON_KEY,
   };
@@ -1282,6 +1282,144 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     if (!value) return;
     requestHeaders[headerName] = Array.isArray(value) ? value.join(', ') : String(value);
   });
+
+  if (pathname === '/api/auth/sessions' && method === 'POST') {
+    targetUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
+  } else if (pathname === '/api/auth/sessions/current' && method === 'GET') {
+    targetUrl = `${SUPABASE_URL}/auth/v1/user`;
+  } else if (pathname === '/api/auth/refresh' && method === 'POST') {
+    targetUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`;
+  } else if (pathname === '/api/auth/logout' && method === 'POST') {
+    targetUrl = `${SUPABASE_URL}/auth/v1/logout`;
+  } else if (pathname === '/api/auth/email/send-reset-password' && method === 'POST') {
+    targetUrl = `${SUPABASE_URL}/auth/v1/recover`;
+  } else if (pathname === '/api/database/rpc/' || pathname.startsWith('/api/database/rpc/')) {
+    const functionName = decodeURIComponent(pathname.split('/').pop() || '');
+    targetUrl = `${SUPABASE_URL}/rest/v1/rpc/${encodeURIComponent(functionName)}`;
+  } else if (pathname === '/api/database/records/' || pathname.startsWith('/api/database/records/')) {
+    const table = decodeURIComponent(pathname.split('/').pop() || '');
+    targetUrl = `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  } else if (pathname === '/api/auth/profiles/current' && method === 'PATCH') {
+    const token = getBearerToken(req);
+    const auth = token ? await getUserFromAccessToken(token) : null;
+    if (!auth?.user?.id) {
+      json(res, 401, { error: { message: 'Invalid or expired access token.' } });
+      return;
+    }
+    targetUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(auth.user.id)}`;
+    requestHeaders.prefer = requestHeaders.prefer || 'return=representation';
+  } else {
+    const proxiedPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+    targetUrl = `${SUPABASE_URL}${proxiedPath}`;
+  }
+
+  if (pathname === '/api/auth/sessions' && method === 'POST' && rawBody) {
+    try {
+      const parsed = JSON.parse(rawBody.toString('utf8'));
+      const body = JSON.stringify({
+        email: parsed?.email || '',
+        password: parsed?.password || '',
+      });
+      requestHeaders['content-type'] = 'application/json';
+      requestHeaders.authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+      requestHeaders.apikey = SUPABASE_ANON_KEY;
+      const response = await fetch(targetUrl, {
+        method,
+        headers: requestHeaders,
+        body,
+      });
+      const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
+      if (!response.ok) {
+        json(res, response.status, payload?.error || payload?.msg
+          ? { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Unable to sign in.' } }
+          : { error: { message: 'Unable to sign in.' } });
+        return;
+      }
+      json(res, 200, {
+        accessToken: payload.access_token || null,
+        refreshToken: payload.refresh_token || null,
+        user: payload.user || null,
+      });
+      return;
+    } catch (error) {
+      json(res, 500, { error: { message: error?.message || 'Unable to sign in.' } });
+      return;
+    }
+  }
+
+  if (pathname === '/api/auth/refresh' && method === 'POST' && rawBody) {
+    try {
+      const parsed = JSON.parse(rawBody.toString('utf8'));
+      const body = JSON.stringify({
+        refresh_token: parsed?.refreshToken || '',
+      });
+      requestHeaders['content-type'] = 'application/json';
+      requestHeaders.authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+      requestHeaders.apikey = SUPABASE_ANON_KEY;
+      const response = await fetch(targetUrl, {
+        method,
+        headers: requestHeaders,
+        body,
+      });
+      const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
+      if (!response.ok) {
+        json(res, response.status, { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Unable to refresh session.' } });
+        return;
+      }
+      json(res, 200, {
+        accessToken: payload.access_token || null,
+        refreshToken: payload.refresh_token || null,
+        user: payload.user || null,
+      });
+      return;
+    } catch (error) {
+      json(res, 500, { error: { message: error?.message || 'Unable to refresh session.' } });
+      return;
+    }
+  }
+
+  if (pathname === '/api/auth/sessions/current' && method === 'GET') {
+    try {
+      requestHeaders.authorization = authHeader || '';
+      const response = await fetch(targetUrl, {
+        method,
+        headers: requestHeaders,
+      });
+      const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
+      if (!response.ok) {
+        json(res, response.status, { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Unable to resolve current user.' } });
+        return;
+      }
+      json(res, 200, { user: payload || null });
+      return;
+    } catch (error) {
+      json(res, 500, { error: { message: error?.message || 'Unable to resolve current user.' } });
+      return;
+    }
+  }
+
+  if (pathname === '/api/auth/profiles/current' && method === 'PATCH' && rawBody) {
+    try {
+      const parsed = JSON.parse(rawBody.toString('utf8'));
+      const body = JSON.stringify(parsed?.profile || {});
+      requestHeaders['content-type'] = 'application/json';
+      const response = await fetch(targetUrl, {
+        method,
+        headers: requestHeaders,
+        body,
+      });
+      const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
+      if (!response.ok) {
+        json(res, response.status, { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Could not update profile.' } });
+        return;
+      }
+      json(res, 200, { profile: Array.isArray(payload) ? (payload[0] || null) : payload });
+      return;
+    } catch (error) {
+      json(res, 500, { error: { message: error?.message || 'Could not update profile.' } });
+      return;
+    }
+  }
 
   try {
     const response = await fetch(targetUrl, {
