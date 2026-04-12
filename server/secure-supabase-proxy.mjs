@@ -11,8 +11,8 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DEFAULT_SUPABASE_URL = 'https://3m4gbnnf.us-east.insforge.app';
-const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3OC0xMjM0LTU2NzgtOTBhYi1jZGVmMTIzNDU2NzgiLCJlbWFpbCI6ImFub25AaW5zZm9yZ2UuY29tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3ODIyMTZ9._iXoO7BJ8C1qAb5ANBWQfL23PTzjcFtu7v3tHgeIdQs';
+const DEFAULT_SUPABASE_URL = '';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = '';
 
 const loadDotEnvFile = () => {
   const envPath = path.join(ROOT_DIR, '.env');
