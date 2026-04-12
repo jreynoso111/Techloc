@@ -1,6 +1,13 @@
 const DEFAULT_BACKEND_PROVIDER = 'supabase';
 const DEFAULT_SUPABASE_PROJECT_REF = 'blgpsrmcahjpihdkkkrk';
-const DEFAULT_SUPABASE_URL = 'http://127.0.0.1:8080';
+const resolveDefaultSupabaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const origin = `${window.location.origin}`.trim();
+    if (origin && !origin.startsWith('file:')) return origin;
+  }
+  return 'http://127.0.0.1:8080';
+};
+const DEFAULT_SUPABASE_URL = resolveDefaultSupabaseUrl();
 const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
 
 const getRuntimeConfig = () => {

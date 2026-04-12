@@ -1398,61 +1398,68 @@ const serveStatic = async (req, res, pathname) => {
   }
 };
 
-const start = () => {
-  validateConfig();
+export const createRequestHandler = () => async (req, res) => {
+  try {
+    const url = new URL(req.url || '/', `${APP_ORIGIN}/`);
+    const { pathname, searchParams } = url;
 
-  const server = createServer(async (req, res) => {
-    try {
-      const url = new URL(req.url || '/', `${APP_ORIGIN}/`);
-      const { pathname, searchParams } = url;
-
-      if (pathname === '/api/health') {
-        json(res, 200, {
-          ok: true,
-          service: 'secure-supabase-proxy',
-          table: REPAIR_HISTORY_TABLE,
-        });
-        return;
-      }
-
-      if (pathname === '/api/data-version/snapshot' || pathname === '/api/data-version/stream') {
-        await handleDataVersionApi(req, res, pathname, searchParams);
-        return;
-      }
-
-      if (pathname === '/api/repair-history' || pathname.startsWith('/api/repair-history/')) {
-        await handleRepairHistoryApi(req, res, pathname, searchParams);
-        return;
-      }
-
-      if (DIRECT_PG_ENABLED && pathname.startsWith('/api/auth/')) {
-        await handleDirectAuthApi(req, res, pathname);
-        return;
-      }
-
-      if (pathname.startsWith('/api/database/') || pathname.startsWith('/api/auth/')) {
-        await handleClientApiProxy(req, res, pathname, searchParams);
-        return;
-      }
-
-      if (pathname === '/api/admin/password-reset') {
-        await handleAdminApi(req, res, pathname);
-        return;
-      }
-
-      await serveStatic(req, res, pathname);
-    } catch (error) {
-      json(res, 500, {
-        error: {
-          message: error?.message || 'Unhandled server error.',
-        },
+    if (pathname === '/api/health') {
+      json(res, 200, {
+        ok: true,
+        service: 'secure-supabase-proxy',
+        table: REPAIR_HISTORY_TABLE,
       });
+      return;
     }
-  });
+
+    if (pathname === '/api/data-version/snapshot' || pathname === '/api/data-version/stream') {
+      await handleDataVersionApi(req, res, pathname, searchParams);
+      return;
+    }
+
+    if (pathname === '/api/repair-history' || pathname.startsWith('/api/repair-history/')) {
+      await handleRepairHistoryApi(req, res, pathname, searchParams);
+      return;
+    }
+
+    if (DIRECT_PG_ENABLED && pathname.startsWith('/api/auth/')) {
+      await handleDirectAuthApi(req, res, pathname);
+      return;
+    }
+
+    if (pathname.startsWith('/api/database/') || pathname.startsWith('/api/auth/')) {
+      await handleClientApiProxy(req, res, pathname, searchParams);
+      return;
+    }
+
+    if (pathname === '/api/admin/password-reset') {
+      await handleAdminApi(req, res, pathname);
+      return;
+    }
+
+    await serveStatic(req, res, pathname);
+  } catch (error) {
+    json(res, 500, {
+      error: {
+        message: error?.message || 'Unhandled server error.',
+      },
+    });
+  }
+};
+
+export const start = () => {
+  validateConfig();
+  const handler = createRequestHandler();
+
+  const server = createServer(handler);
 
   server.listen(PORT, () => {
     console.log(`[secure-proxy] running at http://127.0.0.1:${PORT}`);
   });
 };
 
-start();
+const isDirectExecution = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+
+if (isDirectExecution) {
+  start();
+}
