@@ -1465,14 +1465,6 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   } else if (pathname === '/api/database/records/' || pathname.startsWith('/api/database/records/')) {
     const table = decodeURIComponent(pathname.split('/').pop() || '');
     targetUrl = `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
-  } else if (pathname === '/api/auth/profiles/current' && method === 'GET') {
-    const token = getBearerToken(req);
-    const auth = token ? await getUserFromAccessToken(token) : null;
-    if (!auth?.id) {
-      json(res, 401, { error: { message: 'Invalid or expired access token.' } });
-      return;
-    }
-    targetUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`;
   } else if (pathname === '/api/auth/profiles/current' && method === 'PATCH') {
     const token = getBearerToken(req);
     const auth = token ? await getUserFromAccessToken(token) : null;
@@ -1574,10 +1566,16 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
 
   if (pathname === '/api/auth/profiles/current' && method === 'GET') {
     try {
-      const response = await fetch(targetUrl, {
-        method,
-        headers: requestHeaders,
-      });
+      const token = getBearerToken(req);
+      const auth = token ? await getUserFromAccessToken(token) : null;
+      if (!auth?.id) {
+        json(res, 401, { error: { message: 'Invalid or expired access token.' } });
+        return;
+      }
+
+      const response = await supabaseRequest(
+        `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`
+      );
       const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
       if (!response.ok) {
         json(res, response.status, { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Could not load profile.' } });
