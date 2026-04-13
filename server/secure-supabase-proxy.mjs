@@ -565,6 +565,27 @@ const supabaseRequest = async (
   return fetch(`${SUPABASE_URL}${endpoint}`, requestOptions);
 };
 
+const supabaseUserRequest = async (
+  endpoint,
+  accessToken,
+  { method = 'GET', body = null, headers = {} } = {}
+) => {
+  const requestHeaders = {
+    apikey: SUPABASE_ANON_KEY,
+    authorization: `Bearer ${accessToken}`,
+    ...headers,
+  };
+  const requestOptions = {
+    method,
+    headers: requestHeaders,
+  };
+  if (body !== null) {
+    requestOptions.body = JSON.stringify(body);
+    requestHeaders['content-type'] = 'application/json';
+  }
+  return fetch(`${SUPABASE_URL}${endpoint}`, requestOptions);
+};
+
 const parseSupabaseError = async (response) => {
   try {
     const payload = await response.json();
@@ -758,7 +779,7 @@ const getUserFromAccessToken = async (token) => {
   return response.json();
 };
 
-const getUserProfile = async (userId) => {
+const getUserProfile = async (userId, accessToken = '') => {
   if (!userId) return null;
   if (DIRECT_PG_ENABLED) {
     const payload = await runPgBridge({ action: 'get_user_bundle', userId });
@@ -770,16 +791,27 @@ const getUserProfile = async (userId) => {
       background_mode: payload?.user?.background_mode || 'auto',
     };
   }
-  const response = await supabaseRequest(
-    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,email&limit=1`
-  );
+
+  const profileEndpoint =
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,email,name,background_mode&limit=1`;
+
+  if (accessToken && SUPABASE_ANON_KEY) {
+    const userResponse = await supabaseUserRequest(profileEndpoint, accessToken);
+    if (userResponse.ok) {
+      const rows = await userResponse.json();
+      return Array.isArray(rows) && rows.length ? rows[0] : null;
+    }
+  }
+
+  if (!SUPABASE_SERVICE_ROLE_KEY) return null;
+  const response = await supabaseRequest(profileEndpoint);
   if (!response.ok) return null;
   const rows = await response.json();
   return Array.isArray(rows) && rows.length ? rows[0] : null;
 };
 
 const requireAuthorizedRole = async (req, res) => {
-  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
+  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
     json(res, 500, {
       error: {
         message: 'Secure Supabase proxy is not configured.',
@@ -808,7 +840,7 @@ const requireAuthorizedRole = async (req, res) => {
     return null;
   }
 
-  const profile = await getUserProfile(user.id);
+  const profile = await getUserProfile(user.id, accessToken);
   const role = String(profile?.role || 'user').toLowerCase();
   const status = String(profile?.status || 'active').toLowerCase();
   const blockedByAllowlist = ALLOWED_ROLES.size > 0 && !ALLOWED_ROLES.has(role);
@@ -826,7 +858,7 @@ const requireAuthorizedRole = async (req, res) => {
 };
 
 const requireActiveAdministrator = async (req, res) => {
-  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
+  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
     json(res, 500, {
       error: {
         message: 'Secure Supabase proxy is not configured.',
@@ -855,7 +887,7 @@ const requireActiveAdministrator = async (req, res) => {
     return null;
   }
 
-  const profile = await getUserProfile(user.id);
+  const profile = await getUserProfile(user.id, accessToken);
   const role = String(profile?.role || 'user').toLowerCase();
   const status = String(profile?.status || 'active').toLowerCase();
   if (role !== 'administrator' || status === 'suspended') {
@@ -872,7 +904,7 @@ const requireActiveAdministrator = async (req, res) => {
 };
 
 const requireActiveUser = async (req, res) => {
-  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
+  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
     json(res, 500, {
       error: {
         message: 'Secure Supabase proxy is not configured.',
@@ -901,7 +933,7 @@ const requireActiveUser = async (req, res) => {
     return null;
   }
 
-  const profile = await getUserProfile(user.id);
+  const profile = await getUserProfile(user.id, accessToken);
   const status = String(profile?.status || 'active').toLowerCase();
   if (status === 'suspended') {
     json(res, 403, {
@@ -1042,7 +1074,8 @@ const handleAdminApi = async (req, res, pathname) => {
       return;
     }
 
-    const response = await supabaseRequest('/rest/v1/PT-LastPing?on_conflict=Serial,Date', {
+    const accessToken = getBearerToken(req);
+    const response = await supabaseUserRequest('/rest/v1/PT-LastPing?on_conflict=Serial,Date', accessToken, {
       method: 'POST',
       headers: {
         Prefer: 'resolution=ignore-duplicates,return=minimal',
@@ -1059,7 +1092,7 @@ const handleAdminApi = async (req, res, pathname) => {
     let finalizePayload = null;
     const normalizedVins = Array.from(new Set(vins.map((vin) => String(vin || '').trim().toUpperCase()).filter(Boolean)));
     if (normalizedVins.length) {
-      const finalizeResponse = await supabaseRequest('/rest/v1/rpc/finalize_pt_lastping_upload', {
+      const finalizeResponse = await supabaseUserRequest('/rest/v1/rpc/finalize_pt_lastping_upload', accessToken, {
         method: 'POST',
         body: {
           p_vins: normalizedVins,
@@ -1744,9 +1777,15 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
         return;
       }
 
-      const response = await supabaseRequest(
-        `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`
+      let response = await supabaseUserRequest(
+        `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`,
+        token
       );
+      if (!response.ok && SUPABASE_SERVICE_ROLE_KEY) {
+        response = await supabaseRequest(
+          `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`
+        );
+      }
       const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
       if (!response.ok) {
         json(res, response.status, { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Could not load profile.' } });
