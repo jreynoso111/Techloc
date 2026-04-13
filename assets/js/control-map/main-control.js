@@ -1,6 +1,6 @@
-import '../../scripts/authManager.js?v=movement-v2-20260411-01';
+import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=movement-v2-20250403-11';
-    import { subscribeDataSyncSignal } from '../../scripts/dataSyncSignal.js?v=movement-v2-20260410-01';
+    import { subscribeDataSyncSignal } from '../../scripts/dataSyncSignal.js?v=movement-v2-20260413-01';
     import {
       APP_SETTINGS_STORAGE_KEY,
       getAppSettings,
@@ -9,10 +9,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
       normalizeAppSettings,
       saveAppSettings
     } from '../../scripts/appSettings.js?v=movement-v2-20250403-11';
-    import { supabase as supabaseClient } from '../supabaseClient.js?v=movement-v2-20260411-01';
+    import { supabase as supabaseClient } from '../supabaseClient.js?v=movement-v2-20260413-01';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js?v=movement-v2-20250403-11';
-    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20260408-01';
-    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20260411-01';
+    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20260413-01';
+    import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20260413-01';
     import { createRepairHistoryManager } from '../../scripts/repairHistory.js?v=movement-v2-20250403-11';
     import { createPartnerClusterGroup } from './utils/cluster.js';
     import { attachDistances, debounce, debounceAsync, getOriginKey, runWithTimeout } from './utils/helpers.js';
@@ -37,11 +37,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260411-01';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js?v=movement-v2-20250403-11';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';
-    import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20260411-01';
+    import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20260413-01';
     import { SERVICE_HEADER_LABELS, getServiceModalHeaders, loadServiceModalPrefs, renderServiceModalColumnsList, saveServiceModalPrefs } from './components/service-modal.js?v=movement-v2-20250403-11';
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js?v=movement-v2-20250403-11';
     import { createLayerToggle } from './utils/layer-toggles.js?v=movement-v2-20250403-11';
-    import { syncVehicleMarkers } from './utils/vehicle-markers.js?v=movement-v2-20260411-01';
+    import { syncVehicleMarkers } from './utils/vehicle-markers.js?v=movement-v2-20260413-01';
     import {
       bindNavigationStorageListener,
       getSelectedVehicle,
