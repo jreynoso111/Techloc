@@ -2735,7 +2735,8 @@
         return;
       }
 
-      const finalizePtPingUpload = async (vinValues = []) => {
+      const finalizePtPingUpload = async (vinValues = [], options = {}) => {
+        const segmentLabel = String(options?.segmentLabel || '').trim();
         const uniqueVins = Array.from(new Set(
           (vinValues || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)
         ));
@@ -2758,7 +2759,10 @@
 
           const start = processedVins + 1;
           const end = processedVins + currentBatch.length;
-          setStatus(`Finalizing PT processing for VINs ${start}-${end} of ${uniqueVins.length}...`);
+          setStatus(
+            `Finalizing PT processing for VINs ${start}-${end} of ${uniqueVins.length}` +
+            `${segmentLabel ? ` (${segmentLabel})` : ''}...`
+          );
           setProgress(
             Math.max(92, Math.min(99, 92 + Math.round((processedVins / uniqueVins.length) * 7))),
             `Finalizing ${end} of ${uniqueVins.length} VINs`
@@ -2804,6 +2808,17 @@
         const normalizedRightTime = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
         return normalizedLeftTime - normalizedRightTime;
       });
+
+      const buildPtProcessingSegments = (rowsToSegment = []) => {
+        if (!Array.isArray(rowsToSegment) || !rowsToSegment.length) return [];
+        if (rowsToSegment.length === 1) return [rowsToSegment];
+        const midpoint = Math.ceil(rowsToSegment.length / 2);
+        return [
+          rowsToSegment.slice(0, midpoint),
+          rowsToSegment.slice(midpoint),
+        ].filter((segment) => Array.isArray(segment) && segment.length);
+      };
+
       const isPtUploadTimeoutError = (error) => {
         const text = String(
           error?.message
@@ -2822,12 +2837,16 @@
         );
       };
 
-      const uploadPtRowsInAdaptiveBatches = async () => {
-        if (!dedupedRows.length) {
+      const uploadPtRowsInAdaptiveBatches = async (rowsToUpload = [], options = {}) => {
+        if (!rowsToUpload.length) {
           return { ok: true, received: 0, finalization: { updatedRows: 0, processedVins: 0 } };
         }
 
-        const payloadRows = dedupedRows.map(buildSlimPtPayload);
+        const uploadedBefore = Number(options?.uploadedBefore || 0);
+        const batchesBefore = Number(options?.batchesBefore || 0);
+        const totalRows = Number(options?.totalRows || rowsToUpload.length);
+        const segmentLabel = String(options?.segmentLabel || '').trim();
+        const payloadRows = rowsToUpload.map(buildSlimPtPayload);
         const initialBatchSize = Math.min(150, payloadRows.length);
         const pending = [];
         for (let index = 0; index < payloadRows.length; index += initialBatchSize) {
@@ -2841,10 +2860,15 @@
           const currentBatch = pending.shift();
           if (!Array.isArray(currentBatch) || !currentBatch.length) continue;
 
-          const batchLabel = `${completedRows + 1}-${completedRows + currentBatch.length}`;
-          setStatus(`Uploading PT rows ${batchLabel} of ${payloadRows.length}...`);
+          const batchStart = uploadedBefore + completedRows + 1;
+          const batchEnd = uploadedBefore + completedRows + currentBatch.length;
+          const batchLabel = `${batchStart}-${batchEnd}`;
+          setStatus(
+            `Uploading PT rows ${batchLabel} of ${totalRows}` +
+            `${segmentLabel ? ` (${segmentLabel})` : ''}...`
+          );
           setProgress(
-            Math.max(5, Math.min(90, Math.round((completedRows / payloadRows.length) * 90))),
+            Math.max(5, Math.min(90, Math.round(((uploadedBefore + completedRows) / totalRows) * 90))),
             `Uploading rows ${batchLabel}`
           );
 
@@ -2855,11 +2879,12 @@
             });
             completedRows += currentBatch.length;
             completedBatches += 1;
-            aggregated.inserted = completedRows;
-            aggregated.batches = completedBatches;
+            const totalUploaded = uploadedBefore + completedRows;
+            aggregated.inserted = totalUploaded;
+            aggregated.batches = batchesBefore + completedBatches;
             setProgress(
-              Math.max(5, Math.min(90, Math.round((completedRows / payloadRows.length) * 90))),
-              `Uploaded ${completedRows} of ${payloadRows.length} rows`
+              Math.max(5, Math.min(90, Math.round((totalUploaded / totalRows) * 90))),
+              `Uploaded ${totalUploaded} of ${totalRows} rows`
             );
           } catch (error) {
             if (isPtUploadTimeoutError(error) && currentBatch.length > 1) {
@@ -2875,33 +2900,56 @@
 
         return {
           ok: true,
-          received: completedRows,
+          received: uploadedBefore + completedRows,
           finalization: null,
         };
       };
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
       try {
-        const uploadResult = await uploadPtRowsInAdaptiveBatches();
-        aggregated.inserted = Number(uploadResult?.received || aggregated.inserted || 0);
-        setProgress(90, `Uploaded ${aggregated.inserted} of ${dedupedRows.length} rows`);
-
-        setProgress(92, 'Post-processing uploaded PT rows...');
+        const processingSegments = buildPtProcessingSegments(dedupedRows);
         let vehicleSyncResult = {
           updated: 0,
           skipped: 0,
           updatedRows: 0,
-          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'rpc_finalize' : 'uploaded_rows_sync_only',
+          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'rpc_finalize_segmented' : 'uploaded_rows_sync_only',
           warning: ''
         };
         try {
+          let uploadedRows = 0;
+          let finalizedRows = 0;
+          let finalizedVins = 0;
+
+          for (let segmentIndex = 0; segmentIndex < processingSegments.length; segmentIndex += 1) {
+            const segmentRows = processingSegments[segmentIndex];
+            const segmentLabel = `segment ${segmentIndex + 1} of ${processingSegments.length}`;
+            const uploadResult = await uploadPtRowsInAdaptiveBatches(segmentRows, {
+              uploadedBefore: uploadedRows,
+              batchesBefore: aggregated.batches,
+              totalRows: dedupedRows.length,
+              segmentLabel,
+            });
+            uploadedRows = Number(uploadResult?.received || uploadedRows || 0);
+            aggregated.inserted = uploadedRows;
+
+            if (PT_PING_ENABLE_RPC_FINALIZATION) {
+              const finalizeResult = await finalizePtPingUpload(
+                segmentRows.map((row) => row?.VIN),
+                { segmentLabel }
+              );
+              finalizedRows += Number(finalizeResult?.updatedRows || 0);
+              finalizedVins += Number(finalizeResult?.processedVins || 0);
+            }
+          }
+
+          setProgress(90, `Uploaded ${aggregated.inserted} of ${dedupedRows.length} rows`);
+
           if (PT_PING_ENABLE_RPC_FINALIZATION) {
-            const finalizeResult = await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
             vehicleSyncResult = {
-              updated: Number(finalizeResult?.processedVins || 0),
+              updated: finalizedVins,
               skipped: 0,
-              updatedRows: Number(finalizeResult?.updatedRows || 0),
-              mode: 'rpc_finalize',
+              updatedRows: finalizedRows,
+              mode: `rpc_finalize_segmented_${processingSegments.length}_parts`,
               warning: ''
             };
           } else {
