@@ -840,6 +840,51 @@ const requireActiveAdministrator = async (req, res) => {
   return { user, profile };
 };
 
+const requireActiveUser = async (req, res) => {
+  if (!DIRECT_PG_ENABLED && (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY)) {
+    json(res, 500, {
+      error: {
+        message: 'Secure Supabase proxy is not configured.',
+      },
+    });
+    return null;
+  }
+
+  const accessToken = getBearerToken(req);
+  if (!accessToken) {
+    json(res, 401, {
+      error: {
+        message: 'Missing bearer token.',
+      },
+    });
+    return null;
+  }
+
+  const user = await getUserFromAccessToken(accessToken);
+  if (!user?.id) {
+    json(res, 401, {
+      error: {
+        message: 'Invalid or expired access token.',
+      },
+    });
+    return null;
+  }
+
+  const profile = await getUserProfile(user.id);
+  const status = String(profile?.status || 'active').toLowerCase();
+  if (status === 'suspended') {
+    json(res, 403, {
+      error: {
+        message: 'Your account is suspended.',
+        details: { status },
+      },
+    });
+    return null;
+  }
+
+  return { user, profile };
+};
+
 const resolveUserEmailForReset = async ({ userId }) => {
   if (userId) {
     const response = await supabaseRequest(
@@ -928,7 +973,14 @@ const handleAdminApi = async (req, res, pathname) => {
     return;
   }
 
-  const auth = await requireActiveAdministrator(req, res);
+  const isPtOrDealsUploadPath =
+    pathname === '/api/admin/pt-lastping/reference-data'
+    || pathname === '/api/admin/pt-lastping/upload'
+    || pathname === '/api/admin/deals/upload';
+
+  const auth = isPtOrDealsUploadPath
+    ? await requireActiveUser(req, res)
+    : await requireActiveAdministrator(req, res);
   if (!auth) return;
 
   let body;
@@ -953,6 +1005,7 @@ const handleAdminApi = async (req, res, pathname) => {
 
   if (pathname === '/api/admin/pt-lastping/upload') {
     const rows = Array.isArray(body?.rows) ? body.rows : [];
+    const vins = Array.isArray(body?.vins) ? body.vins : [];
     if (!rows.length) {
       json(res, 400, { error: { message: 'Rows are required.' } });
       return;
@@ -972,10 +1025,88 @@ const handleAdminApi = async (req, res, pathname) => {
       return;
     }
 
+    let finalizePayload = null;
+    const normalizedVins = Array.from(new Set(vins.map((vin) => String(vin || '').trim().toUpperCase()).filter(Boolean)));
+    if (normalizedVins.length) {
+      const finalizeResponse = await supabaseRequest('/rest/v1/rpc/finalize_pt_lastping_upload', {
+        method: 'POST',
+        body: {
+          p_vins: normalizedVins,
+        },
+      });
+      if (!finalizeResponse.ok) {
+        const parsed = await parseSupabaseError(finalizeResponse);
+        json(res, finalizeResponse.status, { error: parsed });
+        return;
+      }
+      finalizePayload = await finalizeResponse.json().catch(() => null);
+    }
+
     json(res, 200, {
       data: {
         ok: true,
         received: rows.length,
+        finalization: {
+          updatedRows: Number(finalizePayload?.updated_rows || 0),
+          processedVins: Number(finalizePayload?.processed_vins || 0),
+        },
+      },
+    });
+    return;
+  }
+
+  if (pathname === '/api/admin/deals/upload') {
+    const rows = Array.isArray(body?.rows) ? body.rows : [];
+    if (!rows.length) {
+      json(res, 400, { error: { message: 'Rows are required.' } });
+      return;
+    }
+
+    const uploadResponse = await supabaseRequest('/rest/v1/DealsJP1?on_conflict=Current%20Stock%20No', {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates,return=representation',
+      },
+      body: rows,
+    });
+
+    if (!uploadResponse.ok) {
+      const parsed = await parseSupabaseError(uploadResponse);
+      json(res, uploadResponse.status, { error: parsed });
+      return;
+    }
+
+    const uploadedRows = await uploadResponse.json().catch(() => []);
+
+    const recalcResponse = await supabaseRequest('/rest/v1/rpc/recalc_dealsjp1_last_deal', {
+      method: 'POST',
+      body: {},
+    });
+    if (!recalcResponse.ok) {
+      const parsed = await parseSupabaseError(recalcResponse);
+      json(recalcResponse.status, { error: parsed });
+      return;
+    }
+    const recalcPayload = await recalcResponse.json().catch(() => null);
+
+    const syncResponse = await supabaseRequest('/rest/v1/rpc/sync_vehicles_from_dealsjp1_lastdeal', {
+      method: 'POST',
+      body: {},
+    });
+    if (!syncResponse.ok) {
+      const parsed = await parseSupabaseError(syncResponse);
+      json(syncResponse.status, { error: parsed });
+      return;
+    }
+    const syncPayload = await syncResponse.json().catch(() => null);
+
+    json(res, 200, {
+      data: {
+        ok: true,
+        uploadedRows: Array.isArray(uploadedRows) ? uploadedRows : [],
+        totalUpserted: Array.isArray(uploadedRows) ? uploadedRows.length : rows.length,
+        recalculatedRows: Number(recalcPayload || 0),
+        syncedVehicles: Number(syncPayload || 0),
       },
     });
     return;

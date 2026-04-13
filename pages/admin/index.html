@@ -1839,7 +1839,7 @@
     // Deals upload with row normalization and duplicate filtering.
     const uploadDealsRows = async (rows, parseErrors = 0, rawHeaders = []) => {
       if (!supabaseClient) throw new Error('Supabase client unavailable.');
-      if (!(await refreshAdminAccess())) throw new Error('Only administrators can upload deals data.');
+      if (!(await ensurePtSession())) throw new Error('Active session is required to upload deals data.');
 
       const submitBtn = document.getElementById('deals-upload-button');
       const progressWrap = document.getElementById('deals-progress');
@@ -1955,59 +1955,11 @@
       }
       setProgress(25, `Uploading ${filteredRows.length} filtered rows in one request...`);
 
-      const { data: uploadedDealsRows, error: dealsUploadError } = await supabaseClient
-        .from(DEALS_TABLE)
-        .upsert(filteredRows, { onConflict: 'Current Stock No', ignoreDuplicates: false })
-        .select();
-
-      if (dealsUploadError) {
-        console.error('Database deals upload error:', dealsUploadError);
-        if (isSchemaMismatchError(dealsUploadError)) {
-          showToast('Deals upload schema mismatch: ' + shortSupabaseError(dealsUploadError), 'error');
-          return;
-        }
-        if (isRlsBlocked(dealsUploadError)) {
-          showToast('Upload blocked by security policy (RLS).', 'error');
-          return;
-        }
-        showToast('Deals upload failed: ' + shortSupabaseError(dealsUploadError), 'error');
-        setProgress(0, 'Deals upload failed.');
-        return;
-      }
-
-      const totalUpserted = uploadedDealsRows ? uploadedDealsRows.length : filteredRows.length;
-
-      setProgress(98, 'Recalculating DealsJP1 last-deal flags...');
-
-      const { data: recalcData, error: recalcError } = await supabaseClient.rpc('recalc_dealsjp1_last_deal');
-      if (recalcError) {
-        console.error('Database DealsJP1 last-deal recalculation error:', recalcError);
-        if (isRlsBlocked(recalcError)) {
-          showToast('Deals uploaded, but last-deal recalculation was blocked by database permissions: ' + shortSupabaseError(recalcError), 'error');
-        } else if (isSchemaMismatchError(recalcError)) {
-          showToast('Deals uploaded, but last-deal recalculation has a schema mismatch: ' + shortSupabaseError(recalcError), 'error');
-        } else {
-          showToast('DealsJP1 last-deal recalculation failed: ' + shortSupabaseError(recalcError), 'error');
-        }
-        setProgress(100, 'Upload completed, but last-deal recalculation failed.');
-        return;
-      }
-
-      setProgress(100, 'Running DealsJP1 vehicle sync...');
-
-      const { data: syncData, error: syncError } = await supabaseClient.rpc('sync_vehicles_from_dealsjp1_lastdeal');
-      if (syncError) {
-        console.error('Database DealsJP1 sync error:', syncError);
-        if (isRlsBlocked(syncError)) {
-          showToast('Deals uploaded, but vehicle sync was blocked by database permissions: ' + shortSupabaseError(syncError), 'error');
-        } else if (isSchemaMismatchError(syncError)) {
-          showToast('Deals uploaded, but vehicle sync has a schema mismatch: ' + shortSupabaseError(syncError), 'error');
-        } else {
-          showToast('DealsJP1 vehicle sync failed: ' + shortSupabaseError(syncError), 'error');
-        }
-        setProgress(100, 'Upload completed, but vehicle sync failed.');
-        return;
-      }
+      const dealsResult = await adminPostJson('/api/admin/deals/upload', { rows: filteredRows });
+      const uploadedDealsRows = dealsResult?.uploadedRows || [];
+      const totalUpserted = Number(dealsResult?.totalUpserted || uploadedDealsRows.length || filteredRows.length);
+      const recalcData = Number(dealsResult?.recalculatedRows || 0);
+      const syncData = Number(dealsResult?.syncedVehicles || 0);
 
       console.info('DealsJP1 last-deal recalculation updated rows:', recalcData);
       console.info('DealsJP1 vehicle sync updated rows:', syncData);
@@ -2062,23 +2014,16 @@
       const form = document.getElementById('deals-upload-form');
       const fileInput = document.getElementById('deals-file');
       const submitBtn = document.getElementById('deals-upload-button');
-      const requireAdmin = async () => {
-        const allowed = await refreshAdminAccess();
-        if (submitBtn) submitBtn.disabled = !allowed;
-        const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = '';
-        if (submitBtn) submitBtn.title = titleText;
-        return allowed;
-      };
       if (!form || !fileInput || !submitBtn) return;
-      const syncAccess = () => requireAdmin().catch((error) => console.warn('Unable to verify deals admin access', error));
+      const requireDealsUploadAccess = async () => requireSignedInUploadAccess([submitBtn]);
+      const syncAccess = () => requireDealsUploadAccess().catch((error) => console.warn('Unable to verify deals upload access', error));
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
       
       submitBtn.addEventListener('click', async (event) => {
         event.preventDefault(); 
-        if (!(await requireAdmin())) {
-          showToast('Only administrators can upload deals data.', 'error');
+        if (!(await requireDealsUploadAccess())) {
+          showToast('You must be signed in to upload deals data.', 'error');
           return;
         }
         const file = fileInput.files?.[0];
@@ -2140,26 +2085,16 @@
         if (progressCount) progressCount.textContent = `${Math.round(safePercent)}%`;
       };
 
-      const requireAdmin = async () => {
-        const allowed = await refreshAdminAccess();
-        if (submitBtn) submitBtn.disabled = !allowed;
-        if (resyncBtn) resyncBtn.disabled = !allowed;
-        const titleText = allowed ? '' : 'Administrator access required';
-        if (fileInput) fileInput.title = '';
-        if (submitBtn) submitBtn.title = titleText;
-        if (resyncBtn) resyncBtn.title = titleText;
-        return allowed;
-      };
-
       if (!form || !fileInput || !submitBtn) return;
-      const syncAccess = () => requireAdmin().catch((error) => console.warn('Unable to verify PT ping admin access', error));
+      const requirePtUploadAccess = async () => requireSignedInUploadAccess([submitBtn, resyncBtn]);
+      const syncAccess = () => requirePtUploadAccess().catch((error) => console.warn('Unable to verify PT ping upload access', error));
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
       submitBtn.addEventListener('click', async (event) => {
         event.preventDefault();
-        if (!(await requireAdmin())) {
-          showToast('Only administrators can upload PT ping data.', 'error');
+        if (!(await requirePtUploadAccess())) {
+          showToast('You must be signed in to upload PT ping data.', 'error');
           return;
         }
         const hasSession = await ensurePtSession();
@@ -2199,8 +2134,8 @@
 
       resyncBtn?.addEventListener('click', async (event) => {
         event.preventDefault();
-        if (!(await requireAdmin())) {
-          showToast('Only administrators can resync PT vehicle data.', 'error');
+        if (!(await requirePtUploadAccess())) {
+          showToast('You must be signed in to resync PT vehicle data.', 'error');
           return;
         }
         const hasSession = await ensurePtSession();
@@ -2252,7 +2187,7 @@
           setProgress(0, 'Resync failed');
           showToast('PT vehicle resync failed: ' + (error?.message || 'Unknown error'), 'error');
         } finally {
-          await requireAdmin().catch(() => {});
+          await requirePtUploadAccess().catch(() => {});
           resyncBtn.innerHTML = '<i data-lucide="refresh-cw" class="h-4 w-4"></i><span>Resync Vehicles From PT</span>';
           submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
           lucide.createIcons();
@@ -2447,6 +2382,14 @@
       return result?.data ?? result ?? null;
     };
 
+    const requireSignedInUploadAccess = async (buttons = []) => {
+      const hasSession = await ensurePtSession();
+      buttons.forEach((button) => {
+        if (button) button.disabled = !hasSession;
+      });
+      return hasSession;
+    };
+
     const purgePtRowsMissingCoordinates = async () => {
       // Keep upload-side validation fast and avoid direct destructive writes from the browser.
       return 0;
@@ -2454,7 +2397,7 @@
 
     const uploadPtPingRows = async (rows, parseErrors = 0) => {
       if (!supabaseClient) throw new Error('Database client unavailable.');
-      if (!(await refreshAdminAccess())) throw new Error('Only administrators can upload PT ping data.');
+      if (!(await ensurePtSession())) throw new Error('Active session is required to upload PT ping data.');
 
       const normalizeVinLast6 = (vin) => {
         if (!vin && vin !== 0) return null;
@@ -2833,15 +2776,18 @@
         setStatus(`Uploading ${dedupedRows.length} filtered rows in one request...`);
         setProgress(5, `Uploading ${dedupedRows.length} filtered rows`);
         const payload = dedupedRows.map(buildSlimPtPayload);
-        await adminPostJson('/api/admin/pt-lastping/upload', { rows: payload });
-        aggregated.batches = 1;
-        aggregated.inserted = payload.length;
-        setProgress(90, `Uploaded ${payload.length} of ${dedupedRows.length} rows`);
+        return adminPostJson('/api/admin/pt-lastping/upload', {
+          rows: payload,
+          vins: dedupedRows.map((row) => row?.VIN),
+        });
       };
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
       try {
-        await uploadAllPtRowsAtOnce();
+        const uploadResult = await uploadAllPtRowsAtOnce();
+        aggregated.batches = 1;
+        aggregated.inserted = dedupedRows.length;
+        setProgress(90, `Uploaded ${dedupedRows.length} of ${dedupedRows.length} rows`);
 
         setProgress(92, 'Post-processing uploaded PT rows...');
         let vehicleSyncResult = {
@@ -2853,11 +2799,11 @@
         };
         try {
           if (PT_PING_ENABLE_RPC_FINALIZATION) {
-            const finalizeResult = await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
+            const finalizeResult = uploadResult?.finalization || await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
             vehicleSyncResult = {
-              updated: finalizeResult.processedVins,
+              updated: Number(finalizeResult?.processedVins || 0),
               skipped: 0,
-              updatedRows: finalizeResult.updatedRows,
+              updatedRows: Number(finalizeResult?.updatedRows || 0),
               mode: 'rpc_finalize',
               warning: ''
             };
