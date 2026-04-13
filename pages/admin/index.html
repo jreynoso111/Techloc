@@ -2448,46 +2448,8 @@
     };
 
     const purgePtRowsMissingCoordinates = async () => {
-      const collectIdsForMissingCoordinate = async (columnName) => {
-        const ids = [];
-        let from = 0;
-        const pageSize = 1000;
-        while (true) {
-          const to = from + pageSize - 1;
-          const { data, error } = await supabaseClient
-            .from('PT-LastPing')
-            .select('id')
-            .is(columnName, null)
-            .range(from, to);
-          if (error) throw error;
-          const rows = Array.isArray(data) ? data : [];
-          rows.forEach((row) => {
-            if (row?.id !== undefined && row?.id !== null && `${row.id}`.trim() !== '') {
-              ids.push(row.id);
-            }
-          });
-          if (rows.length < pageSize) break;
-          from += pageSize;
-        }
-        return ids;
-      };
-
-      const idsMissingLat = await collectIdsForMissingCoordinate('Lat');
-      const idsMissingLong = await collectIdsForMissingCoordinate('Long');
-      const idsToDelete = Array.from(new Set([...idsMissingLat, ...idsMissingLong]));
-      if (!idsToDelete.length) return 0;
-
-      let deletedCount = 0;
-      for (const idChunk of chunkArray(idsToDelete, 100)) {
-        const { error } = await supabaseClient
-          .from('PT-LastPing')
-          .delete()
-          .in('id', idChunk);
-        if (error) throw error;
-        deletedCount += idChunk.length;
-      }
-
-      return deletedCount;
+      // Keep upload-side validation fast and avoid direct destructive writes from the browser.
+      return 0;
     };
 
     const uploadPtPingRows = async (rows, parseErrors = 0) => {
