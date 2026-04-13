@@ -609,6 +609,29 @@ const chunkArray = (items = [], chunkSize = 100) => {
   return chunks;
 };
 
+const normalizePostgrestBulkRows = (rows = []) => {
+  const sourceRows = Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)) : [];
+  if (!sourceRows.length) return [];
+
+  const orderedKeys = [];
+  const seenKeys = new Set();
+  sourceRows.forEach((row) => {
+    Object.keys(row).forEach((key) => {
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      orderedKeys.push(key);
+    });
+  });
+
+  return sourceRows.map((row) => {
+    const normalizedRow = {};
+    orderedKeys.forEach((key) => {
+      normalizedRow[key] = Object.prototype.hasOwnProperty.call(row, key) ? row[key] : null;
+    });
+    return normalizedRow;
+  });
+};
+
 const runPgBridge = async (payload = {}) => {
   return new Promise((resolve, reject) => {
     const child = spawn('python3', [PYTHON_BRIDGE_PATH], {
@@ -1069,6 +1092,7 @@ const handleAdminApi = async (req, res, pathname) => {
   if (pathname === '/api/admin/pt-lastping/upload') {
     const rows = Array.isArray(body?.rows) ? body.rows : [];
     const vins = Array.isArray(body?.vins) ? body.vins : [];
+    const shouldFinalize = body?.finalize === true;
     if (!rows.length) {
       json(res, 400, { error: { message: 'Rows are required.' } });
       return;
@@ -1091,7 +1115,7 @@ const handleAdminApi = async (req, res, pathname) => {
 
     let finalizePayload = null;
     const normalizedVins = Array.from(new Set(vins.map((vin) => String(vin || '').trim().toUpperCase()).filter(Boolean)));
-    if (normalizedVins.length) {
+    if (shouldFinalize && normalizedVins.length) {
       const finalizeResponse = await supabaseUserRequest('/rest/v1/rpc/finalize_pt_lastping_upload', accessToken, {
         method: 'POST',
         body: {
@@ -1110,6 +1134,7 @@ const handleAdminApi = async (req, res, pathname) => {
       data: {
         ok: true,
         received: rows.length,
+        finalized: shouldFinalize,
         finalization: {
           updatedRows: Number(finalizePayload?.updated_rows || 0),
           processedVins: Number(finalizePayload?.processed_vins || 0),
@@ -1120,13 +1145,14 @@ const handleAdminApi = async (req, res, pathname) => {
   }
 
   if (pathname === '/api/admin/deals/upload') {
-    const rows = Array.isArray(body?.rows) ? body.rows : [];
+    const rows = normalizePostgrestBulkRows(body?.rows);
     if (!rows.length) {
       json(res, 400, { error: { message: 'Rows are required.' } });
       return;
     }
 
-    const uploadResponse = await supabaseRequest('/rest/v1/DealsJP1?on_conflict=Current%20Stock%20No', {
+    const accessToken = getBearerToken(req);
+    const uploadResponse = await supabaseUserRequest('/rest/v1/DealsJP1?on_conflict=Current%20Stock%20No', accessToken, {
       method: 'POST',
       headers: {
         Prefer: 'resolution=merge-duplicates,return=representation',
@@ -1142,7 +1168,7 @@ const handleAdminApi = async (req, res, pathname) => {
 
     const uploadedRows = await uploadResponse.json().catch(() => []);
 
-    const recalcResponse = await supabaseRequest('/rest/v1/rpc/recalc_dealsjp1_last_deal', {
+    const recalcResponse = await supabaseUserRequest('/rest/v1/rpc/recalc_dealsjp1_last_deal', accessToken, {
       method: 'POST',
       body: {},
     });
@@ -1153,7 +1179,7 @@ const handleAdminApi = async (req, res, pathname) => {
     }
     const recalcPayload = await recalcResponse.json().catch(() => null);
 
-    const syncResponse = await supabaseRequest('/rest/v1/rpc/sync_vehicles_from_dealsjp1_lastdeal', {
+    const syncResponse = await supabaseUserRequest('/rest/v1/rpc/sync_vehicles_from_dealsjp1_lastdeal', accessToken, {
       method: 'POST',
       body: {},
     });

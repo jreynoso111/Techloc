@@ -2771,23 +2771,87 @@
         const normalizedRightTime = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
         return normalizedLeftTime - normalizedRightTime;
       });
-      const uploadAllPtRowsAtOnce = async () => {
-        if (!dedupedRows.length) return;
-        setStatus(`Uploading ${dedupedRows.length} filtered rows in one request...`);
-        setProgress(5, `Uploading ${dedupedRows.length} filtered rows`);
-        const payload = dedupedRows.map(buildSlimPtPayload);
-        return adminPostJson('/api/admin/pt-lastping/upload', {
-          rows: payload,
-          vins: dedupedRows.map((row) => row?.VIN),
-        });
+      const isPtUploadTimeoutError = (error) => {
+        const text = String(
+          error?.message
+          || error?.details?.message
+          || error?.details?.details?.message
+          || ''
+        ).toLowerCase();
+        return (
+          text.includes('timeout')
+          || text.includes('timed out')
+          || text.includes('504')
+          || text.includes('524')
+          || text.includes('408')
+          || text.includes('function invocation')
+          || text.includes('deadline exceeded')
+        );
+      };
+
+      const uploadPtRowsInAdaptiveBatches = async () => {
+        if (!dedupedRows.length) {
+          return { ok: true, received: 0, finalization: { updatedRows: 0, processedVins: 0 } };
+        }
+
+        const payloadRows = dedupedRows.map(buildSlimPtPayload);
+        const initialBatchSize = Math.min(150, payloadRows.length);
+        const pending = [];
+        for (let index = 0; index < payloadRows.length; index += initialBatchSize) {
+          pending.push(payloadRows.slice(index, index + initialBatchSize));
+        }
+
+        let completedRows = 0;
+        let completedBatches = 0;
+
+        while (pending.length) {
+          const currentBatch = pending.shift();
+          if (!Array.isArray(currentBatch) || !currentBatch.length) continue;
+
+          const batchLabel = `${completedRows + 1}-${completedRows + currentBatch.length}`;
+          setStatus(`Uploading PT rows ${batchLabel} of ${payloadRows.length}...`);
+          setProgress(
+            Math.max(5, Math.min(90, Math.round((completedRows / payloadRows.length) * 90))),
+            `Uploading rows ${batchLabel}`
+          );
+
+          try {
+            await adminPostJson('/api/admin/pt-lastping/upload', {
+              rows: currentBatch,
+              finalize: false,
+            });
+            completedRows += currentBatch.length;
+            completedBatches += 1;
+            aggregated.inserted = completedRows;
+            aggregated.batches = completedBatches;
+            setProgress(
+              Math.max(5, Math.min(90, Math.round((completedRows / payloadRows.length) * 90))),
+              `Uploaded ${completedRows} of ${payloadRows.length} rows`
+            );
+          } catch (error) {
+            if (isPtUploadTimeoutError(error) && currentBatch.length > 1) {
+              const retrySize = Math.max(1, Math.floor(currentBatch.length / 2));
+              setStatus(`Batch timeout at ${currentBatch.length} rows. Retrying with chunks of ${retrySize}...`);
+              const retryChunks = chunkArray(currentBatch, retrySize);
+              pending.unshift(...retryChunks);
+              continue;
+            }
+            throw error;
+          }
+        }
+
+        return {
+          ok: true,
+          received: completedRows,
+          finalization: null,
+        };
       };
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
       try {
-        const uploadResult = await uploadAllPtRowsAtOnce();
-        aggregated.batches = 1;
-        aggregated.inserted = dedupedRows.length;
-        setProgress(90, `Uploaded ${dedupedRows.length} of ${dedupedRows.length} rows`);
+        const uploadResult = await uploadPtRowsInAdaptiveBatches();
+        aggregated.inserted = Number(uploadResult?.received || aggregated.inserted || 0);
+        setProgress(90, `Uploaded ${aggregated.inserted} of ${dedupedRows.length} rows`);
 
         setProgress(92, 'Post-processing uploaded PT rows...');
         let vehicleSyncResult = {
@@ -2799,7 +2863,7 @@
         };
         try {
           if (PT_PING_ENABLE_RPC_FINALIZATION) {
-            const finalizeResult = uploadResult?.finalization || await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
+            const finalizeResult = await finalizePtPingUpload(dedupedRows.map((row) => row?.VIN));
             vehicleSyncResult = {
               updated: Number(finalizeResult?.processedVins || 0),
               skipped: 0,
