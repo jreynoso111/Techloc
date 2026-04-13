@@ -1116,11 +1116,16 @@ const handleAdminApi = async (req, res, pathname) => {
     let finalizePayload = null;
     const normalizedVins = Array.from(new Set(vins.map((vin) => String(vin || '').trim().toUpperCase()).filter(Boolean)));
     if (shouldFinalize && normalizedVins.length) {
+      const minIdExclusive = Number(body?.minIdExclusive);
+      const finalizeBody = {
+        p_vins: normalizedVins,
+      };
+      if (Number.isFinite(minIdExclusive) && minIdExclusive > 0) {
+        finalizeBody.p_min_id_exclusive = Math.trunc(minIdExclusive);
+      }
       const finalizeResponse = await supabaseUserRequest('/rest/v1/rpc/finalize_pt_lastping_upload', accessToken, {
         method: 'POST',
-        body: {
-          p_vins: normalizedVins,
-        },
+        body: finalizeBody,
       });
       if (!finalizeResponse.ok) {
         const parsed = await parseSupabaseError(finalizeResponse);

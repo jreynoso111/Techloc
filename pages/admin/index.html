@@ -2382,6 +2382,17 @@
       return result?.data ?? result ?? null;
     };
 
+    const fetchPtLastPingMaxId = async () => {
+      const { data, error } = await supabaseClient
+        .from('PT-LastPing')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      const maxId = Number(data?.[0]?.id || 0);
+      return Number.isFinite(maxId) && maxId > 0 ? Math.trunc(maxId) : 0;
+    };
+
     const requireSignedInUploadAccess = async (buttons = []) => {
       const hasSession = await ensurePtSession();
       buttons.forEach((button) => {
@@ -2737,6 +2748,7 @@
 
       const finalizePtPingUpload = async (vinValues = [], options = {}) => {
         const segmentLabel = String(options?.segmentLabel || '').trim();
+        const minIdExclusive = Number(options?.minIdExclusive);
         const uniqueVins = Array.from(new Set(
           (vinValues || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)
         ));
@@ -2768,9 +2780,14 @@
             `Finalizing ${end} of ${uniqueVins.length} VINs`
           );
 
-          const { data, error } = await supabaseClient.rpc('finalize_pt_lastping_upload', {
+          const rpcPayload = {
             p_vins: currentBatch
-          });
+          };
+          if (Number.isFinite(minIdExclusive) && minIdExclusive > 0) {
+            rpcPayload.p_min_id_exclusive = Math.trunc(minIdExclusive);
+          }
+
+          const { data, error } = await supabaseClient.rpc('finalize_pt_lastping_upload', rpcPayload);
 
           if (error) {
             if (isPtUploadTimeoutError(error) && currentBatch.length > 1) {
@@ -2923,6 +2940,9 @@
           for (let segmentIndex = 0; segmentIndex < processingSegments.length; segmentIndex += 1) {
             const segmentRows = processingSegments[segmentIndex];
             const segmentLabel = `segment ${segmentIndex + 1} of ${processingSegments.length}`;
+            const segmentMinIdExclusive = PT_PING_ENABLE_RPC_FINALIZATION
+              ? await fetchPtLastPingMaxId()
+              : 0;
             const uploadResult = await uploadPtRowsInAdaptiveBatches(segmentRows, {
               uploadedBefore: uploadedRows,
               batchesBefore: aggregated.batches,
@@ -2935,7 +2955,10 @@
             if (PT_PING_ENABLE_RPC_FINALIZATION) {
               const finalizeResult = await finalizePtPingUpload(
                 segmentRows.map((row) => row?.VIN),
-                { segmentLabel }
+                {
+                  segmentLabel,
+                  minIdExclusive: segmentMinIdExclusive,
+                }
               );
               finalizedRows += Number(finalizeResult?.updatedRows || 0);
               finalizedVins += Number(finalizeResult?.processedVins || 0);
