@@ -100,6 +100,29 @@ const isUnauthorizedTokenError = (response, payload) => {
   return message.includes('invalid token') || message.includes('unauthorized');
 };
 
+const isTerminalRefreshFailure = (response, payload) => {
+  const status = Number(response?.status || 0);
+  const message = String(
+    payload?.message
+    || payload?.error_description
+    || payload?.error
+    || payload?.msg
+    || ''
+  ).toLowerCase();
+
+  if (![400, 401, 403].includes(status)) return false;
+  if (!message) return false;
+
+  return (
+    message.includes('refresh token')
+    || message.includes('invalid grant')
+    || message.includes('invalid refresh')
+    || message.includes('refresh_token')
+    || message.includes('expired')
+    || message.includes('revoked')
+  );
+};
+
 const getStoredSession = () => {
   if (!canUseStorage()) return null;
   try {
@@ -264,6 +287,23 @@ const resolveProfileForAuthUser = async (authUser, authToken) => {
   return fetchProfileByField('id', authUser.id, authToken);
 };
 
+const fetchCurrentProfile = async (authToken) => {
+  if (!authToken) {
+    return { data: { profile: null }, error: createError(null, 'Active session is required.') };
+  }
+
+  const response = await fetchWithTimeout(`${BASE_URL}/api/auth/profiles/current`, {
+    method: 'GET',
+    headers: buildHeaders({ authToken, extra: SILENT_REQUEST_HEADERS }),
+  });
+  const payload = await parseResponseBody(response);
+  if (!response.ok) {
+    return { data: { profile: null }, error: createError(payload, 'Could not load profile.') };
+  }
+
+  return { data: { profile: payload?.profile || null }, error: null };
+};
+
 const normalizeSession = (rawSession = null) => {
   if (!rawSession?.access_token || !rawSession?.user) return null;
   return {
@@ -316,14 +356,25 @@ const recoverSessionForUnauthorizedToken = async (failedAuthToken = '') => {
           return { authToken: recoveredSession.access_token, recoveredSession };
         }
       }
+      if (isTerminalRefreshFailure(response, payload)) {
+        persistSession(null, SESSION_EVENTS.SIGNED_OUT);
+        setRecoveryTokenValue('');
+        return { authToken: DEFAULT_PUBLIC_AUTH_TOKEN, recoveredSession: null };
+      }
+      return { authToken: currentSession.access_token, recoveredSession: currentSession };
     } catch (_error) {
-      // Fall through to public-key retry.
+      return { authToken: currentSession.access_token, recoveredSession: currentSession };
     }
   }
 
-  persistSession(null, SESSION_EVENTS.SIGNED_OUT);
-  setRecoveryTokenValue('');
-  return { authToken: DEFAULT_PUBLIC_AUTH_TOKEN, recoveredSession: null };
+  const expirationMs = getJwtExpirationMs(currentSession.access_token);
+  if (expirationMs && expirationMs <= Date.now()) {
+    persistSession(null, SESSION_EVENTS.SIGNED_OUT);
+    setRecoveryTokenValue('');
+    return { authToken: DEFAULT_PUBLIC_AUTH_TOKEN, recoveredSession: null };
+  }
+
+  return { authToken: currentSession.access_token, recoveredSession: currentSession };
 };
 
 const ensureActiveSession = async () => {
@@ -336,7 +387,13 @@ const ensureActiveSession = async () => {
 
   if (shouldRefreshSessionToken(session.access_token)) {
     const recovery = await recoverSessionForUnauthorizedToken(session.access_token);
-    return recovery?.recoveredSession || null;
+    if (recovery?.recoveredSession) return recovery.recoveredSession;
+
+    const expirationMs = getJwtExpirationMs(session.access_token);
+    if (!expirationMs || expirationMs > Date.now()) {
+      return session;
+    }
+    return null;
   }
 
   const expirationMs = getJwtExpirationMs(session.access_token);
@@ -826,6 +883,46 @@ const authApi = {
     return { data: { user }, error: null };
   },
 
+  async getProfile() {
+    const session = await ensureActiveSession();
+    if (!session?.access_token) {
+      return { data: { profile: null }, error: null };
+    }
+
+    let authToken = session.access_token;
+    let result = await fetchCurrentProfile(authToken);
+    if (
+      authToken &&
+      authToken !== DEFAULT_PUBLIC_AUTH_TOKEN &&
+      result?.error?.message &&
+      /invalid token|unauthorized/i.test(result.error.message)
+    ) {
+      const recovery = await recoverSessionForUnauthorizedToken(authToken);
+      authToken = recovery.authToken;
+      if (!authToken || authToken === DEFAULT_PUBLIC_AUTH_TOKEN) {
+        return { data: { profile: null }, error: null };
+      }
+      result = await fetchCurrentProfile(authToken);
+    }
+
+    if (result?.error) return result;
+
+    const profile = result?.data?.profile || null;
+    if (profile) {
+      const currentSession = getStoredSession() || session;
+      const currentUser = currentSession?.user || null;
+      const nextUser = currentUser ? buildAppUser(currentUser, profile) : null;
+      if (nextUser) {
+        persistSession(
+          { ...currentSession, access_token: authToken, user: nextUser },
+          SESSION_EVENTS.TOKEN_REFRESHED
+        );
+      }
+    }
+
+    return result;
+  },
+
   async refreshSession() {
     const session = await ensureActiveSession();
     if (!session?.refresh_token) {
@@ -933,6 +1030,18 @@ const authApi = {
     const payload = await parseJsonSafely(response);
     if (!response.ok) {
       return { data: null, error: createError(payload, 'Could not update profile.') };
+    }
+    const profile = payload?.profile || null;
+    if (profile) {
+      const currentSession = getStoredSession() || session;
+      const currentUser = currentSession?.user || null;
+      const nextUser = currentUser ? buildAppUser(currentUser, profile) : currentUser;
+      if (nextUser) {
+        persistSession(
+          { ...currentSession, access_token: session.access_token, user: nextUser },
+          SESSION_EVENTS.TOKEN_REFRESHED
+        );
+      }
     }
     return { data: payload, error: null };
   },

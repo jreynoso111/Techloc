@@ -338,19 +338,19 @@ const getTableNameFromDatabasePath = (pathname = '') => {
   return normalizeDataTableName(decodeURIComponent(match[1]));
 };
 
-const PUBLIC_SERVICE_ROLE_TABLES = new Set([
+const SERVICE_ROLE_READ_TABLES = new Set([
   'services',
+  'profiles',
+  'admin_change_log',
 ]);
 
 const shouldUseServiceRoleForPublicDatabaseRead = ({
   pathname = '',
   method = 'GET',
-  authHeader = '',
 } = {}) => {
-  if (String(authHeader || '').trim()) return false;
   if (!['GET', 'HEAD'].includes(String(method || 'GET').toUpperCase())) return false;
   const tableName = getTableNameFromDatabasePath(pathname);
-  return PUBLIC_SERVICE_ROLE_TABLES.has(tableName);
+  return SERVICE_ROLE_READ_TABLES.has(tableName);
 };
 
 const handleDataVersionApi = async (req, res, pathname, searchParams) => {
@@ -995,6 +995,17 @@ const handleDirectAuthApi = async (req, res, pathname) => {
     return;
   }
 
+  if (method === 'GET' && pathname === '/api/auth/profiles/current') {
+    const session = readAccessSession(getBearerToken(req));
+    if (!session?.userId) {
+      json(res, 401, { error: { message: 'Invalid or expired access token.' } });
+      return;
+    }
+    const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    json(res, 200, { profile: payload?.user?.profile || null });
+    return;
+  }
+
   if (method === 'PATCH' && pathname === '/api/auth/profiles/current') {
     const session = readAccessSession(getBearerToken(req));
     if (!session?.userId) {
@@ -1287,12 +1298,13 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   const useServiceRoleForPublicRead = shouldUseServiceRoleForPublicDatabaseRead({
     pathname,
     method,
-    authHeader,
   });
   const defaultApiKey = useServiceRoleForPublicRead && SUPABASE_SERVICE_ROLE_KEY
     ? SUPABASE_SERVICE_ROLE_KEY
     : SUPABASE_ANON_KEY;
-  const defaultAuthorization = authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : '');
+  const defaultAuthorization = useServiceRoleForPublicRead
+    ? (defaultApiKey ? `Bearer ${defaultApiKey}` : '')
+    : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''));
   const requestHeaders = {
     apikey: defaultApiKey,
     authorization: defaultAuthorization,
@@ -1341,6 +1353,14 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   } else if (pathname === '/api/database/records/' || pathname.startsWith('/api/database/records/')) {
     const table = decodeURIComponent(pathname.split('/').pop() || '');
     targetUrl = `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  } else if (pathname === '/api/auth/profiles/current' && method === 'GET') {
+    const token = getBearerToken(req);
+    const auth = token ? await getUserFromAccessToken(token) : null;
+    if (!auth?.id) {
+      json(res, 401, { error: { message: 'Invalid or expired access token.' } });
+      return;
+    }
+    targetUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`;
   } else if (pathname === '/api/auth/profiles/current' && method === 'PATCH') {
     const token = getBearerToken(req);
     const auth = token ? await getUserFromAccessToken(token) : null;
@@ -1436,6 +1456,25 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
       return;
     } catch (error) {
       json(res, 500, { error: { message: error?.message || 'Unable to resolve current user.' } });
+      return;
+    }
+  }
+
+  if (pathname === '/api/auth/profiles/current' && method === 'GET') {
+    try {
+      const response = await fetch(targetUrl, {
+        method,
+        headers: requestHeaders,
+      });
+      const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
+      if (!response.ok) {
+        json(res, response.status, { error: { message: payload.error_description || payload.msg || payload.error || payload.message || 'Could not load profile.' } });
+        return;
+      }
+      json(res, 200, { profile: Array.isArray(payload) ? (payload[0] || null) : payload });
+      return;
+    } catch (error) {
+      json(res, 500, { error: { message: error?.message || 'Could not load profile.' } });
       return;
     }
   }

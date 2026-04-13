@@ -24,33 +24,25 @@ const getCurrentUserId = async () => {
 const loadProfileMode = async () => {
   if (!supabaseClient) return null;
 
-  const userId = await getCurrentUserId();
-  if (!userId) return null;
+  if (typeof supabaseClient?.auth?.getProfile !== 'function') return null;
 
-  const { data, error } = await supabaseClient
-    .from('profiles')
-    .select('background_mode')
-    .eq('id', userId)
-    .maybeSingle();
+  const { data, error } = await supabaseClient.auth.getProfile();
 
   if (error) {
     console.warn('Unable to fetch background preference from profile', error);
     return null;
   }
 
-  return data?.background_mode ? normalizeBackgroundMode(data.background_mode) : null;
+  const profile = data?.profile || null;
+  return profile?.background_mode ? normalizeBackgroundMode(profile.background_mode) : null;
 };
 
 const saveProfileMode = async (mode) => {
   if (!supabaseClient) return;
-  const userId = await getCurrentUserId();
-  if (!userId) return;
+  if (typeof supabaseClient?.auth?.updateUser !== 'function') return;
 
   const normalized = normalizeBackgroundMode(mode);
-  const { error } = await supabaseClient
-    .from('profiles')
-    .update({ background_mode: normalized })
-    .eq('id', userId);
+  const { error } = await supabaseClient.auth.updateUser({ background_mode: normalized });
 
   if (error) {
     throw error;

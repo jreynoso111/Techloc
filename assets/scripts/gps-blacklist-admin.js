@@ -540,12 +540,16 @@ const validateAdminRole = async (session) => {
 
   // Resolve source of truth from profiles to avoid auth metadata races.
   const userId = session?.user?.id;
-  if (userId && supabaseClient?.from) {
-    const { data, error } = await supabaseClient
-      .from('profiles')
-      .select('role, status')
-      .eq('id', userId)
-      .maybeSingle();
+  if (userId && (supabaseClient?.from || typeof supabaseClient?.auth?.getProfile === 'function')) {
+    const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
+      ? await supabaseClient.auth.getProfile()
+      : await supabaseClient
+          .from('profiles')
+          .select('role, status')
+          .eq('id', userId)
+          .maybeSingle();
+    const data = profileResult?.data?.profile || profileResult?.data || null;
+    const error = profileResult?.error || null;
 
     if (error) {
       reportError('validateAdminRole.profile_lookup', error, { userId });

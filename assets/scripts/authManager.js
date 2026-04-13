@@ -152,15 +152,30 @@ import {
       return cached.value;
     }
     try {
-      const { data, error } = await withTimeout(
-        supabaseClient
-          .from('profiles')
-          .select('role, status, email')
-          .eq('id', userId)
-          .maybeSingle(),
-        PROFILE_LOOKUP_TIMEOUT_MS,
-        'Profile lookup',
-      );
+      let data = null;
+      let error = null;
+
+      if (typeof supabaseClient?.auth?.getProfile === 'function') {
+        const result = await withTimeout(
+          supabaseClient.auth.getProfile(),
+          PROFILE_LOOKUP_TIMEOUT_MS,
+          'Profile lookup',
+        );
+        data = result?.data?.profile || null;
+        error = result?.error || null;
+      } else {
+        const result = await withTimeout(
+          supabaseClient
+            .from('profiles')
+            .select('role, status, email')
+            .eq('id', userId)
+            .maybeSingle(),
+          PROFILE_LOOKUP_TIMEOUT_MS,
+          'Profile lookup',
+        );
+        data = result?.data || null;
+        error = result?.error || null;
+      }
 
       if (error || !data)
         return fallbackProfile; // Valores por defecto si falla

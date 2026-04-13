@@ -119,23 +119,30 @@ const withTimeout = (promise, timeoutMs = 2500, label = 'operation') =>
   });
 
 const resolveFallbackAccess = (session) => {
+  const profileRole = session?.user?.profile?.role || null;
+  const userRole = session?.user?.user_metadata?.role || null;
   const appRole = session?.user?.app_metadata?.role || null;
+  const profileStatus = session?.user?.profile?.status || null;
+  const userStatus = session?.user?.user_metadata?.status || null;
   const appStatus = session?.user?.app_metadata?.status || null;
+
+  const roleHint = profileRole || userRole || appRole || null;
+  const statusHint = profileStatus || userStatus || appStatus || null;
 
   const roleSource = cachedUserRole
     ? 'cache'
-    : appRole
-      ? 'app-metadata'
+    : roleHint
+      ? 'session-metadata'
       : 'default';
 
   const statusSource = cachedUserStatus
     ? 'cache'
-    : appStatus
-      ? 'app-metadata'
+    : statusHint
+      ? 'session-metadata'
       : 'default';
 
-  const role = normalizeRoleValue(cachedUserRole || appRole || 'user', 'user');
-  const status = normalizeStatusValue(cachedUserStatus || appStatus || 'active', 'active');
+  const role = normalizeRoleValue(cachedUserRole || roleHint || 'user', 'user');
+  const status = normalizeStatusValue(cachedUserStatus || statusHint || 'active', 'active');
 
   return {
     role,
@@ -181,24 +188,37 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
     return fallbackAccess;
   }
 
-  if (!supabaseClient?.from) {
+  if (!supabaseClient?.from && typeof supabaseClient?.auth?.getProfile !== 'function') {
     window.currentUserRole = fallbackRole;
     window.currentUserStatus = fallbackStatus;
     broadcastRoleStatus(fallbackRole, fallbackStatus);
     return fallbackAccess;
   }
 
-  let response;
+  let data = null;
+  let error = null;
   try {
-    response = await withTimeout(
-      supabaseClient
-        .from('profiles')
-        .select('role, status')
-        .eq('id', userId)
-        .maybeSingle(),
-      timeoutMs,
-      'Profile access lookup',
-    );
+    if (typeof supabaseClient?.auth?.getProfile === 'function') {
+      const result = await withTimeout(
+        supabaseClient.auth.getProfile(),
+        timeoutMs,
+        'Profile access lookup',
+      );
+      data = result?.data?.profile || null;
+      error = result?.error || null;
+    } else {
+      const result = await withTimeout(
+        supabaseClient
+          .from('profiles')
+          .select('role, status')
+          .eq('id', userId)
+          .maybeSingle(),
+        timeoutMs,
+        'Profile access lookup',
+      );
+      data = result?.data || null;
+      error = result?.error || null;
+    }
   } catch (error) {
     const isTimeout = String(error?.name || '') === 'TimeoutError';
     console.warn(
@@ -210,8 +230,6 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
     broadcastRoleStatus(fallbackRole, fallbackStatus);
     return fallbackAccess;
   }
-
-  const { data, error } = response;
 
   if (error) {
     if (isRateLimitedError(error)) {
@@ -298,17 +316,30 @@ const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS }
     return fallbackProfile;
   }
 
-  if (!supabaseClient?.from) {
+  if (!supabaseClient?.from && typeof supabaseClient?.auth?.getProfile !== 'function') {
     return fallbackProfile;
   }
 
-  let response;
+  let data = null;
+  let error = null;
   try {
-    response = await withTimeout(
-      supabaseClient.from('profiles').select('name, email').eq('id', userId).maybeSingle(),
-      timeoutMs,
-      'Profile header lookup',
-    );
+    if (typeof supabaseClient?.auth?.getProfile === 'function') {
+      const result = await withTimeout(
+        supabaseClient.auth.getProfile(),
+        timeoutMs,
+        'Profile header lookup',
+      );
+      data = result?.data?.profile || null;
+      error = result?.error || null;
+    } else {
+      const result = await withTimeout(
+        supabaseClient.from('profiles').select('name, email').eq('id', userId).maybeSingle(),
+        timeoutMs,
+        'Profile header lookup',
+      );
+      data = result?.data || null;
+      error = result?.error || null;
+    }
   } catch (error) {
     const isTimeout = String(error?.name || '') === 'TimeoutError';
     console.warn(
@@ -317,8 +348,6 @@ const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS }
     );
     return fallbackProfile;
   }
-
-  const { data, error } = response;
 
   if (error) {
     if (isRateLimitedError(error)) {
@@ -341,7 +370,7 @@ const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS }
 const recordLastConnection = async (session) => {
   const userId = session?.user?.id;
   if (!userId) return;
-  if (!supabaseClient?.from) return;
+  if (!supabaseClient?.from && typeof supabaseClient?.auth?.updateUser !== 'function') return;
   if (typeof localStorage === 'undefined') return;
 
   const storageKey = `techloc:last-connection:${userId}`;
@@ -350,10 +379,12 @@ const recordLastConnection = async (session) => {
   if (Number.isFinite(lastRecorded) && lastRecorded && now - lastRecorded < 5 * 60 * 1000) return;
 
   localStorage.setItem(storageKey, String(now));
-  const { error } = await supabaseClient
-    .from('profiles')
-    .update({ last_connection: new Date(now).toISOString() })
-    .eq('id', userId);
+  const { error } = typeof supabaseClient?.auth?.updateUser === 'function'
+    ? await supabaseClient.auth.updateUser({ last_connection: new Date(now).toISOString() })
+    : await supabaseClient
+        .from('profiles')
+        .update({ last_connection: new Date(now).toISOString() })
+        .eq('id', userId);
 
   if (error) {
     console.warn('Unable to record last connection', error);

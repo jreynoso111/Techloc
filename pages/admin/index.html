@@ -425,11 +425,15 @@
         hasVerifiedAdminAccess = true;
         return hasVerifiedAdminAccess;
       }
-      const { data: profile, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+      const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
+        ? await supabaseClient.auth.getProfile()
+        : await supabaseClient
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .maybeSingle();
+      const profile = profileResult?.data?.profile || profileResult?.data || null;
+      const profileError = profileResult?.error || null;
       if (isRateLimitedError(profileError)) {
         hasVerifiedAdminAccess = fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended';
         return hasVerifiedAdminAccess;
@@ -3002,20 +3006,9 @@
     wirePtPingUpload();
   </script>
   <script type="module">
-    import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260413-01';
+    import { requireSession } from '../../assets/scripts/admin-auth.js?v=20260413-01';
 
-    const redirectToLogin = async () => {
-      if (!supabaseClient?.auth?.getSession) {
-        window.location.href = '../login.html';
-        return;
-      }
-      const { data } = await supabaseClient.auth.getSession();
-      if (!data?.session) {
-        window.location.href = '../login.html';
-      }
-    };
-
-    redirectToLogin();
+    requireSession().catch(() => {});
   </script>
   <script type="module" src="../../assets/scripts/sharedHeader.js?v=20260413-01"></script>
   <script type="module" src="../../assets/scripts/adminNav.js"></script>
