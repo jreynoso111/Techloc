@@ -1,5 +1,5 @@
 import '../authManager.js';
-import { requireSession, supabaseClient } from '../admin-auth.js';
+import { requireSession, supabaseClient } from '../admin-auth.js?v=20260413-01';
 import '../sharedHeader.js';
 import { setupBackgroundManager } from '../backgroundManager.js';
 import {

@@ -1,4 +1,4 @@
-import { requireSession, redirectToAdminHome, redirectToLogin, supabaseClient } from './admin-auth.js';
+import { requireSession, redirectToAdminHome, redirectToLogin, supabaseClient } from './admin-auth.js?v=20260413-01';
 import { clearWebAdminSession, getWebAdminAccess, isWebAdminSession } from './web-admin-session.js';
 
 const TABLE_NAME = 'gps_blacklist';

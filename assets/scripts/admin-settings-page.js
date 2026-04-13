@@ -6,7 +6,7 @@ import {
   saveAppSettings
 } from './appSettings.js';
 import { supabase as supabaseClient } from '../js/supabaseClient.js';
-import { requireSession } from './admin-auth.js';
+import { requireSession } from './admin-auth.js?v=20260413-01';
 
 const thresholdInput = document.getElementById('setting-stale-days');
 const thresholdValue = document.getElementById('setting-stale-days-value');
