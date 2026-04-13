@@ -54,6 +54,9 @@ const parseJsonSafely = async (response) => {
   }
 };
 
+const isJwtLikeToken = (token = '') => String(token || '').split('.').length === 3;
+const DEFAULT_PUBLIC_AUTH_TOKEN = isJwtLikeToken(SUPABASE_KEY) ? SUPABASE_KEY : '';
+
 const parseResponseBody = async (response) => {
   const jsonPayload = await parseJsonSafely(response);
   if (jsonPayload !== null) return jsonPayload;
@@ -65,14 +68,27 @@ const parseResponseBody = async (response) => {
   }
 };
 
+const pickErrorMessage = (payload, fallbackMessage = '') => {
+  const candidates = [
+    payload?.message,
+    payload?.error_description,
+    payload?.msg,
+    payload?.hint,
+    payload?.error?.message,
+    payload?.error?.error_description,
+    payload?.error?.msg,
+    payload?.error,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return fallbackMessage || 'Request failed.';
+};
+
 const createError = (payload, fallbackMessage) => {
   if (!payload && fallbackMessage) return { message: fallbackMessage };
-  if (payload?.error && payload?.message) return payload;
-  if (payload?.error && !payload?.message) {
-    return { message: payload.error, details: payload };
-  }
   return {
-    message: payload?.message || fallbackMessage || 'Request failed.',
+    message: pickErrorMessage(payload, fallbackMessage),
     details: payload || null,
   };
 };
@@ -171,10 +187,13 @@ const parseInFilterValues = (rawValue = '') => {
 };
 
 const buildHeaders = ({ authToken, prefer, extra = {} } = {}) => {
+  const resolvedAuthToken = String(authToken || DEFAULT_PUBLIC_AUTH_TOKEN || '').trim();
   const headers = {
-    Authorization: `Bearer ${authToken || SUPABASE_KEY}`,
     ...extra,
   };
+  if (resolvedAuthToken) {
+    headers.Authorization = `Bearer ${resolvedAuthToken}`;
+  }
   if (prefer) headers.Prefer = prefer;
   return headers;
 };
@@ -265,7 +284,7 @@ const persistSession = (session, event = SESSION_EVENTS.SIGNED_IN) => {
 const recoverSessionForUnauthorizedToken = async (failedAuthToken = '') => {
   const currentSession = getStoredSession();
   if (!currentSession?.access_token) {
-    return { authToken: SUPABASE_KEY, recoveredSession: null };
+    return { authToken: DEFAULT_PUBLIC_AUTH_TOKEN, recoveredSession: null };
   }
 
   if (failedAuthToken && currentSession.access_token !== failedAuthToken) {
@@ -304,12 +323,16 @@ const recoverSessionForUnauthorizedToken = async (failedAuthToken = '') => {
 
   persistSession(null, SESSION_EVENTS.SIGNED_OUT);
   setRecoveryTokenValue('');
-  return { authToken: SUPABASE_KEY, recoveredSession: null };
+  return { authToken: DEFAULT_PUBLIC_AUTH_TOKEN, recoveredSession: null };
 };
 
 const ensureActiveSession = async () => {
   const session = getStoredSession();
   if (!session?.access_token) return null;
+  if (!isJwtLikeToken(session.access_token)) {
+    persistSession(null, SESSION_EVENTS.SIGNED_OUT);
+    return null;
+  }
 
   if (shouldRefreshSessionToken(session.access_token)) {
     const recovery = await recoverSessionForUnauthorizedToken(session.access_token);
@@ -555,7 +578,7 @@ class InsForgeQueryBuilder {
     let { response, payload } = await send(request.authToken);
     if (
       request.authToken &&
-      request.authToken !== SUPABASE_KEY &&
+      request.authToken !== DEFAULT_PUBLIC_AUTH_TOKEN &&
       isUnauthorizedTokenError(response, payload)
     ) {
       const recovery = await recoverSessionForUnauthorizedToken(request.authToken);
@@ -665,7 +688,7 @@ class InsForgeQueryBuilder {
 
   async execute() {
     const session = await ensureActiveSession();
-    const authToken = session?.access_token || SUPABASE_KEY;
+    const authToken = session?.access_token || DEFAULT_PUBLIC_AUTH_TOKEN;
     const request = this.buildRequest(authToken);
     if (
       request.method === 'GET' &&
@@ -699,11 +722,11 @@ class InsForgeCompatClient {
       return { response, payload };
     };
 
-    let authToken = session?.access_token || SUPABASE_KEY;
+    let authToken = session?.access_token || DEFAULT_PUBLIC_AUTH_TOKEN;
     let { response, payload } = await send(authToken);
     if (
       authToken &&
-      authToken !== SUPABASE_KEY &&
+      authToken !== DEFAULT_PUBLIC_AUTH_TOKEN &&
       isUnauthorizedTokenError(response, payload)
     ) {
       const recovery = await recoverSessionForUnauthorizedToken(authToken);
@@ -787,7 +810,7 @@ const authApi = {
     if (isUnauthorizedTokenError(response, payload)) {
       const recovery = await recoverSessionForUnauthorizedToken(authToken);
       authToken = recovery.authToken;
-      if (authToken === SUPABASE_KEY) {
+      if (!authToken || authToken === DEFAULT_PUBLIC_AUTH_TOKEN) {
         return { data: { user: null }, error: null };
       }
       ({ response, payload } = await send(authToken));

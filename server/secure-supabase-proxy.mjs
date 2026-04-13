@@ -314,10 +314,43 @@ const extractTablesFromVersionQuery = (searchParams) => {
     .filter(Boolean);
 };
 
+const INTERNAL_ROUTE_QUERY_KEYS = new Set([
+  'slug',
+  'segment1',
+  'segment2',
+  'segment3',
+  'table',
+  'functionName',
+  'action',
+]);
+
+const sanitizeSearchParams = (searchParams) => {
+  const nextParams = new URLSearchParams(searchParams);
+  [...INTERNAL_ROUTE_QUERY_KEYS].forEach((key) => {
+    nextParams.delete(key);
+  });
+  return nextParams;
+};
+
 const getTableNameFromDatabasePath = (pathname = '') => {
   const match = String(pathname || '').match(/^\/api\/database\/records\/([^/]+)/i);
   if (!match?.[1]) return '';
   return normalizeDataTableName(decodeURIComponent(match[1]));
+};
+
+const PUBLIC_SERVICE_ROLE_TABLES = new Set([
+  'services',
+]);
+
+const shouldUseServiceRoleForPublicDatabaseRead = ({
+  pathname = '',
+  method = 'GET',
+  authHeader = '',
+} = {}) => {
+  if (String(authHeader || '').trim()) return false;
+  if (!['GET', 'HEAD'].includes(String(method || 'GET').toUpperCase())) return false;
+  const tableName = getTableNameFromDatabasePath(pathname);
+  return PUBLIC_SERVICE_ROLE_TABLES.has(tableName);
 };
 
 const handleDataVersionApi = async (req, res, pathname, searchParams) => {
@@ -1250,16 +1283,20 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   const method = String(req.method || 'GET').toUpperCase();
   const rawBody = ['GET', 'HEAD'].includes(method) ? null : await readRawBody(req);
   let targetUrl = '';
-  const requestHeaders = {
-    apikey: SUPABASE_ANON_KEY,
-  };
-
   const authHeader = String(req.headers.authorization || '').trim();
-  if (authHeader) {
-    requestHeaders.authorization = authHeader;
-  } else {
-    requestHeaders.authorization = `Bearer ${SUPABASE_ANON_KEY}`;
-  }
+  const useServiceRoleForPublicRead = shouldUseServiceRoleForPublicDatabaseRead({
+    pathname,
+    method,
+    authHeader,
+  });
+  const defaultApiKey = useServiceRoleForPublicRead && SUPABASE_SERVICE_ROLE_KEY
+    ? SUPABASE_SERVICE_ROLE_KEY
+    : SUPABASE_ANON_KEY;
+  const defaultAuthorization = authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : '');
+  const requestHeaders = {
+    apikey: defaultApiKey,
+    authorization: defaultAuthorization,
+  };
   const cacheKey = buildClientCacheKey({
     pathname,
     search: searchParams.toString(),
@@ -1272,6 +1309,7 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   }
 
   const passthroughHeaders = [
+    'accept',
     'content-type',
     'prefer',
     'range',
@@ -1282,6 +1320,10 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     if (!value) return;
     requestHeaders[headerName] = Array.isArray(value) ? value.join(', ') : String(value);
   });
+
+  // Supabase may return a broken gzip stream for large REST payloads under Node/Vercel fetch.
+  // Force identity encoding so arrayBuffer() always contains the real JSON body.
+  requestHeaders['accept-encoding'] = 'identity';
 
   if (pathname === '/api/auth/sessions' && method === 'POST') {
     targetUrl = `${SUPABASE_URL}/auth/v1/token?grant_type=password`;
@@ -1302,11 +1344,11 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   } else if (pathname === '/api/auth/profiles/current' && method === 'PATCH') {
     const token = getBearerToken(req);
     const auth = token ? await getUserFromAccessToken(token) : null;
-    if (!auth?.user?.id) {
+    if (!auth?.id) {
       json(res, 401, { error: { message: 'Invalid or expired access token.' } });
       return;
     }
-    targetUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(auth.user.id)}`;
+    targetUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}`;
     requestHeaders.prefer = requestHeaders.prefer || 'return=representation';
   } else {
     const proxiedPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
@@ -1539,7 +1581,8 @@ const serveStatic = async (req, res, pathname) => {
 export const createRequestHandler = () => async (req, res) => {
   try {
     const url = new URL(req.url || '/', `${APP_ORIGIN}/`);
-    const { pathname, searchParams } = url;
+    const { pathname } = url;
+    const searchParams = sanitizeSearchParams(url.searchParams);
 
     if (pathname === '/api/health') {
       json(res, 200, {

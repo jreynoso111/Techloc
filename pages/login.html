@@ -83,6 +83,20 @@
     const statusLabel = document.getElementById('status');
     const resetPasswordButton = document.getElementById('reset-password-btn');
     const redirectToControlMap = () => window.location.replace('./control-map.html');
+    const toErrorMessage = (error, fallback) => {
+      if (!error) return fallback;
+      const candidates = [
+        error?.message,
+        error?.error?.message,
+        error?.error_description,
+        error?.msg,
+        error?.hint,
+      ];
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+      }
+      return fallback;
+    };
 
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -107,7 +121,7 @@
 
       if (error) {
         clearWebAdminSession();
-        statusLabel.textContent = error.message || 'Unable to sign in. Please try again.';
+        statusLabel.textContent = toErrorMessage(error, 'Unable to sign in. Please try again.');
         submitButton.disabled = false;
         submitLabel.textContent = originalText;
         return;
@@ -142,7 +156,7 @@
       const redirectTo = new URL('./reset-password.html', window.location.href).toString();
       const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) {
-        statusLabel.textContent = error.message || 'Could not send reset email.';
+        statusLabel.textContent = toErrorMessage(error, 'Could not send reset email.');
         return;
       }
 
