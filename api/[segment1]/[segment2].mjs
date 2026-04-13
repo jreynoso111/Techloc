@@ -2,6 +2,6 @@ import { createRequestHandler } from '../../server/secure-supabase-proxy.mjs';
 
 const handler = createRequestHandler();
 
-export default async function vercelDataVersionHandler(req, res) {
+export default async function vercelTwoSegmentApiHandler(req, res) {
   return handler(req, res);
 }
