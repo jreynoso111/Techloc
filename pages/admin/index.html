@@ -2423,6 +2423,30 @@
       }
     };
 
+    const adminPostJson = async (path, payload = {}) => {
+      const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData?.session?.access_token || '';
+      if (!accessToken) throw new Error('Active session is required.');
+
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload || {}),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = result?.error?.message || result?.message || `Request failed (${response.status})`;
+        const error = new Error(message);
+        error.details = result?.error || result || null;
+        throw error;
+      }
+      return result?.data ?? result ?? null;
+    };
+
     const purgePtRowsMissingCoordinates = async () => {
       const collectIdsForMissingCoordinate = async (columnName) => {
         const ids = [];
@@ -2477,59 +2501,29 @@
         return str.slice(-6);
       };
 
-      const fetchDealsVinMap = async () => {
-        const map = new Map();
-        const pageSize = 1000;
-        let from = 0;
-        while (true) {
-          const to = from + pageSize - 1;
-          const { data, error } = await supabaseClient
-            .from(DEALS_TABLE)
-            .select('VIN', { head: false })
-            .range(from, to);
-          if (error) throw error;
-          (data || []).forEach((row) => {
-            const last6 = normalizeVinLast6(row?.VIN);
-            const normalizedVin = normalizeUpperTrimmedValue(row?.VIN);
-            if (last6 && normalizedVin) map.set(last6, normalizedVin);
-          });
-          if (!data || data.length < pageSize) break;
-          from += pageSize;
-        }
-        return map;
-      };
-
-      const fetchGpsBlacklistMap = async () => {
+      const fetchPtUploadReferenceData = async (vinSuffixes = []) => {
+        const payload = await adminPostJson('/api/admin/pt-lastping/reference-data', { vinSuffixes });
+        const vinMap = new Map(
+          Object.entries(payload?.vinMap || {}).map(([suffix, vin]) => [String(suffix || '').trim().toUpperCase(), normalizeUpperTrimmedValue(vin)])
+        );
         const blacklistMap = new Map();
-        const pageSize = 1000;
-        let from = 0;
-        while (true) {
-          const to = from + pageSize - 1;
-          const { data, error } = await supabaseClient
-            .from('gps_blacklist')
-            .select('serial,is_active,effective_from')
-            .range(from, to);
-          if (error) throw error;
-          (data || []).forEach((row) => {
-            if (row?.is_active === false) return;
-            const serial = normalizeGpsSerialValue(row?.serial);
-            if (!serial) return;
-            const effectiveFromTs = parseBlacklistEffectiveFromTimestamp(row?.effective_from);
-            const currentValue = blacklistMap.get(serial);
-            if (currentValue === undefined) {
-              blacklistMap.set(serial, effectiveFromTs);
-              return;
-            }
-            if (currentValue === null || effectiveFromTs === null) {
-              blacklistMap.set(serial, null);
-              return;
-            }
-            blacklistMap.set(serial, Math.min(currentValue, effectiveFromTs));
-          });
-          if (!data || data.length < pageSize) break;
-          from += pageSize;
-        }
-        return blacklistMap;
+        (payload?.gpsBlacklist || []).forEach((row) => {
+          if (row?.is_active === false) return;
+          const serial = normalizeGpsSerialValue(row?.serial);
+          if (!serial) return;
+          const effectiveFromTs = parseBlacklistEffectiveFromTimestamp(row?.effective_from);
+          const currentValue = blacklistMap.get(serial);
+          if (currentValue === undefined) {
+            blacklistMap.set(serial, effectiveFromTs);
+            return;
+          }
+          if (currentValue === null || effectiveFromTs === null) {
+            blacklistMap.set(serial, null);
+            return;
+          }
+          blacklistMap.set(serial, Math.min(currentValue, effectiveFromTs));
+        });
+        return { vinMap, blacklistMap };
       };
 
       const submitBtn = document.getElementById('pt-ping-upload-button');
@@ -2759,8 +2753,12 @@
       let gpsBlacklistMap;
       try {
         setStatus('Loading reference VINs...');
-        dealsVinMap = await fetchDealsVinMap();
-        gpsBlacklistMap = await fetchGpsBlacklistMap();
+        const vinSuffixes = Array.from(new Set(
+          cleanedRows.map((row) => normalizeVinLast6(row?.['VIN'])).filter(Boolean)
+        ));
+        const referenceData = await fetchPtUploadReferenceData(vinSuffixes);
+        dealsVinMap = referenceData.vinMap;
+        gpsBlacklistMap = referenceData.blacklistMap;
       } catch (err) {
         console.error('Failed to load validation references', err);
         showToast('Unable to load validation references for PT upload.', 'error');
@@ -2873,13 +2871,7 @@
         setStatus(`Uploading ${dedupedRows.length} filtered rows in one request...`);
         setProgress(5, `Uploading ${dedupedRows.length} filtered rows`);
         const payload = dedupedRows.map(buildSlimPtPayload);
-        const { error } = await supabaseClient
-          .from('PT-LastPing')
-          .upsert(payload, {
-            onConflict: 'Serial,Date',
-            ignoreDuplicates: true,
-          });
-        if (error) throw error;
+        await adminPostJson('/api/admin/pt-lastping/upload', { rows: payload });
         aggregated.batches = 1;
         aggregated.inserted = payload.length;
         setProgress(90, `Uploaded ${payload.length} of ${dedupedRows.length} rows`);

@@ -548,6 +548,15 @@ const parseSupabaseError = async (response) => {
   }
 };
 
+const chunkArray = (items = [], chunkSize = 100) => {
+  const safeChunkSize = Math.max(1, Number(chunkSize) || 100);
+  const chunks = [];
+  for (let index = 0; index < items.length; index += safeChunkSize) {
+    chunks.push(items.slice(index, index + safeChunkSize));
+  }
+  return chunks;
+};
+
 const runPgBridge = async (payload = {}) => {
   return new Promise((resolve, reject) => {
     const child = spawn('python3', [PYTHON_BRIDGE_PATH], {
@@ -848,8 +857,64 @@ const resolveUserEmailForReset = async ({ userId }) => {
   return '';
 };
 
+const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
+  const rows = [];
+  for (const suffixChunk of chunkArray(vinSuffixes, 20)) {
+    const params = new URLSearchParams();
+    params.set('select', 'VIN');
+    params.set(
+      'or',
+      `(${suffixChunk.map((suffix) => `VIN.ilike.%${String(suffix).replace(/[%(),]/g, '')}`).join(',')})`
+    );
+    const response = await supabaseRequest(`/rest/v1/${encodeURIComponent(tableName)}?${params.toString()}`);
+    if (!response.ok) {
+      const parsed = await parseSupabaseError(response);
+      throw new Error(parsed.message || `Could not query ${tableName} VINs.`);
+    }
+    const payload = await response.json();
+    rows.push(...(Array.isArray(payload) ? payload : []));
+  }
+  return rows;
+};
+
+const buildPtReferencePayload = async ({ vinSuffixes }) => {
+  const normalizedSuffixes = Array.from(
+    new Set(
+      (vinSuffixes || [])
+        .map((value) => String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-6))
+        .filter(Boolean)
+    )
+  );
+
+  const vinMap = {};
+  if (normalizedSuffixes.length) {
+    const tables = ['vehicles', 'DealsJP1'];
+    for (const tableName of tables) {
+      const rows = await fetchPtReferenceVinRows({ tableName, vinSuffixes: normalizedSuffixes });
+      for (const row of rows) {
+        const vin = String(row?.VIN || '').trim().toUpperCase();
+        const suffix = vin.replace(/[^A-Z0-9]/g, '').slice(-6);
+        if (!suffix || !vin || vinMap[suffix]) continue;
+        vinMap[suffix] = vin;
+      }
+    }
+  }
+
+  const blacklistResponse = await supabaseRequest('/rest/v1/gps_blacklist?select=serial,is_active,effective_from');
+  if (!blacklistResponse.ok) {
+    const parsed = await parseSupabaseError(blacklistResponse);
+    throw new Error(parsed.message || 'Could not load GPS blacklist.');
+  }
+  const gpsBlacklist = await blacklistResponse.json();
+
+  return {
+    vinMap,
+    gpsBlacklist: Array.isArray(gpsBlacklist) ? gpsBlacklist : [],
+  };
+};
+
 const handleAdminApi = async (req, res, pathname) => {
-  if (req.method !== 'POST' || pathname !== '/api/admin/password-reset') {
+  if (req.method !== 'POST' || !pathname.startsWith('/api/admin/')) {
     json(res, 404, { error: { message: 'Not found.' } });
     return;
   }
@@ -871,6 +936,53 @@ const handleAdminApi = async (req, res, pathname) => {
     body = await parseJsonBody(req);
   } catch (error) {
     json(res, 400, { error: { message: error?.message || 'Invalid JSON payload.' } });
+    return;
+  }
+
+  if (pathname === '/api/admin/pt-lastping/reference-data') {
+    try {
+      const payload = await buildPtReferencePayload({
+        vinSuffixes: Array.isArray(body?.vinSuffixes) ? body.vinSuffixes : [],
+      });
+      json(res, 200, { data: payload });
+    } catch (error) {
+      json(res, 500, { error: { message: error?.message || 'Could not load PT reference data.' } });
+    }
+    return;
+  }
+
+  if (pathname === '/api/admin/pt-lastping/upload') {
+    const rows = Array.isArray(body?.rows) ? body.rows : [];
+    if (!rows.length) {
+      json(res, 400, { error: { message: 'Rows are required.' } });
+      return;
+    }
+
+    const response = await supabaseRequest('/rest/v1/PT-LastPing?on_conflict=Serial,Date', {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=ignore-duplicates,return=minimal',
+      },
+      body: rows,
+    });
+
+    if (!response.ok) {
+      const parsed = await parseSupabaseError(response);
+      json(res, response.status, { error: parsed });
+      return;
+    }
+
+    json(res, 200, {
+      data: {
+        ok: true,
+        received: rows.length,
+      },
+    });
+    return;
+  }
+
+  if (pathname !== '/api/admin/password-reset') {
+    json(res, 404, { error: { message: 'Not found.' } });
     return;
   }
 
@@ -1652,7 +1764,7 @@ export const createRequestHandler = () => async (req, res) => {
       return;
     }
 
-    if (pathname === '/api/admin/password-reset') {
+    if (pathname.startsWith('/api/admin/')) {
       await handleAdminApi(req, res, pathname);
       return;
     }
