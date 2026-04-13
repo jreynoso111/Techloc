@@ -2743,15 +2743,48 @@
           return { updatedRows: 0, processedVins: 0 };
         }
 
-        setStatus(`Finalizing PT processing for ${uniqueVins.length} VINs...`);
-        setProgress(96, `Finalizing ${uniqueVins.length} VINs`);
-        const { data, error } = await supabaseClient.rpc('finalize_pt_lastping_upload', {
-          p_vins: uniqueVins
-        });
-        if (error) throw error;
+        const pending = [];
+        const initialBatchSize = Math.min(50, uniqueVins.length);
+        for (let index = 0; index < uniqueVins.length; index += initialBatchSize) {
+          pending.push(uniqueVins.slice(index, index + initialBatchSize));
+        }
+
+        let processedVins = 0;
+        let updatedRows = 0;
+
+        while (pending.length) {
+          const currentBatch = pending.shift();
+          if (!Array.isArray(currentBatch) || !currentBatch.length) continue;
+
+          const start = processedVins + 1;
+          const end = processedVins + currentBatch.length;
+          setStatus(`Finalizing PT processing for VINs ${start}-${end} of ${uniqueVins.length}...`);
+          setProgress(
+            Math.max(92, Math.min(99, 92 + Math.round((processedVins / uniqueVins.length) * 7))),
+            `Finalizing ${end} of ${uniqueVins.length} VINs`
+          );
+
+          const { data, error } = await supabaseClient.rpc('finalize_pt_lastping_upload', {
+            p_vins: currentBatch
+          });
+
+          if (error) {
+            if (isPtUploadTimeoutError(error) && currentBatch.length > 1) {
+              const retrySize = Math.max(1, Math.floor(currentBatch.length / 2));
+              const retryChunks = chunkArray(currentBatch, retrySize);
+              pending.unshift(...retryChunks);
+              continue;
+            }
+            throw error;
+          }
+
+          processedVins += currentBatch.length;
+          updatedRows += Number(data?.updated_rows || 0);
+        }
+
         return {
-          updatedRows: Number(data?.updated_rows || 0),
-          processedVins: Number(data?.processed_vins || 0)
+          updatedRows,
+          processedVins
         };
       };
 
