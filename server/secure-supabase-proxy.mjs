@@ -344,6 +344,17 @@ const SERVICE_ROLE_READ_TABLES = new Set([
   'admin_change_log',
 ]);
 
+const SERVICE_ROLE_AUTHENTICATED_WRITE_TABLES = new Set([
+  'pt-lastping',
+  'dealsjp1',
+]);
+
+const SERVICE_ROLE_AUTHENTICATED_RPCS = new Set([
+  'finalize_pt_lastping_upload',
+  'recalc_dealsjp1_last_deal',
+  'sync_vehicles_from_dealsjp1_lastdeal',
+]);
+
 const shouldUseServiceRoleForPublicDatabaseRead = ({
   pathname = '',
   method = 'GET',
@@ -351,6 +362,26 @@ const shouldUseServiceRoleForPublicDatabaseRead = ({
   if (!['GET', 'HEAD'].includes(String(method || 'GET').toUpperCase())) return false;
   const tableName = getTableNameFromDatabasePath(pathname);
   return SERVICE_ROLE_READ_TABLES.has(tableName);
+};
+
+const getRpcNameFromDatabasePath = (pathname = '') => {
+  const match = String(pathname || '').match(/^\/api\/database\/rpc\/([^/]+)/i);
+  if (!match?.[1]) return '';
+  return String(decodeURIComponent(match[1]) || '').trim().toLowerCase();
+};
+
+const shouldUseServiceRoleForAuthenticatedWrite = ({
+  pathname = '',
+  method = 'GET',
+} = {}) => {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  if (['GET', 'HEAD'].includes(normalizedMethod)) return false;
+
+  const tableName = getTableNameFromDatabasePath(pathname);
+  if (tableName && SERVICE_ROLE_AUTHENTICATED_WRITE_TABLES.has(tableName)) return true;
+
+  const rpcName = getRpcNameFromDatabasePath(pathname);
+  return Boolean(rpcName) && SERVICE_ROLE_AUTHENTICATED_RPCS.has(rpcName);
 };
 
 const handleDataVersionApi = async (req, res, pathname, searchParams) => {
@@ -1542,10 +1573,19 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     pathname,
     method,
   });
-  const defaultApiKey = useServiceRoleForPublicRead && SUPABASE_SERVICE_ROLE_KEY
+  const useServiceRoleForAuthenticatedWrite = shouldUseServiceRoleForAuthenticatedWrite({
+    pathname,
+    method,
+  });
+  if (useServiceRoleForAuthenticatedWrite) {
+    const auth = await requireActiveUser(req, res);
+    if (!auth) return;
+  }
+
+  const defaultApiKey = (useServiceRoleForPublicRead || useServiceRoleForAuthenticatedWrite) && SUPABASE_SERVICE_ROLE_KEY
     ? SUPABASE_SERVICE_ROLE_KEY
     : SUPABASE_ANON_KEY;
-  const defaultAuthorization = useServiceRoleForPublicRead
+  const defaultAuthorization = (useServiceRoleForPublicRead || useServiceRoleForAuthenticatedWrite)
     ? (defaultApiKey ? `Bearer ${defaultApiKey}` : '')
     : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''));
   const requestHeaders = {
