@@ -55,6 +55,7 @@ const parseJsonSafely = async (response) => {
 };
 
 const isJwtLikeToken = (token = '') => String(token || '').split('.').length === 3;
+const isOpaqueSessionToken = (token = '') => Boolean(String(token || '').trim()) && !isJwtLikeToken(token);
 const DEFAULT_PUBLIC_AUTH_TOKEN = isJwtLikeToken(SUPABASE_KEY) ? SUPABASE_KEY : '';
 
 const parseResponseBody = async (response) => {
@@ -380,9 +381,11 @@ const recoverSessionForUnauthorizedToken = async (failedAuthToken = '') => {
 const ensureActiveSession = async () => {
   const session = getStoredSession();
   if (!session?.access_token) return null;
-  if (!isJwtLikeToken(session.access_token)) {
-    persistSession(null, SESSION_EVENTS.SIGNED_OUT);
-    return null;
+
+  // Local proxy mode can issue opaque access tokens instead of JWTs.
+  // Keep those sessions active and let the backend validate them.
+  if (isOpaqueSessionToken(session.access_token)) {
+    return session;
   }
 
   if (shouldRefreshSessionToken(session.access_token)) {

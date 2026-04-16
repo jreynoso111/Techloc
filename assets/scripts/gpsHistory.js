@@ -80,6 +80,8 @@ const getVehicleWinnerSerial = (vehicle = {}) => {
 
 const getVehicleCanonicalMovementStatus = (vehicle = {}) => {
   const candidates = [
+    vehicle?.historyMovingOverride,
+    vehicle?.details?.historyMovingOverride,
     vehicle?.movementStatusV2,
     vehicle?.details?.movement_status_v2,
     vehicle?.moving,
@@ -97,6 +99,8 @@ const getVehicleCanonicalMovementStatus = (vehicle = {}) => {
 
 const getVehicleCanonicalDaysParked = (vehicle = {}) => {
   const candidates = [
+    vehicle?.historyDaysStationaryOverride,
+    vehicle?.details?.historyDaysStationaryOverride,
     vehicle?.movementDaysStationaryV2,
     vehicle?.details?.movement_days_stationary_v2,
     vehicle?.daysStationary,

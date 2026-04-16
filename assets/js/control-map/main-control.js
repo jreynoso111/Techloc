@@ -1191,8 +1191,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
     const hydrateVehicleClickHistory = async (vehicleRows = []) => {
       if (!supabaseClient?.from || !Array.isArray(vehicleRows) || !vehicleRows.length) return;
-      const userId = await getCurrentUserId();
-      if (!userId) return;
 
       const vins = Array.from(new Set(vehicleRows.map((vehicle) => getVehicleVin(vehicle)).filter(Boolean)));
       if (!vins.length) return;
@@ -1201,7 +1199,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       const { data, error } = await supabaseClient
         .from(VEHICLE_CLICK_HISTORY_TABLE)
         .select('vin, clicked_at, metadata')
-        .eq('user_id', userId)
         .in('vin', queryVins)
         .order('clicked_at', { ascending: false });
 
@@ -3179,6 +3176,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         const stationarySourceRecords = winnerSerial
           ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
           : movementSourceRecords;
+        const winnerScopedRecords = getWinnerScopedGpsRecords(records, {
+          winnerSerial,
+          getRecordSerial,
+          fallbackToAll: true
+        });
 
         if (applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
           movementSourceRecords,
@@ -3189,7 +3191,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           changed = true;
         }
 
-        const latestPositionRecord = [...records]
+        const latestPositionRecord = [...winnerScopedRecords]
           .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
           .find((record) => Boolean(toGpsTrailPoint(record))) || null;
         const latestCoords = latestPositionRecord ? toGpsTrailPoint(latestPositionRecord) : null;
@@ -3392,6 +3394,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         const stationarySourceRecords = winnerSerial
           ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
           : movementSourceRecords;
+        const winnerScopedRecords = getWinnerScopedGpsRecords(records, {
+          winnerSerial,
+          getRecordSerial,
+          fallbackToAll: true
+        });
 
         if (applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
           movementSourceRecords,
@@ -3418,7 +3425,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             ? Math.max(0, Number(vehicle?.historyDaysStationaryOverride ?? 0) || 0)
             : null;
         const currentStatus = `${vehicle?.movementStatusV2 ?? vehicle?.details?.movement_status_v2 ?? ''}`.trim().toLowerCase();
-        const latestPositionRecord = [...records]
+        const latestPositionRecord = [...winnerScopedRecords]
           .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
           .find((record) => Boolean(toGpsTrailPoint(record))) || null;
         const latestCoords = latestPositionRecord ? toGpsTrailPoint(latestPositionRecord) : null;
@@ -3539,6 +3546,24 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       return Number.isFinite(parsed) ? parsed : null;
     };
 
+    const getWinnerScopedGpsRecords = (
+      records = [],
+      {
+        winnerSerial = '',
+        getRecordSerial = () => '',
+        fallbackToAll = true
+      } = {}
+    ) => {
+      if (!Array.isArray(records) || !records.length) return [];
+      const normalizedWinnerSerial = `${winnerSerial || ''}`.trim();
+      if (!normalizedWinnerSerial || typeof getRecordSerial !== 'function') {
+        return fallbackToAll ? records : [];
+      }
+      const scoped = records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === normalizedWinnerSerial);
+      if (scoped.length) return scoped;
+      return fallbackToAll ? records : [];
+    };
+
     const applyVehiclePtReadBoundsFromRecords = (
       vehicle,
       records = [],
@@ -3548,7 +3573,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       } = {}
     ) => {
       if (!vehicle || !Array.isArray(records) || !records.length) return false;
-      const sourceRecords = records;
+      const sourceRecords = getWinnerScopedGpsRecords(records, {
+        winnerSerial,
+        getRecordSerial,
+        fallbackToAll: true
+      });
 
       let earliestMs = Number.POSITIVE_INFINITY;
       let latestMs = Number.NEGATIVE_INFINITY;
@@ -4027,6 +4056,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       const stationarySourceRecords = winnerSerial
         ? records.filter((record) => `${getRecordSerial(record) || ''}`.trim() === winnerSerial)
         : movementSourceRecords;
+      const winnerScopedRecords = getWinnerScopedGpsRecords(records, {
+        winnerSerial,
+        getRecordSerial,
+        fallbackToAll: true
+      });
 
       applyVehicleMovingOverrideFromGpsHistory(vehicle, records, {
         movementSourceRecords,
@@ -4037,7 +4071,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const latestWinnerRecord = [...(stationarySourceRecords.length ? stationarySourceRecords : records)]
         .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
-      const latestPositionRecord = [...records]
+      const latestPositionRecord = [...winnerScopedRecords]
         .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))
         .find((record) => {
           const point = toGpsTrailPoint(record);
@@ -8588,6 +8622,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         clearPinnedVehicleListCardPosition();
       }
       const maxDaysParkedAcrossVehicles = getMaxDaysParkedAcrossVehicles(vehicles);
+      updateVehiclesLatestPtReadSummary(vehicles);
       document.getElementById('vehicles-count').textContent = filtered.length;
 
       if (filtered.length === 0) {
@@ -9010,6 +9045,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return Number.NEGATIVE_INFINITY;
       }
 
+      const historyDays = parseDaysParkedCandidate(
+        vehicle?.historyDaysStationaryOverride
+        ?? vehicle?.details?.historyDaysStationaryOverride
+      );
+      if (Number.isFinite(historyDays)) return historyDays;
+
       const movementDaysV2 = parseDaysParkedCandidate(
         vehicle?.movementDaysStationaryV2
         ?? vehicle?.details?.movement_days_stationary_v2
@@ -9055,6 +9096,39 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         ?? vehicle?.details?.['PT Last Read']
         ?? vehicle?.details?.['PT Last Read ']
         ?? '';
+    }
+
+    function getVehiclePtLastReadTimestampMs(vehicle) {
+      const rawValue = getVehiclePtLastReadValue(vehicle);
+      if (rawValue === null || rawValue === undefined || rawValue === '') return null;
+
+      const epochMs = parseEpochCandidateMs(rawValue);
+      if (Number.isFinite(epochMs)) return epochMs;
+
+      const parsedDate = parsePtLastReadDate(rawValue);
+      if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
+        return parsedDate.getTime();
+      }
+
+      return null;
+    }
+
+    function updateVehiclesLatestPtReadSummary(list = []) {
+      const label = document.getElementById('vehicles-latest-pt-read');
+      if (!label) return;
+
+      let latestTimestampMs = null;
+      list.forEach((vehicle) => {
+        const candidateMs = getVehiclePtLastReadTimestampMs(vehicle);
+        if (!Number.isFinite(candidateMs)) return;
+        if (!Number.isFinite(latestTimestampMs) || candidateMs > latestTimestampMs) {
+          latestTimestampMs = candidateMs;
+        }
+      });
+
+      label.textContent = Number.isFinite(latestTimestampMs)
+        ? formatDateTime(latestTimestampMs)
+        : '—';
     }
 
     function getVehiclePtFirstReadValue(vehicle) {
@@ -10380,7 +10454,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         vinDisplay.textContent = VIN ? `VIN: ${VIN}` : '';
       }
       const { headers, hidden } = getVehicleModalHeaders(vehicleHeaders);
-      const detailRows = headers.map(header => {
+      const detailCards = headers.map(header => {
         const displayHeader = VEHICLE_HEADER_LABELS[header] || header;
         const editConfig = EDITABLE_VEHICLE_FIELDS[normalizeVehicleHeader(header)];
         const fieldKey = editConfig?.fieldKey;
@@ -10389,25 +10463,27 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           ? (vehicle?.[fieldKey] ?? '—')
           : (vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—');
         return `
-          <tr class="border-b border-slate-800/80 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${header}">
-            <th class="text-left text-xs font-semibold text-slate-300 py-2 pr-3">
-              <span class="inline-flex items-center gap-2">
-                <span class="text-slate-600 text-sm">⋮⋮</span>
+          <article class="rounded-2xl border border-slate-800/80 bg-slate-950/70 p-3 shadow-lg shadow-black/20 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${header}" data-field-card="true">
+            <div class="flex items-start justify-between gap-3">
+              <p class="min-w-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <span class="mr-2 text-slate-600 text-sm align-middle">⋮⋮</span>
                 ${displayHeader}
-              </span>
-            </th>
-            <td class="text-xs text-slate-100 py-2">
-              <div class="flex items-center justify-between gap-2">
-                <span data-field-value>${value || '—'}</span>
-                ${isEditable ? `
-                  <button type="button" class="rounded border border-amber-400/40 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}" data-edit-column="${editConfig.updateColumn}" data-edit-table="${editConfig.table}">Edit</button>
-                ` : ''}
-              </div>
-            </td>
-          </tr>
+              </p>
+              ${isEditable ? `
+                <button type="button" class="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}" data-edit-column="${editConfig.updateColumn}" data-edit-table="${editConfig.table}">Edit</button>
+              ` : ''}
+            </div>
+            <div class="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3 text-xs text-slate-100">
+              <span data-field-value class="block whitespace-pre-wrap break-words">${value || '—'}</span>
+            </div>
+          </article>
         `;
       }).join('');
-      body.innerHTML = `<table class="w-full text-left">${detailRows}</table>`;
+      body.innerHTML = `
+        <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-vehicle-modal-grid>
+          ${detailCards}
+        </div>
+      `;
 
       modal.classList.remove('hidden');
       modal.classList.add('flex');
@@ -10707,7 +10783,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     function attachVehicleModalRowDrag() {
       const modal = document.getElementById('vehicle-modal');
       if (!modal) return;
-      const rows = modal.querySelectorAll('tr[data-header]');
+      const grid = modal.querySelector('[data-vehicle-modal-grid]');
+      if (!grid) return;
+      const rows = grid.querySelectorAll('[data-header]');
       let draggedRow = null;
 
       rows.forEach((row) => {
@@ -10731,18 +10809,16 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         row.addEventListener('drop', (event) => {
           event.preventDefault();
           if (!draggedRow || draggedRow === row) return;
-          const tbody = row.parentElement;
-          if (!tbody) return;
-          const rowList = [...tbody.querySelectorAll('tr[data-header]')];
+          const rowList = [...grid.querySelectorAll('[data-header]')];
           const draggedIndex = rowList.indexOf(draggedRow);
           const targetIndex = rowList.indexOf(row);
           if (draggedIndex < targetIndex) {
-            tbody.insertBefore(draggedRow, row.nextSibling);
+            grid.insertBefore(draggedRow, row.nextSibling);
           } else {
-            tbody.insertBefore(draggedRow, row);
+            grid.insertBefore(draggedRow, row);
           }
           const prefs = loadVehicleModalPrefs();
-          prefs.order = [...tbody.querySelectorAll('tr[data-header]')].map((entry) => entry.dataset.header);
+          prefs.order = [...grid.querySelectorAll('[data-header]')].map((entry) => entry.dataset.header);
           saveVehicleModalPrefs(prefs);
         });
       });
@@ -10763,16 +10839,16 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           const headerKey = button.dataset.editHeader;
           const updateColumn = button.dataset.editColumn || headerKey;
           const updateTable = button.dataset.editTable || TABLES.vehicles;
-          const cell = button.closest('td');
-          const valueNode = cell?.querySelector('[data-field-value]');
-          if (!cell || !valueNode) {
+          const card = button.closest('[data-field-card]');
+          const valueNode = card?.querySelector('[data-field-value]');
+          if (!card || !valueNode) {
             saveInProgress = false;
             button.disabled = false;
             button.textContent = button.dataset.editing === 'true' ? 'Save' : 'Edit';
             return;
           }
 
-          const input = cell.querySelector('input[data-edit-input]');
+          const input = card.querySelector('input[data-edit-input]');
           const newValue = input ? input.value.trim() : '';
           button.textContent = 'Saving...';
           const stopLoading = startLoading('Saving...');
@@ -10838,9 +10914,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         };
 
         button.onclick = async () => {
-          const cell = button.closest('td');
-          const valueNode = cell?.querySelector('[data-field-value]');
-          if (!cell || !valueNode) return;
+          const card = button.closest('[data-field-card]');
+          const valueNode = card?.querySelector('[data-field-value]');
+          if (!card || !valueNode) return;
 
           if (button.dataset.editing === 'true') {
             await saveEdit();

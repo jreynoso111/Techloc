@@ -68,8 +68,8 @@ export const renderVehicleModalColumnsList = (headers, hiddenSet) => {
       prefs.hidden = [...hidden];
       saveVehicleModalPrefs(prefs);
       const safeHeader = (window.CSS && CSS.escape) ? CSS.escape(header) : header.replace(/"/g, '\\"');
-      const row = document.querySelector(`tr[data-header="${safeHeader}"]`);
-      if (row) row.classList.toggle('hidden', !checkbox.checked);
+      const card = document.querySelector(`[data-header="${safeHeader}"]`);
+      if (card) card.classList.toggle('hidden', !checkbox.checked);
     });
     list.appendChild(item);
   });

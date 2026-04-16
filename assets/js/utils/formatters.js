@@ -191,6 +191,22 @@ const parseStationaryDays = (...candidates) => {
 };
 
 export const getMovingStatus = (vehicle = {}) => {
+  const historyOverrideStatus = parseMovingIndicator(
+    vehicle?.historyMovingOverride,
+    vehicle?.details?.historyMovingOverride
+  );
+  if (historyOverrideStatus === 'moving' || historyOverrideStatus === 'stopped' || historyOverrideStatus === 'unknown') {
+    return historyOverrideStatus;
+  }
+
+  const historyOverrideDays = parseStationaryDays(
+    vehicle?.historyDaysStationaryOverride,
+    vehicle?.details?.historyDaysStationaryOverride
+  );
+  if (historyOverrideDays !== null) {
+    return historyOverrideDays <= 0 ? 'moving' : 'stopped';
+  }
+
   const explicitV2Status = parseMovingIndicator(
     vehicle?.movementStatusV2,
     vehicle?.details?.movement_status_v2

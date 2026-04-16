@@ -276,6 +276,7 @@
       </div>
       <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
         <p class="font-semibold text-white">Database Signal</p>
+        <p class="mt-1 text-[11px] text-slate-400 hidden" data-dataset-meta></p>
         <p class="mt-1 leading-relaxed" data-dataset-signal>Fetching live stats...</p>
       </div>
     </div>
@@ -1684,6 +1685,20 @@
       }
     };
 
+    const formatDatasetTimestamp = (value) => {
+      if (!value) return null;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return null;
+      return date.toLocaleString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(',', '');
+    };
+
     const getTableStats = async (dataset) => {
       if (!supabaseClient) {
         return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: 'Client unavailable' };
@@ -1723,6 +1738,16 @@
         if (data && data.length > 0) {
           columnCount = Object.keys(data[0]).length;
           lastUpdated = data[0].created_at || data[0].updated_at || null;
+        }
+        if (dataset.table === 'PT-LastPing') {
+          const { data: ptLatestData, error: ptLatestError } = await supabaseClient
+            .from('PT-LastPing')
+            .select('Date')
+            .order('Date', { ascending: false })
+            .limit(1);
+          if (!ptLatestError) {
+            lastUpdated = ptLatestData?.[0]?.Date || lastUpdated;
+          }
         }
         const liveStats = { rows: count || 0, columns: columnCount, lastUpdated, restricted: false };
         writeCachedDatasetStats(dataset.table, liveStats);
@@ -1772,6 +1797,7 @@
         status: clone.querySelector('[data-dataset-status]'),
         rows: clone.querySelector('[data-dataset-rows]'),
         columns: clone.querySelector('[data-dataset-columns]'),
+        meta: clone.querySelector('[data-dataset-meta]'),
         signal: clone.querySelector('[data-dataset-signal]'),
       };
       els.scope.textContent = dataset.scope;
@@ -1785,6 +1811,16 @@
       const columnCount = Number.isFinite(Number(stats?.columns)) ? Number(stats.columns) : null;
       els.rows.textContent = rowCount === null ? '--' : rowCount.toLocaleString();
       els.columns.textContent = columnCount === null ? '--' : String(columnCount);
+      const latestLabel = stats?.lastUpdated ? formatDatasetTimestamp(stats.lastUpdated) : null;
+      if (els.meta) {
+        if (stats?.tableName === 'PT-LastPing' && latestLabel) {
+          els.meta.textContent = `Latest PT ping: ${latestLabel}`;
+          els.meta.classList.remove('hidden');
+        } else {
+          els.meta.textContent = '';
+          els.meta.classList.add('hidden');
+        }
+      }
       if (stats.stale) {
         els.status.textContent = 'Cached';
         els.status.className = 'rounded-full border border-blue-600 bg-blue-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-200';
@@ -1801,6 +1837,43 @@
         els.status.textContent = 'Empty';
         els.signal.textContent = 'Table exists but contains no records.';
       }
+    };
+
+    const datasetCardRegistry = [];
+
+    const refreshDashboardStats = async () => {
+      if (!datasetCardRegistry.length) return;
+      const statsResults = await Promise.all(
+        datasetCardRegistry.map(async ({ dataset, els }) => {
+          try {
+            const stats = await getTableStats(dataset);
+            const enrichedStats = { ...stats, tableName: dataset.table };
+            updateDatasetCardStats(els, enrichedStats);
+            return { stats: enrichedStats, dataset };
+          } catch (err) {
+            const stats = {
+              rows: 0,
+              columns: 0,
+              lastUpdated: null,
+              restricted: true,
+              message: err.message,
+              tableName: dataset.table,
+            };
+            updateDatasetCardStats(els, stats);
+            return { stats, dataset };
+          }
+        }),
+      );
+
+      const totalRows = statsResults.reduce((sum, { stats }) => sum + (Number(stats.rows) || 0), 0);
+      const activities = statsResults
+        .filter(({ stats }) => (Number(stats.rows) || 0) > 0 && !stats.restricted)
+        .map(({ stats, dataset }) => ({ ...stats, table: dataset.displayName }));
+
+      document.getElementById('dataset-count').textContent = DATASETS.length;
+      document.getElementById('records-count').textContent = totalRows.toLocaleString();
+      renderActivityLog(activities);
+      lucide.createIcons();
     };
 
     const ensureToastContainer = () => {
@@ -1979,6 +2052,7 @@
       
       showToast(summary, 'success');
       setProgress(100, 'Upload complete.');
+      await refreshDashboardStats();
       emitDataSyncSignal({
         scope: 'deals',
         source: 'admin-deals-upload',
@@ -2197,32 +2271,14 @@
 
     const mount = async () => {
       const container = document.getElementById('datasets');
+      datasetCardRegistry.length = 0;
       const datasetCards = DATASETS.map((dataset) => {
         const { card, els } = createDatasetCard(dataset);
         container.appendChild(card);
         return { dataset, els };
       });
-      const statsResults = await Promise.all(
-        datasetCards.map(async ({ dataset, els }) => {
-          try {
-            const stats = await getTableStats(dataset);
-            updateDatasetCardStats(els, stats);
-            return { stats, dataset };
-          } catch (err) {
-            const stats = { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: err.message };
-            updateDatasetCardStats(els, stats);
-            return { stats, dataset };
-          }
-        }),
-      );
-      const totalRows = statsResults.reduce((sum, { stats }) => sum + (stats.rows || 0), 0);
-      const activities = statsResults
-        .filter(({ stats }) => (stats.rows || 0) > 0 && !stats.restricted)
-        .map(({ stats, dataset }) => ({ ...stats, table: dataset.displayName }));
-      document.getElementById('dataset-count').textContent = DATASETS.length;
-      document.getElementById('records-count').textContent = totalRows.toLocaleString();
-      renderActivityLog(activities);
-      lucide.createIcons();
+      datasetCardRegistry.push(...datasetCards);
+      await refreshDashboardStats();
     };
 
     const ensureXlsxLibrary = () => {
@@ -2757,7 +2813,7 @@
         }
 
         const pending = [];
-        const initialBatchSize = Math.min(50, uniqueVins.length);
+        const initialBatchSize = Math.min(10, uniqueVins.length);
         for (let index = 0; index < uniqueVins.length; index += initialBatchSize) {
           pending.push(uniqueVins.slice(index, index + initialBatchSize));
         }
@@ -3036,6 +3092,7 @@
           `Rejected: ${aggregated.rejectedMissingRequired + aggregated.rejectedMissingCoordinates + aggregated.rejectedInvalidCoordinateFormat + aggregated.rejectedInvalidDate + aggregated.rejectedNoMatchVin}`
         );
         showToast(summary, vehicleSyncResult?.mode === 'finalization_failed' ? 'error' : 'success');
+        await refreshDashboardStats();
         emitDataSyncSignal({
           scope: 'pt-lastping',
           source: 'admin-pt-upload',
@@ -3070,6 +3127,9 @@
       console.error('Unable to initialize background manager', error)
     );
     mount();
+    window.addEventListener('auth:role-updated', () => {
+      refreshDashboardStats().catch((error) => console.warn('Unable to refresh dashboard stats after auth update', error));
+    });
     wireDealsUpload();
     wirePtPingUpload();
   </script>

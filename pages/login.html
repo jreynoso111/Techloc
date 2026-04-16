@@ -65,7 +65,9 @@
         </button>
       </div>
 
-      <div id="status" class="text-sm text-slate-400">Use your administrator credentials.</div>
+      <div id="status" class="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300 transition-colors">
+        Use your administrator credentials.
+      </div>
     </div>
   </main>
 
@@ -83,6 +85,12 @@
     const statusLabel = document.getElementById('status');
     const resetPasswordButton = document.getElementById('reset-password-btn');
     const redirectToControlMap = () => window.location.replace('./control-map.html');
+    const STATUS_CLASS_MAP = {
+      neutral: 'rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300 transition-colors',
+      success: 'rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100 transition-colors',
+      warning: 'rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 transition-colors',
+      error: 'rounded-2xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100 transition-colors',
+    };
     const toErrorMessage = (error, fallback) => {
       if (!error) return fallback;
       const candidates = [
@@ -97,6 +105,89 @@
       }
       return fallback;
     };
+    const setStatus = (message, variant = 'neutral') => {
+      statusLabel.className = STATUS_CLASS_MAP[variant] || STATUS_CLASS_MAP.neutral;
+      statusLabel.textContent = message;
+    };
+    const getUserAccess = (user) => {
+      const role = String(
+        user?.profile?.role
+        || user?.user_metadata?.role
+        || user?.app_metadata?.role
+        || ''
+      ).trim().toLowerCase();
+      const status = String(
+        user?.profile?.status
+        || user?.user_metadata?.status
+        || user?.app_metadata?.status
+        || 'active'
+      ).trim().toLowerCase();
+      return { role, status };
+    };
+    const resolveAccessMessage = (user) => {
+      const { role, status } = getUserAccess(user);
+      if (['suspended', 'inactive', 'disabled', 'blocked'].includes(status)) {
+        return 'This account exists, but it is inactive or suspended. Contact an administrator.';
+      }
+      if (role && role !== 'administrator') {
+        return 'This account is valid, but it does not have administrator access to this dashboard.';
+      }
+      if (!role) {
+        return 'This account signed in, but its access profile is incomplete. Contact an administrator.';
+      }
+      return '';
+    };
+    const resolveLoginErrorMessage = (error) => {
+      const message = toErrorMessage(error, 'Unable to sign in. Please try again.');
+      const normalized = message.toLowerCase();
+      const statusCode = Number(error?.statusCode || error?.status || 0);
+
+      if (
+        statusCode === 401
+        || normalized.includes('invalid login credentials')
+        || normalized.includes('invalid credentials')
+      ) {
+        return 'Incorrect email or password. Verify both fields and try again.';
+      }
+      if (
+        statusCode === 403
+        || normalized.includes('administrator role is required')
+      ) {
+        return 'This account is valid, but it does not have permission to access the admin dashboard.';
+      }
+      if (
+        normalized.includes('suspended')
+        || normalized.includes('inactive')
+        || normalized.includes('disabled')
+      ) {
+        return 'This account exists, but it is inactive or suspended. Contact an administrator.';
+      }
+      if (statusCode === 429 || normalized.includes('too many requests')) {
+        return 'Too many login attempts. Wait a moment and try again.';
+      }
+      if (
+        normalized.includes('authentication is currently unavailable')
+        || normalized.includes('secure supabase proxy is not configured')
+      ) {
+        return 'Login is temporarily unavailable because the authentication service is not responding correctly.';
+      }
+      return message;
+    };
+    const rejectUnauthorizedLogin = async (user) => {
+      const accessMessage = resolveAccessMessage(user);
+      if (!accessMessage) return false;
+
+      try {
+        if (typeof supabaseClient?.auth?.signOut === 'function') {
+          await supabaseClient.auth.signOut();
+        }
+      } catch (error) {
+        console.warn('Could not clear unauthorized login session', error);
+      }
+      clearWebAdminSession();
+      setStatus(accessMessage, 'error');
+      return true;
+    };
 
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -104,63 +195,82 @@
       submitButton.disabled = true;
       const originalText = submitLabel.textContent;
       submitLabel.textContent = 'Verifying...';
-      statusLabel.textContent = 'Validating credentials...';
+      setStatus('Validating credentials...', 'neutral');
 
-      const email = emailInput.value.trim();
-      const password = passwordInput.value;
-      let data = null;
-      let error = null;
+      let shouldKeepButtonDisabled = false;
 
-      if (supabaseClient?.auth?.signInWithPassword) {
-        const response = await supabaseClient.auth.signInWithPassword({ email, password });
-        data = response.data;
-        error = response.error;
-      } else {
-        error = new Error('Authentication is currently unavailable.');
-      }
+      try {
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        let data = null;
+        let error = null;
 
-      if (error) {
+        if (supabaseClient?.auth?.signInWithPassword) {
+          const response = await supabaseClient.auth.signInWithPassword({ email, password });
+          data = response.data;
+          error = response.error;
+        } else {
+          error = new Error('Authentication is currently unavailable.');
+        }
+
+        if (error) {
+          clearWebAdminSession();
+          setStatus(resolveLoginErrorMessage(error), 'error');
+          return;
+        }
+
+        if (await rejectUnauthorizedLogin(data?.user)) {
+          return;
+        }
+
         clearWebAdminSession();
-        statusLabel.textContent = toErrorMessage(error, 'Unable to sign in. Please try again.');
-        submitButton.disabled = false;
-        submitLabel.textContent = originalText;
-        return;
+        try {
+          await logAdminEvent({
+            client: supabaseClient,
+            action: 'login',
+            tableName: 'auth',
+            summary: `User ${data?.user?.email || email} signed in`,
+            recordId: data?.user?.id || null,
+            actor: data?.user?.email || email,
+          });
+        } catch (auditError) {
+          console.warn('Login audit logging failed', auditError);
+        }
+
+        shouldKeepButtonDisabled = true;
+        setStatus('Login successful. Redirecting to Control Map...', 'success');
+        redirectToControlMap();
+      } catch (error) {
+        clearWebAdminSession();
+        setStatus(resolveLoginErrorMessage(error), 'error');
+      } finally {
+        if (!shouldKeepButtonDisabled) {
+          submitButton.disabled = false;
+          submitLabel.textContent = originalText;
+        }
       }
-
-      clearWebAdminSession();
-      await logAdminEvent({
-        client: supabaseClient,
-        action: 'login',
-        tableName: 'auth',
-        summary: `User ${data?.user?.email || email} signed in`,
-        recordId: data?.user?.id || null,
-        actor: data?.user?.email || email,
-      });
-
-      statusLabel.textContent = 'Login successful. Redirecting to Control Map...';
-      redirectToControlMap();
     });
 
     resetPasswordButton?.addEventListener('click', async () => {
       const email = emailInput.value.trim().toLowerCase();
       if (!email) {
-        statusLabel.textContent = 'Enter your email first, then click "Forgot password?".';
+        setStatus('Enter your email first, then click "Forgot password?".', 'warning');
         return;
       }
 
       if (!supabaseClient?.auth?.resetPasswordForEmail) {
-        statusLabel.textContent = 'Password reset is unavailable right now. Try again in a moment.';
+        setStatus('Password reset is unavailable right now. Try again in a moment.', 'error');
         return;
       }
 
       const redirectTo = new URL('./reset-password.html', window.location.href).toString();
       const { error } = await supabaseClient.auth.resetPasswordForEmail(email, { redirectTo });
       if (error) {
-        statusLabel.textContent = toErrorMessage(error, 'Could not send reset email.');
+        setStatus(toErrorMessage(error, 'Could not send reset email.'), 'error');
         return;
       }
 
-      statusLabel.textContent = `Password reset email sent to ${email}. Check inbox/spam and open the link.`;
+      setStatus(`Password reset email sent to ${email}. Check inbox/spam and open the link.`, 'success');
     });
 
     document.addEventListener('DOMContentLoaded', () => {
