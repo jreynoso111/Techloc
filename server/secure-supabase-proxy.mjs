@@ -992,20 +992,28 @@ const resolveUserEmailForReset = async ({ userId }) => {
 
 const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
   const rows = [];
-  for (const suffixChunk of chunkArray(vinSuffixes, 20)) {
+  const suffixSet = new Set((vinSuffixes || []).map((suffix) => String(suffix || '').trim().toUpperCase()).filter(Boolean));
+  if (!suffixSet.size) return rows;
+
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
     const params = new URLSearchParams();
     params.set('select', 'VIN');
-    params.set(
-      'or',
-      `(${suffixChunk.map((suffix) => `VIN.ilike.%${String(suffix).replace(/[%(),]/g, '')}`).join(',')})`
-    );
+    params.set('limit', String(pageSize));
+    params.set('offset', String(offset));
     const response = await supabaseRequest(`/rest/v1/${encodeURIComponent(tableName)}?${params.toString()}`);
     if (!response.ok) {
       const parsed = await parseSupabaseError(response);
       throw new Error(parsed.message || `Could not query ${tableName} VINs.`);
     }
     const payload = await response.json();
-    rows.push(...(Array.isArray(payload) ? payload : []));
+    const pageRows = Array.isArray(payload) ? payload : [];
+    pageRows.forEach((row) => {
+      const vin = String(row?.VIN || '').trim().toUpperCase();
+      const suffix = vin.replace(/[^A-Z0-9]/g, '').slice(-6);
+      if (suffix && suffixSet.has(suffix)) rows.push(row);
+    });
+    if (pageRows.length < pageSize) break;
   }
   return rows;
 };
@@ -1092,27 +1100,29 @@ const handleAdminApi = async (req, res, pathname) => {
   }
 
   if (pathname === '/api/admin/pt-lastping/upload') {
-    const rows = Array.isArray(body?.rows) ? body.rows : [];
+    const rows = normalizePostgrestBulkRows(body?.rows);
     const vins = Array.isArray(body?.vins) ? body.vins : [];
     const shouldFinalize = body?.finalize === true;
-    if (!rows.length) {
+    if (!rows.length && !shouldFinalize) {
       json(res, 400, { error: { message: 'Rows are required.' } });
       return;
     }
 
     const accessToken = getBearerToken(req);
-    const response = await supabaseUserRequest('/rest/v1/PT-LastPing?on_conflict=Serial,Date', accessToken, {
-      method: 'POST',
-      headers: {
-        Prefer: 'resolution=ignore-duplicates,return=minimal',
-      },
-      body: rows,
-    });
+    if (rows.length) {
+      const response = await supabaseUserRequest('/rest/v1/PT-LastPing?on_conflict=Serial,Date', accessToken, {
+        method: 'POST',
+        headers: {
+          Prefer: 'resolution=ignore-duplicates,return=minimal',
+        },
+        body: rows,
+      });
 
-    if (!response.ok) {
-      const parsed = await parseSupabaseError(response);
-      json(res, response.status, { error: parsed });
-      return;
+      if (!response.ok) {
+        const parsed = await parseSupabaseError(response);
+        json(res, response.status, { error: parsed });
+        return;
+      }
     }
 
     let finalizePayload = null;

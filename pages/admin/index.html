@@ -2725,9 +2725,19 @@
       let gpsBlacklistMap;
       try {
         setStatus('Loading reference VINs...');
-        const vinSuffixes = Array.from(new Set(
-          cleanedRows.map((row) => normalizeVinLast6(row?.['VIN'])).filter(Boolean)
-        ));
+        const candidateVinSuffixes = new Set();
+        cleanedRows.forEach((row) => {
+          const serial = row?.['Serial'];
+          const date = row?.['Date'];
+          if (row?.__invalidDate) return;
+          if (!serial || `${serial}`.trim() === '' || !date || `${date}`.trim() === '') return;
+          const { readDay, dayHalf } = derivePtDayParts(date);
+          if (!readDay || dayHalf === null) return;
+          if (!hasValidPtCoordinates(row)) return;
+          const vinSuffix = normalizeVinLast6(row?.['VIN']);
+          if (vinSuffix) candidateVinSuffixes.add(vinSuffix);
+        });
+        const vinSuffixes = Array.from(candidateVinSuffixes);
         const referenceData = await fetchPtUploadReferenceData(vinSuffixes);
         dealsVinMap = referenceData.vinMap;
         gpsBlacklistMap = referenceData.blacklistMap;
@@ -2802,69 +2812,6 @@
         return;
       }
 
-      const finalizePtPingUpload = async (vinValues = [], options = {}) => {
-        const segmentLabel = String(options?.segmentLabel || '').trim();
-        const minIdExclusive = Number(options?.minIdExclusive);
-        const uniqueVins = Array.from(new Set(
-          (vinValues || []).map((vin) => normalizeUpperTrimmedValue(vin)).filter(Boolean)
-        ));
-        if (!uniqueVins.length) {
-          return { updatedRows: 0, processedVins: 0 };
-        }
-
-        const pending = [];
-        const initialBatchSize = Math.min(10, uniqueVins.length);
-        for (let index = 0; index < uniqueVins.length; index += initialBatchSize) {
-          pending.push(uniqueVins.slice(index, index + initialBatchSize));
-        }
-
-        let processedVins = 0;
-        let updatedRows = 0;
-
-        while (pending.length) {
-          const currentBatch = pending.shift();
-          if (!Array.isArray(currentBatch) || !currentBatch.length) continue;
-
-          const start = processedVins + 1;
-          const end = processedVins + currentBatch.length;
-          setStatus(
-            `Finalizing PT processing for VINs ${start}-${end} of ${uniqueVins.length}` +
-            `${segmentLabel ? ` (${segmentLabel})` : ''}...`
-          );
-          setProgress(
-            Math.max(92, Math.min(99, 92 + Math.round((processedVins / uniqueVins.length) * 7))),
-            `Finalizing ${end} of ${uniqueVins.length} VINs`
-          );
-
-          const rpcPayload = {
-            p_vins: currentBatch
-          };
-          if (Number.isFinite(minIdExclusive) && minIdExclusive > 0) {
-            rpcPayload.p_min_id_exclusive = Math.trunc(minIdExclusive);
-          }
-
-          const { data, error } = await supabaseClient.rpc('finalize_pt_lastping_upload', rpcPayload);
-
-          if (error) {
-            if (isPtUploadTimeoutError(error) && currentBatch.length > 1) {
-              const retrySize = Math.max(1, Math.floor(currentBatch.length / 2));
-              const retryChunks = chunkArray(currentBatch, retrySize);
-              pending.unshift(...retryChunks);
-              continue;
-            }
-            throw error;
-          }
-
-          processedVins += currentBatch.length;
-          updatedRows += Number(data?.updated_rows || 0);
-        }
-
-        return {
-          updatedRows,
-          processedVins
-        };
-      };
-
       const dedupedRows = deduplicateValidRows(validRows);
       dedupedRows.sort((left, right) => {
         const leftVin = normalizeUpperTrimmedValue(left?.VIN);
@@ -2881,16 +2828,6 @@
         const normalizedRightTime = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
         return normalizedLeftTime - normalizedRightTime;
       });
-
-      const buildPtProcessingSegments = (rowsToSegment = []) => {
-        if (!Array.isArray(rowsToSegment) || !rowsToSegment.length) return [];
-        if (rowsToSegment.length === 1) return [rowsToSegment];
-        const midpoint = Math.ceil(rowsToSegment.length / 2);
-        return [
-          rowsToSegment.slice(0, midpoint),
-          rowsToSegment.slice(midpoint),
-        ].filter((segment) => Array.isArray(segment) && segment.length);
-      };
 
       const isPtUploadTimeoutError = (error) => {
         const text = String(
@@ -2918,9 +2855,8 @@
         const uploadedBefore = Number(options?.uploadedBefore || 0);
         const batchesBefore = Number(options?.batchesBefore || 0);
         const totalRows = Number(options?.totalRows || rowsToUpload.length);
-        const segmentLabel = String(options?.segmentLabel || '').trim();
         const payloadRows = rowsToUpload.map(buildSlimPtPayload);
-        const initialBatchSize = Math.min(150, payloadRows.length);
+        const initialBatchSize = Math.min(250, payloadRows.length);
         const pending = [];
         for (let index = 0; index < payloadRows.length; index += initialBatchSize) {
           pending.push(payloadRows.slice(index, index + initialBatchSize));
@@ -2936,10 +2872,7 @@
           const batchStart = uploadedBefore + completedRows + 1;
           const batchEnd = uploadedBefore + completedRows + currentBatch.length;
           const batchLabel = `${batchStart}-${batchEnd}`;
-          setStatus(
-            `Uploading PT rows ${batchLabel} of ${totalRows}` +
-            `${segmentLabel ? ` (${segmentLabel})` : ''}...`
-          );
+          setStatus(`Uploading PT rows ${batchLabel} of ${totalRows}...`);
           setProgress(
             Math.max(5, Math.min(90, Math.round(((uploadedBefore + completedRows) / totalRows) * 90))),
             `Uploading rows ${batchLabel}`
@@ -2960,8 +2893,8 @@
               `Uploaded ${totalUploaded} of ${totalRows} rows`
             );
           } catch (error) {
-            if (isPtUploadTimeoutError(error) && currentBatch.length > 1) {
-              const retrySize = Math.max(1, Math.floor(currentBatch.length / 2));
+            if (isPtUploadTimeoutError(error) && currentBatch.length > 100) {
+              const retrySize = Math.max(100, Math.floor(currentBatch.length / 2));
               setStatus(`Batch timeout at ${currentBatch.length} rows. Retrying with chunks of ${retrySize}...`);
               const retryChunks = chunkArray(currentBatch, retrySize);
               pending.unshift(...retryChunks);
@@ -2980,58 +2913,45 @@
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
       try {
-        const processingSegments = buildPtProcessingSegments(dedupedRows);
         let vehicleSyncResult = {
           updated: 0,
           skipped: 0,
           updatedRows: 0,
-          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'rpc_finalize_segmented' : 'uploaded_rows_sync_only',
+          mode: PT_PING_ENABLE_RPC_FINALIZATION ? 'server_finalize_once' : 'uploaded_rows_sync_only',
           warning: ''
         };
         try {
-          let uploadedRows = 0;
-          let finalizedRows = 0;
-          let finalizedVins = 0;
+          const minIdExclusive = PT_PING_ENABLE_RPC_FINALIZATION
+            ? await fetchPtLastPingMaxId()
+            : 0;
+          const uploadResult = await uploadPtRowsInAdaptiveBatches(dedupedRows, {
+            uploadedBefore: 0,
+            batchesBefore: aggregated.batches,
+            totalRows: dedupedRows.length,
+          });
+          aggregated.inserted = Number(uploadResult?.received || aggregated.inserted || 0);
 
-          for (let segmentIndex = 0; segmentIndex < processingSegments.length; segmentIndex += 1) {
-            const segmentRows = processingSegments[segmentIndex];
-            const segmentLabel = `segment ${segmentIndex + 1} of ${processingSegments.length}`;
-            const segmentMinIdExclusive = PT_PING_ENABLE_RPC_FINALIZATION
-              ? await fetchPtLastPingMaxId()
-              : 0;
-            const uploadResult = await uploadPtRowsInAdaptiveBatches(segmentRows, {
-              uploadedBefore: uploadedRows,
-              batchesBefore: aggregated.batches,
-              totalRows: dedupedRows.length,
-              segmentLabel,
+          if (PT_PING_ENABLE_RPC_FINALIZATION) {
+            setStatus('Finalizing PT processing once after upload...');
+            setProgress(92, 'Finalizing PT data');
+            const finalizeResult = await adminPostJson('/api/admin/pt-lastping/upload', {
+              rows: [],
+              finalize: true,
+              vins: dedupedRows.map((row) => row?.VIN),
+              minIdExclusive,
             });
-            uploadedRows = Number(uploadResult?.received || uploadedRows || 0);
-            aggregated.inserted = uploadedRows;
-
-            if (PT_PING_ENABLE_RPC_FINALIZATION) {
-              const finalizeResult = await finalizePtPingUpload(
-                segmentRows.map((row) => row?.VIN),
-                {
-                  segmentLabel,
-                  minIdExclusive: segmentMinIdExclusive,
-                }
-              );
-              finalizedRows += Number(finalizeResult?.updatedRows || 0);
-              finalizedVins += Number(finalizeResult?.processedVins || 0);
-            }
+            const finalization = finalizeResult?.finalization || {};
+            vehicleSyncResult = {
+              updated: Number(finalization?.processedVins || 0),
+              skipped: 0,
+              updatedRows: Number(finalization?.updatedRows || 0),
+              mode: 'server_finalize_once',
+              warning: ''
+            };
           }
 
           setProgress(90, `Uploaded ${aggregated.inserted} of ${dedupedRows.length} rows`);
-
-          if (PT_PING_ENABLE_RPC_FINALIZATION) {
-            vehicleSyncResult = {
-              updated: finalizedVins,
-              skipped: 0,
-              updatedRows: finalizedRows,
-              mode: `rpc_finalize_segmented_${processingSegments.length}_parts`,
-              warning: ''
-            };
-          } else {
+          if (!PT_PING_ENABLE_RPC_FINALIZATION) {
             vehicleSyncResult = {
               updated: 0,
               skipped: 0,
