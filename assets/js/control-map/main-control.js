@@ -2216,8 +2216,18 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const normalizeVehicleHeader = (value = '') => `${value}`.trim().toLowerCase().replace(/[_\s]+/g, ' ');
 
     const EDITABLE_VEHICLE_FIELDS = {
-      'gps fix': { fieldKey: 'gpsFix', updateColumn: 'gps fix', table: TABLES.vehicles },
-      'gps fix reason': { fieldKey: 'gpsReason', updateColumn: 'gps fix reason', table: TABLES.vehicles }
+      'gps fix': {
+        fieldKey: 'gpsFix',
+        updateColumn: 'gps fix',
+        table: TABLES.vehicles,
+        rpc: 'update_vehicle_gps_fields'
+      },
+      'gps fix reason': {
+        fieldKey: 'gpsReason',
+        updateColumn: 'gps fix reason',
+        table: TABLES.vehicles,
+        rpc: 'update_vehicle_gps_fields'
+      }
     };
 
     const REQUIRED_VEHICLE_HEADERS = [
@@ -3305,13 +3315,16 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const hydrateInitialVisibleVehicleSnapshots = async () => {
-      if (VEHICLE_TABLE_IS_CANONICAL_SOURCE) return;
       const priorityVehicles = collectPriorityVehicleSnapshotTargets();
       if (!priorityVehicles.length) return;
 
       const results = await mapWithConcurrency(
         priorityVehicles,
-        (vehicle) => hydrateVehiclePtSnapshotQuick(vehicle, { force: true, rerenderOnChange: false }),
+        (vehicle) => hydrateVehiclePtSnapshotQuick(vehicle, {
+          force: true,
+          rerenderOnChange: false,
+          persistChanges: false
+        }),
         VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY
       );
 
@@ -3481,7 +3494,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       visibleVehicles = [],
       { rerenderOnChange = true } = {}
     ) => {
-      if (VEHICLE_TABLE_IS_CANONICAL_SOURCE) return;
       if (!Array.isArray(visibleVehicles) || !visibleVehicles.length) return;
 
       const candidates = visibleVehicles
@@ -3508,7 +3520,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const results = await mapWithConcurrency(
         candidates,
-        (vehicle) => hydrateVehiclePtSnapshotFromGpsHistory(vehicle),
+        (vehicle) => hydrateVehiclePtSnapshotFromGpsHistory(vehicle, {
+          persistChanges: false
+        }),
         VEHICLE_PT_SNAPSHOT_PREFETCH_CONCURRENCY
       );
 
@@ -3527,9 +3541,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       vehicleBackgroundPrefetchTimer = window.setTimeout(() => {
         vehicleBackgroundPrefetchTimer = null;
         const run = () => {
-          if (!VEHICLE_TABLE_IS_CANONICAL_SOURCE) {
-            void preloadVisibleVehiclePtSnapshots(candidates);
-          }
+          void preloadVisibleVehiclePtSnapshots(candidates);
           void preloadVisibleVehicleMarkerHeadings(candidates);
         };
         if (typeof window.requestIdleCallback === 'function') {
@@ -3601,19 +3613,31 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       if (!firstChanged && !lastChanged) return false;
 
       if (nextFirstRead) {
+        vehicle.historyPtFirstReadOverride = nextFirstRead;
         vehicle.firstRead = nextFirstRead;
+      } else {
+        delete vehicle.historyPtFirstReadOverride;
       }
       if (nextLastRead) {
+        vehicle.historyPtLastReadOverride = nextLastRead;
         vehicle.lastRead = nextLastRead;
+      } else {
+        delete vehicle.historyPtLastReadOverride;
       }
       if (vehicle?.details && typeof vehicle.details === 'object') {
         if (nextFirstRead) {
+          vehicle.details.historyPtFirstReadOverride = nextFirstRead;
           vehicle.details.pt_first_read = nextFirstRead;
           vehicle.details['PT First Read'] = nextFirstRead;
+        } else {
+          delete vehicle.details.historyPtFirstReadOverride;
         }
         if (nextLastRead) {
+          vehicle.details.historyPtLastReadOverride = nextLastRead;
           vehicle.details.pt_last_read = nextLastRead;
           vehicle.details['PT Last Read'] = nextLastRead;
+        } else {
+          delete vehicle.details.historyPtLastReadOverride;
         }
       }
 
@@ -3674,9 +3698,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
       const explicitLatestStationaryDays = parseGpsRecordDaysParked(latestMovementRecord || {});
       const inferredStationaryDays = inferStationaryDaysFromRecords(resolvedStationarySourceRecords, { vehicle });
-      let stationaryDays = Number.isFinite(inferredStationaryDays)
-        ? inferredStationaryDays
-        : (Number.isFinite(explicitLatestStationaryDays) ? explicitLatestStationaryDays : null);
+      // The winning GPS's latest reading is the authoritative parked-days snapshot for the sidebar.
+      let stationaryDays = Number.isFinite(explicitLatestStationaryDays)
+        ? explicitLatestStationaryDays
+        : (Number.isFinite(inferredStationaryDays) ? inferredStationaryDays : null);
 
       const latestMovementRecordTimeMs = parseGpsTrailTimeMs(latestMovementRecord || {});
       const latestOverallRecordTimeMs = parseGpsTrailTimeMs(latestOverallRecord || {});
@@ -3698,7 +3723,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         && Number.isFinite(latestOverallRecordTimeMs)
         && latestOverallRecordTimeMs <= latestMovementRecordTimeMs
       );
-      if (canCarryForwardSilentParking && Number.isFinite(stationaryDays)) {
+      if (!Number.isFinite(explicitLatestStationaryDays) && canCarryForwardSilentParking && Number.isFinite(stationaryDays)) {
         const todayStartMs = toLocalDayStartMs(Date.now());
         const latestDayStartMs = toLocalDayStartMs(latestMovementRecordTimeMs);
         if (Number.isFinite(todayStartMs) && Number.isFinite(latestDayStartMs) && todayStartMs >= latestDayStartMs) {
@@ -7437,9 +7462,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         vehicleHeaders = data.length ? ensureRequiredVehicleHeaders(Object.keys(data[0])) : [...REQUIRED_VEHICLE_HEADERS];
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
-        renderVehicles();
         await hydrateInitialVisibleVehicleSnapshots();
-        scheduleVehicleBackgroundPrefetch(vehicles);
+        renderVehicles();
+        scheduleVehicleBackgroundPrefetch(getVehicleList(''));
         // PT read bounds now come from vehicles table columns.
         syncVehicleSelectionFromStore(getSelectedVehicle(), { shouldFocus: true });
       } catch (err) {
@@ -8322,13 +8347,15 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       }
       renderVehicles({ preserveScrollTop: true, syncMarkers: false });
       if (willExpand && vehicle) {
-        void hydrateVehiclePtSnapshotQuick(vehicle, {
-          force: true,
-          persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
-        });
-        void hydrateVehiclePtSnapshotFromGpsHistory(vehicle, {
-          persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
-        });
+        if (!VEHICLE_TABLE_IS_CANONICAL_SOURCE) {
+          void hydrateVehiclePtSnapshotQuick(vehicle, {
+            force: true,
+            persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+          });
+          void hydrateVehiclePtSnapshotFromGpsHistory(vehicle, {
+            persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+          });
+        }
         void hydrateVehicleAverageMovingMilesPerDay(vehicle);
       }
     }
@@ -8942,16 +8969,20 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       if (shouldAutoExpandCard) {
         pinVehicleListCardPosition(vehicleKey);
         expandedVehicleCardKeys.add(vehicleKey);
+        if (!VEHICLE_TABLE_IS_CANONICAL_SOURCE) {
+          void hydrateVehiclePtSnapshotQuick(vehicle, {
+            force: true,
+            persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
+          });
+        }
+        void hydrateVehicleAverageMovingMilesPerDay(vehicle);
+      }
+      if (!shouldAutoExpandCard && !VEHICLE_TABLE_IS_CANONICAL_SOURCE) {
         void hydrateVehiclePtSnapshotQuick(vehicle, {
           force: true,
           persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
         });
-        void hydrateVehicleAverageMovingMilesPerDay(vehicle);
       }
-      void hydrateVehiclePtSnapshotQuick(vehicle, {
-        force: true,
-        persistChanges: !VEHICLE_TABLE_IS_CANONICAL_SOURCE
-      });
       const storedMarker = vehicleMarkers.get(vehicleKey)?.marker;
       const markerColor = getVehicleMarkerColor(vehicle);
       const anchorMarker = storedMarker || L.circleMarker([vehicleCoords.lat, vehicleCoords.lng], {
@@ -9045,12 +9076,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return Number.NEGATIVE_INFINITY;
       }
 
-      const historyDays = parseDaysParkedCandidate(
-        vehicle?.historyDaysStationaryOverride
-        ?? vehicle?.details?.historyDaysStationaryOverride
-      );
-      if (Number.isFinite(historyDays)) return historyDays;
-
       const movementDaysV2 = parseDaysParkedCandidate(
         vehicle?.movementDaysStationaryV2
         ?? vehicle?.details?.movement_days_stationary_v2
@@ -9063,7 +9088,13 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         ?? vehicle?.details?.['Days stationary']
         ?? vehicle?.details?.['Days Parked'];
       const parsedDays = parseDaysParkedCandidate(raw);
-      if (!Number.isFinite(parsedDays)) return Number.NEGATIVE_INFINITY;
+      if (Number.isFinite(parsedDays)) return parsedDays;
+
+      const historyDays = parseDaysParkedCandidate(
+        vehicle?.historyDaysStationaryOverride
+        ?? vehicle?.details?.historyDaysStationaryOverride
+      );
+      if (!Number.isFinite(historyDays)) return Number.NEGATIVE_INFINITY;
 
       const lastPingMs = getVehicleLastPingTimestampMs(vehicle);
       const isLastPingStale = Number.isFinite(lastPingMs)
@@ -9072,7 +9103,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return 0;
       }
 
-      return parsedDays;
+      return historyDays;
     }
 
     function getVehiclePtSerialValue(vehicle) {
@@ -9090,7 +9121,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     }
 
     function getVehiclePtLastReadValue(vehicle) {
-      return vehicle?.lastRead
+      return vehicle?.historyPtLastReadOverride
+        ?? vehicle?.details?.historyPtLastReadOverride
+        ?? vehicle?.lastRead
         ?? vehicle?.details?.['pt last read']
         ?? vehicle?.details?.pt_last_read
         ?? vehicle?.details?.['PT Last Read']
@@ -9132,7 +9165,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     }
 
     function getVehiclePtFirstReadValue(vehicle) {
-      return vehicle?.firstRead
+      return vehicle?.historyPtFirstReadOverride
+        ?? vehicle?.details?.historyPtFirstReadOverride
+        ?? vehicle?.firstRead
         ?? vehicle?.details?.['pt first read']
         ?? vehicle?.details?.pt_first_read
         ?? vehicle?.details?.['PT First Read']
@@ -10470,7 +10505,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
                 ${displayHeader}
               </p>
               ${isEditable ? `
-                <button type="button" class="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}" data-edit-column="${editConfig.updateColumn}" data-edit-table="${editConfig.table}">Edit</button>
+                <button type="button" class="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}" data-edit-column="${editConfig.updateColumn}" data-edit-table="${editConfig.table}" data-edit-rpc="${editConfig.rpc || ''}">Edit</button>
               ` : ''}
             </div>
             <div class="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3 text-xs text-slate-100">
@@ -10839,6 +10874,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           const headerKey = button.dataset.editHeader;
           const updateColumn = button.dataset.editColumn || headerKey;
           const updateTable = button.dataset.editTable || TABLES.vehicles;
+          const updateRpc = String(button.dataset.editRpc || '').trim();
           const card = button.closest('[data-field-card]');
           const valueNode = card?.querySelector('[data-field-value]');
           if (!card || !valueNode) {
@@ -10866,11 +10902,21 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
               }
             }
 
-            const updateRequest = supabaseClient
-              .from(updateTable)
-              .update({ [updateColumn]: newValue })
-              .eq('id', vehicle.id);
-            const { error } = await runWithTimeout(
+            const updateRequest = updateRpc
+              ? supabaseClient.rpc(updateRpc, {
+                p_vehicle_id: vehicle.id,
+                p_gps_fix: headerKey === 'gps fix'
+                  ? newValue
+                  : String(vehicle?.gpsFix ?? vehicle?.details?.['gps fix'] ?? '').trim(),
+                p_gps_fix_reason: headerKey === 'gps fix reason'
+                  ? newValue
+                  : String(vehicle?.gpsReason ?? vehicle?.details?.['gps fix reason'] ?? '').trim(),
+              })
+              : supabaseClient
+                .from(updateTable)
+                .update({ [updateColumn]: newValue })
+                .eq('id', vehicle.id);
+            const { data, error } = await runWithTimeout(
               updateRequest,
               8000,
               'Database communication error.'
@@ -10884,9 +10930,17 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
             if (vehicle?.details) {
               vehicle.details[headerKey] = newValue;
+              if (updateRpc && data) {
+                vehicle.details['gps fix'] = data['gps fix'] ?? vehicle.details['gps fix'] ?? '';
+                vehicle.details['gps fix reason'] = data['gps fix reason'] ?? vehicle.details['gps fix reason'] ?? '';
+              }
             }
             if (fieldKey && vehicle) {
               vehicle[fieldKey] = newValue;
+              if (updateRpc && data) {
+                vehicle.gpsFix = data['gps fix'] ?? vehicle.gpsFix ?? '';
+                vehicle.gpsReason = data['gps fix reason'] ?? vehicle.gpsReason ?? '';
+              }
             }
             renderVehicles();
             return;

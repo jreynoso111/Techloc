@@ -7,7 +7,7 @@ This server keeps `SUPABASE_SERVICE_ROLE_KEY` on the backend and injects fronten
 Run these before starting the server:
 
 ```bash
-export SUPABASE_URL="https://lnfmogsjvdkqgwprlmtn.supabase.co"
+export SUPABASE_URL="https://lzmbeojzjlrxuluroprh.supabase.co"
 export SUPABASE_ANON_KEY="<your-anon-key>"
 export SUPABASE_SERVICE_ROLE_KEY="<your-service-role-key>"
 export APP_ORIGIN="http://127.0.0.1:8080"
@@ -29,7 +29,7 @@ export REPAIR_HISTORY_ALLOWED_ROLES="administrator,moderator"
 Leave `REPAIR_HISTORY_ALLOWED_ROLES` empty to allow any authenticated user.
 If it was already set in your shell, run `unset REPAIR_HISTORY_ALLOWED_ROLES` before starting the proxy.
 
-This proxy is hard-locked to project ref `lnfmogsjvdkqgwprlmtn` and will refuse another Supabase host/key ref.
+This proxy reads the Supabase URL, ref, and database credentials from environment variables. Keep those values aligned with the target project before starting the server.
 
 ## 2) Start server
 

@@ -70,6 +70,7 @@ const IS_VERCEL_RUNTIME = String(process.env.VERCEL || '').trim() === '1';
 const DIRECT_PG_ENABLED = !IS_VERCEL_RUNTIME && Boolean(SUPABASE_DB_HOST && SUPABASE_DB_USER && SUPABASE_DB_PASSWORD);
 const LOCAL_PROXY_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
 const PYTHON_BRIDGE_PATH = path.join(ROOT_DIR, 'scripts', 'supabase_pg_bridge.py');
+const PYTHON_BIN = String(process.env.PYTHON_BIN || (fs.existsSync('/usr/bin/python3') ? '/usr/bin/python3' : 'python3')).trim();
 
 const REPAIR_HISTORY_TABLE = 'repair_history';
 const ALLOWED_ROLES_RAW = String(process.env.REPAIR_HISTORY_ALLOWED_ROLES || '').trim();
@@ -347,6 +348,7 @@ const SERVICE_ROLE_READ_TABLES = new Set([
 const SERVICE_ROLE_AUTHENTICATED_WRITE_TABLES = new Set([
   'pt-lastping',
   'dealsjp1',
+  'vehicles',
 ]);
 
 const SERVICE_ROLE_AUTHENTICATED_RPCS = new Set([
@@ -634,7 +636,7 @@ const normalizePostgrestBulkRows = (rows = []) => {
 
 const runPgBridge = async (payload = {}) => {
   return new Promise((resolve, reject) => {
-    const child = spawn('python3', [PYTHON_BRIDGE_PATH], {
+    const child = spawn(PYTHON_BIN, [PYTHON_BRIDGE_PATH], {
       cwd: ROOT_DIR,
       env: {
         ...process.env,
@@ -1646,12 +1648,20 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     if (!auth) return;
   }
 
-  const defaultApiKey = (useServiceRoleForPublicRead || useServiceRoleForAuthenticatedWrite) && SUPABASE_SERVICE_ROLE_KEY
+  const shouldPreferServiceRole = (useServiceRoleForPublicRead || useServiceRoleForAuthenticatedWrite)
+    && Boolean(SUPABASE_SERVICE_ROLE_KEY);
+  const defaultApiKey = shouldPreferServiceRole
     ? SUPABASE_SERVICE_ROLE_KEY
     : SUPABASE_ANON_KEY;
-  const defaultAuthorization = (useServiceRoleForPublicRead || useServiceRoleForAuthenticatedWrite)
+  const defaultAuthorization = useServiceRoleForPublicRead
     ? (defaultApiKey ? `Bearer ${defaultApiKey}` : '')
-    : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''));
+    : useServiceRoleForAuthenticatedWrite
+      ? (
+        shouldPreferServiceRole
+          ? `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+          : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''))
+      )
+      : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''));
   const requestHeaders = {
     apikey: defaultApiKey,
     authorization: defaultAuthorization,
