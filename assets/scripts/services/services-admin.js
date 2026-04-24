@@ -117,10 +117,10 @@ const applySessionState = async (session) => {
 
   loadPrefs();
 
-  const isAdmin = state.currentUserRole === 'administrator';
+  const canEditServices = state.currentUserRole !== 'anon';
   if (els.addRecord) {
-    els.addRecord.classList.toggle('hidden', !isAdmin);
-    els.addRecord.disabled = !isAdmin;
+    els.addRecord.classList.toggle('hidden', !canEditServices);
+    els.addRecord.disabled = !canEditServices;
   }
 };
 
@@ -1084,7 +1084,7 @@ const attachButtonEvents = () => {
 
   // Create new record inline (adds blank row in DB, then you edit cells)
   els.addRecord?.addEventListener('click', async () => {
-    if (state.currentUserRole !== 'administrator') return;
+    if (state.currentUserRole === 'anon') return;
     try {
       const payload = {
         company_name: '',

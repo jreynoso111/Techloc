@@ -100,7 +100,7 @@ const renderBody = ({
   pageRows,
 }) => {
   const cols = getVisibleOrderedColumns();
-  const isAdmin = state.currentUserRole === 'administrator';
+  const canEditServices = state.currentUserRole !== 'anon';
   const fragment = document.createDocumentFragment();
 
   pageRows.forEach((row) => {
@@ -118,7 +118,7 @@ const renderBody = ({
       if (colId === 'actions') {
         td.className = 'text-center align-top compact-td';
 
-        if (isAdmin) {
+        if (state.currentUserRole === 'administrator') {
           const actions = document.createElement('div');
           actions.className = 'inline-flex items-center justify-center gap-2';
 
@@ -138,7 +138,7 @@ const renderBody = ({
 
           td.appendChild(actions);
         } else {
-          td.innerHTML = '<span class="text-slate-600 text-xs">Read Only</span>';
+          td.innerHTML = '<span class="text-slate-600 text-xs">No actions</span>';
         }
 
         tr.appendChild(td);
@@ -155,7 +155,7 @@ const renderBody = ({
       td.textContent = (value === '' || value === null || value === undefined) ? '—' : String(value);
       td.dataset.rowId = row.id;
       td.dataset.colId = colId;
-      td.dataset.editable = (isAdmin && colId !== 'actions') ? 'true' : 'false';
+      td.dataset.editable = (canEditServices && colId !== 'actions') ? 'true' : 'false';
 
       tr.appendChild(td);
     });
