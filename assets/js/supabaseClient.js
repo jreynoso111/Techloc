@@ -2,8 +2,15 @@ import { BACKEND_PROVIDER, SUPABASE_KEY, SUPABASE_URL, assertSupabaseTarget } fr
 import { notifyGlobalAlert } from '../scripts/globalAlerts.js';
 
 const existingClient = typeof window !== 'undefined' ? window.supabaseClient : null;
-const SESSION_STORAGE_KEY = 'techloc:insforge-session:v1';
-const RECOVERY_TOKEN_STORAGE_KEY = 'techloc:insforge-recovery-token:v1';
+const STORAGE_NAMESPACE = [
+  'techloc',
+  'supabase',
+  SUPABASE_URL || 'local',
+  SUPABASE_KEY ? 'keyed' : 'nokey',
+  SUPABASE_PROJECT_REF || 'noref',
+].join(':');
+const SESSION_STORAGE_KEY = `${STORAGE_NAMESPACE}:session:v2`;
+const RECOVERY_TOKEN_STORAGE_KEY = `${STORAGE_NAMESPACE}:recovery-token:v2`;
 const BASE_URL = String(SUPABASE_URL || '').trim().replace(/\/+$/, '');
 const DEFAULT_FETCH_TIMEOUT_MS = 300_000;
 const MAX_GET_URL_LENGTH = 3500;
