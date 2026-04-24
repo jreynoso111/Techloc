@@ -2912,6 +2912,19 @@
       };
       const releasePtLastPingRestAlertIgnore = registerGlobalAlertIgnorePattern('/rest/v1/PT-LastPing');
       const releasePtLastPingApiAlertIgnore = registerGlobalAlertIgnorePattern('/api/database/records/PT-LastPing');
+      const buildPtFinalizeBatches = (rowsForFinalize) => {
+        const uniqueVins = Array.from(
+          new Set((rowsForFinalize || []).map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean))
+        );
+        if (uniqueVins.length <= 1) {
+          return uniqueVins.length ? [uniqueVins] : [];
+        }
+        const midpoint = Math.ceil(uniqueVins.length / 2);
+        return [
+          uniqueVins.slice(0, midpoint),
+          uniqueVins.slice(midpoint),
+        ].filter((batch) => batch.length);
+      };
       try {
         let vehicleSyncResult = {
           updated: 0,
@@ -2930,27 +2943,39 @@
             totalRows: dedupedRows.length,
           });
           aggregated.inserted = Number(uploadResult?.received || aggregated.inserted || 0);
+          setProgress(90, `Uploaded ${aggregated.inserted} of ${dedupedRows.length} rows`);
 
           if (PT_PING_ENABLE_RPC_FINALIZATION) {
-            setStatus('Finalizing PT processing once after upload...');
-            setProgress(92, 'Finalizing PT data');
-            const finalizeResult = await adminPostJson('/api/admin/pt-lastping/upload', {
-              rows: [],
-              finalize: true,
-              vins: dedupedRows.map((row) => row?.VIN),
-              minIdExclusive,
-            });
-            const finalization = finalizeResult?.finalization || {};
+            const finalizeBatches = buildPtFinalizeBatches(dedupedRows);
+            let finalizedRows = 0;
+            let finalizedVins = 0;
+            for (let batchIndex = 0; batchIndex < finalizeBatches.length; batchIndex += 1) {
+              const finalizeBatch = finalizeBatches[batchIndex];
+              setStatus(`Finalizing PT processing ${batchIndex + 1} of ${finalizeBatches.length}...`);
+              setProgress(
+                Math.min(98, 92 + Math.round((batchIndex / Math.max(1, finalizeBatches.length)) * 6)),
+                `Finalizing PT data ${batchIndex + 1} of ${finalizeBatches.length}`
+              );
+              const finalizeResult = await adminPostJson('/api/admin/pt-lastping/upload', {
+                rows: [],
+                finalize: true,
+                vins: finalizeBatch,
+                minIdExclusive,
+              });
+              const finalization = finalizeResult?.finalization || {};
+              finalizedRows += Number(finalization?.updatedRows || 0);
+              finalizedVins += Number(finalization?.processedVins || finalizeBatch.length || 0);
+            }
             vehicleSyncResult = {
-              updated: Number(finalization?.processedVins || 0),
+              updated: finalizedVins,
               skipped: 0,
-              updatedRows: Number(finalization?.updatedRows || 0),
-              mode: 'server_finalize_once',
+              updatedRows: finalizedRows,
+              mode: finalizeBatches.length > 1 ? 'server_finalize_two_batches' : 'server_finalize_once',
               warning: ''
             };
+            setProgress(99, 'Finalized PT data');
           }
 
-          setProgress(90, `Uploaded ${aggregated.inserted} of ${dedupedRows.length} rows`);
           if (!PT_PING_ENABLE_RPC_FINALIZATION) {
             vehicleSyncResult = {
               updated: 0,
