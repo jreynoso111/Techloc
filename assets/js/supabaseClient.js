@@ -1,4 +1,4 @@
-import { BACKEND_PROVIDER, SUPABASE_KEY, SUPABASE_URL, assertSupabaseTarget } from '../scripts/env.js';
+import { BACKEND_PROVIDER, SUPABASE_KEY, SUPABASE_PROJECT_REF, SUPABASE_URL, assertSupabaseTarget } from '../scripts/env.js';
 import { notifyGlobalAlert } from '../scripts/globalAlerts.js';
 
 const existingClient = typeof window !== 'undefined' ? window.supabaseClient : null;
