@@ -158,6 +158,16 @@ SERVICES_BLACKLIST_COLUMNS = make_set([
 
 GPS_BLACKLIST_COLUMNS = make_set(["serial", "reason", "is_active", "added_at", "added_by", "uuid", "effective_from"])
 
+USER_TABLE_CONFIG_COLUMNS = make_set(["id", "user_id", "table_key", "table_name", "config", "created_at", "updated_at"])
+
+SERVICES_REQUEST_COLUMNS = make_set([
+    "id", "company_name", "company phone", "doc", "unittype", "brand", "model", "model year", "shortvin",
+    "status", "quote", "request date", "workdate", "shipping date", "poc name", "poc phone", "confirmed",
+    "state", "city", "zip", "address", "Service_category", "Notes", "POC email", "created_at", "updated_at",
+])
+
+SERVICES_CATEGORIES_COLUMNS = make_set(["id", "category", "created_at", "updated_at"])
+
 VEHICLE_PUBLIC_READ_COLUMNS = without_columns(VEHICLE_COLUMNS, [
     "CDL State", "Real ID?", "CDL Note", "Visit Exp.", "CDL Exp Date", "SSN", "Green Card",
     "Passport", "Work Permit Expires",
@@ -192,6 +202,50 @@ TABLE_ACCESS_POLICIES = {
         "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER, "POST": ROLE_ACTIVE_USER},
         "readable_columns": make_set(["id", "user_id", "vin", "clicked_at", "source", "page", "action", "metadata", "created_at"]),
         "writable_columns": make_set(["user_id", "vin", "clicked_at", "source", "page", "action", "metadata"]),
+    },
+    "user_table_configs": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ACTIVE_USER,
+            "PATCH": ROLE_ACTIVE_USER,
+            "DELETE": ROLE_ACTIVE_USER,
+        },
+        "readable_columns": USER_TABLE_CONFIG_COLUMNS,
+        "writable_columns": USER_TABLE_CONFIG_COLUMNS,
+    },
+    "titles": {
+        "methods": {
+            "GET": ROLE_ADMINISTRATOR,
+            "HEAD": ROLE_ADMINISTRATOR,
+            "POST": ROLE_ADMINISTRATOR,
+            "PATCH": ROLE_ADMINISTRATOR,
+            "DELETE": ROLE_ADMINISTRATOR,
+        },
+        "allow_wildcard_read": True,
+        "allow_wildcard_write": True,
+    },
+    "services_request": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ACTIVE_USER,
+            "PATCH": ROLE_ACTIVE_USER,
+            "DELETE": ROLE_ACTIVE_USER,
+        },
+        "readable_columns": SERVICES_REQUEST_COLUMNS,
+        "writable_columns": SERVICES_REQUEST_COLUMNS,
+    },
+    "services_categories": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ADMINISTRATOR,
+            "PATCH": ROLE_ADMINISTRATOR,
+            "DELETE": ROLE_ADMINISTRATOR,
+        },
+        "readable_columns": SERVICES_CATEGORIES_COLUMNS,
+        "writable_columns": SERVICES_CATEGORIES_COLUMNS,
     },
     "vehicles": {
         "methods": {
@@ -355,6 +409,14 @@ def collect_body_columns(body):
     return []
 
 
+def collect_body_rows(body):
+    if isinstance(body, list):
+        return [row for row in body if isinstance(row, dict)]
+    if isinstance(body, dict):
+        return [body]
+    return []
+
+
 def validate_allowed_columns(columns, allowed_columns=None, allow_wildcard=False, label="Column"):
     allowed_columns = allowed_columns or set()
     for column in columns:
@@ -394,6 +456,19 @@ def require_table_policy(payload, table, method, body, select_clause):
         if required_role == ROLE_ADMINISTRATOR:
             raise PermissionError("Active administrator role is required.")
         raise PermissionError("Active session is required.")
+    if normalize_access_name(table) == "user_table_configs":
+        auth_user_id = str((payload.get("auth") or {}).get("userId") or "").strip()
+        query_params = payload.get("query") or {}
+        user_filters = query_params.get("user_id") or []
+        if isinstance(user_filters, str):
+            user_filters = [user_filters]
+        expected_filter = f"eq.{auth_user_id}"
+        if method in {"GET", "HEAD", "PATCH", "DELETE"} and expected_filter not in user_filters:
+            raise PermissionError("User table config access must be scoped to the current user.")
+        if method not in {"GET", "HEAD", "DELETE"}:
+            rows = collect_body_rows(body)
+            if not rows or any(str(row.get("user_id") or "").strip() != auth_user_id for row in rows):
+                raise PermissionError("User table config writes must be scoped to the current user.")
     if method in {"GET", "HEAD"}:
         readable_columns = get_readable_columns_for_policy(policy, payload.get("auth"))
         if (not select_clause or select_clause == "*") and not policy.get("allow_wildcard_read") and readable_columns:
@@ -600,7 +675,7 @@ def handle_update_profile(payload):
     profile = payload.get("profile") or {}
     if not user_id or not profile:
         return {"profile": None}
-    blocked_fields = [key for key in profile.keys() if key not in {"name", "background_mode"}]
+    blocked_fields = [key for key in profile.keys() if key not in {"name", "background_mode", "last_connection"}]
     if blocked_fields:
         raise PermissionError(f"Profile field is not writable here: {blocked_fields[0]}")
     columns = []

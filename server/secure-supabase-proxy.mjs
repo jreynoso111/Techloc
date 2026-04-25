@@ -449,6 +449,16 @@ const SERVICES_BLACKLIST_COLUMNS = makeSet([
 
 const GPS_BLACKLIST_COLUMNS = makeSet(['serial', 'reason', 'is_active', 'added_at', 'added_by', 'uuid', 'effective_from']);
 
+const USER_TABLE_CONFIG_COLUMNS = makeSet(['id', 'user_id', 'table_key', 'table_name', 'config', 'created_at', 'updated_at']);
+
+const SERVICES_REQUEST_COLUMNS = makeSet([
+  'id', 'company_name', 'company phone', 'doc', 'unittype', 'brand', 'model', 'model year', 'shortvin',
+  'status', 'quote', 'request date', 'workdate', 'shipping date', 'poc name', 'poc phone', 'confirmed',
+  'state', 'city', 'zip', 'address', 'Service_category', 'Notes', 'POC email', 'created_at', 'updated_at',
+]);
+
+const SERVICES_CATEGORIES_COLUMNS = makeSet(['id', 'category', 'created_at', 'updated_at']);
+
 const VEHICLE_PUBLIC_READ_COLUMNS = withoutColumns(VEHICLE_COLUMNS, [
   'CDL State', 'Real ID?', 'CDL Note', 'Visit Exp.', 'CDL Exp Date', 'SSN', 'Green Card',
   'Passport', 'Work Permit Expires',
@@ -521,6 +531,50 @@ const TABLE_ACCESS_POLICIES = new Map(Object.entries({
     },
     readableColumns: makeSet(['id', 'user_id', 'vin', 'clicked_at', 'source', 'page', 'action', 'metadata', 'created_at']),
     writableColumns: makeSet(['user_id', 'vin', 'clicked_at', 'source', 'page', 'action', 'metadata']),
+  },
+  user_table_configs: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ACTIVE_USER,
+      PATCH: DATABASE_ROLES.ACTIVE_USER,
+      DELETE: DATABASE_ROLES.ACTIVE_USER,
+    },
+    readableColumns: USER_TABLE_CONFIG_COLUMNS,
+    writableColumns: USER_TABLE_CONFIG_COLUMNS,
+  },
+  titles: {
+    methods: {
+      GET: DATABASE_ROLES.ADMINISTRATOR,
+      HEAD: DATABASE_ROLES.ADMINISTRATOR,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    allowWildcardRead: true,
+    allowWildcardWrite: true,
+  },
+  services_request: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ACTIVE_USER,
+      PATCH: DATABASE_ROLES.ACTIVE_USER,
+      DELETE: DATABASE_ROLES.ACTIVE_USER,
+    },
+    readableColumns: SERVICES_REQUEST_COLUMNS,
+    writableColumns: SERVICES_REQUEST_COLUMNS,
+  },
+  services_categories: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: SERVICES_CATEGORIES_COLUMNS,
+    writableColumns: SERVICES_CATEGORIES_COLUMNS,
   },
   vehicles: {
     // Vehicle writes alter operational fleet state; keep them admin-only through this generic data API.
@@ -1789,7 +1843,7 @@ const handleDirectAuthApi = async (req, res, pathname) => {
     }
     const body = await parseJsonBody(req);
     const requestedFields = Object.keys(body?.profile && typeof body.profile === 'object' ? body.profile : {});
-    const blockedField = requestedFields.find((field) => !['name', 'background_mode'].includes(field));
+    const blockedField = requestedFields.find((field) => !['name', 'background_mode', 'last_connection'].includes(field));
     if (blockedField) {
       json(res, 403, { error: { message: `Profile field is not writable here: ${blockedField}.` } });
       return;
@@ -2337,7 +2391,7 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     try {
       const parsed = JSON.parse(rawBody.toString('utf8'));
       const requestedFields = Object.keys(parsed?.profile && typeof parsed.profile === 'object' ? parsed.profile : {});
-      const blockedField = requestedFields.find((field) => !['name', 'background_mode'].includes(field));
+      const blockedField = requestedFields.find((field) => !['name', 'background_mode', 'last_connection'].includes(field));
       if (blockedField) {
         json(res, 403, { error: { message: `Profile field is not writable here: ${blockedField}.` } });
         return;

@@ -1963,10 +1963,10 @@
 
     function mapVehicleRow(v) {
       const short = v?.short_vin ?? v?.shortvin ?? v?.shortVin ?? v?.vin_short ?? v?.vin ?? null;
-      const unit = v?.unit_type ?? v?.unittype ?? v?.unitType ?? null;
+      const unit = v?.['unit type'] ?? v?.unit_type ?? v?.unittype ?? v?.unitType ?? null;
       const brand = v?.brand ?? null;
       const model = v?.model ?? null;
-      const year = v?.model_year ?? v?.['model year'] ?? v?.year ?? null;
+      const year = v?.['model year'] ?? v?.model_year ?? v?.year ?? null;
       return { short_vin: short, unit_type: unit, brand, model, model_year: year };
     }
 
@@ -1977,7 +1977,7 @@
       // Pull minimal fields. If some columns don't exist, you can adjust these names.
       const { data, error } = await state.client
         .from(VEHICLES_TABLE)
-        .select('short_vin, shortvin, unit_type, unittype, brand, model, model_year, "model year"');
+        .select('shortvin,"unit type",model,"model year"');
 
       if (error) {
         console.warn('Vehicles load error:', error);
