@@ -130,15 +130,15 @@ const resolveFallbackAccess = (session) => {
   const statusHint = profileStatus || userStatus || appStatus || null;
 
   const roleSource = cachedUserRole
-    ? 'cache'
+    ? 'verified-cache'
     : roleHint
-      ? 'session-metadata'
+      ? 'session-hint'
       : 'default';
 
   const statusSource = cachedUserStatus
-    ? 'cache'
+    ? 'verified-cache'
     : statusHint
-      ? 'session-metadata'
+      ? 'session-hint'
       : 'default';
 
   const role = normalizeRoleValue(cachedUserRole || roleHint || 'user', 'user');
@@ -148,7 +148,7 @@ const resolveFallbackAccess = (session) => {
     role,
     status,
     source: roleSource === 'default' ? statusSource : roleSource,
-    confident: roleSource !== 'default',
+    confident: false,
   };
 };
 
@@ -159,7 +159,10 @@ const setSession = (session) => {
 
 const getEffectiveSession = (session) => session || null;
 
-const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, preferCache = true } = {}) => {
+const getUserAccess = async (
+  session,
+  { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, preferCache = true, requireReliable = false } = {},
+) => {
   const userId = session?.user?.id;
   if (!userId) {
     window.currentUserRole = 'user';
@@ -172,7 +175,7 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
   const fallbackRole = fallbackAccess.role;
   const fallbackStatus = fallbackAccess.status;
 
-  if (fallbackAccess.confident) {
+  if (!requireReliable && preferCache && cachedUserRole && cachedUserStatus) {
     cachedUserRole = fallbackRole;
     cachedUserStatus = fallbackStatus;
     window.currentUserRole = fallbackRole;
@@ -181,18 +184,12 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
     return fallbackAccess;
   }
 
-  if (preferCache && cachedUserRole && cachedUserStatus) {
-    window.currentUserRole = fallbackRole;
-    window.currentUserStatus = fallbackStatus;
-    broadcastRoleStatus(fallbackRole, fallbackStatus);
-    return fallbackAccess;
-  }
-
   if (!supabaseClient?.from && typeof supabaseClient?.auth?.getProfile !== 'function') {
-    window.currentUserRole = fallbackRole;
-    window.currentUserStatus = fallbackStatus;
-    broadcastRoleStatus(fallbackRole, fallbackStatus);
-    return fallbackAccess;
+    const deniedAccess = { role: 'user', status: 'active', source: 'unavailable', confident: false };
+    window.currentUserRole = requireReliable ? deniedAccess.role : fallbackRole;
+    window.currentUserStatus = requireReliable ? deniedAccess.status : fallbackStatus;
+    broadcastRoleStatus(window.currentUserRole, window.currentUserStatus);
+    return requireReliable ? deniedAccess : fallbackAccess;
   }
 
   let data = null;
@@ -222,9 +219,16 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
   } catch (error) {
     const isTimeout = String(error?.name || '') === 'TimeoutError';
     console.warn(
-      isTimeout ? 'Profile access lookup timed out; using fallback role.' : 'Unable to fetch user role',
+      isTimeout ? 'Profile access lookup timed out.' : 'Unable to fetch user role',
       error,
     );
+    if (requireReliable) {
+      const deniedAccess = { role: 'user', status: 'active', source: isTimeout ? 'timeout' : 'error', confident: false };
+      window.currentUserRole = deniedAccess.role;
+      window.currentUserStatus = deniedAccess.status;
+      broadcastRoleStatus(deniedAccess.role, deniedAccess.status);
+      return deniedAccess;
+    }
     window.currentUserRole = fallbackRole;
     window.currentUserStatus = fallbackStatus;
     broadcastRoleStatus(fallbackRole, fallbackStatus);
@@ -233,13 +237,27 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
 
   if (error) {
     if (isRateLimitedError(error)) {
-      console.warn('Profile access lookup rate-limited; using fallback role/status.');
+      console.warn('Profile access lookup rate-limited.');
+      if (requireReliable) {
+        const deniedAccess = { role: 'user', status: 'active', source: 'rate-limited', confident: false };
+        window.currentUserRole = deniedAccess.role;
+        window.currentUserStatus = deniedAccess.status;
+        broadcastRoleStatus(deniedAccess.role, deniedAccess.status);
+        return deniedAccess;
+      }
       window.currentUserRole = fallbackRole;
       window.currentUserStatus = fallbackStatus;
       broadcastRoleStatus(fallbackRole, fallbackStatus);
       return fallbackAccess;
     }
     if (isMissingProfilesStatusColumnError(error)) {
+      if (requireReliable) {
+        const deniedAccess = { role: 'user', status: 'active', source: 'missing-status-column', confident: false };
+        window.currentUserRole = deniedAccess.role;
+        window.currentUserStatus = deniedAccess.status;
+        broadcastRoleStatus(deniedAccess.role, deniedAccess.status);
+        return deniedAccess;
+      }
       try {
         const roleOnlyResponse = await withTimeout(
           supabaseClient
@@ -253,8 +271,8 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
         const roleOnlyData = roleOnlyResponse?.data || null;
         const roleOnlyError = roleOnlyResponse?.error || null;
         if (!roleOnlyError && roleOnlyData) {
-          const normalizedRole = normalizeRoleValue(roleOnlyData.role, fallbackRole);
-          const normalizedStatus = normalizeStatusValue(fallbackStatus, fallbackStatus);
+          const normalizedRole = normalizeRoleValue(roleOnlyData.role, 'user');
+          const normalizedStatus = requireReliable ? 'active' : normalizeStatusValue(fallbackStatus, 'active');
           cachedUserRole = normalizedRole;
           cachedUserStatus = normalizedStatus;
           window.currentUserRole = normalizedRole;
@@ -267,6 +285,13 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
       }
     }
     console.warn('Unable to fetch user role', error);
+    if (requireReliable) {
+      const deniedAccess = { role: 'user', status: 'active', source: 'error', confident: false };
+      window.currentUserRole = deniedAccess.role;
+      window.currentUserStatus = deniedAccess.status;
+      broadcastRoleStatus(deniedAccess.role, deniedAccess.status);
+      return deniedAccess;
+    }
     window.currentUserRole = fallbackRole;
     window.currentUserStatus = fallbackStatus;
     broadcastRoleStatus(fallbackRole, fallbackStatus);
@@ -274,14 +299,21 @@ const getUserAccess = async (session, { timeoutMs = ACCESS_LOOKUP_TIMEOUT_MS, pr
   }
 
   if (!data) {
+    if (requireReliable) {
+      const deniedAccess = { role: 'user', status: 'active', source: 'missing-profile', confident: false };
+      window.currentUserRole = deniedAccess.role;
+      window.currentUserStatus = deniedAccess.status;
+      broadcastRoleStatus(deniedAccess.role, deniedAccess.status);
+      return deniedAccess;
+    }
     window.currentUserRole = fallbackRole;
     window.currentUserStatus = fallbackStatus;
     broadcastRoleStatus(fallbackRole, fallbackStatus);
     return fallbackAccess;
   }
 
-  const normalizedRole = normalizeRoleValue(data.role, fallbackRole);
-  const normalizedStatus = normalizeStatusValue(data.status, fallbackStatus);
+  const normalizedRole = normalizeRoleValue(data.role, 'user');
+  const normalizedStatus = normalizeStatusValue(data.status, 'active');
   cachedUserRole = normalizedRole;
   cachedUserStatus = normalizedStatus;
   window.currentUserRole = normalizedRole;
@@ -438,8 +470,16 @@ const routeInfo = (() => {
     isLoginPage: path.endsWith('/login.html') || path.endsWith('login.html'),
     isProfilesPage: path.includes('/admin/profiles.html'),
     isSettingsPage: path.includes('/admin/settings.html'),
+    isServicesPage: path.includes('/admin/services.html'),
+    isGpsBlacklistPage: path.includes('/admin/gps-blacklist.html'),
   };
 })();
+
+const routeRequiresAdministrator = () =>
+  routeInfo.isProfilesPage ||
+  routeInfo.isSettingsPage ||
+  routeInfo.isServicesPage ||
+  routeInfo.isGpsBlacklistPage;
 
 const getCurrentSession = async () => {
   await initializeAuthState();
@@ -697,9 +737,12 @@ const enforceAdminGuard = async () => {
   await waitForDom();
   applyLoadingState();
   const session = await requireSession();
-  revealAuthorizedUi();
   setupLogoutButton();
-  const { role, status, confident } = await getUserAccess(session, { timeoutMs: ACCESS_LOOKUP_TIMEOUT_MS });
+  const { role, status, confident } = await getUserAccess(session, {
+    timeoutMs: ACCESS_LOOKUP_TIMEOUT_MS * 2,
+    preferCache: false,
+    requireReliable: true,
+  });
   applyRoleVisibility(role);
 
   if (status === 'suspended') {
@@ -712,43 +755,21 @@ const enforceAdminGuard = async () => {
   }
 
   if (routeInfo.isAdminRoute && !roleAllowsDashboard(role)) {
-    if (confident) {
-      redirectToHome();
-      return session;
-    }
-
-    const strictAccess = await getUserAccess(session, {
-      timeoutMs: ACCESS_LOOKUP_TIMEOUT_MS * 2,
-      preferCache: false,
-    });
-    applyRoleVisibility(strictAccess.role);
-
-    if (!roleAllowsDashboard(strictAccess.role)) {
-      redirectToHome();
-      return session;
-    }
+    redirectToHome();
+    return session;
   }
 
-  if (routeInfo.isSettingsPage) {
-    const hintedRole = normalizeRoleValue(
-      session?.user?.app_metadata?.role || role,
-      'user',
-    );
-    const hintedIsAdmin = roleIsAdministrator(hintedRole);
-
-    const strictSettingsAccess = await getUserAccess(session, {
-      timeoutMs: ACCESS_LOOKUP_TIMEOUT_MS * 2,
-      preferCache: false,
-    });
-    applyRoleVisibility(strictSettingsAccess.role);
-
-    const strictIsAdmin = roleIsAdministrator(strictSettingsAccess.role);
-    if (!strictIsAdmin && (strictSettingsAccess.confident || !hintedIsAdmin)) {
-      redirectToHome();
-      return session;
-    }
+  if (routeRequiresAdministrator() && !roleIsAdministrator(role)) {
+    redirectToHome();
+    return session;
   }
 
+  if (!confident && routeInfo.isAdminRoute) {
+    redirectToHome();
+    return session;
+  }
+
+  revealAuthorizedUi();
   await waitForPageLoad();
   if (routeInfo.isAdminDashboard) {
     window.adminAuthReady = true;

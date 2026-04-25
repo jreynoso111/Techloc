@@ -272,27 +272,10 @@ const buildAppUser = (authUser = {}, profile = null) => {
   };
 };
 
-const fetchProfileByField = async (field, value, authToken) => {
-  if (!field || !value) return null;
-  const url = new URL('/api/database/records/profiles', BASE_URL);
-  url.searchParams.set('select', 'id,email,name,role,status,background_mode');
-  url.searchParams.set('limit', '1');
-  url.searchParams.set(field, `eq.${serializeFilterValue(value)}`);
-
-  const response = await fetchWithTimeout(url.toString(), {
-    method: 'GET',
-    headers: buildHeaders({ authToken }),
-  });
-  const payload = await parseJsonSafely(response);
-  if (!response.ok) return null;
-  return Array.isArray(payload) && payload.length ? payload[0] : null;
-};
-
 const resolveProfileForAuthUser = async (authUser, authToken) => {
   if (!authUser) return null;
-  const byEmail = await fetchProfileByField('email', authUser.email, authToken);
-  if (byEmail) return byEmail;
-  return fetchProfileByField('id', authUser.id, authToken);
+  const { data } = await fetchCurrentProfile(authToken);
+  return data?.profile || null;
 };
 
 const fetchCurrentProfile = async (authToken) => {

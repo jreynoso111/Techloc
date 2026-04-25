@@ -19,7 +19,12 @@ const buildRepairSnapshot = (vehicle, getRepairVehicleVin) => ({
 });
 
 const getDefaultHelpers = () => ({
-  escapeHTML: (value = '') => `${value}`,
+  escapeHTML: (value = '') => `${value}`
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;'),
   formatDateTime: (value) => value,
 });
 
@@ -290,7 +295,7 @@ const createRepairHistoryManager = ({
       }
       repairColumnsList.innerHTML = repairColumns.map((col) => `
         <label class="flex items-center gap-2">
-          <input type="checkbox" value="${col.key}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${repairColumnVisibility[col.key] ? 'checked' : ''} />
+          <input type="checkbox" value="${safeEscape(col.key)}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950" ${repairColumnVisibility[col.key] ? 'checked' : ''} />
           <span class="text-slate-200">${safeEscape(col.label)}</span>
         </label>
       `).join('');
@@ -314,7 +319,7 @@ const createRepairHistoryManager = ({
         <tr>
           ${visibleColumns.map((col) => `
             <th class="py-2 pr-3">
-              <button type="button" class="group inline-flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.08em] text-slate-400 hover:text-slate-200 transition-colors" data-repair-sort="${col.key}">
+              <button type="button" class="group inline-flex items-center gap-1 text-left text-[10px] uppercase tracking-[0.08em] text-slate-400 hover:text-slate-200 transition-colors" data-repair-sort="${safeEscape(col.key)}">
                 <span>${safeEscape(col.label)}</span>
                 <span class="text-[9px] text-slate-500 group-hover:text-slate-300">${repairSortKey === col.key ? (repairSortDirection === 'asc' ? '▲' : '▼') : ''}</span>
               </button>
@@ -377,8 +382,8 @@ const createRepairHistoryManager = ({
           `).join('')}
           <td class="py-2">
             <div class="flex items-center gap-2">
-              <button type="button" class="rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/20 transition-colors" data-repair-edit="${repair?.id || ''}">Edit</button>
-              <button type="button" class="rounded border border-rose-400/50 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-100 hover:bg-rose-500/20 transition-colors" data-repair-delete="${repair?.id || ''}">Delete</button>
+              <button type="button" class="rounded border border-blue-400/50 bg-blue-500/10 px-2 py-1 text-[10px] font-semibold text-blue-100 hover:bg-blue-500/20 transition-colors" data-repair-edit="${safeEscape(repair?.id || '')}">Edit</button>
+              <button type="button" class="rounded border border-rose-400/50 bg-rose-500/10 px-2 py-1 text-[10px] font-semibold text-rose-100 hover:bg-rose-500/20 transition-colors" data-repair-delete="${safeEscape(repair?.id || '')}">Delete</button>
             </div>
           </td>
         </tr>

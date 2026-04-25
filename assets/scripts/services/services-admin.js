@@ -104,11 +104,15 @@ const applySessionState = async (session) => {
       ? await supabaseClient.auth.getProfile()
       : await supabaseClient
           .from('profiles')
-          .select('role')
+          .select('role,status')
           .eq('id', session.user.id)
           .single();
     const profile = profileResult?.data?.profile || profileResult?.data || null;
-    state.currentUserRole = profile?.role || 'user';
+    const isActiveAdministrator =
+      !profileResult?.error &&
+      String(profile?.role || '').toLowerCase() === 'administrator' &&
+      String(profile?.status || 'active').toLowerCase() === 'active';
+    state.currentUserRole = isActiveAdministrator ? 'administrator' : 'user';
   } else {
     state.currentUserRole = 'anon';
     state.currentUserId = 'anon';
@@ -117,7 +121,7 @@ const applySessionState = async (session) => {
 
   loadPrefs();
 
-  const canEditServices = state.currentUserRole !== 'anon';
+  const canEditServices = state.currentUserRole === 'administrator';
   if (els.addRecord) {
     els.addRecord.classList.toggle('hidden', !canEditServices);
     els.addRecord.disabled = !canEditServices;
@@ -1084,7 +1088,7 @@ const attachButtonEvents = () => {
 
   // Create new record inline (adds blank row in DB, then you edit cells)
   els.addRecord?.addEventListener('click', async () => {
-    if (state.currentUserRole === 'anon') return;
+    if (state.currentUserRole !== 'administrator') return;
     try {
       const payload = {
         company_name: '',

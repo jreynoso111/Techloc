@@ -389,12 +389,6 @@
     const ADMIN_ROLE = 'administrator';
     let hasVerifiedAdminAccess = false;
     const isAdminUser = () => hasVerifiedAdminAccess;
-    const isRateLimitedError = (error) => {
-      const status = Number(error?.status || error?.statusCode);
-      const message = String(error?.message || '').toLowerCase();
-      const details = String(error?.details || '').toLowerCase();
-      return status === 429 || message.includes('too many requests') || details.includes('too many requests');
-    };
     const refreshAdminAccess = async () => {
       if (!supabaseClient?.auth?.getCurrentUser || !supabaseClient?.from) {
         hasVerifiedAdminAccess = false;
@@ -410,36 +404,19 @@
         hasVerifiedAdminAccess = false;
         return hasVerifiedAdminAccess;
       }
-      const fallbackRole = String(
-        currentUserData?.user?.profile?.role
-        || currentUserData?.user?.app_metadata?.role
-        || window.currentUserRole
-        || ''
-      ).toLowerCase();
-      const fallbackStatus = String(
-        currentUserData?.user?.profile?.status
-        || currentUserData?.user?.app_metadata?.status
-        || window.currentUserStatus
-        || 'active'
-      ).toLowerCase();
-      if (fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended') {
-        hasVerifiedAdminAccess = true;
-        return hasVerifiedAdminAccess;
-      }
       const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
         ? await supabaseClient.auth.getProfile()
         : await supabaseClient
             .from('profiles')
-            .select('role')
+            .select('role,status')
             .eq('id', userId)
             .maybeSingle();
       const profile = profileResult?.data?.profile || profileResult?.data || null;
       const profileError = profileResult?.error || null;
-      if (isRateLimitedError(profileError)) {
-        hasVerifiedAdminAccess = fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended';
-        return hasVerifiedAdminAccess;
-      }
-      hasVerifiedAdminAccess = !profileError && String(profile?.role || '').toLowerCase() === ADMIN_ROLE;
+      hasVerifiedAdminAccess =
+        !profileError &&
+        String(profile?.role || '').toLowerCase() === ADMIN_ROLE &&
+        String(profile?.status || 'active').toLowerCase() === 'active';
       return hasVerifiedAdminAccess;
     };
 

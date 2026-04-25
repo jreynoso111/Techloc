@@ -1,49 +1,42 @@
 export const createVehicleService = ({ client, tableName }) => {
-  const VEHICLE_COLUMN_CANDIDATES = [
-    ['id'],
-    ['deal_status', 'Deal Status'],
-    ['vehicle_status', 'Vehicle Status'],
-    ['inventory_preparation_status', 'Inventory Preparation Status', 'INV Prep Stat', 'Inv. Prep. Stat.', 'Inv Prep Stat'],
-    ['physical_location', 'Physical Location', 'phys_loc'],
-    ['deal_completion', 'Deal Completion'],
-    ['type', 'Unit Type'],
-    ['year', 'Model Year'],
-    ['model', 'Model'],
-    ['vin', 'VIN'],
-    ['shortvin', 'ShortVIN', 'Short Vin'],
-    ['gps_fix', 'GPS Fix'],
-    ['gps_fix_reason', 'GPS Fix Reason'],
-    ['gps_moving', 'GPS Moving'],
-    ['moving', 'Moving'],
-    ['movement_status_v2'],
-    ['movement_days_stationary_v2'],
-    ['movement_threshold_meters_v2'],
-    ['movement_unit_type_v2'],
-    ['moving_calc', 'Moving (Calc)'],
-    ['pt_status', 'PT Status'],
-    ['pt_serial', 'PT Serial', 'PT Serial '],
-    ['winner_serial', 'Winner Serial'],
-    ['encore_serial', 'Encore Serial'],
-    ['pt_first_read', 'PT First Read', 'PT First Read '],
-    ['pt_last_read', 'PT Last Read', 'PT Last Read '],
-    ['days_stationary', 'Days Stationary', 'Days stationary', 'Days Parked'],
-    ['current_stock_no', 'Current Stock No', 'Stock No'],
-    ['short_location', 'Short Location'],
-    ['state', 'State', 'State Loc'],
-    ['state_code'],
-    ['zip', 'Zip', 'PT ZipCode'],
-    ['city', 'City', 'PT City'],
-    ['customer_id', 'Customer ID', 'Customer'],
-    ['customer_name', 'Customer Name', 'Borrower Name'],
-    ['borrower_name', 'Borrower Name'],
-    ['payment', 'Payment Schedule'],
-    ['lat', 'Lat'],
-    ['long', 'Long'],
-    ['lng', 'Lng'],
-    ['updated_at']
+  const VEHICLE_SELECT_COLUMNS = [
+    'id',
+    'deal status',
+    'Vehicle Status',
+    'customer id',
+    'unit type',
+    'model year',
+    'model',
+    'VIN',
+    'shortvin',
+    'inv. prep. stat.',
+    'deal completion',
+    'gps fix',
+    'gps fix reason',
+    'pt status',
+    'pt serial',
+    'encore serial',
+    'moving',
+    'pt first read',
+    'pt last read',
+    'days_stationary',
+    'short_location',
+    'state loc',
+    'pt city',
+    'pt zipcode',
+    'lat',
+    'long',
+    'phys_loc',
+    'Current Stock No',
+    'Open Balance',
+    'movement_status_v2',
+    'movement_days_stationary_v2',
+    'movement_threshold_meters_v2',
+    'movement_unit_type_v2',
+    'movement_computed_at_v2'
   ];
 
-  let resolvedVehicleColumnsPromise = null;
+  const DEFAULT_PAGE_SIZE = 1000;
 
   const quoteColumn = (column = '') => {
     const normalized = `${column ?? ''}`.trim();
@@ -51,8 +44,6 @@ export const createVehicleService = ({ client, tableName }) => {
     if (/^[a-z_][a-z0-9_]*$/i.test(normalized)) return normalized;
     return `"${normalized.replace(/"/g, '""')}"`;
   };
-
-  const normalizeName = (value = '') => `${value ?? ''}`.trim().toLowerCase();
 
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -68,44 +59,34 @@ export const createVehicleService = ({ client, tableName }) => {
     );
   };
 
-  const resolveVehicleColumns = async () => {
-    if (resolvedVehicleColumnsPromise) return resolvedVehicleColumnsPromise;
-    resolvedVehicleColumnsPromise = (async () => {
-      const probeResult = await client.from(tableName).select('*').limit(1);
-      if (probeResult.error) throw probeResult.error;
+  const getVehicleSelectClause = () => VEHICLE_SELECT_COLUMNS.map(quoteColumn).join(',');
 
-      const firstRow = Array.isArray(probeResult.data) ? (probeResult.data[0] || {}) : {};
-      const availableKeys = Object.keys(firstRow);
-      if (!availableKeys.length) {
-        return { selectClause: '*', columnsResolved: false };
-      }
-
-      const keyLookup = new Map(availableKeys.map((key) => [normalizeName(key), key]));
-      const selectedColumns = [];
-      VEHICLE_COLUMN_CANDIDATES.forEach((candidates) => {
-        const hit = candidates.find((candidate) => keyLookup.has(normalizeName(candidate)));
-        if (!hit) return;
-        selectedColumns.push(quoteColumn(keyLookup.get(normalizeName(hit))));
-      });
-
-      const uniqueColumns = Array.from(new Set(selectedColumns.filter(Boolean)));
-      return {
-        selectClause: uniqueColumns.length ? uniqueColumns.join(',') : '*',
-        columnsResolved: uniqueColumns.length > 0
-      };
-    })();
-    return resolvedVehicleColumnsPromise;
-  };
-
-  const listVehicles = async () => {
+  const listVehicles = async ({ pageSize = DEFAULT_PAGE_SIZE, maxRows = 25000 } = {}) => {
     if (!client?.from) {
       throw new Error('Vehicle data provider unavailable.');
     }
 
-    const { selectClause } = await resolveVehicleColumns();
-    const { data, error } = await client.from(tableName).select(selectClause);
-    if (error) throw error;
-    return data || [];
+    const selectClause = getVehicleSelectClause();
+    const safePageSize = Math.max(1, Math.min(Number(pageSize) || DEFAULT_PAGE_SIZE, 1000));
+    const safeMaxRows = Math.max(safePageSize, Number(maxRows) || 25000);
+    const rows = [];
+    let offset = 0;
+
+    while (offset < safeMaxRows) {
+      const upper = Math.min(offset + safePageSize - 1, safeMaxRows - 1);
+      const { data, error } = await client
+        .from(tableName)
+        .select(selectClause)
+        .range(offset, upper);
+      if (error) throw error;
+      const pageRows = Array.isArray(data) ? data : [];
+      if (!pageRows.length) break;
+      rows.push(...pageRows);
+      if (pageRows.length < safePageSize) break;
+      offset += safePageSize;
+    }
+
+    return rows;
   };
 
   const getVehicleById = async (vehicleId) => {
@@ -118,7 +99,7 @@ export const createVehicleService = ({ client, tableName }) => {
       throw new Error('Vehicle id is required.');
     }
 
-    const { selectClause } = await resolveVehicleColumns();
+    const selectClause = getVehicleSelectClause();
     const maxAttempts = 3;
     let lastError = null;
 
@@ -139,5 +120,5 @@ export const createVehicleService = ({ client, tableName }) => {
     throw lastError || new Error('Vehicle row lookup failed.');
   };
 
-  return { listVehicles, getVehicleById };
+  return { listVehicles, getVehicleById, getVehicleSelectClause };
 };

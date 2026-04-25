@@ -7,6 +7,25 @@ const getDefaultHelpers = () => ({
 
 const GPS_HISTORY_REQUEST_CACHE_TTL_MS = 15 * 1000;
 const GPS_HISTORY_RATE_LIMIT_RETRY_DELAYS_MS = [350, 900, 1800];
+const GPS_HISTORY_DEFAULT_WINDOW_DAYS = 90;
+const GPS_HISTORY_MAX_ROWS_PER_WINDOW = 3000;
+const GPS_HISTORY_SELECT_COLUMNS = [
+  'id',
+  'vehicle_id',
+  'VIN',
+  'Serial',
+  'Date',
+  'Lat',
+  'Long',
+  'address',
+  'city_bucket',
+  'moved',
+  'days_stationary',
+  'moved_v2',
+  'days_stationary_v2',
+  'read_day',
+  'day_half'
+].join(',');
 
 const getVehicleVin = (vehicle) => {
   const vin = vehicle?.VIN ?? vehicle?.vin ?? vehicle?.details?.VIN ?? '';
@@ -738,7 +757,7 @@ const createGpsHistoryManager = ({
     const vinSuffix = getVinSuffix(normalizedVin);
     const effectiveWindowStartMs = Number.isFinite(windowStartMs)
       ? windowStartMs
-      : null;
+      : Date.now() - (GPS_HISTORY_DEFAULT_WINDOW_DAYS * GPS_HISTORY_DAY_MS);
     if (!supabaseClient || (!normalizedVin && !normalizedVehicleId)) {
       return {
         records: [],
@@ -762,7 +781,7 @@ const createGpsHistoryManager = ({
     const request = (async () => {
       await ensureSupabaseSession?.();
       const sourceTable = tableName || 'PT-LastPing';
-      const pageSize = 1000;
+      const pageSize = 500;
       const windowStartIso = Number.isFinite(effectiveWindowStartMs)
         ? new Date(effectiveWindowStartMs).toISOString()
         : '';
@@ -771,13 +790,13 @@ const createGpsHistoryManager = ({
         const records = [];
         let offset = 0;
         let hasOlderRecords = false;
-        while (true) {
+        while (records.length < GPS_HISTORY_MAX_ROWS_PER_WINDOW) {
           let pageRows = [];
           let pageError = null;
           for (let attempt = 0; attempt <= GPS_HISTORY_RATE_LIMIT_RETRY_DELAYS_MS.length; attempt += 1) {
             let pageQuery = supabaseClient
               .from(sourceTable)
-              .select('*')
+              .select(GPS_HISTORY_SELECT_COLUMNS)
               .order(dateColumn, { ascending: false })
               .range(offset, offset + pageSize - 1);
             pageQuery = operator === 'ilike'
@@ -804,7 +823,11 @@ const createGpsHistoryManager = ({
           }
           if (pageError) throw pageError;
           if (!pageRows.length) break;
-          records.push(...pageRows);
+          records.push(...pageRows.slice(0, GPS_HISTORY_MAX_ROWS_PER_WINDOW - records.length));
+          if (records.length >= GPS_HISTORY_MAX_ROWS_PER_WINDOW) {
+            hasOlderRecords = true;
+            break;
+          }
           offset += pageRows.length;
         }
 
@@ -1806,7 +1829,7 @@ const getRecordMovementDisplay = (record = {}) => {
         await ensureSupabaseSession?.();
         const sampleQuery = supabaseClient
           .from(sourceTable)
-          .select('*')
+          .select(GPS_HISTORY_SELECT_COLUMNS)
           .limit(1);
         const { data, error } = runWithTimeout
           ? await runWithTimeout(

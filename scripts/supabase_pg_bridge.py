@@ -14,6 +14,266 @@ from psycopg2.extras import RealDictCursor, Json
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+ROLE_ACTIVE_USER = "active_user"
+ROLE_ADMINISTRATOR = "administrator"
+
+
+def make_set(values):
+    return set(str(value).strip() for value in values if str(value).strip())
+
+
+def without_columns(columns, blocked):
+    blocked_set = make_set(blocked)
+    return set(column for column in columns if column not in blocked_set)
+
+
+ALLOWED_REPAIR_FIELDS = make_set([
+    "vehicle_id",
+    "deal_status",
+    "customer_id",
+    "unit_type",
+    "model_year",
+    "model",
+    "inv_prep_stat",
+    "deal_completion",
+    "pt_status",
+    "pt_serial",
+    "encore_serial",
+    "phys_loc",
+    "VIN",
+    "vehicle_status",
+    "days_stationary",
+    "short_location",
+    "current_stock_no",
+    "cs_contact_date",
+    "status",
+    "doc",
+    "shipping_date",
+    "poc_name",
+    "poc_phone",
+    "customer_availability",
+    "installer_request_date",
+    "installation_company",
+    "technician_availability_date",
+    "installation_place",
+    "repair_price",
+    "repair_notes",
+    "shortvin",
+])
+
+PROFILE_PUBLIC_COLUMNS = make_set([
+    "id",
+    "email",
+    "name",
+    "role",
+    "status",
+    "background_mode",
+    "created_at",
+    "updated_at",
+])
+
+VEHICLE_WRITE_COLUMNS = make_set([
+    "gps fix",
+    "gps fix reason",
+    "gps_fix",
+    "gps_fix_reason",
+    "gps_moving",
+    "moving",
+    "movement_status_v2",
+    "movement_days_stationary_v2",
+    "movement_threshold_meters_v2",
+    "movement_unit_type_v2",
+    "movement_computed_at_v2",
+    "pt_first_read",
+    "pt_last_read",
+    "pt_last_lat",
+    "pt_last_long",
+    "pt_last_address",
+    "pt_last_city",
+    "pt_last_serial",
+    "days_stationary",
+    "short_location",
+    "updated_at",
+])
+
+PT_LASTPING_WRITE_COLUMNS = make_set([
+    "VIN",
+    "vehicle_id",
+    "moved_v2",
+    "days_stationary_v2",
+])
+
+VEHICLE_COLUMNS = make_set([
+    "deal status", "customer id", "unit type", "model year", "model", "shortvin", "inv. prep. stat.",
+    "deal completion", "gps fix", "gps fix reason", "pt status", "pt serial", "encore serial", "moving",
+    "pt last read", "state loc", "pt city", "pt zipcode", "lat", "long", "phys_loc", "Current Stock No",
+    "id", "VIN", "Vehicle Status", "Open Balance", "Oldest Invoice (Open)", "days_stationary",
+    "short_location", "CDL State", "Real ID?", "CDL Note", "Visit Exp.", "CDL Exp Date", "SSN",
+    "Green Card", "Passport", "Work Permit Expires", "repo notes", "Last Update", "Schdl To repair?",
+    "Last_repo_date", "pt first read", "movement_status_v2", "movement_days_stationary_v2",
+    "movement_computed_at_v2", "movement_threshold_meters_v2", "movement_unit_type_v2",
+])
+
+DEALSJP1_COLUMNS = make_set([
+    "Deal Status", "Deal Date", "HOLD", "Current Stock No", "Customer", "Brand", "Model", "Model Year",
+    "VIN", "Corrected VIN", "Vehicle Status", "Mileage", "Driver License #",
+    "Inventory Preparation Status", "Inventory Preparation Status Changed On",
+    "Inventory Preparation Status Changed By", "Physical Location", "Physical Location Last Changed on",
+    "ENTITY", "Retail Price On Contract", "Cash Down", "Total due on Deal", "Amount",
+    "Reg. Contract Payment", "Payment Schedule", "Total Payments in Months",
+    "Number OF Schedule Remaining", "Lead Source", "Date of Birth", "TAM Legacy Created Date",
+    "Payment Schedule Start", "Last Payment Date", "TAM Legacy Stock #", "Trade In VIN",
+    "Trade In Amount", "Sales Person", "Subsidiary", "Location", "Lease End Date", "Bucket",
+    "Bucket Sub Type", "Payment Schedule_1", "Lease Term", "Regular Amount",
+    "Total Contract Scheduled Amount", "Inventory Valuation Value", "Sales Channel", "Partner Name",
+    "Remaining Scheduled Payments To Invoice", "Deposit", "PassTime Serial No",
+    "PassTime Vehicle Status", "EFT Available", "Primary Payment Mode", "Secondary Payment Mode",
+    "Plate Number", "Mobile Phone", "Encore Serial Number", "Encore Serial #2", "GPS Serial No",
+    "Plate Number_1", "Current Title Number", "Current Title Subsidiary",
+    "Current Title Physical Location", "Title In Date", "Title Out Date", "Financing Company",
+    "Broker", "Return Type", "Actual System Return Date", "Returned By",
+    "Number OF Schedule Remaining_1", "Unit Type", "Open Balance", "id", "Last Deal",
+    "Oldest Invoice (Open)", "Calc.End", "gps_status", "gps_status_updated_at", "gps_review_flag",
+    "Deal Completion",
+])
+
+PT_LASTPING_COLUMNS = make_set([
+    "Serial", "Year", "Make", "Model", "Color", "Customer", "Vehicle Status", "VIN", "Date", "address",
+    "Lat", "Long", "city_bucket", "moved", "days_stationary", "read_day", "city_previous",
+    "vehicle_id", "id", "day_half", "moved_v2", "days_stationary_v2",
+])
+
+SERVICES_COLUMNS = make_set([
+    "company_name", "region", "phone", "contact", "email", "website", "availability", "notes", "city",
+    "state", "zip", "category", "type", "authorization", "address", "status", "lat", "long", "id",
+    "verified",
+])
+
+HOTSPOT_COLUMNS = make_set(["id", "created_at", "State", "City", "Zip", "Lat", "Long", "Radius"])
+
+SERVICES_BLACKLIST_COLUMNS = make_set([
+    "id", "created_at", "company_name", "category", "lat", "long", "Assoc.Unit", "Note", "State",
+    "City", "Zip", "Event date", "Alarm", "address",
+])
+
+GPS_BLACKLIST_COLUMNS = make_set(["serial", "reason", "is_active", "added_at", "added_by", "uuid", "effective_from"])
+
+VEHICLE_PUBLIC_READ_COLUMNS = without_columns(VEHICLE_COLUMNS, [
+    "CDL State", "Real ID?", "CDL Note", "Visit Exp.", "CDL Exp Date", "SSN", "Green Card",
+    "Passport", "Work Permit Expires",
+])
+
+DEALSJP1_PUBLIC_READ_COLUMNS = without_columns(DEALSJP1_COLUMNS, [
+    "Driver License #", "Date of Birth", "Mobile Phone",
+])
+
+TABLE_ACCESS_POLICIES = {
+    "app_settings": {
+        "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER},
+        "readable_columns": make_set(["key", "settings", "updated_at", "created_at"]),
+    },
+    "services": {
+        "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER},
+        "readable_columns": SERVICES_COLUMNS,
+    },
+    "hotspots": {
+        "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER},
+        "readable_columns": HOTSPOT_COLUMNS,
+    },
+    "services_blacklist": {
+        "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER},
+        "readable_columns": SERVICES_BLACKLIST_COLUMNS,
+    },
+    "gps_blacklist": {
+        "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER},
+        "readable_columns": GPS_BLACKLIST_COLUMNS,
+    },
+    "control_map_vehicle_clicks": {
+        "methods": {"GET": ROLE_ACTIVE_USER, "HEAD": ROLE_ACTIVE_USER, "POST": ROLE_ACTIVE_USER},
+        "readable_columns": make_set(["id", "user_id", "vin", "clicked_at", "source", "page", "action", "metadata", "created_at"]),
+        "writable_columns": make_set(["user_id", "vin", "clicked_at", "source", "page", "action", "metadata"]),
+    },
+    "vehicles": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ADMINISTRATOR,
+            "PATCH": ROLE_ADMINISTRATOR,
+            "DELETE": ROLE_ADMINISTRATOR,
+        },
+        "readable_columns": VEHICLE_PUBLIC_READ_COLUMNS,
+        "admin_readable_columns": VEHICLE_COLUMNS,
+        "writable_columns": VEHICLE_COLUMNS,
+    },
+    "dealsjp1": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ADMINISTRATOR,
+            "PATCH": ROLE_ADMINISTRATOR,
+            "DELETE": ROLE_ADMINISTRATOR,
+        },
+        "readable_columns": DEALSJP1_PUBLIC_READ_COLUMNS,
+        "admin_readable_columns": DEALSJP1_COLUMNS,
+        "writable_columns": DEALSJP1_COLUMNS,
+    },
+    "pt-lastping": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ADMINISTRATOR,
+            "PATCH": ROLE_ADMINISTRATOR,
+            "DELETE": ROLE_ADMINISTRATOR,
+        },
+        "readable_columns": PT_LASTPING_COLUMNS,
+        "writable_columns": PT_LASTPING_COLUMNS,
+    },
+    "profiles": {
+        "methods": {"GET": ROLE_ADMINISTRATOR, "HEAD": ROLE_ADMINISTRATOR, "PATCH": ROLE_ADMINISTRATOR},
+        "readable_columns": PROFILE_PUBLIC_COLUMNS,
+        "writable_columns": make_set(["email", "name", "role", "status", "background_mode"]),
+    },
+    "admin_change_log": {
+        "methods": {"GET": ROLE_ADMINISTRATOR, "HEAD": ROLE_ADMINISTRATOR, "POST": ROLE_ADMINISTRATOR},
+        "readable_columns": make_set(["id", "table_name", "action", "summary", "actor", "record_id", "column_name", "previous_value", "new_value", "profile_email", "profile_role", "profile_status", "page_path", "source", "details", "created_at"]),
+        "writable_columns": make_set(["table_name", "action", "summary", "actor", "record_id", "column_name", "previous_value", "new_value", "profile_email", "profile_role", "profile_status", "page_path", "source", "details", "created_at"]),
+    },
+    "repair_history": {
+        "methods": {
+            "GET": ROLE_ACTIVE_USER,
+            "HEAD": ROLE_ACTIVE_USER,
+            "POST": ROLE_ACTIVE_USER,
+            "PATCH": ROLE_ACTIVE_USER,
+            "DELETE": ROLE_ACTIVE_USER,
+        },
+        "allow_wildcard_read": True,
+        "writable_columns": ALLOWED_REPAIR_FIELDS,
+    },
+}
+
+RPC_ACCESS_POLICIES = {
+    "update_vehicle_gps_fields": {
+        "role": ROLE_ADMINISTRATOR,
+        "args": make_set(["p_vehicle_id", "p_gps_fix", "p_gps_fix_reason"]),
+    },
+    "refresh_vehicle_movement_v2": {
+        "role": ROLE_ADMINISTRATOR,
+        "args": make_set(["p_vin"]),
+    },
+    "finalize_pt_lastping_upload": {
+        "role": ROLE_ADMINISTRATOR,
+        "args": make_set(["p_vins", "p_min_id_exclusive"]),
+    },
+    "recalc_dealsjp1_last_deal": {
+        "role": ROLE_ADMINISTRATOR,
+        "args": set(),
+    },
+    "sync_vehicles_from_dealsjp1_lastdeal": {
+        "role": ROLE_ADMINISTRATOR,
+        "args": set(),
+    },
+}
+
 
 def db_connect():
     return psycopg2.connect(
@@ -68,6 +328,100 @@ def sanitize_identifier_candidate(value):
 
 def normalize_lookup_key(value):
     return sanitize_identifier_candidate(value).lower()
+
+
+def normalize_access_name(value):
+    return str(value or "").strip().lower()
+
+
+def has_required_role(auth, required_role):
+    auth = auth or {}
+    role = str(auth.get("role") or "user").lower()
+    status = str(auth.get("status") or "active").lower()
+    if required_role == ROLE_ADMINISTRATOR:
+        return role == "administrator" and status == "active"
+    return status != "suspended"
+
+
+def collect_body_columns(body):
+    if isinstance(body, list):
+        columns = []
+        for row in body:
+            if isinstance(row, dict):
+                columns.extend(row.keys())
+        return sorted(set(columns))
+    if isinstance(body, dict):
+        return list(body.keys())
+    return []
+
+
+def validate_allowed_columns(columns, allowed_columns=None, allow_wildcard=False, label="Column"):
+    allowed_columns = allowed_columns or set()
+    for column in columns:
+        if column == "*" and allow_wildcard:
+            continue
+        if column == "*" or column not in allowed_columns:
+            raise PermissionError(f"{label} is not allowed: {column}")
+
+
+def quote_select_column(column):
+    if IDENTIFIER_RE.match(column):
+        return column
+    return '"' + str(column).replace('"', '""') + '"'
+
+
+def build_allowed_select_clause(columns):
+    return ",".join(quote_select_column(column) for column in columns)
+
+
+def get_readable_columns_for_policy(policy, auth):
+    auth = auth or {}
+    role = str(auth.get("role") or "user").lower()
+    status = str(auth.get("status") or "active").lower()
+    if role == "administrator" and status == "active" and policy.get("admin_readable_columns"):
+        return policy.get("admin_readable_columns")
+    return policy.get("readable_columns", set())
+
+
+def require_table_policy(payload, table, method, body, select_clause):
+    policy = TABLE_ACCESS_POLICIES.get(normalize_access_name(table))
+    if not policy:
+        raise PermissionError(f"Table is not allowed through this API: {table}")
+    required_role = policy.get("methods", {}).get(method)
+    if not required_role:
+        raise PermissionError(f"{method} is not allowed for table {table}")
+    if not has_required_role(payload.get("auth"), required_role):
+        if required_role == ROLE_ADMINISTRATOR:
+            raise PermissionError("Active administrator role is required.")
+        raise PermissionError("Active session is required.")
+    if method in {"GET", "HEAD"}:
+        readable_columns = get_readable_columns_for_policy(policy, payload.get("auth"))
+        if (not select_clause or select_clause == "*") and not policy.get("allow_wildcard_read") and readable_columns:
+            return policy
+        validate_allowed_columns(
+            parse_columns(select_clause) or ["*"],
+            readable_columns,
+            bool(policy.get("allow_wildcard_read")),
+            "Read column",
+        )
+    else:
+        validate_allowed_columns(
+            collect_body_columns(body),
+            policy.get("writable_columns", set()),
+            bool(policy.get("allow_wildcard_write")),
+            "Write column",
+        )
+    return policy
+
+
+def require_rpc_policy(payload, function_name, args):
+    policy = RPC_ACCESS_POLICIES.get(normalize_access_name(function_name))
+    if not policy:
+        raise PermissionError(f"RPC is not allowed through this API: {function_name}")
+    if not has_required_role(payload.get("auth"), policy.get("role")):
+        raise PermissionError("Active administrator role is required.")
+    validate_allowed_columns(list((args or {}).keys()), policy.get("args", set()), False, "RPC argument")
+    return policy
 
 
 def load_table_columns(cur, table):
@@ -246,6 +600,9 @@ def handle_update_profile(payload):
     profile = payload.get("profile") or {}
     if not user_id or not profile:
         return {"profile": None}
+    blocked_fields = [key for key in profile.keys() if key not in {"name", "background_mode"}]
+    if blocked_fields:
+        raise PermissionError(f"Profile field is not writable here: {blocked_fields[0]}")
     columns = []
     params = []
     for key, value in profile.items():
@@ -275,15 +632,21 @@ def handle_query_table(payload):
     offset_value = query_params.get("offset", [None])[0]
     order_value = query_params.get("order", [None])[0]
     on_conflict = query_params.get("on_conflict", [None])[0]
+    policy = require_table_policy(payload, table, method, body, select_clause)
+    readable_columns = get_readable_columns_for_policy(policy, payload.get("auth"))
+    if method in {"GET", "HEAD"} and (not select_clause or select_clause == "*") and not policy.get("allow_wildcard_read") and readable_columns:
+        select_clause = build_allowed_select_clause(readable_columns)
     filters = {
         key: value
         for key, value in query_params.items()
         if key not in {"select", "limit", "offset", "order", "on_conflict"}
     }
+    if method in {"PATCH", "DELETE"} and not filters:
+        raise PermissionError(f"{method} requires at least one filter.")
 
     with db_connect() as conn, conn.cursor(cursor_factory=RealDictCursor) as cur:
         available_columns, column_lookup = load_table_columns(cur, table)
-        if method == "GET":
+        if method in {"GET", "HEAD"}:
             where_sql, where_params = parse_filters(filters, available_columns, column_lookup)
             count = None
             if wants_exact_count(prefer_header):
@@ -302,7 +665,7 @@ def handle_query_table(payload):
                 query += sql.SQL(" offset %s")
                 params.append(int(offset_value))
             rows = exec_query(cur, query, params)
-            return {"rows": [dict(row) for row in rows], "count": count}
+            return {"rows": [] if method == "HEAD" else [dict(row) for row in rows], "count": count}
 
         if method in {"POST", "PATCH", "DELETE"}:
             where_sql, where_params = parse_filters(filters, available_columns, column_lookup)
@@ -402,6 +765,7 @@ def handle_query_table(payload):
 def handle_rpc(payload):
     function_name = str(payload.get("function") or "").strip()
     args = payload.get("args") or {}
+    require_rpc_policy(payload, function_name, args)
     if not IDENTIFIER_RE.match(function_name):
         raise ValueError("Invalid function name.")
     named_parts = []
@@ -422,24 +786,29 @@ def handle_rpc(payload):
 
 
 def main():
-    request = load_request()
-    action = request.get("action")
-    if action == "verify_user_password":
-        emit(handle_verify_user_password(request))
-        return
-    if action == "get_user_bundle":
-        emit(handle_get_user_bundle(request))
-        return
-    if action == "update_profile":
-        emit(handle_update_profile(request))
-        return
-    if action == "query_table":
-        emit(handle_query_table(request))
-        return
-    if action == "rpc":
-        emit(handle_rpc(request))
-        return
-    emit({"error": "Unsupported action"})
+    try:
+        request = load_request()
+        action = request.get("action")
+        if action == "verify_user_password":
+            emit(handle_verify_user_password(request))
+            return
+        if action == "get_user_bundle":
+            emit(handle_get_user_bundle(request))
+            return
+        if action == "update_profile":
+            emit(handle_update_profile(request))
+            return
+        if action == "query_table":
+            emit(handle_query_table(request))
+            return
+        if action == "rpc":
+            emit(handle_rpc(request))
+            return
+        emit({"error": {"message": "Unsupported action", "status": 400}})
+    except PermissionError as error:
+        emit({"error": {"message": str(error), "status": 403}})
+    except ValueError as error:
+        emit({"error": {"message": str(error), "status": 400}})
 
 
 if __name__ == "__main__":

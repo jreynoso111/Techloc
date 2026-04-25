@@ -100,7 +100,7 @@ const renderBody = ({
   pageRows,
 }) => {
   const cols = getVisibleOrderedColumns();
-  const canEditServices = state.currentUserRole !== 'anon';
+  const canEditServices = state.currentUserRole === 'administrator';
   const fragment = document.createDocumentFragment();
 
   pageRows.forEach((row) => {

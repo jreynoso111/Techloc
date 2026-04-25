@@ -112,7 +112,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 8;
     const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 1;
     const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 420;
+    const VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT = 50;
     const VEHICLE_TABLE_IS_CANONICAL_SOURCE = true;
+    const GPS_HISTORY_MIN_SELECT = 'id,vehicle_id,VIN,Serial,Date,Lat,Long,address,moved,days_stationary,moved_v2,days_stationary_v2,city_bucket,read_day,day_half';
+    const SERVICE_SELECT = 'id,company_name,region,phone,contact,email,website,availability,notes,city,state,zip,category,type,authorization,address,status,lat,long,verified';
+    const HOTSPOT_SELECT = 'id,created_at,State,City,Zip,Lat,Long,Radius';
+    const SERVICES_BLACKLIST_SELECT = 'id,created_at,company_name,category,lat,long,Assoc.Unit,Note,State,City,Zip,Event date,Alarm,address';
     let sidebarStateController = null;
     let techSidebarVisible = false;
     let resellerSidebarVisible = false;
@@ -1376,7 +1381,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         while (hasMore) {
           const query = supabaseClient
             .from(TABLES.gpsHistory)
-            .select('*')
+            .select('vehicle_id,Date')
             .in('vehicle_id', idChunk)
             .range(offset, offset + pageSize - 1);
 
@@ -1422,7 +1427,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         while (hasMore) {
           const query = supabaseClient
             .from(TABLES.gpsHistory)
-            .select('*')
+            .select('VIN,Date')
             .in('VIN', vinChunk)
             .range(offset, offset + pageSize - 1);
 
@@ -1977,7 +1982,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const stopLoading = silent ? () => {} : startLoading('Loading Services…');
       serviceFetchPromise = (async () => {
-        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select('*');
+        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select(SERVICE_SELECT);
         if (error) throw error;
         serviceCacheByCategory = buildServiceCache(data || []);
         return serviceCacheByCategory;
@@ -3099,7 +3104,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       for (const filter of lookupFilters) {
         let query = supabaseClient
           .from(sourceTable)
-          .select('*')
+          .select(GPS_HISTORY_MIN_SELECT)
           .order(dateColumn, { ascending: false })
           .limit(limit)
           .gte(dateColumn, windowStartIso);
@@ -3537,7 +3542,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         vehicleBackgroundPrefetchTimer = null;
       }
 
-      const candidates = Array.isArray(visibleVehicles) ? [...visibleVehicles] : [];
+      const candidates = Array.isArray(visibleVehicles)
+        ? visibleVehicles.slice(0, VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT)
+        : [];
       vehicleBackgroundPrefetchTimer = window.setTimeout(() => {
         vehicleBackgroundPrefetchTimer = null;
         const run = () => {
@@ -4297,7 +4304,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         const { data, error } = await runWithTimeout(
           supabaseClient
             .from(tableName)
-            .select('*'),
+            .select('serial,is_active,effective_from'),
           8000,
           'GPS blacklist request timed out.'
         );
@@ -5359,7 +5366,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           const { data, error } = await runWithTimeout(
             supabaseClient
               .from(TABLES.gpsHistory)
-              .select('*')
+              .select(GPS_HISTORY_MIN_SELECT)
               .limit(1),
             SUPABASE_TIMEOUT_MS,
             'GPS hotspot metadata lookup timed out.'
@@ -5418,7 +5425,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         const upper = Math.min(offset + HOTSPOT_FAST_QUERY_PAGE_SIZE - 1, maxRows - 1);
         const query = supabaseClient
           .from(TABLES.gpsHistory)
-          .select('*')
+          .select(GPS_HISTORY_MIN_SELECT)
           .gte(latColumn, bounds.minLat)
           .lte(latColumn, bounds.maxLat)
           .gte(lngColumn, bounds.minLng)
@@ -7504,8 +7511,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         circle.bindPopup(`
           <div class="text-xs text-slate-100 space-y-1">
             <p class="font-bold text-white text-sm">Hotspot</p>
-            <p class="text-[11px] text-slate-300">${locationText || 'Location unavailable'}</p>
-            <p class="text-[11px] text-emerald-300">Coverage radius: ${hotspot.radiusMiles} miles</p>
+            <p class="text-[11px] text-slate-300">${escapeHTML(locationText || 'Location unavailable')}</p>
+            <p class="text-[11px] text-emerald-300">Coverage radius: ${escapeHTML(hotspot.radiusMiles)} miles</p>
           </div>
         `);
       });
@@ -7549,7 +7556,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const stopLoading = silent ? () => {} : startLoading('Loading hotspots…');
       try {
-        const { data, error } = await supabaseClient.from(TABLES.hotspots).select('*');
+        const { data, error } = await supabaseClient.from(TABLES.hotspots).select(HOTSPOT_SELECT);
         if (error) throw error;
         hotspots = (data || []).map((row, idx) => normalizeHotspot(row, idx)).filter(hasValidCoords);
         renderHotspots();
@@ -7568,7 +7575,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const stopLoading = silent ? () => {} : startLoading('Loading Blacklist Locations…');
       try {
-        const { data, error } = await supabaseClient.from(TABLES.blacklist).select('*');
+        const { data, error } = await supabaseClient.from(TABLES.blacklist).select(SERVICES_BLACKLIST_SELECT);
         if (error) throw error;
         blacklistSites = (data || []).map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
         renderBlacklistSites();
@@ -7785,12 +7792,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             icon: createServiceIcon(SERVICE_COLORS.tech)
           }).addTo(techLayer);
 
-	          marker.bindPopup(`
+            marker.bindPopup(`
 	            <div class="text-slate-900 p-1 font-sans">
-	              <strong class="block text-sm font-bold mb-1">${tech.company}</strong>
-	              <div class="text-xs text-slate-500 mb-2">${tech.city}, ${tech.state} ${tech.zip}</div>
-	              <a href="tel:${tech.phoneDial || tech.phone}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${tech.phone}</a>
-	              <div class="text-[10px] text-slate-400 truncate">${tech.email}</div>
+	              <strong class="block text-sm font-bold mb-1">${escapeHTML(tech.company)}</strong>
+	              <div class="text-xs text-slate-500 mb-2">${escapeHTML(tech.city)}, ${escapeHTML(tech.state)} ${escapeHTML(tech.zip)}</div>
+	              <a href="tel:${escapeHTML(tech.phoneDial || tech.phone)}" class="block bg-blue-100 text-blue-700 px-2 py-1 rounded text-center text-xs font-bold mb-1">${escapeHTML(tech.phone)}</a>
+	              <div class="text-[10px] text-slate-400 truncate">${escapeHTML(tech.email)}</div>
 	              ${buildGoogleMapsLinkHtml(tech.lat, tech.lng, { tight: true })}
 	            </div>
 	          `);
@@ -7821,13 +7828,13 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         card.innerHTML = `
           <div class="flex justify-between items-start gap-3">
             <div class="min-w-0 space-y-1">
-              <h3 class="font-bold text-white text-sm break-words leading-tight" title="${tech.company}">${tech.company}</h3>
-              <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight">${svgIcon('mapPin', 'h-3 w-3')}<span class="truncate">${tech.city || 'Unknown'}, ${tech.state || 'US'}${tech.zip ? ` ${tech.zip}` : ''}</span></p>
+              <h3 class="font-bold text-white text-sm break-words leading-tight" title="${escapeHTML(tech.company)}">${escapeHTML(tech.company)}</h3>
+              <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight">${svgIcon('mapPin', 'h-3 w-3')}<span class="truncate">${escapeHTML(tech.city || 'Unknown')}, ${escapeHTML(tech.state || 'US')}${tech.zip ? ` ${escapeHTML(tech.zip)}` : ''}</span></p>
             </div>
             <div class="text-right text-[11px] text-slate-400 leading-tight space-y-0.5">
-              <p class="font-semibold text-slate-200">${tech.phone || ''}</p>
-              ${tech.email ? `<p class="flex items-center gap-1 justify-end text-slate-400">${svgIcon('mail', 'h-3 w-3')}<span class="truncate max-w-[160px]">${tech.email}</span></p>` : ''}
-              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation', 'h-3 w-3')}<span class="font-semibold text-slate-100">${distanceLabel}</span></p>` : ''}
+              <p class="font-semibold text-slate-200">${escapeHTML(tech.phone || '')}</p>
+              ${tech.email ? `<p class="flex items-center gap-1 justify-end text-slate-400">${svgIcon('mail', 'h-3 w-3')}<span class="truncate max-w-[160px]">${escapeHTML(tech.email)}</span></p>` : ''}
+              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation', 'h-3 w-3')}<span class="font-semibold text-slate-100">${escapeHTML(distanceLabel)}</span></p>` : ''}
             </div>
           </div>
           <p class="text-[10px] text-slate-500 mt-1">Note: ${escapeHTML(techNoteText)}</p>
@@ -8007,12 +8014,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
             const locationText = formatPartnerLocation(partner);
 
-	            marker.bindPopup(`
+            marker.bindPopup(`
 	              <div class="text-slate-900 p-1 font-sans">
-	                <strong class="block text-sm font-bold mb-1">${partner.company}</strong>
-	                <div class="text-xs text-slate-500 mb-2">${locationText || 'US'}</div>
-	                <a href="tel:${partner.phoneDial || partner.phone}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${partner.phone || 'Contact'}</a>
-	                <div class="text-[10px] text-slate-500">${partner.availability || ''}</div>
+	                <strong class="block text-sm font-bold mb-1">${escapeHTML(partner.company)}</strong>
+	                <div class="text-xs text-slate-500 mb-2">${escapeHTML(locationText || 'US')}</div>
+	                <a href="tel:${escapeHTML(partner.phoneDial || partner.phone)}" class="block bg-slate-100 text-slate-800 px-2 py-1 rounded text-center text-xs font-bold mb-1">${escapeHTML(partner.phone || 'Contact')}</a>
+	                <div class="text-[10px] text-slate-500">${escapeHTML(partner.availability || '')}</div>
 	                ${buildGoogleMapsLinkHtml(partner.lat, partner.lng, { tight: true })}
 	              </div>
 	            `);
@@ -8046,18 +8053,18 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 	          card.innerHTML = `
 	            <div class="flex justify-between items-start gap-3">
 	              <div class="min-w-0">
-	                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">${badgeLabel}</p>
-                <h3 class="font-bold text-white text-sm break-words leading-tight" title="${partner.company}">${partner.company}</h3>
+	                <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-400">${escapeHTML(badgeLabel)}</p>
+                <h3 class="font-bold text-white text-sm break-words leading-tight" title="${escapeHTML(partner.company)}">${escapeHTML(partner.company)}</h3>
               </div>
               <div class="text-right text-[11px] text-slate-400 leading-tight">
-                <p class="font-semibold text-slate-200">${partner.contact || 'Dispatch'}</p>
-                <a class="block font-bold text-blue-200" href="tel:${partner.phoneDial || partner.phone}">${partner.phone || ''}</a>
-                <p class="text-[10px] text-slate-500">${partner.availability || ''}</p>
+                <p class="font-semibold text-slate-200">${escapeHTML(partner.contact || 'Dispatch')}</p>
+                <a class="block font-bold text-blue-200" href="tel:${escapeHTML(partner.phoneDial || partner.phone)}">${escapeHTML(partner.phone || '')}</a>
+                <p class="text-[10px] text-slate-500">${escapeHTML(partner.availability || '')}</p>
               </div>
             </div>
 	            <div class="grid grid-cols-2 gap-2 mt-2 text-[11px] text-slate-300">
-	              <div class="flex items-center gap-1 text-slate-400">${svgIcon('mapPin')}<span>${locationText || 'US'}</span></div>
-	              ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation')}<span class="font-semibold text-slate-100">${Math.round(partner.distance)} mi</span></div>` : ''}
+	              <div class="flex items-center gap-1 text-slate-400">${svgIcon('mapPin')}<span>${escapeHTML(locationText || 'US')}</span></div>
+	              ${origin ? `<div class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation')}<span class="font-semibold text-slate-100">${escapeHTML(Math.round(partner.distance))} mi</span></div>` : ''}
 		              <div class="col-span-2 text-[10px] text-slate-400 leading-tight">Note: ${escapeHTML(partnerNoteText)}</div>
 	            </div>
               <div class="mt-2 flex justify-end">
@@ -8150,8 +8157,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
               <p class="flex items-center gap-1 text-[11px] text-slate-400 leading-tight">${svgIcon('mapPin', 'h-3 w-3')}<span class="truncate">${escapeHTML(locationText)}</span></p>
             </div>
             <div class="text-right text-[11px] text-slate-400 leading-tight space-y-0.5">
-              ${partner.phone ? `<a class="font-bold text-blue-200 block" href="tel:${partner.phoneDial || partner.phone}">${partner.phone}</a>` : ''}
-              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation', 'h-3 w-3')}<span class="font-semibold text-slate-100">${distanceLabel}</span></p>` : ''}
+              ${partner.phone ? `<a class="font-bold text-blue-200 block" href="tel:${escapeHTML(partner.phoneDial || partner.phone)}">${escapeHTML(partner.phone)}</a>` : ''}
+              ${distanceLabel ? `<p class="flex items-center gap-1 justify-end text-slate-300">${svgIcon('navigation', 'h-3 w-3')}<span class="font-semibold text-slate-100">${escapeHTML(distanceLabel)}</span></p>` : ''}
 	            </div>
 	          </div>
 			          <p class="mt-2 text-[11px] text-slate-400 leading-tight">Note: ${escapeHTML(partnerNoteText)}</p>
@@ -8766,17 +8773,17 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             <div class="relative">
               <div class="min-w-0 space-y-1">
                 <div class="space-y-1 pr-16">
-                <p class="truncate text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${vehicle.model} <span class="text-amber-100">${vehicle.year || '—'}</span></p>
-                <h3 class="truncate font-extrabold text-white text-sm leading-tight">${vehicle.vin || 'VIN N/A'}</h3>
+                <p class="truncate text-[10px] font-black uppercase tracking-[0.15em] text-amber-300">${escapeHTML(vehicle.model)} <span class="text-amber-100">${escapeHTML(vehicle.year || '—')}</span></p>
+                <h3 class="truncate font-extrabold text-white text-sm leading-tight">${escapeHTML(vehicle.vin || 'VIN N/A')}</h3>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 pt-0.5 text-[10px]">
-                  <span class="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-1 font-bold text-amber-100">${vehicle.dealStatus || vehicle.status || 'ACTIVE'}</span>
+                  <span class="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-1 font-bold text-amber-100">${escapeHTML(vehicle.dealStatus || vehicle.status || 'ACTIVE')}</span>
                   <span class="inline-flex items-center gap-2 rounded-full border border-slate-800 px-2 py-1 font-semibold ${movingMeta.text} ${movingMeta.bg}">
                     <span class="w-2 h-2 rounded-full ${movingMeta.dot}"></span>
-                    <span>${movingMeta.label}</span>
+                    <span>${escapeHTML(movingMeta.label)}</span>
                   </span>
                   <span class="rounded-full border px-2 py-1 font-semibold" style="${daysParkedBadge.badgeStyle}">
-                    <span style="${daysParkedBadge.labelStyle}">Days Parked </span><span style="${daysParkedBadge.valueStyle}">${getDaysParkedDisplay(vehicle)}</span>
+                    <span style="${daysParkedBadge.labelStyle}">Days Parked </span><span style="${daysParkedBadge.valueStyle}">${escapeHTML(getDaysParkedDisplay(vehicle))}</span>
                   </span>
                   <label class="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-700 bg-slate-950/70 px-2 py-1 text-[10px] font-semibold text-slate-300 leading-none">
                     <span>on rev?</span>
@@ -8784,10 +8791,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
                   </label>
                 </div>
                 <div class="flex items-center justify-between gap-2">
-                  <p class="min-w-0 text-[11px] text-blue-200 font-semibold">Customer ID: <span class="truncate text-slate-100">${vehicle.customerId || '—'}</span></p>
+                  <p class="min-w-0 text-[11px] text-blue-200 font-semibold">Customer ID: <span class="truncate text-slate-100">${escapeHTML(vehicle.customerId || '—')}</span></p>
                   <span class="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-100">
                     <span class="text-emerald-200/80">Avg mi/day</span>
-                    <span class="text-slate-50" data-field="avg-moving-miles-day">${getAvgMovingMilesPerDayDisplay(vehicle)}</span>
+                    <span class="text-slate-50" data-field="avg-moving-miles-day">${escapeHTML(getAvgMovingMilesPerDayDisplay(vehicle))}</span>
                   </span>
                 </div>
               </div>
@@ -8815,43 +8822,43 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
               <div class="${gpsCardClasses}">
                 ${svgIcon('wifiOff', gpsIconClasses)}
                 <div class="text-left leading-tight">
-                  <p class="font-semibold">${gpsFixText}</p>
-                  <p class="${gpsReasonClasses}">${gpsReasonText}</p>
+                  <p class="font-semibold">${escapeHTML(gpsFixText)}</p>
+                  <p class="${gpsReasonClasses}">${escapeHTML(gpsReasonText)}</p>
                 </div>
               </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-2 py-1.5 flex items-center gap-2 text-slate-200">
                 ${svgIcon('clock', 'h-3 w-3 text-blue-400')}
                 <div class="text-left leading-tight">
                   <p class="text-[10px] text-slate-300">Serial <span class="text-slate-100 font-semibold">${ptSerialLabel}</span></p>
-                  <p class="text-[10px] text-slate-400">Last ${ptLastReadLabel}</p>
-                  <p class="text-[10px] text-slate-500">First ${ptFirstReadLabel}</p>
+                  <p class="text-[10px] text-slate-400">Last ${escapeHTML(ptLastReadLabel)}</p>
+                  <p class="text-[10px] text-slate-500">First ${escapeHTML(ptFirstReadLabel)}</p>
                 </div>
               </div>
             </div>
               <div class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 space-y-2">
                 <p class="text-[11px] text-slate-400 flex items-center gap-1">${svgIcon('mapPin')} ${escapeHTML(locationDisplay)}</p>
-                ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${vehicle.locationNote}</p>` : ''}
+                ${vehicle.locationNote ? `<p class="text-[10px] text-amber-200 font-semibold">${escapeHTML(vehicle.locationNote)}</p>` : ''}
                 <div class="grid grid-cols-4 gap-2">
                 <div class="rounded border px-2 py-1.5 ${prepStatusStyles.card}">
                   <p class="text-[9px] uppercase font-bold ${prepStatusStyles.label}">Prep</p>
-                  <p class="text-[11px] font-semibold ${prepStatusStyles.value}">${prepStatusDisplay}</p>
+                  <p class="text-[11px] font-semibold ${prepStatusStyles.value}">${escapeHTML(prepStatusDisplay)}</p>
                 </div>
                 <div class="rounded border border-slate-800 bg-slate-900 px-2 py-1.5">
                   <p class="text-[9px] uppercase text-slate-500 font-bold">Deal %</p>
-                  <p class="text-[11px] font-semibold text-slate-100">${vehicle.dealCompletion || '—'}</p>
+                  <p class="text-[11px] font-semibold text-slate-100">${escapeHTML(vehicle.dealCompletion || '—')}</p>
                 </div>
                 <div class="rounded border px-2 py-1.5 ${ptStatusStyles.card}">
                   <p class="text-[9px] uppercase font-bold ${ptStatusStyles.label}">PT</p>
-                  <p class="text-[11px] font-semibold ${ptStatusStyles.value}">${vehicle.ptStatus || '—'}</p>
+                  <p class="text-[11px] font-semibold ${ptStatusStyles.value}">${escapeHTML(vehicle.ptStatus || '—')}</p>
                 </div>
               </div>
               <div class="flex items-center justify-end text-[11px] text-slate-400">
-                <span class="text-slate-400">${vehicle.payment || ''}</span>
+                <span class="text-slate-400">${escapeHTML(vehicle.payment || '')}</span>
               </div>
             </div>
             <div class="pt-1 flex items-end justify-between gap-2">
               <div class="flex flex-col items-start gap-1">
-                <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) ? formatDateTime(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) : '--'}</p>
+                <p data-action="vehicle-select-last-click" class="text-[9px] text-slate-500">${escapeHTML((checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) ? formatDateTime(checkedVehicleClickTimes.get(vehicle.id) || checkedVehicleClickTimesByVin.get(getVehicleVin(vehicle))) : '--')}</p>
               </div>
               <div class="flex items-center justify-end gap-2">
                 <button type="button" data-view-more data-action="vehicle-view-more" class="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/15 px-3 py-1 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25 transition-colors">
@@ -9923,7 +9930,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       });
       L.marker([location.lat, location.lng], { icon: targetIcon }).addTo(targetLayer);
       const popup = L.marker([location.lat, location.lng]).addTo(targetLayer);
-      popup.bindPopup(`<b>Client</b><br>${label || location.name || ''}`).openPopup();
+      popup.bindPopup(`<b>Client</b><br>${escapeHTML(label || location.name || '')}`).openPopup();
       lastClientLocation = location;
 
       const partnerType = partnerTypeOverride || (isAnyServiceSidebarOpen() ? getActivePartnerType() : null);
@@ -10497,19 +10504,20 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         const value = editConfig
           ? (vehicle?.[fieldKey] ?? '—')
           : (vehicle.details?.[header] || vehicle[header] || vehicle[header.toLowerCase()] || '—');
+        const safeHeader = escapeHTML(header);
         return `
-          <article class="rounded-2xl border border-slate-800/80 bg-slate-950/70 p-3 shadow-lg shadow-black/20 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${header}" data-field-card="true">
+          <article class="rounded-2xl border border-slate-800/80 bg-slate-950/70 p-3 shadow-lg shadow-black/20 ${hidden.has(header) ? 'hidden' : ''}" draggable="true" data-header="${safeHeader}" data-field-card="true">
             <div class="flex items-start justify-between gap-3">
               <p class="min-w-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
                 <span class="mr-2 text-slate-600 text-sm align-middle">⋮⋮</span>
-                ${displayHeader}
+                ${escapeHTML(displayHeader)}
               </p>
               ${isEditable ? `
-                <button type="button" class="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${fieldKey}" data-edit-header="${header}" data-edit-column="${editConfig.updateColumn}" data-edit-table="${editConfig.table}" data-edit-rpc="${editConfig.rpc || ''}">Edit</button>
+                <button type="button" class="shrink-0 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:border-amber-300 hover:text-amber-100 transition-colors" data-edit-field="${escapeHTML(fieldKey)}" data-edit-header="${safeHeader}" data-edit-column="${escapeHTML(editConfig.updateColumn)}" data-edit-table="${escapeHTML(editConfig.table)}" data-edit-rpc="${escapeHTML(editConfig.rpc || '')}">Edit</button>
               ` : ''}
             </div>
             <div class="mt-3 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3 text-xs text-slate-100">
-              <span data-field-value class="block whitespace-pre-wrap break-words">${value || '—'}</span>
+              <span data-field-value class="block whitespace-pre-wrap break-words">${escapeHTML(value || '—')}</span>
             </div>
           </article>
         `;

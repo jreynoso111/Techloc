@@ -728,6 +728,13 @@
         return value;
     };
 
+    const escapeHTML = (value = '') => String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
     const findColumnId = (candidates = []) => {
         const normalized = candidates.map(c => c.toLowerCase());
         const normalizeId = (id = '') => id.replace(/_/g, ' ').toLowerCase();
@@ -1410,7 +1417,10 @@
       state.columns.forEach(col => {
         const label = document.createElement('label');
         label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-slate-900 rounded cursor-pointer';
-        label.innerHTML = `<span class="text-xs text-slate-300 truncate">${col.label}</span>`;
+        const text = document.createElement('span');
+        text.className = 'text-xs text-slate-300 truncate';
+        text.textContent = col.label;
+        label.appendChild(text);
         const input = document.createElement('input');
         input.type = 'checkbox';
         input.className = 'h-3.5 w-3.5 accent-blue-600 rounded bg-slate-800 border-slate-600';
@@ -1508,7 +1518,10 @@
         const label = document.createElement('label');
         label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-900 text-xs text-slate-200';
         label.setAttribute('for', id);
-        label.innerHTML = `<span class="truncate">${loc}</span>`;
+        const text = document.createElement('span');
+        text.className = 'truncate';
+        text.textContent = loc;
+        label.appendChild(text);
 
         const input = document.createElement('input');
         input.type = 'checkbox';
@@ -1557,7 +1570,10 @@
         const label = document.createElement('label');
         label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-900 text-xs text-slate-200';
         label.setAttribute('for', id);
-        label.innerHTML = `<span class="truncate">${unit}</span>`;
+        const text = document.createElement('span');
+        text.className = 'truncate';
+        text.textContent = unit;
+        label.appendChild(text);
 
         const input = document.createElement('input');
         input.type = 'checkbox';
@@ -1606,7 +1622,10 @@
         const label = document.createElement('label');
         label.className = 'flex items-center justify-between gap-2 px-2 py-1.5 rounded hover:bg-slate-900 text-xs text-slate-200';
         label.setAttribute('for', id);
-        label.innerHTML = `<span class="truncate">${lien}</span>`;
+        const text = document.createElement('span');
+        text.className = 'truncate';
+        text.textContent = lien;
+        label.appendChild(text);
 
         const input = document.createElement('input');
         input.type = 'checkbox';
@@ -2165,7 +2184,7 @@
 
       const liensHeaders = liens.map(lien => {
         const colId = `lien-${sanitizeAnalyticsId(lien)}`;
-        return `<th data-col-id="${colId}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${lien}<span class="analytics-resizer" data-resizer></span></th>`;
+        return `<th data-col-id="${escapeHTML(colId)}" class="px-3 py-2 border-b border-slate-800 text-left analytics-header">${escapeHTML(lien)}<span class="analytics-resizer" data-resizer></span></th>`;
       }).join('');
 
       let html = `<table class="analytics-table text-xs text-slate-200"><colgroup>${colgroup}</colgroup><thead><tr>`;
@@ -2193,10 +2212,10 @@
         if (unitTotal === 0) return;
 
         hasData = true;
-        html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${unit}</th></tr>`;
+        html += `<tr class="bg-slate-900/70"><th colspan="${liens.length + 2}" class="px-3 py-2 border-b border-slate-800 text-left text-[11px] font-semibold uppercase tracking-wide text-blue-200">Unit type: ${escapeHTML(unit)}</th></tr>`;
         filteredLocations.forEach(loc => {
           let rowTotal = 0;
-          let rowHtml = `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${loc}</th>`;
+          let rowHtml = `<tr><th class="px-3 py-2 border-b border-slate-900 text-left sticky left-0 bg-slate-950">${escapeHTML(loc)}</th>`;
           liens.forEach(lien => {
             const key = `${unit}|||${loc}|||${lien}`;
             const count = pivot.get(key) || 0;
@@ -2208,7 +2227,7 @@
           html += rowHtml;
           exportRows.push([unit, loc, ...liens.map(lien => pivot.get(`${unit}|||${loc}|||${lien}`) || 0), rowTotal]);
         });
-        html += `<tr class="analytics-total-row"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${unit}</th>`;
+        html += `<tr class="analytics-total-row"><th class="px-3 py-2 border-b border-slate-800 text-left sticky left-0 bg-slate-950">Total ${escapeHTML(unit)}</th>`;
         liens.forEach(lien => {
           html += `<td class="px-3 py-2 border-b border-slate-800 text-right">${unitTotals[lien]}</td>`;
         });

@@ -339,23 +339,280 @@ const getTableNameFromDatabasePath = (pathname = '') => {
   return normalizeDataTableName(decodeURIComponent(match[1]));
 };
 
-const SERVICE_ROLE_READ_TABLES = new Set([
-  'services',
-  'profiles',
-  'admin_change_log',
+const DATABASE_ROLES = {
+  ACTIVE_USER: 'active_user',
+  ADMINISTRATOR: 'administrator',
+};
+
+const normalizeAccessName = (value = '') => String(value || '').trim().toLowerCase();
+
+const makeSet = (values = []) => new Set(values.map((value) => String(value || '').trim()).filter(Boolean));
+const withoutColumns = (columns = new Set(), blocked = []) => {
+  const blockedSet = makeSet(blocked);
+  return new Set([...columns].filter((column) => !blockedSet.has(column)));
+};
+
+const PROFILE_PUBLIC_COLUMNS = makeSet([
+  'id',
+  'email',
+  'name',
+  'role',
+  'status',
+  'background_mode',
+  'created_at',
+  'updated_at',
 ]);
 
-const SERVICE_ROLE_AUTHENTICATED_WRITE_TABLES = new Set([
-  'pt-lastping',
-  'dealsjp1',
-  'vehicles',
+const VEHICLE_WRITE_COLUMNS = makeSet([
+  'gps fix',
+  'gps fix reason',
+  'gps_fix',
+  'gps_fix_reason',
+  'gps_moving',
+  'moving',
+  'movement_status_v2',
+  'movement_days_stationary_v2',
+  'movement_threshold_meters_v2',
+  'movement_unit_type_v2',
+  'movement_computed_at_v2',
+  'pt_first_read',
+  'pt_last_read',
+  'pt_last_lat',
+  'pt_last_long',
+  'pt_last_address',
+  'pt_last_city',
+  'pt_last_serial',
+  'days_stationary',
+  'short_location',
+  'updated_at',
 ]);
 
-const SERVICE_ROLE_AUTHENTICATED_RPCS = new Set([
-  'finalize_pt_lastping_upload',
-  'recalc_dealsjp1_last_deal',
-  'sync_vehicles_from_dealsjp1_lastdeal',
+const PT_LASTPING_WRITE_COLUMNS = makeSet([
+  'VIN',
+  'vehicle_id',
+  'moved_v2',
+  'days_stationary_v2',
 ]);
+
+const VEHICLE_COLUMNS = makeSet([
+  'deal status', 'customer id', 'unit type', 'model year', 'model', 'shortvin', 'inv. prep. stat.',
+  'deal completion', 'gps fix', 'gps fix reason', 'pt status', 'pt serial', 'encore serial', 'moving',
+  'pt last read', 'state loc', 'pt city', 'pt zipcode', 'lat', 'long', 'phys_loc', 'Current Stock No',
+  'id', 'VIN', 'Vehicle Status', 'Open Balance', 'Oldest Invoice (Open)', 'days_stationary',
+  'short_location', 'CDL State', 'Real ID?', 'CDL Note', 'Visit Exp.', 'CDL Exp Date', 'SSN',
+  'Green Card', 'Passport', 'Work Permit Expires', 'repo notes', 'Last Update', 'Schdl To repair?',
+  'Last_repo_date', 'pt first read', 'movement_status_v2', 'movement_days_stationary_v2',
+  'movement_computed_at_v2', 'movement_threshold_meters_v2', 'movement_unit_type_v2',
+]);
+
+const DEALSJP1_COLUMNS = makeSet([
+  'Deal Status', 'Deal Date', 'HOLD', 'Current Stock No', 'Customer', 'Brand', 'Model', 'Model Year',
+  'VIN', 'Corrected VIN', 'Vehicle Status', 'Mileage', 'Driver License #',
+  'Inventory Preparation Status', 'Inventory Preparation Status Changed On',
+  'Inventory Preparation Status Changed By', 'Physical Location', 'Physical Location Last Changed on',
+  'ENTITY', 'Retail Price On Contract', 'Cash Down', 'Total due on Deal', 'Amount',
+  'Reg. Contract Payment', 'Payment Schedule', 'Total Payments in Months',
+  'Number OF Schedule Remaining', 'Lead Source', 'Date of Birth', 'TAM Legacy Created Date',
+  'Payment Schedule Start', 'Last Payment Date', 'TAM Legacy Stock #', 'Trade In VIN',
+  'Trade In Amount', 'Sales Person', 'Subsidiary', 'Location', 'Lease End Date', 'Bucket',
+  'Bucket Sub Type', 'Payment Schedule_1', 'Lease Term', 'Regular Amount',
+  'Total Contract Scheduled Amount', 'Inventory Valuation Value', 'Sales Channel', 'Partner Name',
+  'Remaining Scheduled Payments To Invoice', 'Deposit', 'PassTime Serial No',
+  'PassTime Vehicle Status', 'EFT Available', 'Primary Payment Mode', 'Secondary Payment Mode',
+  'Plate Number', 'Mobile Phone', 'Encore Serial Number', 'Encore Serial #2', 'GPS Serial No',
+  'Plate Number_1', 'Current Title Number', 'Current Title Subsidiary',
+  'Current Title Physical Location', 'Title In Date', 'Title Out Date', 'Financing Company',
+  'Broker', 'Return Type', 'Actual System Return Date', 'Returned By',
+  'Number OF Schedule Remaining_1', 'Unit Type', 'Open Balance', 'id', 'Last Deal',
+  'Oldest Invoice (Open)', 'Calc.End', 'gps_status', 'gps_status_updated_at', 'gps_review_flag',
+  'Deal Completion',
+]);
+
+const PT_LASTPING_COLUMNS = makeSet([
+  'Serial', 'Year', 'Make', 'Model', 'Color', 'Customer', 'Vehicle Status', 'VIN', 'Date', 'address',
+  'Lat', 'Long', 'city_bucket', 'moved', 'days_stationary', 'read_day', 'city_previous',
+  'vehicle_id', 'id', 'day_half', 'moved_v2', 'days_stationary_v2',
+]);
+
+const SERVICES_COLUMNS = makeSet([
+  'company_name', 'region', 'phone', 'contact', 'email', 'website', 'availability', 'notes', 'city',
+  'state', 'zip', 'category', 'type', 'authorization', 'address', 'status', 'lat', 'long', 'id',
+  'verified',
+]);
+
+const HOTSPOT_COLUMNS = makeSet(['id', 'created_at', 'State', 'City', 'Zip', 'Lat', 'Long', 'Radius']);
+
+const SERVICES_BLACKLIST_COLUMNS = makeSet([
+  'id', 'created_at', 'company_name', 'category', 'lat', 'long', 'Assoc.Unit', 'Note', 'State',
+  'City', 'Zip', 'Event date', 'Alarm', 'address',
+]);
+
+const GPS_BLACKLIST_COLUMNS = makeSet(['serial', 'reason', 'is_active', 'added_at', 'added_by', 'uuid', 'effective_from']);
+
+const VEHICLE_PUBLIC_READ_COLUMNS = withoutColumns(VEHICLE_COLUMNS, [
+  'CDL State', 'Real ID?', 'CDL Note', 'Visit Exp.', 'CDL Exp Date', 'SSN', 'Green Card',
+  'Passport', 'Work Permit Expires',
+]);
+
+const DEALSJP1_PUBLIC_READ_COLUMNS = withoutColumns(DEALSJP1_COLUMNS, [
+  'Driver License #', 'Date of Birth', 'Mobile Phone',
+]);
+
+const TABLE_ACCESS_POLICIES = new Map(Object.entries({
+  app_settings: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: makeSet(['key', 'settings', 'updated_at', 'created_at', 'updated_by']),
+    writableColumns: makeSet(['key', 'settings', 'updated_by']),
+  },
+  services: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: SERVICES_COLUMNS,
+    writableColumns: SERVICES_COLUMNS,
+  },
+  hotspots: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: HOTSPOT_COLUMNS,
+    writableColumns: HOTSPOT_COLUMNS,
+  },
+  services_blacklist: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: SERVICES_BLACKLIST_COLUMNS,
+    writableColumns: SERVICES_BLACKLIST_COLUMNS,
+  },
+  gps_blacklist: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: GPS_BLACKLIST_COLUMNS,
+    writableColumns: GPS_BLACKLIST_COLUMNS,
+  },
+  control_map_vehicle_clicks: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ACTIVE_USER,
+    },
+    readableColumns: makeSet(['id', 'user_id', 'vin', 'clicked_at', 'source', 'page', 'action', 'metadata', 'created_at']),
+    writableColumns: makeSet(['user_id', 'vin', 'clicked_at', 'source', 'page', 'action', 'metadata']),
+  },
+  vehicles: {
+    // Vehicle writes alter operational fleet state; keep them admin-only through this generic data API.
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: VEHICLE_PUBLIC_READ_COLUMNS,
+    adminReadableColumns: VEHICLE_COLUMNS,
+    writableColumns: VEHICLE_COLUMNS,
+  },
+  dealsjp1: {
+    // DealsJP1 ingestion and edits are admin-only. Bulk upload uses /api/admin/deals/upload.
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: DEALSJP1_PUBLIC_READ_COLUMNS,
+    adminReadableColumns: DEALSJP1_COLUMNS,
+    writableColumns: DEALSJP1_COLUMNS,
+  },
+  'pt-lastping': {
+    // PT-LastPing updates recalculate vehicle movement; non-admin reads are allowed for the control map only.
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+      DELETE: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: PT_LASTPING_COLUMNS,
+    writableColumns: PT_LASTPING_COLUMNS,
+  },
+  profiles: {
+    methods: {
+      GET: DATABASE_ROLES.ADMINISTRATOR,
+      HEAD: DATABASE_ROLES.ADMINISTRATOR,
+      PATCH: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: PROFILE_PUBLIC_COLUMNS,
+    writableColumns: makeSet(['email', 'name', 'role', 'status', 'background_mode']),
+  },
+  admin_change_log: {
+    methods: {
+      GET: DATABASE_ROLES.ADMINISTRATOR,
+      HEAD: DATABASE_ROLES.ADMINISTRATOR,
+      POST: DATABASE_ROLES.ADMINISTRATOR,
+    },
+    readableColumns: makeSet(['id', 'table_name', 'action', 'summary', 'actor', 'record_id', 'column_name', 'previous_value', 'new_value', 'profile_email', 'profile_role', 'profile_status', 'page_path', 'source', 'details', 'created_at']),
+    writableColumns: makeSet(['table_name', 'action', 'summary', 'actor', 'record_id', 'column_name', 'previous_value', 'new_value', 'profile_email', 'profile_role', 'profile_status', 'page_path', 'source', 'details', 'created_at']),
+  },
+  repair_history: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+      POST: DATABASE_ROLES.ACTIVE_USER,
+      PATCH: DATABASE_ROLES.ACTIVE_USER,
+      DELETE: DATABASE_ROLES.ACTIVE_USER,
+    },
+    allowWildcardRead: true,
+    writableColumns: ALLOWED_REPAIR_FIELDS,
+  },
+}));
+
+const RPC_ACCESS_POLICIES = new Map(Object.entries({
+  update_vehicle_gps_fields: {
+    role: DATABASE_ROLES.ADMINISTRATOR,
+    args: makeSet(['p_vehicle_id', 'p_gps_fix', 'p_gps_fix_reason']),
+  },
+  refresh_vehicle_movement_v2: {
+    role: DATABASE_ROLES.ADMINISTRATOR,
+    args: makeSet(['p_vin']),
+  },
+  finalize_pt_lastping_upload: {
+    role: DATABASE_ROLES.ADMINISTRATOR,
+    args: makeSet(['p_vins', 'p_min_id_exclusive']),
+  },
+  recalc_dealsjp1_last_deal: {
+    role: DATABASE_ROLES.ADMINISTRATOR,
+    args: makeSet([]),
+  },
+  sync_vehicles_from_dealsjp1_lastdeal: {
+    role: DATABASE_ROLES.ADMINISTRATOR,
+    args: makeSet([]),
+  },
+}));
 
 const shouldUseServiceRoleForPublicDatabaseRead = ({
   pathname = '',
@@ -363,7 +620,8 @@ const shouldUseServiceRoleForPublicDatabaseRead = ({
 } = {}) => {
   if (!['GET', 'HEAD'].includes(String(method || 'GET').toUpperCase())) return false;
   const tableName = getTableNameFromDatabasePath(pathname);
-  return SERVICE_ROLE_READ_TABLES.has(tableName);
+  const policy = getDatabaseTablePolicy(tableName);
+  return Boolean(policy?.useServiceRoleForRead);
 };
 
 const getRpcNameFromDatabasePath = (pathname = '') => {
@@ -372,18 +630,185 @@ const getRpcNameFromDatabasePath = (pathname = '') => {
   return String(decodeURIComponent(match[1]) || '').trim().toLowerCase();
 };
 
-const shouldUseServiceRoleForAuthenticatedWrite = ({
+const getDatabaseTablePolicy = (tableName = '') =>
+  TABLE_ACCESS_POLICIES.get(normalizeAccessName(tableName));
+
+const getDatabaseRpcPolicy = (rpcName = '') =>
+  RPC_ACCESS_POLICIES.get(normalizeAccessName(rpcName));
+
+const splitSelectColumns = (selectClause = '') => {
+  const raw = String(selectClause || '*').trim();
+  if (!raw || raw === '*') return ['*'];
+  const columns = [];
+  let current = '';
+  let quoted = false;
+  for (const char of raw) {
+    if (char === '"') {
+      quoted = !quoted;
+      current += char;
+      continue;
+    }
+    if (char === ',' && !quoted) {
+      if (current.trim()) columns.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) columns.push(current.trim());
+  return columns.map((column) => {
+    const trimmed = column.trim();
+    return trimmed.startsWith('"') && trimmed.endsWith('"')
+      ? trimmed.slice(1, -1).replace(/""/g, '"')
+      : trimmed;
+  });
+};
+
+const formatSelectColumn = (column = '') =>
+  /^[A-Za-z_][A-Za-z0-9_]*$/.test(column) ? column : `"${String(column).replace(/"/g, '""')}"`;
+
+const buildAllowedSelectClause = (policy = {}) =>
+  [...(policy.readableColumns || [])].map(formatSelectColumn).join(',');
+
+const collectBodyColumns = (body = null) => {
+  if (!body || typeof body !== 'object') return [];
+  if (Array.isArray(body)) {
+    return [...new Set(body.flatMap((row) => (
+      row && typeof row === 'object' && !Array.isArray(row) ? Object.keys(row) : []
+    )))];
+  }
+  return Object.keys(body);
+};
+
+const hasRequiredDatabaseRole = (auth, requiredRole) => {
+  const role = String(auth?.profile?.role || 'user').toLowerCase();
+  const status = String(auth?.profile?.status || 'active').toLowerCase();
+  if (requiredRole === DATABASE_ROLES.ADMINISTRATOR) {
+    return role === 'administrator' && status === 'active';
+  }
+  return status !== 'suspended';
+};
+
+const validateAllowedColumns = ({
+  columns = [],
+  allowedColumns = new Set(),
+  allowWildcard = false,
+  message = 'Column is not allowed.',
+} = {}) => {
+  for (const column of columns) {
+    if (column === '*' && allowWildcard) continue;
+    if (column === '*' || !allowedColumns.has(column)) {
+      return `${message}: ${column}`;
+    }
+  }
+  return '';
+};
+
+const getReadableColumnsForPolicy = (policy = {}, auth = null) => {
+  const role = String(auth?.profile?.role || 'user').toLowerCase();
+  const status = String(auth?.profile?.status || 'active').toLowerCase();
+  if (role === 'administrator' && status === 'active' && policy.adminReadableColumns?.size) {
+    return policy.adminReadableColumns;
+  }
+  return policy.readableColumns || new Set();
+};
+
+const enforceDatabaseAccessPolicy = async ({
+  req,
+  res,
   pathname = '',
   method = 'GET',
+  searchParams = new URLSearchParams(),
+  body = null,
 } = {}) => {
-  const normalizedMethod = String(method || 'GET').toUpperCase();
-  if (['GET', 'HEAD'].includes(normalizedMethod)) return false;
+  const auth = await requireActiveUser(req, res);
+  if (!auth) return null;
 
-  const tableName = getTableNameFromDatabasePath(pathname);
-  if (tableName && SERVICE_ROLE_AUTHENTICATED_WRITE_TABLES.has(tableName)) return true;
+  if (pathname.startsWith('/api/database/records/')) {
+    const tableName = getTableNameFromDatabasePath(pathname);
+    const policy = getDatabaseTablePolicy(tableName);
+    if (!policy) {
+      json(res, 403, { error: { message: `Table is not allowed through this API: ${tableName || 'unknown'}.` } });
+      return null;
+    }
 
-  const rpcName = getRpcNameFromDatabasePath(pathname);
-  return Boolean(rpcName) && SERVICE_ROLE_AUTHENTICATED_RPCS.has(rpcName);
+    const requiredRole = policy.methods?.[method];
+    if (!requiredRole) {
+      json(res, 403, { error: { message: `${method} is not allowed for table ${tableName}.` } });
+      return null;
+    }
+    if (!hasRequiredDatabaseRole(auth, requiredRole)) {
+      json(res, 403, { error: { message: requiredRole === DATABASE_ROLES.ADMINISTRATOR ? 'Active administrator role is required.' : 'Active session is required.' } });
+      return null;
+    }
+
+    if (method === 'GET' || method === 'HEAD') {
+      const readableColumns = getReadableColumnsForPolicy(policy, auth);
+      const requestedSelect = String(searchParams.get('select') || '*').trim();
+      if ((requestedSelect === '*' || !requestedSelect) && !policy.allowWildcardRead && readableColumns.size) {
+        searchParams.set('select', buildAllowedSelectClause({ readableColumns }));
+      }
+      const selectColumns = splitSelectColumns(searchParams.get('select') || '*');
+      const columnError = validateAllowedColumns({
+        columns: selectColumns,
+        allowedColumns: readableColumns,
+        allowWildcard: policy.allowWildcardRead === true,
+        message: 'Read column is not allowed',
+      });
+      if (columnError) {
+        json(res, 403, { error: { message: columnError } });
+        return null;
+      }
+    } else {
+      if (['PATCH', 'DELETE'].includes(method)) {
+        const filterKeys = [...searchParams.keys()].filter((key) => !['select', 'limit', 'offset', 'order', 'on_conflict'].includes(key));
+        if (!filterKeys.length) {
+          json(res, 403, { error: { message: `${method} requires at least one filter.` } });
+          return null;
+        }
+      }
+      const writeColumns = collectBodyColumns(body);
+      const columnError = validateAllowedColumns({
+        columns: writeColumns,
+        allowedColumns: policy.writableColumns || new Set(),
+        allowWildcard: policy.allowWildcardWrite === true,
+        message: 'Write column is not allowed',
+      });
+      if (columnError) {
+        json(res, 403, { error: { message: columnError } });
+        return null;
+      }
+    }
+
+    return auth;
+  }
+
+  if (pathname.startsWith('/api/database/rpc/')) {
+    const rpcName = getRpcNameFromDatabasePath(pathname);
+    const policy = getDatabaseRpcPolicy(rpcName);
+    if (!policy) {
+      json(res, 403, { error: { message: `RPC is not allowed through this API: ${rpcName || 'unknown'}.` } });
+      return null;
+    }
+    if (!hasRequiredDatabaseRole(auth, policy.role)) {
+      json(res, 403, { error: { message: 'Active administrator role is required.' } });
+      return null;
+    }
+    const argNames = Object.keys(body && typeof body === 'object' && !Array.isArray(body) ? body : {});
+    const argError = validateAllowedColumns({
+      columns: argNames,
+      allowedColumns: policy.args || new Set(),
+      allowWildcard: false,
+      message: 'RPC argument is not allowed',
+    });
+    if (argError) {
+      json(res, 403, { error: { message: argError } });
+      return null;
+    }
+    return auth;
+  }
+
+  return auth;
 };
 
 const handleDataVersionApi = async (req, res, pathname, searchParams) => {
@@ -665,7 +1090,14 @@ const runPgBridge = async (payload = {}) => {
         return;
       }
       try {
-        resolve(JSON.parse(stdout || '{}'));
+        const parsed = JSON.parse(stdout || '{}');
+        if (parsed?.error) {
+          const bridgeError = new Error(parsed.error?.message || 'Database bridge request failed.');
+          bridgeError.status = Number(parsed.error?.status || 500);
+          reject(bridgeError);
+          return;
+        }
+        resolve(parsed);
       } catch (error) {
         reject(error);
       }
@@ -915,10 +1347,10 @@ const requireActiveAdministrator = async (req, res) => {
   const profile = await getUserProfile(user.id, accessToken);
   const role = String(profile?.role || 'user').toLowerCase();
   const status = String(profile?.status || 'active').toLowerCase();
-  if (role !== 'administrator' || status === 'suspended') {
+  if (role !== 'administrator' || status !== 'active') {
     json(res, 403, {
       error: {
-        message: 'Administrator role is required.',
+        message: 'Active administrator role is required.',
         details: { role, status },
       },
     });
@@ -1069,14 +1501,7 @@ const handleAdminApi = async (req, res, pathname) => {
     return;
   }
 
-  const isPtOrDealsUploadPath =
-    pathname === '/api/admin/pt-lastping/reference-data'
-    || pathname === '/api/admin/pt-lastping/upload'
-    || pathname === '/api/admin/deals/upload';
-
-  const auth = isPtOrDealsUploadPath
-    ? await requireActiveUser(req, res)
-    : await requireActiveAdministrator(req, res);
+  const auth = await requireActiveAdministrator(req, res);
   if (!auth) return;
 
   let body;
@@ -1352,7 +1777,7 @@ const handleDirectAuthApi = async (req, res, pathname) => {
       return;
     }
     const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
-    json(res, 200, { profile: payload?.user?.profile || null });
+    json(res, 200, { profile: buildSessionUser(payload?.user)?.profile || null });
     return;
   }
 
@@ -1363,6 +1788,12 @@ const handleDirectAuthApi = async (req, res, pathname) => {
       return;
     }
     const body = await parseJsonBody(req);
+    const requestedFields = Object.keys(body?.profile && typeof body.profile === 'object' ? body.profile : {});
+    const blockedField = requestedFields.find((field) => !['name', 'background_mode'].includes(field));
+    if (blockedField) {
+      json(res, 403, { error: { message: `Profile field is not writable here: ${blockedField}.` } });
+      return;
+    }
     const payload = await runPgBridge({
       action: 'update_profile',
       userId: session.userId,
@@ -1412,6 +1843,11 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
         method: 'GET',
         query: Object.fromEntries([...params.keys()].map((key) => [key, params.getAll(key)])),
         prefer: '',
+        auth: {
+          userId: auth.user?.id || null,
+          role: auth.profile?.role || 'user',
+          status: auth.profile?.status || 'active',
+        },
       }))?.rows || []
       : await (async () => {
         const response = await supabaseRequest(`/rest/v1/${REPAIR_HISTORY_TABLE}?${params.toString()}`);
@@ -1447,6 +1883,11 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
         query: { select: ['*'] },
         prefer: 'return=representation',
         body: payload,
+        auth: {
+          userId: auth.user?.id || null,
+          role: auth.profile?.role || 'user',
+          status: auth.profile?.status || 'active',
+        },
       }))?.rows || []
       : await (async () => {
         const response = await supabaseRequest(`/rest/v1/${REPAIR_HISTORY_TABLE}?select=*`, {
@@ -1492,6 +1933,11 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
         query: { id: [`eq.${repairId}`], select: ['*'] },
         prefer: 'return=representation',
         body: payload,
+        auth: {
+          userId: auth.user?.id || null,
+          role: auth.profile?.role || 'user',
+          status: auth.profile?.status || 'active',
+        },
       }))?.rows || []
       : await (async () => {
         const response = await supabaseRequest(
@@ -1522,6 +1968,11 @@ const handleRepairHistoryApi = async (req, res, pathname, searchParams) => {
         method: 'DELETE',
         query: { id: [`eq.${repairId}`], select: ['*'] },
         prefer: 'return=representation',
+        auth: {
+          userId: auth.user?.id || null,
+          role: auth.profile?.role || 'user',
+          status: auth.profile?.status || 'active',
+        },
       }))?.rows || []
       : await (async () => {
         const response = await supabaseRequest(
@@ -1576,16 +2027,29 @@ const handleDirectDatabaseApi = async (req, res, pathname, searchParams) => {
   if (pathname.startsWith('/api/database/records/')) {
     const table = decodeURIComponent(pathname.split('/').pop() || '');
     const body = ['GET', 'HEAD'].includes(method) ? null : await parseJsonBody(req);
-    const payload = await runPgBridge({
-      action: 'query_table',
-      table,
-      method,
-      query: Object.fromEntries(
-        [...searchParams.keys()].map((key) => [key, searchParams.getAll(key)])
-      ),
-      prefer: String(req.headers.prefer || ''),
-      body,
-    });
+    const auth = await enforceDatabaseAccessPolicy({ req, res, pathname, method, searchParams, body });
+    if (!auth) return;
+    let payload;
+    try {
+      payload = await runPgBridge({
+        action: 'query_table',
+        table,
+        method,
+        query: Object.fromEntries(
+          [...searchParams.keys()].map((key) => [key, searchParams.getAll(key)])
+        ),
+        prefer: String(req.headers.prefer || ''),
+        body,
+        auth: {
+          userId: auth.user?.id || null,
+          role: auth.profile?.role || 'user',
+          status: auth.profile?.status || 'active',
+        },
+      });
+    } catch (error) {
+      json(res, Number(error?.status || 500), { error: { message: error?.message || 'Database request failed.' } });
+      return;
+    }
     const responseBody = method === 'HEAD' ? null : Buffer.from(JSON.stringify(payload?.rows || []));
     const headers = {
       'content-type': 'application/json; charset=utf-8',
@@ -1615,11 +2079,24 @@ const handleDirectDatabaseApi = async (req, res, pathname, searchParams) => {
   if (pathname.startsWith('/api/database/rpc/')) {
     const functionName = decodeURIComponent(pathname.split('/').pop() || '');
     const body = ['GET', 'HEAD'].includes(method) ? {} : await parseJsonBody(req);
-    const payload = await runPgBridge({
-      action: 'rpc',
-      function: functionName,
-      args: body || {},
-    });
+    const auth = await enforceDatabaseAccessPolicy({ req, res, pathname, method, searchParams, body });
+    if (!auth) return;
+    let payload;
+    try {
+      payload = await runPgBridge({
+        action: 'rpc',
+        function: functionName,
+        args: body || {},
+        auth: {
+          userId: auth.user?.id || null,
+          role: auth.profile?.role || 'user',
+          status: auth.profile?.status || 'active',
+        },
+      });
+    } catch (error) {
+      json(res, Number(error?.status || 500), { error: { message: error?.message || 'Database request failed.' } });
+      return;
+    }
     if (method !== 'GET' && method !== 'HEAD') {
       bumpDataVersions({ scope: 'all', reason: `${method} ${pathname}` });
     }
@@ -1649,29 +2126,35 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
     pathname,
     method,
   });
-  const useServiceRoleForAuthenticatedWrite = shouldUseServiceRoleForAuthenticatedWrite({
-    pathname,
-    method,
-  });
-  if (useServiceRoleForAuthenticatedWrite) {
-    const auth = await requireActiveUser(req, res);
+  let databasePolicyBody = null;
+  if (pathname.startsWith('/api/database/')) {
+    if (rawBody && !['GET', 'HEAD'].includes(method)) {
+      try {
+        databasePolicyBody = JSON.parse(rawBody.toString('utf8') || '{}');
+      } catch (_error) {
+        json(res, 400, { error: { message: 'Invalid JSON payload.' } });
+        return;
+      }
+    }
+    const auth = await enforceDatabaseAccessPolicy({
+      req,
+      res,
+      pathname,
+      method,
+      searchParams,
+      body: databasePolicyBody,
+    });
     if (!auth) return;
   }
 
-  const shouldPreferServiceRole = (useServiceRoleForPublicRead || useServiceRoleForAuthenticatedWrite)
+  const shouldPreferServiceRole = useServiceRoleForPublicRead
     && Boolean(SUPABASE_SERVICE_ROLE_KEY);
   const defaultApiKey = shouldPreferServiceRole
     ? SUPABASE_SERVICE_ROLE_KEY
     : SUPABASE_ANON_KEY;
   const defaultAuthorization = useServiceRoleForPublicRead
     ? (defaultApiKey ? `Bearer ${defaultApiKey}` : '')
-    : useServiceRoleForAuthenticatedWrite
-      ? (
-        shouldPreferServiceRole
-          ? `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
-          : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''))
-      )
-      : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''));
+    : (authHeader || (defaultApiKey ? `Bearer ${defaultApiKey}` : ''));
   const requestHeaders = {
     apikey: defaultApiKey,
     authorization: defaultAuthorization,
@@ -1853,6 +2336,12 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   if (pathname === '/api/auth/profiles/current' && method === 'PATCH' && rawBody) {
     try {
       const parsed = JSON.parse(rawBody.toString('utf8'));
+      const requestedFields = Object.keys(parsed?.profile && typeof parsed.profile === 'object' ? parsed.profile : {});
+      const blockedField = requestedFields.find((field) => !['name', 'background_mode'].includes(field));
+      if (blockedField) {
+        json(res, 403, { error: { message: `Profile field is not writable here: ${blockedField}.` } });
+        return;
+      }
       const body = JSON.stringify(parsed?.profile || {});
       requestHeaders['content-type'] = 'application/json';
       const response = await fetch(targetUrl, {

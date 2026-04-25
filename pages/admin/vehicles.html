@@ -249,6 +249,7 @@
               <div class="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                 <div class="flex flex-wrap items-center gap-2">
                   <span id="dataset-status" class="rounded-full border border-slate-700/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300">Live table</span>
+                  <input id="vehicle-remote-search" type="search" placeholder="Search VIN" class="w-44 rounded-full border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs font-semibold text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" />
                   <div class="relative">
                     <button id="column-selector-toggle" type="button" class="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-blue-500 hover:text-white">
                       <i data-lucide="columns" class="h-4 w-4"></i>
@@ -328,6 +329,46 @@
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260413-01';
     import { logAdminEvent } from '../../assets/scripts/adminAudit.js';
     import { emitDataSyncSignal } from '../../assets/scripts/dataSyncSignal.js';
+    const VEHICLE_ADMIN_COLUMNS = [
+      'id',
+      'Current Stock No',
+      'VIN',
+      'shortvin',
+      'deal status',
+      'customer id',
+      'unit type',
+      'model year',
+      'model',
+      'Vehicle Status',
+      'inv. prep. stat.',
+      'deal completion',
+      'gps fix',
+      'gps fix reason',
+      'pt status',
+      'pt serial',
+      'encore serial',
+      'moving',
+      'pt first read',
+      'pt last read',
+      'days_stationary',
+      'short_location',
+      'state loc',
+      'pt city',
+      'pt zipcode',
+      'lat',
+      'long',
+      'phys_loc',
+      'Open Balance',
+      'movement_status_v2',
+      'movement_days_stationary_v2',
+      'movement_computed_at_v2'
+    ];
+    const VEHICLE_ADMIN_SELECT = VEHICLE_ADMIN_COLUMNS
+      .map((column) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(column) ? column : `"${column.replace(/"/g, '""')}"`))
+      .join(',');
+    const VEHICLE_ADMIN_SEARCH_COLUMN = 'VIN';
+    const REMOTE_SEARCH_DEBOUNCE_MS = 300;
+    let remoteSearchTimer = null;
     import { bindStorageListener, setSelectedVehicle } from '../../assets/js/shared/selectedVehicleStore.js';
 
 
@@ -409,13 +450,6 @@
     const ADMIN_ROLE = 'administrator';
     const CHANGE_LOG_TABLE = 'admin_change_log';
     let hasVerifiedAdminAccess = false;
-    const isRateLimitedError = (error) => {
-      const status = Number(error?.status || error?.statusCode);
-      const message = String(error?.message || '').toLowerCase();
-      const details = String(error?.details || '').toLowerCase();
-      return status === 429 || message.includes('too many requests') || details.includes('too many requests');
-    };
-
     const actor = { id: 'anon', email: '' };
     const isAdminUser = () => hasVerifiedAdminAccess;
     const refreshAdminAccess = async () => {
@@ -433,36 +467,19 @@
         hasVerifiedAdminAccess = false;
         return hasVerifiedAdminAccess;
       }
-      const fallbackRole = String(
-        sessionData?.session?.user?.profile?.role
-        || sessionData?.session?.user?.app_metadata?.role
-        || window.currentUserRole
-        || ''
-      ).toLowerCase();
-      const fallbackStatus = String(
-        sessionData?.session?.user?.profile?.status
-        || sessionData?.session?.user?.app_metadata?.status
-        || window.currentUserStatus
-        || 'active'
-      ).toLowerCase();
-      if (fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended') {
-        hasVerifiedAdminAccess = true;
-        return hasVerifiedAdminAccess;
-      }
       const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
         ? await supabaseClient.auth.getProfile()
         : await supabaseClient
             .from('profiles')
-            .select('role')
+            .select('role,status')
             .eq('id', userId)
             .maybeSingle();
       const profile = profileResult?.data?.profile || profileResult?.data || null;
       const profileError = profileResult?.error || null;
-      if (isRateLimitedError(profileError)) {
-        hasVerifiedAdminAccess = fallbackRole === ADMIN_ROLE && fallbackStatus !== 'suspended';
-        return hasVerifiedAdminAccess;
-      }
-      hasVerifiedAdminAccess = !profileError && String(profile?.role || '').toLowerCase() === ADMIN_ROLE;
+      hasVerifiedAdminAccess =
+        !profileError &&
+        String(profile?.role || '').toLowerCase() === ADMIN_ROLE &&
+        String(profile?.status || 'active').toLowerCase() === 'active';
       return hasVerifiedAdminAccess;
     };
 
@@ -735,12 +752,23 @@
 
     const fetchVehiclesFromSupabase = async () => {
       if (!supabaseClient) throw new Error('Database client is not available.');
-      const { data, error } = await supabaseClient.from('vehicles').select('*');
+      const from = (state.pagination.page - 1) * state.pagination.pageSize;
+      const to = from + state.pagination.pageSize - 1;
+      let query = supabaseClient
+        .from('vehicles')
+        .select(VEHICLE_ADMIN_SELECT, { count: 'exact' })
+        .order(state.filters.sortKey || 'VIN', { ascending: state.filters.sortDir !== 'desc' })
+        .range(from, to);
+      const search = String(state.filters.search || '').trim();
+      if (search) {
+        query = query.ilike(VEHICLE_ADMIN_SEARCH_COLUMN, `%${search}%`);
+      }
+      const { data, error, count } = await query;
       if (error) throw error;
       const rows = Array.isArray(data) ? data : [];
-      const headers = rows.length ? Object.keys(rows[0]) : [];
-      setDatasetStatus('Live table');
-      return { headers, rows };
+      const headers = VEHICLE_ADMIN_COLUMNS;
+      setDatasetStatus(`Live table · ${rows.length} loaded`);
+      return { headers, rows, total: typeof count === 'number' ? count : rows.length };
     };
 
     const loadVehiclesData = async () => {
@@ -748,10 +776,11 @@
       let fetchedRows = [];
       let usedSupabase = false;
       try {
-        const { headers, rows } = await fetchVehiclesFromSupabase();
+        const { headers, rows, total } = await fetchVehiclesFromSupabase();
         fetchedHeaders = headers;
         fetchedRows = rows;
         usedSupabase = true;
+        state.remoteTotal = total;
         setDatasetStatus('Live table');
       } catch (error) {
         console.error('Error loading vehicles from database', error);
@@ -766,11 +795,9 @@
       state.headers = applyHeaderOrder(state.headers);
       applyVisibleColumns();
       state.rows = fetchedRows;
-      state.pagination.page = 1;
-      state.remoteTotal = usedSupabase ? fetchedRows.length : null;
+      state.remoteTotal = usedSupabase ? state.remoteTotal : null;
       updateStats(fetchedRows);
       refreshTable();
-      if (usedSupabase) await fetchVehiclesCount();
       renderColumnSelector();
     };
 
@@ -1027,31 +1054,33 @@
 
 
 
-      const totalPages = Math.max(1, Math.ceil(rows.length / state.pagination.pageSize));
+      const totalRows = typeof state.remoteTotal === 'number' ? state.remoteTotal : rows.length;
+      const totalPages = Math.max(1, Math.ceil(totalRows / state.pagination.pageSize));
 
       if (state.pagination.page > totalPages) state.pagination.page = totalPages;
 
       const start = (state.pagination.page - 1) * state.pagination.pageSize;
 
-      const end = Math.min(rows.length, start + state.pagination.pageSize);
+      const end = Math.min(totalRows, start + state.pagination.pageSize);
+      const rowsToRender = typeof state.remoteTotal === 'number' ? rows : rows.slice(start, end);
 
 
 
-      els.paginationSummary.textContent = rows.length
+      els.paginationSummary.textContent = totalRows
 
-        ? `Showing ${start + 1}-${end} of ${rows.length}`
+        ? `Showing ${start + 1}-${end} of ${totalRows}`
 
         : 'No entries to display';
 
       els.pageIndicator.textContent = `${state.pagination.page} / ${totalPages}`;
 
-      els.prevPage.disabled = state.pagination.page === 1 || rows.length === 0;
+      els.prevPage.disabled = state.pagination.page === 1 || totalRows === 0;
 
-      els.nextPage.disabled = state.pagination.page >= totalPages || rows.length === 0;
+      els.nextPage.disabled = state.pagination.page >= totalPages || totalRows === 0;
 
 
 
-      rows.slice(start, end).forEach((row) => {
+      rowsToRender.forEach((row) => {
 
         const tr = document.createElement('tr');
 
@@ -1126,7 +1155,7 @@
 
             .from('vehicles')
 
-            .select('*', { count: 'exact', head: true });
+            .select('id', { count: 'exact', head: true });
 
         if (error) throw error;
 
@@ -1528,7 +1557,8 @@
         state.filters.sortKey = header;
         state.filters.sortDir = 'asc';
       }
-      refreshTable();
+      state.pagination.page = 1;
+      void refreshRemoteVehiclesPage();
     };
 
     const applyHeaderOrder = (headers = []) => {
@@ -1905,10 +1935,17 @@
 
     const refreshTable = () => {
 
-      const filtered = applyFiltersAndSort(state.rows);
+      const filtered = typeof state.remoteTotal === 'number'
+        ? applyFiltersAndSort(state.rows)
+        : applyFiltersAndSort(state.rows);
 
       renderTable(filtered);
 
+    };
+
+    const refreshRemoteVehiclesPage = async () => {
+      setDatasetStatus('Loading page…');
+      await loadVehiclesData();
     };
 
 
@@ -1937,7 +1974,7 @@
 
       state.pagination.page -= 1;
 
-      refreshTable();
+      void refreshRemoteVehiclesPage();
 
     });
 
@@ -1945,16 +1982,25 @@
 
     els.nextPage.addEventListener('click', () => {
 
-      const filtered = applyFiltersAndSort(state.rows);
-
-      const totalPages = Math.max(1, Math.ceil(filtered.length / state.pagination.pageSize));
+      const totalRows = typeof state.remoteTotal === 'number' ? state.remoteTotal : applyFiltersAndSort(state.rows).length;
+      const totalPages = Math.max(1, Math.ceil(totalRows / state.pagination.pageSize));
 
       if (state.pagination.page >= totalPages) return;
 
       state.pagination.page += 1;
 
-      renderTable(filtered);
+      void refreshRemoteVehiclesPage();
 
+    });
+
+    document.getElementById('vehicle-remote-search')?.addEventListener('input', (event) => {
+      state.filters.search = String(event.target.value || '').trim();
+      state.pagination.page = 1;
+      if (remoteSearchTimer) window.clearTimeout(remoteSearchTimer);
+      remoteSearchTimer = window.setTimeout(() => {
+        remoteSearchTimer = null;
+        void refreshRemoteVehiclesPage();
+      }, REMOTE_SEARCH_DEBOUNCE_MS);
     });
 
 

@@ -1,5 +1,5 @@
 const DEFAULT_BACKEND_PROVIDER = 'supabase';
-const DEFAULT_SUPABASE_PROJECT_REF = 'lzmbeojzjlrxuluroprh';
+const DEFAULT_SUPABASE_PROJECT_REF = '';
 const resolveDefaultSupabaseUrl = () => {
   if (typeof window !== 'undefined' && window.location?.origin) {
     const origin = `${window.location.origin}`.trim();

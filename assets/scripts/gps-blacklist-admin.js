@@ -522,59 +522,40 @@ const fetchRows = async () => {
 };
 
 const validateAdminRole = async (session) => {
-  const roleCandidates = new Set(
-    [
-      window.currentUserRole,
-      document.body?.dataset.userRole,
-      session?.user?.user_metadata?.role,
-      session?.user?.app_metadata?.role,
-    ]
-      .map((role) => normalizeRole(role))
-      .filter(Boolean),
-  );
-
-  if (isWebAdminSession(session)) {
-    const localRole = normalizeRole(getWebAdminAccess()?.role);
-    if (localRole) roleCandidates.add(localRole);
-  }
-
-  // Resolve source of truth from profiles to avoid auth metadata races.
   const userId = session?.user?.id;
-  if (userId && (supabaseClient?.from || typeof supabaseClient?.auth?.getProfile === 'function')) {
-    const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
-      ? await supabaseClient.auth.getProfile()
-      : await supabaseClient
-          .from('profiles')
-          .select('role, status')
-          .eq('id', userId)
-          .maybeSingle();
-    const data = profileResult?.data?.profile || profileResult?.data || null;
-    const error = profileResult?.error || null;
-
-    if (error) {
-      reportError('validateAdminRole.profile_lookup', error, { userId });
-    } else if (data) {
-      const profileRole = normalizeRole(data.role);
-      const profileStatus = normalizeRole(data.status) || 'active';
-      if (profileRole) {
-        roleCandidates.add(profileRole);
-        window.currentUserRole = profileRole;
-        if (document.body) document.body.dataset.userRole = profileRole;
-      }
-      if (profileStatus) {
-        window.currentUserStatus = profileStatus;
-        if (document.body) document.body.dataset.userStatus = profileStatus;
-      }
-      if (profileStatus === 'suspended') return false;
-    }
+  if (!userId || (!supabaseClient?.from && typeof supabaseClient?.auth?.getProfile !== 'function')) {
+    return false;
   }
 
-  if (roleCandidates.has(ADMIN_ROLE)) return true;
+  const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
+    ? await supabaseClient.auth.getProfile()
+    : await supabaseClient
+        .from('profiles')
+        .select('role, status')
+        .eq('id', userId)
+        .maybeSingle();
+  const data = profileResult?.data?.profile || profileResult?.data || null;
+  const error = profileResult?.error || null;
+
+  if (error || !data) {
+    reportError('validateAdminRole.profile_lookup', error || { message: 'Profile lookup returned no data.' }, { userId });
+    return false;
+  }
+
+  const profileRole = normalizeRole(data.role);
+  const profileStatus = normalizeRole(data.status) || 'active';
+  window.currentUserRole = profileRole;
+  window.currentUserStatus = profileStatus;
+  if (document.body) {
+    document.body.dataset.userRole = profileRole;
+    document.body.dataset.userStatus = profileStatus;
+  }
+  if (profileRole === ADMIN_ROLE && profileStatus === 'active') return true;
 
   reportError(
     'validateAdminRole',
     { message: 'Administrator role was not found for the current user.' },
-    { roles: [...roleCandidates] },
+    { role: profileRole, status: profileStatus },
   );
   return false;
 };

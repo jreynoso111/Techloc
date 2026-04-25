@@ -109,13 +109,20 @@ const readForm = () => {
   return normalizeAppSettings({ ...getAppSettings(), ...raw });
 };
 
-const isAdministrator = (session = null) => {
-  const candidates = [
-    window.currentUserRole,
-    session?.user?.app_metadata?.role,
-    session?.user?.user_metadata?.role,
-  ];
-  return candidates.some((value) => String(value || '').toLowerCase() === 'administrator');
+const isAdministrator = async (session = null) => {
+  const userId = session?.user?.id || '';
+  if (!userId || (!supabaseClient?.from && typeof supabaseClient?.auth?.getProfile !== 'function')) return false;
+  const profileResult = typeof supabaseClient?.auth?.getProfile === 'function'
+    ? await supabaseClient.auth.getProfile()
+    : await supabaseClient
+        .from('profiles')
+        .select('role,status')
+        .eq('id', userId)
+        .maybeSingle();
+  const profile = profileResult?.data?.profile || profileResult?.data || null;
+  if (profileResult?.error || !profile) return false;
+  return String(profile.role || '').toLowerCase() === 'administrator'
+    && String(profile.status || 'active').toLowerCase() === 'active';
 };
 
 const fetchRemoteSettings = async () => {
@@ -241,7 +248,7 @@ if (typeof window !== 'undefined') {
 const initializeSettingsPage = async () => {
   try {
     activeSession = await requireSession();
-    if (!isAdministrator(activeSession)) {
+    if (!(await isAdministrator(activeSession))) {
       setStatus('Administrator access is required for this page.', 'error');
       return;
     }

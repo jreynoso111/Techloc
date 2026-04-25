@@ -2,8 +2,35 @@ import { DashboardState } from '../core/state.js';
 import { assertSupabaseTarget } from '../env.js';
 
 const MAX_PAGE_SIZE = 1000;
+const DEFAULT_TABLE_SELECTS = {
+  DealsJP1: [
+    'id',
+    'Current Stock No',
+    'Deal Status',
+    'Deal Date',
+    'Customer',
+    'Model',
+    'Model Year',
+    'VIN',
+    'Vehicle Status',
+    'Inventory Preparation Status',
+    'Physical Location',
+    'Unit Type',
+    'Open Balance',
+    'Oldest Invoice (Open)',
+    'Deal Completion',
+    'PassTime Serial No',
+    'PassTime Vehicle Status',
+    'Encore Serial Number',
+    'GPS Serial No',
+    'Last Deal',
+    'gps_status',
+    'gps_review_flag',
+    'gps_status_updated_at'
+  ].map((column) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(column) ? column : `"${column.replace(/"/g, '""')}"`)).join(',')
+};
 
-export const fetchAllRowsFromTable = async ({ supabaseClient, tableName, pageSize = MAX_PAGE_SIZE }) => {
+export const fetchAllRowsFromTable = async ({ supabaseClient, tableName, pageSize = MAX_PAGE_SIZE, select }) => {
   if (!supabaseClient?.from) {
     return {
       data: null,
@@ -12,6 +39,7 @@ export const fetchAllRowsFromTable = async ({ supabaseClient, tableName, pageSiz
   }
 
   const safePageSize = Math.max(1, Number(pageSize) || MAX_PAGE_SIZE);
+  const selectClause = select || DEFAULT_TABLE_SELECTS[tableName] || 'id';
   const allRows = [];
   let from = 0;
 
@@ -19,7 +47,7 @@ export const fetchAllRowsFromTable = async ({ supabaseClient, tableName, pageSiz
     const to = from + safePageSize - 1;
     const { data, error } = await supabaseClient
       .from(tableName)
-      .select('*')
+      .select(selectClause)
       .range(from, to);
 
     if (error) return { data: null, error };

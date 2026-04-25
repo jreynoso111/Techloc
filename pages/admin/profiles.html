@@ -182,12 +182,6 @@
       moderator: 'key-round',
       user: 'user'
     };
-    const isRateLimitedError = (error) => {
-      const status = Number(error?.status || error?.statusCode);
-      const message = String(error?.message || '').toLowerCase();
-      const details = String(error?.details || '').toLowerCase();
-      return status === 429 || message.includes('too many requests') || details.includes('too many requests');
-    };
     const actionHandlers = {
       edit: (id) => window.editProfile(id),
       reset: (id) => window.resetProfilePassword(id),
@@ -201,35 +195,15 @@
         redirectToAdminHome();
         return false;
       }
-      const fallbackRole = String(
-        session?.user?.profile?.role
-        || session?.user?.app_metadata?.role
-        || window.currentUserRole
-        || ''
-      ).toLowerCase();
-      const fallbackStatus = String(
-        session?.user?.profile?.status
-        || session?.user?.app_metadata?.status
-        || window.currentUserStatus
-        || 'active'
-      ).toLowerCase();
-      if (fallbackRole === 'administrator' && fallbackStatus !== 'suspended') {
-        hasAdministratorAccess = true;
-        adminRoot?.classList.remove('hidden');
-        return true;
-      }
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('role, status')
-        .eq('id', userId)
-        .maybeSingle();
-      if (isRateLimitedError(error)) {
-        hasAdministratorAccess = fallbackRole === 'administrator' && fallbackStatus !== 'suspended';
-        if (hasAdministratorAccess) {
-          adminRoot?.classList.remove('hidden');
-          return true;
-        }
-      }
+      const profileResult = typeof supabase?.auth?.getProfile === 'function'
+        ? await supabase.auth.getProfile()
+        : await supabase
+            .from('profiles')
+            .select('role, status')
+            .eq('id', userId)
+            .maybeSingle();
+      const data = profileResult?.data?.profile || profileResult?.data || null;
+      const error = profileResult?.error || null;
       if (error) {
         console.error('Could not validate administrator access', error);
         hasAdministratorAccess = false;
@@ -238,7 +212,7 @@
       }
       const role = String(data?.role || '').toLowerCase();
       const status = String(data?.status || 'active').toLowerCase();
-      hasAdministratorAccess = role === 'administrator' && status !== 'suspended';
+      hasAdministratorAccess = role === 'administrator' && status === 'active';
       if (!hasAdministratorAccess) {
         redirectToAdminHome();
         return false;
@@ -496,10 +470,22 @@
       if (!confirmed) return;
 
       try {
-        const redirectTo = new URL('../reset-password.html', window.location.href).toString();
-        const { error } = await supabase.auth.resetPasswordForEmail(profile.email, { redirectTo });
-        if (error) {
-          throw error;
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        const accessToken = sessionData?.session?.access_token || '';
+        if (!accessToken) throw new Error('Active session is required.');
+
+        const response = await fetch('/api/admin/password-reset', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ userId: profile.id }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error?.message || payload?.message || 'Could not trigger password reset.');
         }
 
         await recordAudit({
@@ -541,7 +527,7 @@
 
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id,email,name,role,status,background_mode,created_at,updated_at')
         .order('created_at', { ascending: false });
 
       if (error) {

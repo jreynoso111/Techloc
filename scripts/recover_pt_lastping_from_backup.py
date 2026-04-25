@@ -32,10 +32,9 @@ def load_copy_payload(path):
 
 def main():
     backup_path = os.environ.get("PT_BACKUP_SQL", BACKUP_SQL)
-    db_url = os.environ.get(
-        "SUPABASE_DB_URL",
-        "postgresql://postgres:Mntfunding123%3F@db.lzmbeojzjlrxuluroprh.supabase.co:5432/postgres?sslmode=require",
-    )
+    db_url = os.environ.get("SUPABASE_DB_URL", "").strip()
+    if not db_url:
+        raise RuntimeError("SUPABASE_DB_URL is required. Do not hardcode database credentials in scripts.")
 
     payload, backup_rows = load_copy_payload(backup_path)
     print(f"backup_rows={backup_rows}")

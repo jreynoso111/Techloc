@@ -146,8 +146,12 @@ import {
   };
 
   // --- NUEVO: Función para obtener el rol y estado desde la tabla profiles ---
-  const fetchUserProfile = async (userId, fallbackProfile = { role: 'user', status: 'active', email: null }) => {
-    const cached = profileCache.get(userId);
+  const fetchUserProfile = async (
+    userId,
+    fallbackProfile = { role: 'user', status: 'active', email: null },
+    { allowFallback = true, useCache = true } = {},
+  ) => {
+    const cached = useCache ? profileCache.get(userId) : null;
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
     }
@@ -177,8 +181,10 @@ import {
         error = result?.error || null;
       }
 
-      if (error || !data)
-        return fallbackProfile; // Valores por defecto si falla
+      if (error || !data) {
+        if (!allowFallback) throw error || new Error('Profile lookup returned no data.');
+        return fallbackProfile;
+      }
 
       const resolvedProfile = {
         role: normalizeAccessValue(data.role, fallbackProfile.role || 'user'),
@@ -189,7 +195,8 @@ import {
       return resolvedProfile;
     } catch (err) {
       const isTimeout = String(err?.name || '') === 'TimeoutError';
-      console.warn(isTimeout ? 'Profile lookup timed out; using fallback role.' : 'Error fetching role:', err);
+      console.warn(isTimeout ? 'Profile lookup timed out.' : 'Error fetching role:', err);
+      if (!allowFallback) throw err;
       return fallbackProfile;
     }
   };
@@ -205,6 +212,17 @@ import {
 
     const fallbackProfile = resolveFallbackProfileForSession(session);
     return fetchUserProfile(session.user.id, fallbackProfile);
+  };
+
+  const resolveReliableProfileForSession = async (session) => {
+    if (!session?.user?.id) {
+      throw new Error('Active session is required.');
+    }
+    return fetchUserProfile(
+      session.user.id,
+      { role: 'user', status: 'active', email: session?.user?.email || null },
+      { allowFallback: false, useCache: false },
+    );
   };
 
   const waitForAccountLabel = (timeoutMs = 3000) =>
@@ -439,6 +457,21 @@ import {
         userStatus = normalizeAccessValue(fallbackProfile.status, 'active');
         applyAccessState(userRole, userStatus);
         updateHeaderAccount(session, fallbackProfile.email);
+
+        if (isServiceRequestPath()) {
+          try {
+            const reliableProfile = await resolveReliableProfileForSession(session);
+            userRole = normalizeAccessValue(reliableProfile.role, 'user');
+            userStatus = normalizeAccessValue(reliableProfile.status, 'active');
+            applyAccessState(userRole, userStatus);
+            updateHeaderAccount(session, reliableProfile.email);
+          } catch (error) {
+            console.warn('Could not confirm service-request access.', error);
+            userRole = 'user';
+            userStatus = 'active';
+            applyAccessState(userRole, userStatus);
+          }
+        }
       } else {
         clearAccessState();
         updateHeaderAccount(null);
@@ -455,7 +488,7 @@ import {
       enforceRouteProtection(hasSession, userRole);
       bindLogout();
 
-      if (hasSession && session.user) {
+      if (hasSession && session.user && !isServiceRequestPath()) {
         resolveProfileForSession(session)
           .then(async (profile) => {
             const resolvedRole = normalizeAccessValue(profile.role, userRole);
@@ -487,6 +520,27 @@ import {
              updatedStatus = normalizeAccessValue(fallbackProfile.status, 'active');
              applyAccessState(updatedRole, updatedStatus);
              updateHeaderAccount(effectiveSession, fallbackProfile.email);
+
+             if (isServiceRequestPath()) {
+               try {
+                 const reliableProfile = await resolveReliableProfileForSession(effectiveSession);
+                 updatedRole = normalizeAccessValue(reliableProfile.role, 'user');
+                 updatedStatus = normalizeAccessValue(reliableProfile.status, 'active');
+                 applyAccessState(updatedRole, updatedStatus);
+                 updateHeaderAccount(effectiveSession, reliableProfile.email);
+               } catch (error) {
+                 console.warn('Could not confirm service-request access.', error);
+                 updatedRole = 'user';
+                 updatedStatus = 'active';
+                 applyAccessState(updatedRole, updatedStatus);
+               }
+             }
+
+             if (isServiceRequestPath()) {
+               updateNav(true, updatedRole, updatedStatus);
+               enforceRouteProtection(true, updatedRole);
+               return;
+             }
 
              resolveProfileForSession(effectiveSession)
                .then(async (profile) => {
