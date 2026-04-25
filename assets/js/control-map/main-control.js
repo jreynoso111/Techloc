@@ -33,7 +33,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       parsePtLastReadDate,
       parseDealCompletion,
       toStateCode
-    } from '../utils/formatters.js?v=movement-v2-20260425-legacy-days-01';
+    } from '../utils/formatters.js?v=movement-v2-20260425-fleet-pt-hydrate-01';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js?v=movement-v2-20250403-11';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';
@@ -104,15 +104,15 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const vehicleMarkerHeadingPendingRequests = new Map();
     const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 8;
     const VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY = 2;
-    const VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT = 8;
-    const VEHICLE_PT_SNAPSHOT_PREFETCH_CONCURRENCY = 2;
+    const VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT = 80;
+    const VEHICLE_PT_SNAPSHOT_PREFETCH_CONCURRENCY = 4;
     const VEHICLE_PT_SNAPSHOT_REFRESH_TTL_MS = 5 * 60 * 1000;
-    const VEHICLE_PT_PRIORITY_SNAPSHOT_WINDOW_DAYS = 7;
-    const VEHICLE_PT_PRIORITY_SNAPSHOT_LIMIT = 24;
-    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 8;
-    const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 1;
+    const VEHICLE_PT_PRIORITY_SNAPSHOT_WINDOW_DAYS = 45;
+    const VEHICLE_PT_PRIORITY_SNAPSHOT_LIMIT = 80;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 250;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 4;
     const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 420;
-    const VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT = 50;
+    const VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT = 250;
     const VEHICLE_TABLE_IS_CANONICAL_SOURCE = true;
     const GPS_HISTORY_MIN_SELECT = 'id,vehicle_id,VIN,Serial,Date,Lat,Long,address,moved,days_stationary,moved_v2,days_stationary_v2,city_bucket,read_day,day_half';
     const SERVICE_SELECT = 'id,company_name,region,phone,contact,email,website,availability,notes,city,state,zip,category,type,authorization,address,status,lat,long,verified';
@@ -3287,8 +3287,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const collectPriorityVehicleSnapshotTargets = () => {
-      const searchBox = document.getElementById('vehicle-search');
-      const visibleVehicles = getVehicleList(searchBox?.value || '')
+      const visibleVehicles = (Array.isArray(vehicles) ? vehicles : [])
         .slice(0, VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT);
       const orderedVehicles = [];
       const seenVehicleKeys = new Set();
@@ -3334,6 +3333,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       );
 
       if (results.some(Boolean)) {
+        updateVehicleFilterOptions();
+        syncVehicleFilterInputs();
         renderVehicles({ preserveScrollTop: true });
       }
     };
@@ -3705,11 +3706,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
       const explicitLatestStationaryDays = parseGpsRecordDaysParked(latestMovementRecord || {});
       const inferredStationaryDays = inferStationaryDaysFromRecords(resolvedStationarySourceRecords, { vehicle });
-      // The winning GPS's latest reading is the authoritative parked-days snapshot for the sidebar.
-      let stationaryDays = Number.isFinite(explicitLatestStationaryDays)
-        ? explicitLatestStationaryDays
-        : (Number.isFinite(inferredStationaryDays) ? inferredStationaryDays : null);
-
       const latestMovementRecordTimeMs = parseGpsTrailTimeMs(latestMovementRecord || {});
       const latestOverallRecordTimeMs = parseGpsTrailTimeMs(latestOverallRecord || {});
       const latestMovementRecordSerial = normalizeGpsSerial(getRecordSerial(latestMovementRecord || {}));
@@ -3719,7 +3715,20 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       const latestRecordLooksParked = (
         latestRecordMove === 'stopped'
         || (Number.isFinite(explicitLatestStationaryDays) && explicitLatestStationaryDays > 0)
+        || (Number.isFinite(inferredStationaryDays) && inferredStationaryDays > 0)
       );
+      let stationaryDays = null;
+      if (latestRecordLooksParked) {
+        stationaryDays = Math.max(
+          Number.isFinite(explicitLatestStationaryDays) ? explicitLatestStationaryDays : Number.NEGATIVE_INFINITY,
+          Number.isFinite(inferredStationaryDays) ? inferredStationaryDays : Number.NEGATIVE_INFINITY
+        );
+        if (!Number.isFinite(stationaryDays)) stationaryDays = 0;
+      } else if (Number.isFinite(explicitLatestStationaryDays)) {
+        stationaryDays = explicitLatestStationaryDays;
+      } else if (Number.isFinite(inferredStationaryDays)) {
+        stationaryDays = inferredStationaryDays;
+      }
       const gpsFixStatus = normalizeFilterValue(vehicle?.gpsFix);
       const shouldSuppressSilentCarryForward = gpsFixStatus === 'all';
       const canCarryForwardSilentParking = (
