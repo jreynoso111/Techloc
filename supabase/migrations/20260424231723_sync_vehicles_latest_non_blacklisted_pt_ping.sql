@@ -52,91 +52,84 @@ declare
   v_updated integer := 0;
   v_targeted integer := 0;
 begin
-  with target_vehicles as (
+  with settings as (
+    select public.get_control_map_settings_v2() as settings
+  ), target_vin6 as (
+    select distinct right(
+      regexp_replace(upper(trim(vin)), '[^A-Z0-9]', '', 'g'),
+      6
+    ) as shortvin
+    from unnest(coalesce(p_vins, array[]::text[])) as vin
+    where trim(coalesce(vin, '')) <> ''
+  ), target_vehicles as (
     select
       v."VIN",
       v.shortvin,
-      public.resolve_vehicle_winner_serial_v2(v."VIN", now()) as winner_serial,
       public.resolve_vehicle_unit_type_for_vin_v2(v."VIN") as unit_type,
       public.get_vehicle_movement_threshold_meters_v2(v."VIN") as threshold_meters,
-      coalesce((public.get_control_map_settings_v2() ->> 'vehicleMarkerStalePingDays')::integer, 3) as stale_days
+      coalesce((s.settings ->> 'vehicleMarkerStalePingDays')::integer, 3) as stale_days
     from public.vehicles v
-    where p_vins is null
-       or array_length(p_vins, 1) is null
-       or exists (
-          select 1
-          from unnest(p_vins) as vin
-          where right(
-              regexp_replace(upper(trim(coalesce(vin, ''))), '[^A-Z0-9]', '', 'g'),
-              6
-            ) = v.shortvin
-       )
-  ), latest_any as (
-    select tv.shortvin, max(p."Date") as latest_any
-    from target_vehicles tv
-    left join public."PT-LastPing" p
-      on right(
-          regexp_replace(upper(trim(coalesce(p."VIN", ''))), '[^A-Z0-9]', '', 'g'),
-          6
-        ) = tv.shortvin
-     and not public.is_gps_serial_blacklisted_now_v2(p."Serial", now())
-    group by tv.shortvin
-  ), winner_rows as (
+    cross join settings s
+    where (p_vins is null or array_length(p_vins, 1) is null)
+       or exists (select 1 from target_vin6 tv6 where tv6.shortvin = v.shortvin)
+  ), valid_pings as (
     select
-      tv."VIN",
+      tv."VIN" as vehicle_vin,
       tv.shortvin,
-      tv.winner_serial,
-      tv.unit_type,
-      tv.threshold_meters,
-      tv.stale_days,
+      trim(coalesce(p."Serial", '')) as serial,
       p.id,
       p."Date",
       p."Lat",
       p."Long",
       p.address,
       p.moved_v2,
-      p.days_stationary_v2,
-      row_number() over (partition by tv.shortvin order by p."Date" desc nulls last, p.id desc nulls last) as rn_latest,
-      row_number() over (partition by tv.shortvin order by p."Date" asc nulls last, p.id asc nulls last) as rn_first
+      p.days_stationary_v2
     from target_vehicles tv
-    left join public."PT-LastPing" p
+    join public."PT-LastPing" p
       on right(
           regexp_replace(upper(trim(coalesce(p."VIN", ''))), '[^A-Z0-9]', '', 'g'),
           6
         ) = tv.shortvin
-     and trim(coalesce(p."Serial", '')) = trim(coalesce(tv.winner_serial, ''))
-     and not public.is_gps_serial_blacklisted_now_v2(p."Serial", now())
+    left join public.gps_blacklist b
+      on b.is_active is distinct from false
+     and trim(coalesce(b.serial, '')) = trim(coalesce(p."Serial", ''))
+     and (
+       b.effective_from is null
+       or b.effective_from <= (now() at time zone 'utc')::date
+     )
+    where trim(coalesce(p."Serial", '')) <> ''
+      and b.serial is null
   ), latest_rows as (
-    select
-      wr."VIN",
-      wr.shortvin,
-      wr.winner_serial,
-      wr.unit_type,
-      wr.threshold_meters,
-      wr.stale_days,
-      wr."Date" as pt_last_read,
-      wr."Lat" as lat,
-      wr."Long" as long,
-      wr.address as short_location,
+    select distinct on (vp.shortvin)
+      vp.vehicle_vin,
+      vp.shortvin,
+      vp.serial as winner_serial,
+      vp.id,
+      vp."Date" as pt_last_read,
+      vp."Lat" as lat,
+      vp."Long" as long,
+      vp.address as short_location,
       coalesce(
-        wr.moved_v2,
-        public.compute_pt_lastping_moved_v2(wr."VIN", wr.winner_serial, wr."Date", wr."Lat", wr."Long", wr.id)
+        vp.moved_v2,
+        public.compute_pt_lastping_moved_v2(vp.vehicle_vin, vp.serial, vp."Date", vp."Lat", vp."Long", vp.id)
       ) as latest_moved_v2,
-      coalesce(
-        wr.days_stationary_v2,
-        public.compute_pt_lastping_days_stationary_live_v2(wr."VIN", wr.winner_serial, wr."Date", wr.id)
-      ) as days_stationary_v2
-    from winner_rows wr
-    where wr.rn_latest = 1
+      vp.days_stationary_v2
+    from valid_pings vp
+    order by vp.shortvin, vp."Date" desc nulls last, vp.id desc nulls last
   ), first_rows as (
-    select wr.shortvin, wr."Date" as pt_first_read
-    from winner_rows wr
-    where wr.rn_first = 1
+    select distinct on (vp.shortvin)
+      vp.shortvin,
+      vp."Date" as pt_first_read
+    from valid_pings vp
+    join latest_rows lr
+      on lr.shortvin = vp.shortvin
+     and lr.winner_serial = vp.serial
+    order by vp.shortvin, vp."Date" asc nulls last, vp.id asc nulls last
   ), payload as (
     select
       tv."VIN",
       tv.shortvin,
-      tv.winner_serial,
+      lr.winner_serial,
       fr.pt_first_read,
       lr.pt_last_read,
       lr.lat,
@@ -145,25 +138,24 @@ begin
       tv.unit_type,
       tv.threshold_meters,
       case
-        when tv.winner_serial is null or tv.winner_serial = '' then 'unknown'
+        when lr.winner_serial is null or lr.winner_serial = '' then 'unknown'
         when lr.pt_last_read is null then 'unknown'
         when lr.pt_last_read < (now() - make_interval(days => greatest(0, tv.stale_days))) then 'unknown'
         when coalesce(lr.latest_moved_v2, -1) = 1 then 'moving'
         else 'stopped'
       end as movement_status_v2,
       case
-        when tv.winner_serial is null or tv.winner_serial = '' then null
+        when lr.winner_serial is null or lr.winner_serial = '' then null
         when lr.pt_last_read is null then null
         when lr.pt_last_read < (now() - make_interval(days => greatest(0, tv.stale_days))) then null
         when coalesce(lr.latest_moved_v2, -1) = 1 then 0
         when lr.days_stationary_v2 is not null then lr.days_stationary_v2
-        when la.latest_any is not null then greatest(0, floor(extract(epoch from (la.latest_any - lr.pt_last_read)) / 86400)::int)
+        when fr.pt_first_read is not null then greatest(0, floor(extract(epoch from (lr.pt_last_read - fr.pt_first_read)) / 86400)::int)
         else 0
       end as movement_days_stationary_v2
     from target_vehicles tv
     left join latest_rows lr on lr.shortvin = tv.shortvin
     left join first_rows fr on fr.shortvin = tv.shortvin
-    left join latest_any la on la.shortvin = tv.shortvin
   ), normalized_payload as (
     select
       p.*,
@@ -282,74 +274,6 @@ declare
   v_updated_rows integer := 0;
   v_batch_result jsonb := '{}'::jsonb;
 begin
-  with target_vins as (
-    select distinct right(
-      regexp_replace(upper(trim(vin)), '[^A-Z0-9]', '', 'g'),
-      6
-    ) as vin6
-    from unnest(coalesce(p_vins, array[]::text[])) as vin
-    where trim(coalesce(vin, '')) <> ''
-  ), target_rows as (
-    select
-      p.id,
-      p."VIN",
-      p."Serial",
-      p."Date",
-      p."Lat",
-      p."Long"
-    from public."PT-LastPing" p
-    join target_vins tv
-      on right(
-          regexp_replace(upper(trim(coalesce(p."VIN", ''))), '[^A-Z0-9]', '', 'g'),
-          6
-        ) = tv.vin6
-    where (
-      (p_min_id_exclusive is not null and p.id > p_min_id_exclusive)
-      or (
-        p_min_id_exclusive is null
-        and (
-          p.moved is null
-          or p.days_stationary is null
-          or p.moved_v2 is null
-        )
-      )
-    )
-  ), computed as (
-    select
-      tr.id,
-      public.compute_pt_lastping_moved(
-        tr."VIN",
-        tr."Serial",
-        tr."Date",
-        tr."Lat",
-        tr."Long",
-        tr.id
-      ) as moved_calc,
-      public.compute_pt_lastping_moved_v2(
-        tr."VIN",
-        tr."Serial",
-        tr."Date",
-        tr."Lat",
-        tr."Long",
-        tr.id
-      ) as moved_v2_calc
-    from target_rows tr
-  )
-  update public."PT-LastPing" p
-  set moved = c.moved_calc,
-      days_stationary = public.compute_pt_lastping_days_stationary(
-        p."VIN",
-        p."Serial",
-        p."Date",
-        c.moved_calc,
-        p.id
-      ),
-      moved_v2 = c.moved_v2_calc
-  from computed c
-  where p.id = c.id;
-
-  get diagnostics v_updated_rows = row_count;
-
   v_batch_result := public.refresh_vehicle_movement_v2_batch(p_vins);
 
   update public.vehicles

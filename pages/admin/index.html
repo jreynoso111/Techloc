@@ -2856,7 +2856,7 @@
         const batchesBefore = Number(options?.batchesBefore || 0);
         const totalRows = Number(options?.totalRows || rowsToUpload.length);
         const payloadRows = rowsToUpload.map(buildSlimPtPayload);
-        const initialBatchSize = Math.min(250, payloadRows.length);
+        const initialBatchSize = Math.min(100, payloadRows.length);
         const pending = [];
         for (let index = 0; index < payloadRows.length; index += initialBatchSize) {
           pending.push(payloadRows.slice(index, index + initialBatchSize));
@@ -2893,8 +2893,8 @@
               `Uploaded ${totalUploaded} of ${totalRows} rows`
             );
           } catch (error) {
-            if (isPtUploadTimeoutError(error) && currentBatch.length > 100) {
-              const retrySize = Math.max(100, Math.floor(currentBatch.length / 2));
+            if (isPtUploadTimeoutError(error) && currentBatch.length > 25) {
+              const retrySize = Math.max(25, Math.floor(currentBatch.length / 2));
               setStatus(`Batch timeout at ${currentBatch.length} rows. Retrying with chunks of ${retrySize}...`);
               const retryChunks = chunkArray(currentBatch, retrySize);
               pending.unshift(...retryChunks);
