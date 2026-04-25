@@ -9083,25 +9083,31 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return Number.NEGATIVE_INFINITY;
       }
 
+      if (getMovingStatus(vehicle) === 'moving') {
+        return 0;
+      }
+
       const raw = vehicle?.daysStationary
         ?? vehicle?.details?.days_stationary
         ?? vehicle?.details?.['Days Stationary']
         ?? vehicle?.details?.['Days stationary']
         ?? vehicle?.details?.['Days Parked'];
       const parsedDays = parseDaysParkedCandidate(raw);
-      if (Number.isFinite(parsedDays)) return parsedDays;
 
       const movementDaysV2 = parseDaysParkedCandidate(
         vehicle?.movementDaysStationaryV2
         ?? vehicle?.details?.movement_days_stationary_v2
       );
-      if (Number.isFinite(movementDaysV2)) return movementDaysV2;
-
       const historyDays = parseDaysParkedCandidate(
         vehicle?.historyDaysStationaryOverride
         ?? vehicle?.details?.historyDaysStationaryOverride
       );
-      if (!Number.isFinite(historyDays)) return Number.NEGATIVE_INFINITY;
+      const bestDays = Math.max(
+        Number.isFinite(parsedDays) ? parsedDays : Number.NEGATIVE_INFINITY,
+        Number.isFinite(movementDaysV2) ? movementDaysV2 : Number.NEGATIVE_INFINITY,
+        Number.isFinite(historyDays) ? historyDays : Number.NEGATIVE_INFINITY
+      );
+      if (!Number.isFinite(bestDays)) return Number.NEGATIVE_INFINITY;
 
       const lastPingMs = getVehicleLastPingTimestampMs(vehicle);
       const isLastPingStale = Number.isFinite(lastPingMs)
@@ -9110,7 +9116,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return 0;
       }
 
-      return historyDays;
+      return bestDays;
     }
 
     function getVehiclePtSerialValue(vehicle) {

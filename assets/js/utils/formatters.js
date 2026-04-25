@@ -212,6 +212,22 @@ export const getMovingStatus = (vehicle = {}) => {
     return 'unknown';
   }
 
+  const explicitV2Status = parseMovingIndicator(
+    vehicle?.movementStatusV2,
+    vehicle?.details?.movement_status_v2
+  );
+  if (explicitV2Status === 'moving' || explicitV2Status === 'stopped' || explicitV2Status === 'unknown') {
+    return explicitV2Status;
+  }
+
+  const v2StationaryDays = parseStationaryDays(
+    vehicle?.movementDaysStationaryV2,
+    vehicle?.details?.movement_days_stationary_v2
+  );
+  if (v2StationaryDays !== null) {
+    return v2StationaryDays <= 0 ? 'moving' : 'stopped';
+  }
+
   const stationaryDays = parseStationaryDays(
     vehicle?.daysStationary,
     vehicle?.details?.days_stationary,
@@ -240,22 +256,6 @@ export const getMovingStatus = (vehicle = {}) => {
 
   if (stationaryDays !== null) {
     return stationaryDays <= 0 ? 'moving' : 'stopped';
-  }
-
-  const explicitV2Status = parseMovingIndicator(
-    vehicle?.movementStatusV2,
-    vehicle?.details?.movement_status_v2
-  );
-  if (explicitV2Status === 'moving' || explicitV2Status === 'stopped' || explicitV2Status === 'unknown') {
-    return explicitV2Status;
-  }
-
-  const v2StationaryDays = parseStationaryDays(
-    vehicle?.movementDaysStationaryV2,
-    vehicle?.details?.movement_days_stationary_v2
-  );
-  if (v2StationaryDays !== null) {
-    return v2StationaryDays <= 0 ? 'moving' : 'stopped';
   }
 
   return 'unknown';

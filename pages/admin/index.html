@@ -753,11 +753,16 @@
         return { status: 'moving', daysStationary: 0, thresholdMeters, unitType };
       }
 
-      const legacyDaysStationary = toNumber(latestEntry?.record?.days_stationary);
-      if (Number.isFinite(legacyDaysStationary)) {
+      const latestDaysStationaryV2 = toNumber(latestEntry?.record?.days_stationary_v2);
+      const latestDaysStationaryLegacy = toNumber(latestEntry?.record?.days_stationary);
+      const latestReadingDaysStationary = Math.max(
+        Number.isFinite(latestDaysStationaryV2) ? latestDaysStationaryV2 : Number.NEGATIVE_INFINITY,
+        Number.isFinite(latestDaysStationaryLegacy) ? latestDaysStationaryLegacy : Number.NEGATIVE_INFINITY
+      );
+      if (Number.isFinite(latestReadingDaysStationary) && latestReadingDaysStationary > 0) {
         return {
           status: 'stopped',
-          daysStationary: Math.max(0, Math.floor(legacyDaysStationary)),
+          daysStationary: Math.max(0, Math.floor(latestReadingDaysStationary)),
           thresholdMeters,
           unitType
         };
@@ -846,7 +851,7 @@
           const to = from + pageSize - 1;
           const { data, error } = await supabaseClient
             .from('PT-LastPing')
-            .select('id,VIN,Serial,Date,Lat,Long,moved_v2,days_stationary_v2')
+            .select('id,VIN,Serial,Date,Lat,Long,moved_v2,days_stationary,days_stationary_v2')
             .in('VIN', vinChunk)
             .order('Date', { ascending: true })
             .range(from, to);
@@ -1366,7 +1371,7 @@
           const vehicleVin = normalizeUpperTrimmedValue(vehicleRow?.VIN);
           const vehicleId = `${vehicleRow?.id ?? ''}`.trim();
           const vinSuffix = vehicleVin.replace(/[^A-Z0-9]/g, '').slice(-6);
-          const selectClause = 'id,VIN,Date,Serial,moved,days_stationary,Lat,Long,address,vehicle_id';
+          const selectClause = 'id,VIN,Date,Serial,moved,moved_v2,days_stationary,days_stationary_v2,Lat,Long,address,vehicle_id';
 
           if (vehicleId) {
             const { data, error } = await supabaseClient

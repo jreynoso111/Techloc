@@ -41,6 +41,7 @@ begin
       p."Long",
       p.address,
       p.moved_v2,
+      p.days_stationary_v2,
       p.days_stationary
     from target_vehicles tv
     join public."PT-LastPing" p
@@ -68,9 +69,59 @@ begin
         vp.moved_v2,
         public.compute_pt_lastping_moved_v2(vp.vehicle_vin, vp.serial, vp."Date", vp."Lat", vp."Long", vp.id)
       ) as latest_moved_v2,
+      vp.days_stationary_v2,
       vp.days_stationary
     from valid_pings vp
     order by vp.shortvin, vp."Date" desc nulls last, vp.id desc nulls last
+  ), recent_rows as (
+    select *
+    from (
+      select
+        vp.*,
+        coalesce(
+          vp.moved_v2,
+          public.compute_pt_lastping_moved_v2(vp.vehicle_vin, vp.serial, vp."Date", vp."Lat", vp."Long", vp.id)
+        ) as moved_calc_v2,
+        row_number() over (
+          partition by vp.shortvin, vp.serial
+          order by vp."Date" desc nulls last, vp.id desc nulls last
+        ) as rn
+      from valid_pings vp
+      join latest_rows lr
+        on lr.shortvin = vp.shortvin
+       and lr.winner_serial = vp.serial
+    ) ranked
+    where rn <= 10
+  ), recent_day_states as (
+    select
+      rr.shortvin,
+      rr.serial,
+      rr."Date"::date as day_key,
+      bool_or(coalesce(rr.moved_calc_v2, -1) = 1) as is_moving_day
+    from recent_rows rr
+    where rr."Date" is not null
+    group by rr.shortvin, rr.serial, rr."Date"::date
+  ), recent_day_bounds as (
+    select
+      rds.shortvin,
+      rds.serial,
+      max(rds.day_key) as latest_day,
+      max(rds.day_key) filter (where rds.is_moving_day) as latest_moving_day
+    from recent_day_states rds
+    group by rds.shortvin, rds.serial
+  ), recent_stationary as (
+    select
+      rdb.shortvin,
+      rdb.serial,
+      count(*)::integer as recent_days_stationary
+    from recent_day_bounds rdb
+    join recent_day_states rds
+      on rds.shortvin = rdb.shortvin
+     and rds.serial = rdb.serial
+     and rds.day_key <= rdb.latest_day
+     and (rdb.latest_moving_day is null or rds.day_key > rdb.latest_moving_day)
+     and rds.is_moving_day is false
+    group by rdb.shortvin, rdb.serial
   ), first_rows as (
     select distinct on (vp.shortvin)
       vp.shortvin,
@@ -104,13 +155,18 @@ begin
         when lr.pt_last_read is null then null
         when lr.pt_last_read < (now() - make_interval(days => greatest(0, tv.stale_days))) then null
         when coalesce(lr.latest_moved_v2, -1) = 1 then 0
-        when lr.days_stationary is not null then greatest(0, lr.days_stationary)::integer
+        when greatest(coalesce(lr.days_stationary_v2, -1), coalesce(lr.days_stationary, -1)) > 0
+          then greatest(coalesce(lr.days_stationary_v2, -1), coalesce(lr.days_stationary, -1))::integer
+        when rs.recent_days_stationary is not null then greatest(0, rs.recent_days_stationary)::integer
         when fr.pt_first_read is not null then greatest(0, floor(extract(epoch from (lr.pt_last_read - fr.pt_first_read)) / 86400)::int)
         else 0
       end as days_stationary
     from target_vehicles tv
     left join latest_rows lr on lr.shortvin = tv.shortvin
     left join first_rows fr on fr.shortvin = tv.shortvin
+    left join recent_stationary rs
+      on rs.shortvin = lr.shortvin
+     and rs.serial = lr.winner_serial
   ), normalized_payload as (
     select
       p.*,
