@@ -191,10 +191,6 @@ const parseStationaryDays = (...candidates) => {
 };
 
 export const getMovingStatus = (vehicle = {}) => {
-  if (vehicle?.ptSnapshotResolved === false || vehicle?.details?.ptSnapshotResolved === false) {
-    return 'unknown';
-  }
-
   const historyOverrideStatus = parseMovingIndicator(
     vehicle?.historyMovingOverride,
     vehicle?.details?.historyMovingOverride
