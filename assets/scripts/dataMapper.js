@@ -225,6 +225,7 @@ const normalizeVehicle = (row, idx = 0, { getField: fieldGetter, toStateCode, re
     customer: field(row, 'PT City', 'City', 'city')
       ? `${field(row, 'PT City', 'City', 'city')}, ${stateCode || 'US'}`
       : stateCode || 'Unknown area',
+    openBalance: field(row, 'Open Balance', 'open_balance'),
     lastLocation: `${field(row, 'PT City', 'City', 'city') || 'Unknown'}, ${stateCode || 'USA'}${zip ? ' ' + zip : ''}`.trim(),
     payment: field(row, 'Payment Schedule', 'payment'),
     details: row,

@@ -11,7 +11,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     } from '../../scripts/appSettings.js?v=movement-v2-20250403-11';
     import { supabase as supabaseClient } from '../supabaseClient.js?v=movement-v2-20260413-01';
     import { getDistance, loadStateCenters, resolveCoords, MILES_TO_METERS, HOTSPOT_RADIUS_MILES } from '../../scripts/geoUtils.js?v=movement-v2-20250403-11';
-    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20260413-01';
+    import { getField, normalizeInstaller, normalizePartner, normalizeVehicle } from '../../scripts/dataMapper.js?v=movement-v2-20260425-sort-balance-01';
     import { createGpsHistoryManager } from '../../scripts/gpsHistory.js?v=movement-v2-20260413-01';
     import { createRepairHistoryManager } from '../../scripts/repairHistory.js?v=movement-v2-20250403-11';
     import { createPartnerClusterGroup } from './utils/cluster.js';
@@ -162,7 +162,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const VEHICLE_SORT_ROTATION_OPTIONS = Object.freeze([
       { key: 'vin_last6', label: 'VIN 6' },
       { key: 'days_parked', label: 'Parked' },
-      { key: 'pt_last_read', label: 'Last Ping' }
+      { key: 'pt_last_read', label: 'Last Ping' },
+      { key: 'open_balance', label: 'Balance' }
     ]);
     const STALE_PING_DAY_MS = 24 * 60 * 60 * 1000;
     const CONTROL_MAP_BOOT_VEHICLE_TIMEOUT_MS = 12000;
@@ -401,6 +402,25 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       } else if (Number.isFinite(normalizeHeadingDegrees(previousVehicle?.markerHeadingDegrees))) {
         vehicle.markerHeadingDegrees = previousVehicle.markerHeadingDegrees;
       }
+    };
+
+    const setVehiclePtSnapshotState = (vehicle, resolved = false) => {
+      if (!vehicle) return;
+      vehicle.ptSnapshotResolved = Boolean(resolved);
+      if (vehicle?.details && typeof vehicle.details === 'object') {
+        vehicle.details.ptSnapshotResolved = Boolean(resolved);
+      }
+    };
+
+    const setVehiclePtSnapshotUnknown = (vehicle) => {
+      if (!vehicle) return;
+      vehicle.historyMovingOverride = 'unknown';
+      delete vehicle.historyDaysStationaryOverride;
+      if (vehicle?.details && typeof vehicle.details === 'object') {
+        vehicle.details.historyMovingOverride = 'unknown';
+        delete vehicle.details.historyDaysStationaryOverride;
+      }
+      setVehiclePtSnapshotState(vehicle, true);
     };
 
     const MANUAL_VEHICLE_METADATA_OVERRIDES = Object.freeze({
@@ -3163,7 +3183,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const request = (async () => {
         const records = await fetchVehiclePriorityPtSnapshotRecords(vehicle).catch(() => []);
-        if (!Array.isArray(records) || !records.length) return false;
+        if (!Array.isArray(records) || !records.length) {
+          setVehiclePtSnapshotUnknown(vehicle);
+          return true;
+        }
 
         const blacklistedWirelessSerials = await getGpsDeviceBlacklistSerials().catch(() => new Map());
         const getRecordSerial = typeof gpsHistoryManager.getRecordSerial === 'function'
@@ -3282,6 +3305,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           changed = true;
         }
 
+        if (vehicle.ptSnapshotResolved !== true) {
+          setVehiclePtSnapshotState(vehicle, true);
+          changed = true;
+        }
+
         if (changed) {
           vehiclePtSnapshotHydratedAt.set(vehicleKey, Date.now());
           if (rerenderOnChange) {
@@ -3384,7 +3412,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         if (!vin && !vehicleId) return false;
 
         const { records, error } = await gpsHistoryManager.fetchGpsHistory({ vin, vehicleId });
-        if (error || !Array.isArray(records) || !records.length) return false;
+        if (error || !Array.isArray(records) || !records.length) {
+          setVehiclePtSnapshotUnknown(vehicle);
+          return true;
+        }
 
         const blacklistedWirelessSerials = await getGpsDeviceBlacklistSerials().catch(() => new Map());
         const winnerSerial = typeof gpsHistoryManager.resolveVehicleWinnerSerialFromRecords === 'function'
@@ -3491,6 +3522,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           if (persistChanges) {
             void persistVehiclePtPersistencePatch(vehicle, patch);
           }
+          changed = true;
+        }
+
+        if (vehicle.ptSnapshotResolved !== true) {
+          setVehiclePtSnapshotState(vehicle, true);
           changed = true;
         }
 
@@ -7449,7 +7485,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         const normalizedVehicles = data.map((row, idx) =>
           normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords })
         );
-        normalizedVehicles.forEach((vehicle) => applyManualVehicleMetadataOverride(vehicle));
+        normalizedVehicles.forEach((vehicle) => {
+          setVehiclePtSnapshotState(vehicle, false);
+          applyManualVehicleMetadataOverride(vehicle);
+        });
 
         let dealsByStockNo = new Map();
         if (supabaseClient) {
@@ -9322,7 +9361,18 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       return Number.isFinite(timeMs) ? timeMs : Number.NEGATIVE_INFINITY;
     }
 
+    function getVehicleOpenBalanceValue(vehicle) {
+      const raw = vehicle?.openBalance
+        ?? vehicle?.details?.['Open Balance']
+        ?? vehicle?.details?.open_balance
+        ?? '';
+      const normalized = `${raw}`.replace(/[$,\s]/g, '');
+      const value = Number.parseFloat(normalized);
+      return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+    }
+
     function sortVehiclesByRotationCriterion(list, criterionKey, direction = 'desc') {
+      if (!criterionKey || criterionKey === 'auto') return list;
       const multiplier = direction === 'asc' ? 1 : -1;
       const decorated = [...list].map((vehicle, index) => ({ vehicle, index }));
       decorated.sort((left, right) => {
@@ -9333,6 +9383,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           comparison = getDaysParkedValue(left.vehicle) - getDaysParkedValue(right.vehicle);
         } else if (criterionKey === 'pt_last_read') {
           comparison = getVehiclePtLastReadTimestampValue(left.vehicle) - getVehiclePtLastReadTimestampValue(right.vehicle);
+        } else if (criterionKey === 'open_balance') {
+          comparison = getVehicleOpenBalanceValue(left.vehicle) - getVehicleOpenBalanceValue(right.vehicle);
         }
         if (comparison !== 0) return comparison * multiplier;
         return left.index - right.index;
@@ -9344,16 +9396,28 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       const index = Number(vehicleFilters.sortRotationIndex);
       if (!Number.isInteger(index) || index < 0 || index >= VEHICLE_SORT_ROTATION_OPTIONS.length) return null;
       const option = VEHICLE_SORT_ROTATION_OPTIONS[index];
-      if (!option) return null;
+      if (!option || option.key === 'auto') return null;
       const direction = vehicleFilters.sortDirection === 'asc' || vehicleFilters.sortDirection === 'desc'
         ? vehicleFilters.sortDirection
         : 'desc';
       return { ...option, direction };
     }
 
+    function getVehicleSortSelectedOption() {
+      const index = Number(vehicleFilters.sortRotationIndex);
+      if (!Number.isInteger(index) || index < 0 || index >= VEHICLE_SORT_ROTATION_OPTIONS.length) {
+        return { key: 'auto', label: 'Auto' };
+      }
+      return VEHICLE_SORT_ROTATION_OPTIONS[index] || { key: 'auto', label: 'Auto' };
+    }
+
     function updateVehicleSortRotationUi() {
       const label = document.getElementById('vehicle-sort-rotation-label');
+      const criterionButton = document.getElementById('vehicle-sort-criterion');
+      const directionButton = document.getElementById('vehicle-sort-direction');
+      const selectedOption = getVehicleSortSelectedOption();
       const meta = getVehicleSortRotationMeta();
+      const direction = vehicleFilters.sortDirection === 'asc' ? 'asc' : 'desc';
       if (label) {
         label.textContent = meta
           ? `Sort: ${meta.label} ${meta.direction === 'asc' ? '↑' : '↓'}`
@@ -9362,27 +9426,41 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           ? `Card sort: ${meta.label} ${meta.direction === 'asc' ? 'ascending' : 'descending'}`
           : 'Card sort: automatic';
       }
+      if (criterionButton) {
+        criterionButton.textContent = selectedOption.label;
+        criterionButton.title = `Sort field: ${selectedOption.label}. Click to change.`;
+        criterionButton.setAttribute('aria-label', `Sort field ${selectedOption.label}. Click to change.`);
+      }
+      if (directionButton) {
+        directionButton.textContent = direction === 'asc' ? '↑' : '↓';
+        directionButton.title = `Sort direction: ${direction === 'asc' ? 'ascending' : 'descending'}. Click to toggle.`;
+        directionButton.setAttribute('aria-label', `Sort direction ${direction === 'asc' ? 'ascending' : 'descending'}. Click to toggle.`);
+        directionButton.disabled = selectedOption.key === 'auto';
+      }
     }
 
-    function rotateVehicleSort(direction = 'desc') {
-      const requestedDirection = direction === 'asc' ? 'asc' : 'desc';
-      const currentMeta = getVehicleSortRotationMeta();
-      const currentIndex = currentMeta ? VEHICLE_SORT_ROTATION_OPTIONS.findIndex((option) => option.key === currentMeta.key) : -1;
-      const currentStage = Number.isInteger(Number(vehicleFilters.sortCycleStage)) ? Number(vehicleFilters.sortCycleStage) : 0;
-
-      if (!currentMeta || currentIndex < 0) {
-        vehicleFilters.sortRotationIndex = 0;
-        vehicleFilters.sortDirection = requestedDirection;
-        vehicleFilters.sortCycleStage = 1;
-      } else if (currentStage < 2) {
-        vehicleFilters.sortDirection = requestedDirection === 'asc' ? 'asc' : 'desc';
-        vehicleFilters.sortCycleStage = requestedDirection === currentMeta.direction ? 1 : 2;
-      } else {
-        vehicleFilters.sortRotationIndex = (currentIndex + 1) % VEHICLE_SORT_ROTATION_OPTIONS.length;
-        vehicleFilters.sortDirection = requestedDirection;
-        vehicleFilters.sortCycleStage = 1;
+    function advanceVehicleSortCriterion() {
+      const currentIndex = VEHICLE_SORT_ROTATION_OPTIONS.findIndex((option) => (
+        option.key === getVehicleSortSelectedOption().key
+      ));
+      const nextIndex = currentIndex < 0
+        ? 0
+        : (currentIndex + 1 >= VEHICLE_SORT_ROTATION_OPTIONS.length ? -1 : currentIndex + 1);
+      vehicleFilters.sortRotationIndex = nextIndex < 0 ? null : nextIndex;
+      if (nextIndex >= 0 && vehicleFilters.sortDirection !== 'asc' && vehicleFilters.sortDirection !== 'desc') {
+        vehicleFilters.sortDirection = 'desc';
       }
+      vehicleFilters.sortCycleStage = 0;
 
+      updateVehicleSortRotationUi();
+      renderVehicles();
+      persistVehicleFilterPrefs();
+    }
+
+    function toggleVehicleSortDirection() {
+      if (getVehicleSortSelectedOption().key === 'auto') return;
+      vehicleFilters.sortDirection = vehicleFilters.sortDirection === 'asc' ? 'desc' : 'asc';
+      vehicleFilters.sortCycleStage = 0;
       updateVehicleSortRotationUi();
       renderVehicles();
       persistVehicleFilterPrefs();
@@ -9728,14 +9806,14 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         applyVehicleFiltersCollapsedState(!vehicleFiltersCollapsed);
       });
 
-      document.getElementById('vehicle-sort-rotate-desc')?.addEventListener('click', (event) => {
+      document.getElementById('vehicle-sort-criterion')?.addEventListener('click', (event) => {
         event.preventDefault();
-        rotateVehicleSort('desc');
+        advanceVehicleSortCriterion();
       });
 
-      document.getElementById('vehicle-sort-rotate-asc')?.addEventListener('click', (event) => {
+      document.getElementById('vehicle-sort-direction')?.addEventListener('click', (event) => {
         event.preventDefault();
-        rotateVehicleSort('asc');
+        toggleVehicleSortDirection();
       });
 
       bindVehicleFilterDropdowns();
