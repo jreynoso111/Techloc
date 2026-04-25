@@ -2818,6 +2818,17 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       return Number.isFinite(latestBucket?.parkedDays) ? latestBucket.parkedDays : null;
     };
 
+    const inferLatestMovementSnapshotFromRecords = (records = [], { vehicle = null } = {}) => {
+      if (!Array.isArray(records) || !records.length) return { status: '', parkedDays: null };
+      const dailyBuckets = buildDailyMovementBucketsFromRecords(records, { vehicle });
+      const latestBucket = dailyBuckets[dailyBuckets.length - 1] || null;
+      const status = `${latestBucket?.status || ''}`.trim().toLowerCase();
+      return {
+        status: status === 'moving' || status === 'stopped' ? status : '',
+        parkedDays: Number.isFinite(latestBucket?.parkedDays) ? latestBucket.parkedDays : null
+      };
+    };
+
     const inferAverageMovingMilesPerDayFromRecords = (records = [], { vehicle = null } = {}) => {
       if (!Array.isArray(records) || !records.length) return null;
 
@@ -3705,7 +3716,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       const latestOverallRecord = [...records]
         .sort((a, b) => parseGpsTrailTimestamp(b) - parseGpsTrailTimestamp(a))[0] || null;
       const explicitLatestStationaryDays = parseGpsRecordDaysParked(latestMovementRecord || {});
-      const inferredStationaryDays = inferStationaryDaysFromRecords(resolvedStationarySourceRecords, { vehicle });
+      const inferredMovementSnapshot = inferLatestMovementSnapshotFromRecords(resolvedStationarySourceRecords, { vehicle });
+      const inferredStationaryDays = inferredMovementSnapshot.parkedDays;
       const latestMovementRecordTimeMs = parseGpsTrailTimeMs(latestMovementRecord || {});
       const latestOverallRecordTimeMs = parseGpsTrailTimeMs(latestOverallRecord || {});
       const latestMovementRecordSerial = normalizeGpsSerial(getRecordSerial(latestMovementRecord || {}));
@@ -3718,7 +3730,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         || (Number.isFinite(inferredStationaryDays) && inferredStationaryDays > 0)
       );
       let stationaryDays = null;
-      if (latestRecordLooksParked) {
+      if (inferredMovementSnapshot.status === 'moving') {
+        stationaryDays = 0;
+      } else if (inferredMovementSnapshot.status === 'stopped' && Number.isFinite(inferredStationaryDays)) {
+        stationaryDays = inferredStationaryDays;
+      } else if (latestRecordLooksParked) {
         stationaryDays = Math.max(
           Number.isFinite(explicitLatestStationaryDays) ? explicitLatestStationaryDays : Number.NEGATIVE_INFINITY,
           Number.isFinite(inferredStationaryDays) ? inferredStationaryDays : Number.NEGATIVE_INFINITY
@@ -3752,6 +3768,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const currentMovingOverride = `${vehicle?.historyMovingOverride || ''}`.trim().toLowerCase();
       let normalizedOverride = `${movingHistoryOverride || ''}`.trim().toLowerCase();
+      if (inferredMovementSnapshot.status === 'moving' || inferredMovementSnapshot.status === 'stopped') {
+        normalizedOverride = inferredMovementSnapshot.status;
+      }
       if (isLatestReadStale && !canCarryForwardSilentParking) {
         normalizedOverride = 'unknown';
       }
@@ -9096,6 +9115,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return 0;
       }
 
+      const historyDays = parseDaysParkedCandidate(
+        vehicle?.historyDaysStationaryOverride
+        ?? vehicle?.details?.historyDaysStationaryOverride
+      );
+      if (Number.isFinite(historyDays)) return historyDays;
+
       const raw = vehicle?.daysStationary
         ?? vehicle?.details?.days_stationary
         ?? vehicle?.details?.['Days Stationary']
@@ -9107,14 +9132,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         vehicle?.movementDaysStationaryV2
         ?? vehicle?.details?.movement_days_stationary_v2
       );
-      const historyDays = parseDaysParkedCandidate(
-        vehicle?.historyDaysStationaryOverride
-        ?? vehicle?.details?.historyDaysStationaryOverride
-      );
       const bestDays = Math.max(
         Number.isFinite(parsedDays) ? parsedDays : Number.NEGATIVE_INFINITY,
-        Number.isFinite(movementDaysV2) ? movementDaysV2 : Number.NEGATIVE_INFINITY,
-        Number.isFinite(historyDays) ? historyDays : Number.NEGATIVE_INFINITY
+        Number.isFinite(movementDaysV2) ? movementDaysV2 : Number.NEGATIVE_INFINITY
       );
       if (!Number.isFinite(bestDays)) return Number.NEGATIVE_INFINITY;
 
