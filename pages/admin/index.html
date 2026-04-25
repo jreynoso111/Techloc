@@ -289,7 +289,7 @@
       persistBackgroundMode,
     } from '../../assets/scripts/backgroundPreference.js';
     import { createGpsHistoryManager } from '../../assets/scripts/gpsHistory.js';
-    import { DEFAULT_APP_SETTINGS, getVehicleMovementThresholdMeters } from '../../assets/scripts/appSettings.js';
+    import { DEFAULT_APP_SETTINGS, getAppSettings, getVehicleMovementThresholdMeters } from '../../assets/scripts/appSettings.js';
     import { supabase as supabaseClient } from '../../assets/js/supabaseClient.js?v=20260413-01';
     import { emitDataSyncSignal } from '../../assets/scripts/dataSyncSignal.js';
 
@@ -558,7 +558,7 @@
 
     const PT_SYNC_STALE_WINDOW_MS = Math.max(
       0,
-      Number(DEFAULT_APP_SETTINGS?.vehicleMarkerStalePingDays) || 0
+      Number(getAppSettings()?.vehicleMarkerStalePingDays ?? DEFAULT_APP_SETTINGS?.vehicleMarkerStalePingDays) || 0
     ) * 24 * 60 * 60 * 1000;
 
     const parseBlacklistEffectiveFromTimestamp = (value) => {
@@ -676,7 +676,7 @@
 
     const derivePtSyncMovementSnapshot = (vehicleRow = {}, records = []) => {
       const unitType = `${vehicleRow?.['Unit Type'] ?? vehicleRow?.unit_type ?? vehicleRow?.type ?? ''}`.trim();
-      const thresholdMeters = getVehicleMovementThresholdMeters(DEFAULT_APP_SETTINGS, unitType);
+      const thresholdMeters = getVehicleMovementThresholdMeters(getAppSettings(), unitType);
       const normalized = (records || [])
         .map((record) => {
           const timestamp = parsePtComparableTimestamp(record?.Date);
@@ -751,6 +751,16 @@
       }
       if (latestDayState.isMoving) {
         return { status: 'moving', daysStationary: 0, thresholdMeters, unitType };
+      }
+
+      const legacyDaysStationary = toNumber(latestEntry?.record?.days_stationary);
+      if (Number.isFinite(legacyDaysStationary)) {
+        return {
+          status: 'stopped',
+          daysStationary: Math.max(0, Math.floor(legacyDaysStationary)),
+          thresholdMeters,
+          unitType
+        };
       }
 
       let consecutiveStoppedDays = 0;
@@ -881,7 +891,7 @@
         entries.sort((left, right) => left.timestamp - right.timestamp || Number(left.id) - Number(right.id));
         const [vin] = groupKey.split('__');
         const unitType = vehicleUnitTypeMap.get(vin) || '';
-        const thresholdMeters = getVehicleMovementThresholdMeters(DEFAULT_APP_SETTINGS, unitType);
+        const thresholdMeters = getVehicleMovementThresholdMeters(getAppSettings(), unitType);
 
         let previousEntry = null;
         entries.forEach((entry) => {
@@ -1043,7 +1053,7 @@
         entries.sort((left, right) => left.timestamp - right.timestamp);
         const [vin] = groupKey.split('__');
         const unitType = vehicleUnitTypeMap.get(vin) || '';
-        const thresholdMeters = getVehicleMovementThresholdMeters(DEFAULT_APP_SETTINGS, unitType);
+        const thresholdMeters = getVehicleMovementThresholdMeters(getAppSettings(), unitType);
 
         let previousEntry = null;
         entries.forEach((entry) => {

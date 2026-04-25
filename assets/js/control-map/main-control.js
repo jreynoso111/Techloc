@@ -33,7 +33,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       parsePtLastReadDate,
       parseDealCompletion,
       toStateCode
-    } from '../utils/formatters.js?v=movement-v2-20250403-11';
+    } from '../utils/formatters.js?v=movement-v2-20260425-legacy-days-01';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js?v=movement-v2-20250403-11';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';
@@ -9083,12 +9083,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         return Number.NEGATIVE_INFINITY;
       }
 
-      const movementDaysV2 = parseDaysParkedCandidate(
-        vehicle?.movementDaysStationaryV2
-        ?? vehicle?.details?.movement_days_stationary_v2
-      );
-      if (Number.isFinite(movementDaysV2)) return movementDaysV2;
-
       const raw = vehicle?.daysStationary
         ?? vehicle?.details?.days_stationary
         ?? vehicle?.details?.['Days Stationary']
@@ -9096,6 +9090,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         ?? vehicle?.details?.['Days Parked'];
       const parsedDays = parseDaysParkedCandidate(raw);
       if (Number.isFinite(parsedDays)) return parsedDays;
+
+      const movementDaysV2 = parseDaysParkedCandidate(
+        vehicle?.movementDaysStationaryV2
+        ?? vehicle?.details?.movement_days_stationary_v2
+      );
+      if (Number.isFinite(movementDaysV2)) return movementDaysV2;
 
       const historyDays = parseDaysParkedCandidate(
         vehicle?.historyDaysStationaryOverride
