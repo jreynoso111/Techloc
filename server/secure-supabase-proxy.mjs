@@ -1589,7 +1589,7 @@ const handleAdminApi = async (req, res, pathname) => {
 
     const accessToken = getBearerToken(req);
     if (rows.length) {
-      const response = await supabaseUserRequest('/rest/v1/PT-LastPing?on_conflict=Serial,Date', accessToken, {
+      const response = await supabaseUserRequest('/rest/v1/PT-LastPing?on_conflict=Serial,read_day,day_half', accessToken, {
         method: 'POST',
         headers: {
           Prefer: 'resolution=ignore-duplicates,return=minimal',
