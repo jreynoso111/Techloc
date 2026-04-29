@@ -1482,6 +1482,23 @@ const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
   );
   if (!normalizedSuffixes.length) return [];
 
+  const fetchByVinSuffix = async () => {
+    const suffixRows = [];
+    for (const suffixChunk of chunkArray(normalizedSuffixes, 25)) {
+      const params = new URLSearchParams();
+      params.set('select', 'VIN');
+      params.set('or', `(${suffixChunk.map((suffix) => `VIN.ilike.*${suffix}`).join(',')})`);
+      const response = await supabaseRequest(`/rest/v1/${encodeURIComponent(tableName)}?${params.toString()}`);
+      if (!response.ok) {
+        const parsed = await parseSupabaseError(response);
+        throw new Error(parsed.message || `Could not query ${tableName} VIN suffixes.`);
+      }
+      const payload = await response.json();
+      if (Array.isArray(payload)) suffixRows.push(...payload);
+    }
+    return suffixRows;
+  };
+
   const filterColumn = tableName === 'vehicles' ? 'shortvin' : 'vin6';
   const rows = [];
   for (const suffixChunk of chunkArray(normalizedSuffixes, 100)) {
@@ -1491,6 +1508,10 @@ const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
     const response = await supabaseRequest(`/rest/v1/${encodeURIComponent(tableName)}?${params.toString()}`);
     if (!response.ok) {
       const parsed = await parseSupabaseError(response);
+      const message = String(parsed.message || '').toLowerCase();
+      if (parsed.code === '42703' || message.includes(`'${filterColumn.toLowerCase()}'`) || message.includes(filterColumn.toLowerCase())) {
+        return fetchByVinSuffix();
+      }
       throw new Error(parsed.message || `Could not query ${tableName} VINs by ${filterColumn}.`);
     }
     const payload = await response.json();
@@ -1510,7 +1531,7 @@ const buildPtReferencePayload = async ({ vinSuffixes }) => {
 
   const vinMap = {};
   if (normalizedSuffixes.length) {
-    const tables = ['vehicles', 'DealsJP1'];
+    const tables = ['DealsJP1'];
     for (const tableName of tables) {
       const rows = await fetchPtReferenceVinRows({ tableName, vinSuffixes: normalizedSuffixes });
       for (const row of rows) {
