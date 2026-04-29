@@ -320,6 +320,7 @@
       'Long',
     ];
     const PT_PING_ENABLE_RPC_FINALIZATION = true;
+    const PT_PING_UPLOAD_BATCH_SIZE = 5000;
     const PT_PING_HEADER_MAP = (() => {
       const map = new Map();
       PT_PING_COLUMNS.forEach((col) => {
@@ -2848,7 +2849,7 @@
         const batchesBefore = Number(options?.batchesBefore || 0);
         const totalRows = Number(options?.totalRows || rowsToUpload.length);
         const payloadRows = rowsToUpload.map(buildSlimPtPayload);
-        const initialBatchSize = Math.min(100, payloadRows.length);
+        const initialBatchSize = Math.min(PT_PING_UPLOAD_BATCH_SIZE, payloadRows.length);
         const pending = [];
         for (let index = 0; index < payloadRows.length; index += initialBatchSize) {
           pending.push(payloadRows.slice(index, index + initialBatchSize));
@@ -2908,14 +2909,7 @@
         const uniqueVins = Array.from(
           new Set((rowsForFinalize || []).map((row) => normalizeUpperTrimmedValue(row?.VIN)).filter(Boolean))
         );
-        if (uniqueVins.length <= 1) {
-          return uniqueVins.length ? [uniqueVins] : [];
-        }
-        const midpoint = Math.ceil(uniqueVins.length / 2);
-        return [
-          uniqueVins.slice(0, midpoint),
-          uniqueVins.slice(midpoint),
-        ].filter((batch) => batch.length);
+        return uniqueVins.length ? [uniqueVins] : [];
       };
       try {
         let vehicleSyncResult = {

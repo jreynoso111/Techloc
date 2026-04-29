@@ -1477,29 +1477,24 @@ const resolveUserEmailForReset = async ({ userId }) => {
 };
 
 const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
-  const rows = [];
-  const suffixSet = new Set((vinSuffixes || []).map((suffix) => String(suffix || '').trim().toUpperCase()).filter(Boolean));
-  if (!suffixSet.size) return rows;
+  const normalizedSuffixes = Array.from(
+    new Set((vinSuffixes || []).map((suffix) => String(suffix || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-6)).filter(Boolean))
+  );
+  if (!normalizedSuffixes.length) return [];
 
-  const pageSize = 1000;
-  for (let offset = 0; ; offset += pageSize) {
+  const filterColumn = tableName === 'vehicles' ? 'shortvin' : 'vin6';
+  const rows = [];
+  for (const suffixChunk of chunkArray(normalizedSuffixes, 100)) {
     const params = new URLSearchParams();
     params.set('select', 'VIN');
-    params.set('limit', String(pageSize));
-    params.set('offset', String(offset));
+    params.set(filterColumn, `in.(${suffixChunk.join(',')})`);
     const response = await supabaseRequest(`/rest/v1/${encodeURIComponent(tableName)}?${params.toString()}`);
     if (!response.ok) {
       const parsed = await parseSupabaseError(response);
-      throw new Error(parsed.message || `Could not query ${tableName} VINs.`);
+      throw new Error(parsed.message || `Could not query ${tableName} VINs by ${filterColumn}.`);
     }
     const payload = await response.json();
-    const pageRows = Array.isArray(payload) ? payload : [];
-    pageRows.forEach((row) => {
-      const vin = String(row?.VIN || '').trim().toUpperCase();
-      const suffix = vin.replace(/[^A-Z0-9]/g, '').slice(-6);
-      if (suffix && suffixSet.has(suffix)) rows.push(row);
-    });
-    if (pageRows.length < pageSize) break;
+    if (Array.isArray(payload)) rows.push(...payload);
   }
   return rows;
 };
