@@ -159,18 +159,6 @@
           </div>
         </section>
 
-        <section class="space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Data room</p>
-              <h3 class="text-xl font-bold text-white">Live data tables</h3>
-              <p class="text-sm text-slate-400">Updated statistics for every connected dataset.</p>
-            </div>
-            <div class="text-sm font-semibold text-slate-300">Real-time database statistics</div>
-          </div>
-          <div id="datasets" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></div>
-        </section>
-
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
 
             <section class="flex flex-col space-y-4 rounded-3xl border border-slate-900 bg-slate-900/70 p-6 shadow-inner shadow-slate-900/60">
@@ -185,11 +173,16 @@
 
               <div class="mt-auto space-y-4">
                 <form id="deals-upload-form" class="grid gap-3">
-                    <div class="space-y-2">
+                  <div class="space-y-2">
                     <label for="deals-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
                     <input id="deals-file" name="deals-file" type="file" accept=".csv" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-emerald-500 focus:outline-none" />
-                    </div>
-                    <button id="deals-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
+                  </div>
+                  <div id="deals-drop-zone" class="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/70 px-4 py-5 text-center transition hover:border-emerald-400 hover:bg-emerald-500/10">
+                    <i data-lucide="file-up" class="h-7 w-7 text-emerald-200"></i>
+                    <p class="mt-2 text-sm font-semibold text-slate-100">Drop Deals CSV here</p>
+                    <p id="deals-drop-label" class="mt-1 max-w-full truncate text-xs text-slate-400">No file selected</p>
+                  </div>
+                  <button id="deals-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
                     <span>Upload</span>
                     </button>
@@ -223,6 +216,11 @@
                     <label for="pt-ping-file" class="text-xs font-semibold uppercase tracking-wide text-slate-400">CSV file</label>
                     <input id="pt-ping-file" name="pt-ping-file" type="file" accept=".csv,.xlsx" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 file:mr-3 file:rounded-md file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-semibold file:uppercase file:tracking-wide file:text-white hover:border-indigo-500 focus:outline-none" />
                   </div>
+                  <div id="pt-ping-drop-zone" class="flex min-h-28 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-950/70 px-4 py-5 text-center transition hover:border-indigo-400 hover:bg-indigo-500/10">
+                    <i data-lucide="file-up" class="h-7 w-7 text-indigo-200"></i>
+                    <p class="mt-2 text-sm font-semibold text-slate-100">Drop CSV or XLSX here</p>
+                    <p id="pt-ping-drop-label" class="mt-1 max-w-full truncate text-xs text-slate-400">No file selected</p>
+                  </div>
                   <button id="pt-ping-upload-button" type="button" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                     <i data-lucide="upload-cloud" class="h-4 w-4"></i>
                     <span>Upload</span>
@@ -254,34 +252,6 @@
     </div>
   </main>
 
-  <template id="dataset-card-template">
-    <div class="flex h-full flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-inner shadow-slate-900/70 hover:border-slate-700 transition-colors">
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-blue-200" data-dataset-scope></p>
-          <p class="text-lg font-bold text-white" data-dataset-title></p>
-          <p class="text-xs text-slate-400" data-dataset-description></p>
-        </div>
-        <span class="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-300" data-dataset-status>Table</span>
-      </div>
-      <div class="grid grid-cols-2 gap-3 text-sm text-slate-200">
-        <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-          <p class="text-lg font-black" data-dataset-rows>--</p>
-          <p class="text-[11px] uppercase tracking-wide text-slate-500">Live Rows</p>
-        </div>
-        <div class="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-          <p class="text-lg font-black text-emerald-200" data-dataset-columns>--</p>
-          <p class="text-[11px] uppercase tracking-wide text-slate-500">Columns</p>
-        </div>
-      </div>
-      <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
-        <p class="font-semibold text-white">Database Signal</p>
-        <p class="mt-1 text-[11px] text-slate-400 hidden" data-dataset-meta></p>
-        <p class="mt-1 leading-relaxed" data-dataset-signal>Fetching live stats...</p>
-      </div>
-    </div>
-  </template>
-   
   <script type="module">
     import { setupBackgroundManager } from '../../assets/scripts/backgroundManager.js';
     import {
@@ -319,8 +289,8 @@
       'Lat',
       'Long',
     ];
-    const PT_PING_ENABLE_RPC_FINALIZATION = true;
-    const PT_PING_UPLOAD_BATCH_SIZE = 5000;
+    const PT_PING_ENABLE_RPC_FINALIZATION = false;
+    const PT_PING_UPLOAD_BATCH_SIZE = 100;
     const PT_PING_HEADER_MAP = (() => {
       const map = new Map();
       PT_PING_COLUMNS.forEach((col) => {
@@ -354,37 +324,6 @@
       'Sales Channel',
       'Deal Status',
       'Vehicle Status',
-    ];
-
-    const DATASETS = [
-      {
-        table: 'Services',
-        scope: 'Partners',
-        title: 'Service Providers',
-        description: 'Unified services directory filtered by category values.',
-        displayName: 'Services'
-      },
-      {
-        table: 'vehicles',
-        scope: 'Fleet',
-        title: 'Vehicles',
-        description: 'Live vehicle and asset records.',
-        displayName: 'Vehicles'
-      },
-      {
-        table: DEALS_TABLE,
-        scope: 'Sales',
-        title: 'Active Deals',
-        description: 'Imported deals data (VIN + Stock No).',
-        displayName: 'Deals'
-      },
-      {
-        table: 'PT-LastPing',
-        scope: 'Telematics',
-        title: 'Import Last Ping',
-        description: 'Latest PassTime ping uploads (Serial required).',
-        displayName: 'PT Last Ping'
-      }
     ];
 
     const ADMIN_ROLE = 'administrator';
@@ -1652,112 +1591,6 @@
     const shortSupabaseError = (error) =>
       [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ') || 'Unknown error';
 
-    const DATASET_STATS_CACHE_PREFIX = 'techloc:dataset-stats:v1:';
-    const DATASET_STATS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-    const getDatasetStatsCacheKey = (tableName) => `${DATASET_STATS_CACHE_PREFIX}${String(tableName || '').trim().toLowerCase()}`;
-    const readCachedDatasetStats = (tableName) => {
-      try {
-        const raw = localStorage.getItem(getDatasetStatsCacheKey(tableName));
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        const cachedAt = Number(parsed?.cachedAt || 0);
-        if (!cachedAt || (Date.now() - cachedAt) > DATASET_STATS_CACHE_TTL_MS) return null;
-        return parsed?.stats || null;
-      } catch (_error) {
-        return null;
-      }
-    };
-    const writeCachedDatasetStats = (tableName, stats) => {
-      try {
-        localStorage.setItem(getDatasetStatsCacheKey(tableName), JSON.stringify({
-          cachedAt: Date.now(),
-          stats,
-        }));
-      } catch (_error) {
-        // Non-blocking.
-      }
-    };
-
-    const formatDatasetTimestamp = (value) => {
-      if (!value) return null;
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return null;
-      return date.toLocaleString('en-US', {
-        month: '2-digit',
-        day: '2-digit',
-        year: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      }).replace(',', '');
-    };
-
-    const getTableStats = async (dataset) => {
-      if (!supabaseClient) {
-        return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: 'Client unavailable' };
-      }
-      try {
-        const { count, error: countError } = await supabaseClient
-          .from(dataset.table)
-          .select('*', { count: 'exact', head: true });
-        if (countError) {
-          const cachedStats = readCachedDatasetStats(dataset.table);
-          if (isRateLimitedError(countError) && cachedStats) {
-            return {
-              ...cachedStats,
-              stale: true,
-              message: 'Showing cached data while API rate limit is active.',
-            };
-          }
-          return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: countError.message || 'Restricted' };
-        }
-        const { data, error: dataError } = await supabaseClient
-          .from(dataset.table)
-          .select('*')
-          .limit(1);
-        if (dataError) {
-          const cachedStats = readCachedDatasetStats(dataset.table);
-          if (isRateLimitedError(dataError) && cachedStats) {
-            return {
-              ...cachedStats,
-              stale: true,
-              message: 'Showing cached data while API rate limit is active.',
-            };
-          }
-          return { rows: count || 0, columns: 0, lastUpdated: null, restricted: true, message: dataError.message || 'Restricted' };
-        }
-        let columnCount = 0;
-        let lastUpdated = null;
-        if (data && data.length > 0) {
-          columnCount = Object.keys(data[0]).length;
-          lastUpdated = data[0].created_at || data[0].updated_at || null;
-        }
-        if (dataset.table === 'PT-LastPing') {
-          const { data: ptLatestData, error: ptLatestError } = await supabaseClient
-            .from('PT-LastPing')
-            .select('Date')
-            .order('Date', { ascending: false })
-            .limit(1);
-          if (!ptLatestError) {
-            lastUpdated = ptLatestData?.[0]?.Date || lastUpdated;
-          }
-        }
-        const liveStats = { rows: count || 0, columns: columnCount, lastUpdated, restricted: false };
-        writeCachedDatasetStats(dataset.table, liveStats);
-        return liveStats;
-      } catch (err) {
-        const cachedStats = readCachedDatasetStats(dataset.table);
-        if (cachedStats) {
-          return {
-            ...cachedStats,
-            stale: true,
-            message: 'Showing cached data while live stats are unavailable.',
-          };
-        }
-        return { rows: 0, columns: 0, lastUpdated: null, restricted: true, message: err.message };
-      }
-    };
-
     const renderActivityLog = (activities) => {
       const container = document.getElementById('activity-log');
       if (!container) return;
@@ -1780,92 +1613,13 @@
       });
     };
 
-    const createDatasetCard = (dataset) => {
-      const template = document.getElementById('dataset-card-template');
-      const clone = template.content.firstElementChild.cloneNode(true);
-      const els = {
-        scope: clone.querySelector('[data-dataset-scope]'),
-        title: clone.querySelector('[data-dataset-title]'),
-        description: clone.querySelector('[data-dataset-description]'),
-        status: clone.querySelector('[data-dataset-status]'),
-        rows: clone.querySelector('[data-dataset-rows]'),
-        columns: clone.querySelector('[data-dataset-columns]'),
-        meta: clone.querySelector('[data-dataset-meta]'),
-        signal: clone.querySelector('[data-dataset-signal]'),
-      };
-      els.scope.textContent = dataset.scope;
-      els.title.textContent = dataset.title;
-      els.description.textContent = dataset.description;
-      return { card: clone, els };
-    };
-
-    const updateDatasetCardStats = (els, stats) => {
-      const rowCount = Number.isFinite(Number(stats?.rows)) ? Number(stats.rows) : null;
-      const columnCount = Number.isFinite(Number(stats?.columns)) ? Number(stats.columns) : null;
-      els.rows.textContent = rowCount === null ? '--' : rowCount.toLocaleString();
-      els.columns.textContent = columnCount === null ? '--' : String(columnCount);
-      const latestLabel = stats?.lastUpdated ? formatDatasetTimestamp(stats.lastUpdated) : null;
-      if (els.meta) {
-        if (stats?.tableName === 'PT-LastPing' && latestLabel) {
-          els.meta.textContent = `Latest PT ping: ${latestLabel}`;
-          els.meta.classList.remove('hidden');
-        } else {
-          els.meta.textContent = '';
-          els.meta.classList.add('hidden');
-        }
-      }
-      if (stats.stale) {
-        els.status.textContent = 'Cached';
-        els.status.className = 'rounded-full border border-blue-600 bg-blue-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-blue-200';
-        els.signal.textContent = stats.message || 'Showing cached data until the backend is available again.';
-      } else if (stats.restricted) {
-        els.status.textContent = 'Restricted';
-        els.status.className = 'rounded-full border border-amber-600 bg-amber-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-200';
-        els.signal.textContent = stats.message ? `Access limited: ${stats.message}` : 'Access limited by security policy.';
-      } else if (stats.rows > 0) {
-        els.status.textContent = 'Active';
-        els.status.className = 'rounded-full border border-emerald-600 bg-emerald-600/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-emerald-200';
-        els.signal.textContent = `Connected to live table. ${stats.columns} fields mapped.`;
-      } else {
-        els.status.textContent = 'Empty';
-        els.signal.textContent = 'Table exists but contains no records.';
-      }
-    };
-
-    const datasetCardRegistry = [];
-
     const refreshDashboardStats = async () => {
-      if (!datasetCardRegistry.length) return;
-      const statsResults = await Promise.all(
-        datasetCardRegistry.map(async ({ dataset, els }) => {
-          try {
-            const stats = await getTableStats(dataset);
-            const enrichedStats = { ...stats, tableName: dataset.table };
-            updateDatasetCardStats(els, enrichedStats);
-            return { stats: enrichedStats, dataset };
-          } catch (err) {
-            const stats = {
-              rows: 0,
-              columns: 0,
-              lastUpdated: null,
-              restricted: true,
-              message: err.message,
-              tableName: dataset.table,
-            };
-            updateDatasetCardStats(els, stats);
-            return { stats, dataset };
-          }
-        }),
-      );
-
-      const totalRows = statsResults.reduce((sum, { stats }) => sum + (Number(stats.rows) || 0), 0);
-      const activities = statsResults
-        .filter(({ stats }) => (Number(stats.rows) || 0) > 0 && !stats.restricted)
-        .map(({ stats, dataset }) => ({ ...stats, table: dataset.displayName }));
-
-      document.getElementById('dataset-count').textContent = DATASETS.length;
-      document.getElementById('records-count').textContent = totalRows.toLocaleString();
-      renderActivityLog(activities);
+      document.getElementById('dataset-count').textContent = '2';
+      document.getElementById('records-count').textContent = 'Ready';
+      renderActivityLog([
+        { table: 'Deals upload', rows: 'CSV' },
+        { table: 'PT Last Ping upload', rows: 'CSV/XLSX' },
+      ]);
       lucide.createIcons();
     };
 
@@ -2081,19 +1835,29 @@
       const form = document.getElementById('deals-upload-form');
       const fileInput = document.getElementById('deals-file');
       const submitBtn = document.getElementById('deals-upload-button');
+      const dropZone = document.getElementById('deals-drop-zone');
+      const dropLabel = document.getElementById('deals-drop-label');
       if (!form || !fileInput || !submitBtn) return;
       const requireDealsUploadAccess = async () => requireSignedInUploadAccess([submitBtn]);
       const syncAccess = () => requireDealsUploadAccess().catch((error) => console.warn('Unable to verify deals upload access', error));
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
-      
-      submitBtn.addEventListener('click', async (event) => {
-        event.preventDefault(); 
+
+      const setSelectedDealsFile = (file) => {
+        if (!file) return;
+        if (typeof DataTransfer !== 'undefined') {
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          fileInput.files = transfer.files;
+        }
+        if (dropLabel) dropLabel.textContent = file.name;
+      };
+
+      const handleDealsFileUpload = async (file) => {
         if (!(await requireDealsUploadAccess())) {
           showToast('You must be signed in to upload deals data.', 'error');
           return;
         }
-        const file = fileInput.files?.[0];
         if (!file) {
           showToast('Please select a CSV file to upload.', 'error');
           return;
@@ -2126,6 +1890,38 @@
             lucide.createIcons();
           },
         });
+      };
+
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0];
+        if (file && dropLabel) dropLabel.textContent = file.name;
+      });
+
+      submitBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await handleDealsFileUpload(fileInput.files?.[0]);
+      });
+
+      dropZone?.addEventListener('click', () => fileInput.click());
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        dropZone?.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropZone.classList.add('border-emerald-400', 'bg-emerald-500/10');
+        });
+      });
+      ['dragleave', 'drop'].forEach((eventName) => {
+        dropZone?.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropZone.classList.remove('border-emerald-400', 'bg-emerald-500/10');
+        });
+      });
+      dropZone?.addEventListener('drop', async (event) => {
+        const file = event.dataTransfer?.files?.[0];
+        if (!file) return;
+        setSelectedDealsFile(file);
+        await handleDealsFileUpload(file);
       });
     };
 
@@ -2134,6 +1930,8 @@
       const fileInput = document.getElementById('pt-ping-file');
       const submitBtn = document.getElementById('pt-ping-upload-button');
       const resyncBtn = document.getElementById('pt-ping-resync-button');
+      const dropZone = document.getElementById('pt-ping-drop-zone');
+      const dropLabel = document.getElementById('pt-ping-drop-label');
       const status = document.getElementById('pt-ping-status');
       const progressWrap = document.getElementById('pt-ping-progress');
       const progressBar = document.getElementById('pt-ping-progress-bar');
@@ -2158,15 +1956,24 @@
       syncAccess();
       window.addEventListener('auth:role-updated', syncAccess);
 
-      submitBtn.addEventListener('click', async (event) => {
-        event.preventDefault();
+      const setSelectedPtFile = (file) => {
+        if (!file) return;
+        if (typeof DataTransfer !== 'undefined') {
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          fileInput.files = transfer.files;
+        }
+        if (dropLabel) dropLabel.textContent = file.name;
+        setStatus(`Selected ${file.name}`);
+      };
+
+      const handlePtPingFileUpload = async (file) => {
         if (!(await requirePtUploadAccess())) {
           showToast('You must be signed in to upload PT ping data.', 'error');
           return;
         }
         const hasSession = await ensurePtSession();
         if (!hasSession) return;
-        const file = fileInput.files?.[0];
         if (!file) {
           showToast('Please select a CSV or XLSX file to upload.', 'error');
           return;
@@ -2197,6 +2004,38 @@
           submitBtn.innerHTML = '<i data-lucide="upload-cloud" class="h-4 w-4"></i><span>Upload</span>';
           lucide.createIcons();
         }
+      };
+
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0];
+        if (file && dropLabel) dropLabel.textContent = file.name;
+      });
+
+      submitBtn.addEventListener('click', async (event) => {
+        event.preventDefault();
+        await handlePtPingFileUpload(fileInput.files?.[0]);
+      });
+
+      dropZone?.addEventListener('click', () => fileInput.click());
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        dropZone?.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropZone.classList.add('border-indigo-400', 'bg-indigo-500/10');
+        });
+      });
+      ['dragleave', 'drop'].forEach((eventName) => {
+        dropZone?.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dropZone.classList.remove('border-indigo-400', 'bg-indigo-500/10');
+        });
+      });
+      dropZone?.addEventListener('drop', async (event) => {
+        const file = event.dataTransfer?.files?.[0];
+        if (!file) return;
+        setSelectedPtFile(file);
+        await handlePtPingFileUpload(file);
       });
 
       resyncBtn?.addEventListener('click', async (event) => {
@@ -2263,14 +2102,6 @@
     };
 
     const mount = async () => {
-      const container = document.getElementById('datasets');
-      datasetCardRegistry.length = 0;
-      const datasetCards = DATASETS.map((dataset) => {
-        const { card, els } = createDatasetCard(dataset);
-        container.appendChild(card);
-        return { dataset, els };
-      });
-      datasetCardRegistry.push(...datasetCards);
       await refreshDashboardStats();
     };
 
@@ -2412,20 +2243,32 @@
       if (sessionError) throw sessionError;
       const accessToken = sessionData?.session?.access_token || '';
       if (!accessToken) throw new Error('Active session is required.');
+      const body = JSON.stringify(payload || {});
 
-      const response = await fetch(path, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload || {}),
-      });
+      let response;
+      try {
+        response = await fetch(path, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body,
+        });
+      } catch (fetchError) {
+        const error = new Error(fetchError?.message || 'Failed to fetch.');
+        error.details = {
+          path,
+          payloadBytes: new Blob([body]).size,
+          message: 'Network request failed before the server returned a response.',
+        };
+        throw error;
+      }
       const result = await response.json().catch(() => null);
       if (!response.ok) {
         const message = result?.error?.message || result?.message || `Request failed (${response.status})`;
         const error = new Error(message);
-        error.details = result?.error || result || null;
+        error.details = result?.error || result || { status: response.status, path };
         throw error;
       }
       return result?.data ?? result ?? null;
@@ -2822,7 +2665,7 @@
         return normalizedLeftTime - normalizedRightTime;
       });
 
-      const isPtUploadTimeoutError = (error) => {
+      const isPtUploadRetryableBatchError = (error) => {
         const text = String(
           error?.message
           || error?.details?.message
@@ -2837,6 +2680,10 @@
           || text.includes('408')
           || text.includes('function invocation')
           || text.includes('deadline exceeded')
+          || text.includes('failed to fetch')
+          || text.includes('load failed')
+          || text.includes('network request failed')
+          || text.includes('request body is too large')
         );
       };
 
@@ -2886,9 +2733,9 @@
               `Uploaded ${totalUploaded} of ${totalRows} rows`
             );
           } catch (error) {
-            if (isPtUploadTimeoutError(error) && currentBatch.length > 25) {
+            if (isPtUploadRetryableBatchError(error) && currentBatch.length > 25) {
               const retrySize = Math.max(25, Math.floor(currentBatch.length / 2));
-              setStatus(`Batch timeout at ${currentBatch.length} rows. Retrying with chunks of ${retrySize}...`);
+              setStatus(`Batch failed at ${currentBatch.length} rows. Retrying with chunks of ${retrySize}...`);
               const retryChunks = chunkArray(currentBatch, retrySize);
               pending.unshift(...retryChunks);
               continue;
@@ -2967,8 +2814,8 @@
               updated: 0,
               skipped: 0,
               updatedRows: 0,
-              mode: 'rpc_required',
-              warning: 'RPC finalization is required for PT uploads.'
+              mode: 'upload_only_finalization_deferred',
+              warning: 'PT finalization is deferred because the database RPC is timing out.'
             };
           }
         } catch (error) {

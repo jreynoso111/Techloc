@@ -71,6 +71,7 @@ const DIRECT_PG_ENABLED = !IS_VERCEL_RUNTIME && Boolean(SUPABASE_DB_HOST && SUPA
 const LOCAL_PROXY_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
 const PYTHON_BRIDGE_PATH = path.join(ROOT_DIR, 'scripts', 'supabase_pg_bridge.py');
 const PYTHON_BIN = String(process.env.PYTHON_BIN || (fs.existsSync('/usr/bin/python3') ? '/usr/bin/python3' : 'python3')).trim();
+const DEBUG_PT_UPLOAD = String(process.env.DEBUG_PT_UPLOAD || '').trim() === '1';
 
 const REPAIR_HISTORY_TABLE = 'repair_history';
 const ALLOWED_ROLES_RAW = String(process.env.REPAIR_HISTORY_ALLOWED_ROLES || '').trim();
@@ -360,7 +361,7 @@ const PROFILE_PUBLIC_COLUMNS = makeSet([
   'status',
   'background_mode',
   'created_at',
-  'updated_at',
+  'last_connection',
 ]);
 
 const VEHICLE_WRITE_COLUMNS = makeSet([
@@ -979,17 +980,21 @@ const sanitizeRepairPayload = (input) => {
 const parseJsonBody = async (req) =>
   new Promise((resolve, reject) => {
     let total = 0;
+    let tooLarge = false;
     const chunks = [];
     req.on('data', (chunk) => {
       total += chunk.length;
       if (total > MAX_BODY_BYTES) {
-        reject(new Error('Request body is too large.'));
-        req.destroy();
+        tooLarge = true;
         return;
       }
       chunks.push(chunk);
     });
     req.on('end', () => {
+      if (tooLarge) {
+        reject(new Error('Request body is too large.'));
+        return;
+      }
       if (!chunks.length) {
         resolve({});
         return;
@@ -1006,17 +1011,23 @@ const parseJsonBody = async (req) =>
 const readRawBody = async (req) =>
   new Promise((resolve, reject) => {
     let total = 0;
+    let tooLarge = false;
     const chunks = [];
     req.on('data', (chunk) => {
       total += chunk.length;
       if (total > MAX_BODY_BYTES) {
-        reject(new Error('Request body is too large.'));
-        req.destroy();
+        tooLarge = true;
         return;
       }
       chunks.push(chunk);
     });
-    req.on('end', () => resolve(chunks.length ? Buffer.concat(chunks) : null));
+    req.on('end', () => {
+      if (tooLarge) {
+        reject(new Error('Request body is too large.'));
+        return;
+      }
+      resolve(chunks.length ? Buffer.concat(chunks) : null);
+    });
     req.on('error', reject);
   });
 
@@ -1088,6 +1099,11 @@ const chunkArray = (items = [], chunkSize = 100) => {
     chunks.push(items.slice(index, index + safeChunkSize));
   }
   return chunks;
+};
+
+const logPtUploadDebug = (...args) => {
+  if (!DEBUG_PT_UPLOAD) return;
+  console.log('[pt-upload]', ...args);
 };
 
 const normalizePostgrestBulkRows = (rows = []) => {
@@ -1484,7 +1500,7 @@ const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
 
   const fetchByVinSuffix = async () => {
     const suffixRows = [];
-    for (const suffixChunk of chunkArray(normalizedSuffixes, 25)) {
+    for (const suffixChunk of chunkArray(normalizedSuffixes, 50)) {
       const params = new URLSearchParams();
       params.set('select', 'VIN');
       params.set('or', `(${suffixChunk.map((suffix) => `VIN.ilike.*${suffix}`).join(',')})`);
@@ -1501,7 +1517,7 @@ const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
 
   const filterColumn = tableName === 'vehicles' ? 'shortvin' : 'vin6';
   const rows = [];
-  for (const suffixChunk of chunkArray(normalizedSuffixes, 100)) {
+  for (const suffixChunk of chunkArray(normalizedSuffixes, 1000)) {
     const params = new URLSearchParams();
     params.set('select', 'VIN');
     params.set(filterColumn, `in.(${suffixChunk.join(',')})`);
@@ -1595,6 +1611,7 @@ const handleAdminApi = async (req, res, pathname) => {
   }
 
   if (pathname === '/api/admin/pt-lastping/upload') {
+    const requestStartedAt = Date.now();
     const rows = normalizePostgrestBulkRows(body?.rows);
     const vins = Array.isArray(body?.vins) ? body.vins : [];
     const shouldFinalize = body?.finalize === true;
@@ -1605,6 +1622,7 @@ const handleAdminApi = async (req, res, pathname) => {
 
     const accessToken = getBearerToken(req);
     if (rows.length) {
+      logPtUploadDebug('insert:start', { rows: rows.length });
       const response = await supabaseUserRequest('/rest/v1/PT-LastPing?on_conflict=Serial,read_day,day_half', accessToken, {
         method: 'POST',
         headers: {
@@ -1612,6 +1630,7 @@ const handleAdminApi = async (req, res, pathname) => {
         },
         body: rows,
       });
+      logPtUploadDebug('insert:end', { rows: rows.length, status: response.status, ms: Date.now() - requestStartedAt });
 
       if (!response.ok) {
         const parsed = await parseSupabaseError(response);
@@ -1623,6 +1642,7 @@ const handleAdminApi = async (req, res, pathname) => {
     let finalizePayload = null;
     const normalizedVins = Array.from(new Set(vins.map((vin) => String(vin || '').trim().toUpperCase()).filter(Boolean)));
     if (shouldFinalize && normalizedVins.length) {
+      logPtUploadDebug('finalize:start', { vins: normalizedVins.length, minIdExclusive: body?.minIdExclusive || null });
       const minIdExclusive = Number(body?.minIdExclusive);
       const finalizeBody = {
         p_vins: normalizedVins,
@@ -1634,6 +1654,7 @@ const handleAdminApi = async (req, res, pathname) => {
         method: 'POST',
         body: finalizeBody,
       });
+      logPtUploadDebug('finalize:end', { vins: normalizedVins.length, status: finalizeResponse.status, ms: Date.now() - requestStartedAt });
       if (!finalizeResponse.ok) {
         const parsed = await parseSupabaseError(finalizeResponse);
         json(res, finalizeResponse.status, { error: parsed });
@@ -1711,6 +1732,35 @@ const handleAdminApi = async (req, res, pathname) => {
         syncedVehicles: Number(syncPayload || 0),
       },
     });
+    return;
+  }
+
+  if (pathname === '/api/admin/password-update') {
+    const targetUserId = String(body?.userId || '').trim();
+    const newPassword = String(body?.password || '');
+    if (!targetUserId) {
+      json(res, 400, { error: { message: 'Target userId is required.' } });
+      return;
+    }
+    if (newPassword.length < 8) {
+      json(res, 400, { error: { message: 'Password must be at least 8 characters.' } });
+      return;
+    }
+
+    const response = await supabaseRequest(`/auth/v1/admin/users/${encodeURIComponent(targetUserId)}`, {
+      method: 'PUT',
+      body: {
+        password: newPassword,
+      },
+    });
+
+    if (!response.ok) {
+      const parsed = await parseSupabaseError(response);
+      json(res, response.status, { error: parsed });
+      return;
+    }
+
+    json(res, 200, { data: { ok: true, userId: targetUserId } });
     return;
   }
 
