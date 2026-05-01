@@ -238,6 +238,7 @@ const normalizeProfile = (profile, fallbackEmail = '', fallbackUserId = '') => {
     name: profile?.name || null,
     role,
     status,
+    map_category: profile?.map_category || 'general',
     background_mode: profile?.background_mode || null,
   };
 };
@@ -252,12 +253,14 @@ const buildAppUser = (authUser = {}, profile = null) => {
       ...(authUser?.app_metadata || {}),
       role: normalizedProfile.role,
       status: normalizedProfile.status,
+      map_category: normalizedProfile.map_category,
       insforge_auth_id: authUser?.id || null,
     },
     user_metadata: {
       ...(authUser?.user_metadata || {}),
       role: normalizedProfile.role,
       status: normalizedProfile.status,
+      map_category: normalizedProfile.map_category,
       name: normalizedProfile.name,
     },
     profile: {
@@ -267,6 +270,7 @@ const buildAppUser = (authUser = {}, profile = null) => {
       name: normalizedProfile.name,
       role: normalizedProfile.role,
       status: normalizedProfile.status,
+      map_category: normalizedProfile.map_category,
       background_mode: normalizedProfile.background_mode,
     },
   };

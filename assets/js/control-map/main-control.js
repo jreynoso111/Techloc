@@ -67,7 +67,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     let serviceFetchPromise = null;
     let vehicles = [];
     let vehicleHeaders = [];
-    let vehicleMarkersVisible = true;
+    let vehicleMarkersVisible = false;
     let hotspotsVisible = false;
     let blacklistMarkersVisible = false;
     let routeLinesVisible = true;
@@ -100,6 +100,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
+    let vehicleMarkersToggle = null;
+    let vehicleMarkersVisibilityUserOverridden = false;
+    let mapCategoryVisibilityUserOverridden = false;
     const vehiclePtRecalcPendingKeys = new Set();
     const vehicleMarkerHeadingPendingRequests = new Map();
     const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 8;
@@ -2237,6 +2240,43 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const getServiceHeaders = (category) => serviceHeadersByCategory[category] || [];
 
     const isAdminUser = () => `${window.currentUserRole || ''}`.toLowerCase() === 'administrator';
+
+    const MAP_CATEGORY_DEFAULTS = Object.freeze({
+      general: { vehicleMarkers: false, tech: false, reseller: false, repair: false, vehiclesPanel: false },
+      technician: { vehicleMarkers: false, tech: true, reseller: false, repair: false, vehiclesPanel: false },
+      sales: { vehicleMarkers: false, tech: false, reseller: true, repair: false, vehiclesPanel: false },
+      repair: { vehicleMarkers: false, tech: false, reseller: false, repair: true, vehiclesPanel: false },
+      fleet: { vehicleMarkers: true, tech: false, reseller: false, repair: false, vehiclesPanel: true },
+      admin: { vehicleMarkers: true, tech: false, reseller: false, repair: false, vehiclesPanel: false },
+    });
+
+    const getCurrentMapCategory = () => {
+      const explicitCategory = `${window.currentUserMapCategory || document.body?.dataset?.userMapCategory || ''}`.trim().toLowerCase();
+      if (explicitCategory && explicitCategory !== 'general') return explicitCategory;
+      return isAdminUser() ? 'admin' : 'general';
+    };
+
+    const applyRoleBasedVehicleMarkerDefault = () => {
+      if (vehicleMarkersVisibilityUserOverridden) return;
+      const categoryDefaults = MAP_CATEGORY_DEFAULTS[getCurrentMapCategory()] || MAP_CATEGORY_DEFAULTS.general;
+      const shouldShowVehicleMarkers = categoryDefaults.vehicleMarkers === true;
+      if (vehicleMarkersToggle) {
+        vehicleMarkersToggle.setVisible(shouldShowVehicleMarkers);
+        return;
+      }
+      vehicleMarkersVisible = shouldShowVehicleMarkers;
+    };
+
+    const applyMapCategoryDefaults = () => {
+      if (mapCategoryVisibilityUserOverridden) return;
+      const categoryDefaults = MAP_CATEGORY_DEFAULTS[getCurrentMapCategory()] || MAP_CATEGORY_DEFAULTS.general;
+      applyRoleBasedVehicleMarkerDefault();
+      if (!sidebarStateController) return;
+      sidebarStateController.setState('left', categoryDefaults.tech === true);
+      sidebarStateController.setState('reseller', categoryDefaults.reseller === true);
+      sidebarStateController.setState('repair', categoryDefaults.repair === true);
+      sidebarStateController.setState('right', categoryDefaults.vehiclesPanel === true);
+    };
 
     const normalizeVehicleHeader = (value = '') => `${value}`.trim().toLowerCase().replace(/[_\s]+/g, ' ');
 
@@ -7350,7 +7390,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             iconAnchor: [width / 2, height / 2]
           });
         }
-      }).addTo(map);
+      });
+      if (vehicleMarkersVisible) vehicleLayer.addTo(map);
       targetLayer = L.layerGroup().addTo(map);
       connectionLayer = L.layerGroup().addTo(map);
       serviceLayer = L.layerGroup().addTo(map);
@@ -7532,12 +7573,15 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         hotspotFastCoordinatePairs = [];
         hotspotFastCoordinatePairLookupPromise = null;
         vehiclePtSnapshotHydratedAt.clear();
-        await hydrateVehicleClickHistory(vehicles);
         vehicleHeaders = data.length ? ensureRequiredVehicleHeaders(Object.keys(data[0])) : [...REQUIRED_VEHICLE_HEADERS];
         updateVehicleFilterOptions();
         syncVehicleFilterInputs();
-        await hydrateInitialVisibleVehicleSnapshots();
         renderVehicles();
+        void hydrateVehicleClickHistory(vehicles)
+          .then(() => renderVehicles({ preserveScrollTop: true, syncMarkers: false }))
+          .catch((error) => console.warn('Vehicle click history hydrate warning: ' + (error?.message || error)));
+        void hydrateInitialVisibleVehicleSnapshots()
+          .catch((error) => console.warn('Vehicle snapshot hydrate warning: ' + (error?.message || error)));
         scheduleVehicleBackgroundPrefetch(getVehicleList(''));
         // PT read bounds now come from vehicles table columns.
         syncVehicleSelectionFromStore(getSelectedVehicle(), { shouldFocus: true });
@@ -8654,7 +8698,11 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         }
       });
 
-      createLayerToggle({
+      document.getElementById('toggle-vehicle-markers')?.addEventListener('click', () => {
+        vehicleMarkersVisibilityUserOverridden = true;
+      }, { capture: true });
+
+      vehicleMarkersToggle = createLayerToggle({
         toggleId: 'toggle-vehicle-markers',
         labelOn: 'Hide Vehicles Marks',
         labelOff: 'Show Vehicles Marks',
@@ -11402,6 +11450,22 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       const collapseReseller = document.getElementById('collapse-reseller');
       const collapseRepair = document.getElementById('collapse-repair');
       const collapseCustom = document.getElementById('collapse-dynamic');
+      [
+        openLeft,
+        openRight,
+        openReseller,
+        openRepair,
+        openCustom,
+        collapseLeft,
+        collapseRight,
+        collapseReseller,
+        collapseRepair,
+        collapseCustom,
+      ].forEach((button) => {
+        button?.addEventListener('click', () => {
+          mapCategoryVisibilityUserOverridden = true;
+        }, { capture: true });
+      });
 
       const defaultLeftOffset = 12;
       const defaultRightOffset = 12;
@@ -11592,7 +11656,9 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           initMap();
           await syncAvailableServiceTypes();
           updateServiceVisibilityUI();
-          await hydrateMapSettingsFromSupabase();
+          hydrateMapSettingsFromSupabase()
+            .then(() => updateServiceVisibilityUI())
+            .catch((error) => console.warn('Map settings hydrate warning: ' + (error?.message || error)));
           await clearStoredVehicleFilterPrefs();
           const initialVehicleLoad = loadVehicles().catch((error) => {
             console.warn('Initial vehicle load warning: ' + (error?.message || error));
@@ -11632,6 +11698,8 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
           setupResizableSidebars();
           setupSidebarToggles();
           setupLayerToggles();
+          applyMapCategoryDefaults();
+          renderVehicles();
           setupLegendGlobalSearch();
           setupLegendResetView();
           bindVehicleFilterHandlers();
@@ -11757,7 +11825,10 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
           startSupabaseKeepAlive({ supabaseClient, table: TABLES.vehicles });
 
-          window.addEventListener('auth:role-ready', () => renderVehicles());
+          window.addEventListener('auth:role-ready', () => {
+            applyMapCategoryDefaults();
+            renderVehicles();
+          });
         } finally {
           document.dispatchEvent(new CustomEvent('control-map:boot-complete'));
         }

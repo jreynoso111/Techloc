@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TechLoc • Admin Login</title>
+  <title>TechLoc • Login</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -34,7 +34,7 @@
             <span class="text-sm font-black uppercase tracking-[0.2em] text-white">TL</span>
           </div>
           <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc Admin</p>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-blue-200">TechLoc</p>
             <h1 class="text-xl font-black text-white">Secure Login</h1>
           </div>
         </div>
@@ -43,13 +43,13 @@
 
       <div class="space-y-2">
         <h2 class="text-2xl font-bold text-white">Access your dashboard</h2>
-        <p class="text-sm text-slate-300">Use your administrator credentials to authenticate. After signing in you'll open the Control Map with secure access to admin tools.</p>
+        <p class="text-sm text-slate-300">Use your TechLoc account to authenticate. After signing in you'll open the Control Map; admin tools stay limited to administrator accounts.</p>
       </div>
 
       <form id="login-form" class="space-y-4">
         <div class="space-y-2">
           <label for="email" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Email</label>
-          <input id="email" name="email" type="email" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="admin@techloc.com" />
+          <input id="email" name="email" type="email" required class="w-full rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-blue-500 focus:outline-none" placeholder="you@techloc.com" />
         </div>
         <div class="space-y-2">
           <label for="password" class="block text-xs font-semibold uppercase tracking-wide text-slate-400">Password</label>
@@ -66,7 +66,7 @@
       </div>
 
       <div id="status" class="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300 transition-colors">
-        Use your administrator credentials.
+        Use your TechLoc account credentials.
       </div>
     </div>
   </main>
@@ -125,15 +125,9 @@
       return { role, status };
     };
     const resolveAccessMessage = (user) => {
-      const { role, status } = getUserAccess(user);
+      const { status } = getUserAccess(user);
       if (['suspended', 'inactive', 'disabled', 'blocked'].includes(status)) {
         return 'This account exists, but it is inactive or suspended. Contact an administrator.';
-      }
-      if (role && role !== 'administrator') {
-        return 'This account is valid, but it does not have administrator access to this dashboard.';
-      }
-      if (!role) {
-        return 'This account signed in, but its access profile is incomplete. Contact an administrator.';
       }
       return '';
     };

@@ -67,6 +67,7 @@ PROFILE_PUBLIC_COLUMNS = make_set([
     "name",
     "role",
     "status",
+    "map_category",
     "background_mode",
     "created_at",
     "updated_at",
@@ -285,7 +286,7 @@ TABLE_ACCESS_POLICIES = {
     "profiles": {
         "methods": {"GET": ROLE_ADMINISTRATOR, "HEAD": ROLE_ADMINISTRATOR, "PATCH": ROLE_ADMINISTRATOR},
         "readable_columns": PROFILE_PUBLIC_COLUMNS,
-        "writable_columns": make_set(["email", "name", "role", "status", "background_mode"]),
+        "writable_columns": make_set(["email", "name", "role", "status", "map_category", "background_mode"]),
     },
     "admin_change_log": {
         "methods": {"GET": ROLE_ADMINISTRATOR, "HEAD": ROLE_ADMINISTRATOR, "POST": ROLE_ADMINISTRATOR},
@@ -632,6 +633,7 @@ def handle_verify_user_password(payload):
           p.role,
           p.status,
           p.name,
+          p.map_category,
           p.background_mode
         from auth.users u
         left join public.profiles p on p.id = u.id
@@ -658,6 +660,7 @@ def handle_get_user_bundle(payload):
           p.role,
           p.status,
           p.name,
+          p.map_category,
           p.background_mode
         from auth.users u
         left join public.profiles p on p.id = u.id

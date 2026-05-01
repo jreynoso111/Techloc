@@ -80,6 +80,7 @@
                       <th class="px-4 py-3">Full Name</th>
                       <th class="px-4 py-3">Email</th>
                       <th class="px-4 py-3">Role</th>
+                      <th class="px-4 py-3">Map Category</th>
                       <th class="px-4 py-3">Status</th>
                       <th class="px-4 py-3">Last Connection</th>
                       <th class="px-4 py-3 text-right">Actions</th>
@@ -129,6 +130,18 @@
                   <select id="profile-status" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
                     <option value="active">Active</option>
                     <option value="suspended">Suspended</option>
+                  </select>
+                </div>
+
+                <div class="space-y-1">
+                  <label class="text-xs font-semibold uppercase text-slate-400">Map Category</label>
+                  <select id="profile-map-category" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <option value="general">General</option>
+                    <option value="technician">GPS Technician</option>
+                    <option value="sales">Sales / Reseller</option>
+                    <option value="repair">Repair Network</option>
+                    <option value="fleet">Fleet Viewer</option>
+                    <option value="admin">Admin Operations</option>
                   </select>
                 </div>
                 
@@ -202,6 +215,25 @@
       moderator: 'key-round',
       user: 'user'
     };
+    const mapCategoryLabels = {
+      general: 'General',
+      technician: 'GPS Technician',
+      sales: 'Sales / Reseller',
+      repair: 'Repair Network',
+      fleet: 'Fleet Viewer',
+      admin: 'Admin Operations',
+    };
+    let profilesMapCategoryAvailable = true;
+    const stringifyError = (error) => [
+      error?.code,
+      error?.message,
+      error?.hint,
+      error?.details ? JSON.stringify(error.details) : '',
+    ].filter(Boolean).join(' ').toLowerCase();
+    const isMissingMapCategoryError = (error) => {
+      const text = stringifyError(error);
+      return text.includes('map_category') || text.includes('map category');
+    };
     const actionHandlers = {
       edit: (id) => window.editProfile(id),
       reset: (id) => window.resetProfilePassword(id),
@@ -261,7 +293,7 @@
       body.innerHTML = '';
 
       if (!profiles.length) {
-        body.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">No profiles found.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">No profiles found.</td></tr>`;
         renderStats();
         lucide.createIcons();
         return;
@@ -274,6 +306,7 @@
         const safeStatus = (profile.status || 'active').toLowerCase();
         const styleClass = statusStyles[safeStatus] || statusStyles['active'];
         const safeRole = (profile.role || 'user').toLowerCase();
+        const safeMapCategory = (profile.mapCategory || 'general').toLowerCase();
 
         const nameCell = document.createElement('td');
         nameCell.className = 'px-4 py-3 font-semibold text-white capitalize';
@@ -294,6 +327,13 @@
         roleText.textContent = safeRole;
         roleBadge.append(roleIcon, roleText);
         roleCell.appendChild(roleBadge);
+
+        const categoryCell = document.createElement('td');
+        categoryCell.className = 'px-4 py-3';
+        const categoryBadge = document.createElement('span');
+        categoryBadge.className = 'inline-flex items-center rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-100';
+        categoryBadge.textContent = mapCategoryLabels[safeMapCategory] || mapCategoryLabels.general;
+        categoryCell.appendChild(categoryBadge);
 
         const statusCell = document.createElement('td');
         statusCell.className = 'px-4 py-3';
@@ -324,7 +364,7 @@
           makeActionButton('promote', 'Promote', 'rounded-lg border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-emerald-500 hover:text-white'),
         );
 
-        row.append(nameCell, emailCell, roleCell, statusCell, lastConnectionCell, actionsCell);
+        row.append(nameCell, emailCell, roleCell, categoryCell, statusCell, lastConnectionCell, actionsCell);
         body.appendChild(row);
       });
 
@@ -378,6 +418,9 @@
       const statusSelect = document.getElementById('profile-status');
       // Default a active si viene nulo
       statusSelect.value = (profile.status || 'active').toLowerCase();
+
+      const mapCategorySelect = document.getElementById('profile-map-category');
+      mapCategorySelect.value = (profile.mapCategory || 'general').toLowerCase();
       
       document.getElementById('btn-text').textContent = 'Update profile';
       const btnSave = document.getElementById('btn-save');
@@ -436,6 +479,7 @@
       const email = document.getElementById('profile-email').value.trim();
       const role = document.getElementById('profile-role').value;
       const status = document.getElementById('profile-status').value;
+      const mapCategory = document.getElementById('profile-map-category').value;
 
       if (!email) return;
       if (!id) {
@@ -443,15 +487,29 @@
         return;
       }
 
-      const { error } = await supabase
+      const updatePayload = {
+        name: name,
+        email,
+        role,
+        status,
+      };
+      if (profilesMapCategoryAvailable) {
+        updatePayload.map_category = mapCategory;
+      }
+
+      let { error } = await supabase
         .from('profiles')
-        .update({
-          name: name,
-          email,
-          role,
-          status
-        })
+        .update(updatePayload)
         .eq('id', id);
+
+      if (error && isMissingMapCategoryError(error)) {
+        profilesMapCategoryAvailable = false;
+        const fallbackResult = await supabase
+          .from('profiles')
+          .update({ name, email, role, status })
+          .eq('id', id);
+        error = fallbackResult.error;
+      }
 
       if (error) {
         console.error('Error updating', error);
@@ -461,13 +519,25 @@
 
       const index = profiles.findIndex(p => p.id === id);
       if (index !== -1) {
-        profiles[index] = { ...profiles[index], name, email, role, status };
+        profiles[index] = {
+          ...profiles[index],
+          name,
+          email,
+          role,
+          status,
+          mapCategory: profilesMapCategoryAvailable ? mapCategory : profiles[index].mapCategory,
+        };
       }
       await recordAudit({
         action: 'edit',
         summary: `Updated profile for ${email}`,
         recordId: id,
-        newValue: JSON.stringify({ role, status, name }),
+        newValue: JSON.stringify({
+          role,
+          status,
+          mapCategory: profilesMapCategoryAvailable ? mapCategory : undefined,
+          name,
+        }),
       });
 
       resetForm();
@@ -604,6 +674,7 @@
         role: record.role || 'user', 
         // Default a 'active' si nulo
         status: record.status || 'active',
+        mapCategory: record.map_category || 'general',
         lastConnection:
           record.last_connection ||
           record.last_sign_in_at ||
@@ -616,18 +687,28 @@
 
     async function fetchProfiles() {
       const body = document.getElementById('profiles-body');
-      body.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-slate-400">Loading profiles...</td></tr>`;
+      body.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-slate-400">Loading profiles...</td></tr>`;
 
       if (!supabase) return;
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('profiles')
-        .select('id,email,name,role,status,background_mode,created_at,last_connection')
+        .select('id,email,name,role,status,map_category,background_mode,created_at,last_connection')
         .order('created_at', { ascending: false });
+
+      if (error && isMissingMapCategoryError(error)) {
+        const fallbackResult = await supabase
+          .from('profiles')
+          .select('id,email,name,role,status,background_mode,created_at,last_connection')
+          .order('created_at', { ascending: false });
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+        if (!error) profilesMapCategoryAvailable = false;
+      }
 
       if (error) {
         console.error('Error', error);
-        body.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-rose-200">Error loading data.</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7" class="px-4 py-6 text-center text-sm text-rose-200">Error loading data.</td></tr>`;
         return;
       }
       profiles = (data || []).map(normalizeProfile);

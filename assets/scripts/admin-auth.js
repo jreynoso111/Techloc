@@ -44,7 +44,7 @@ const sessionListeners = new Set();
 const broadcastRoleStatus = (role, status) =>
   window.dispatchEvent(
     new CustomEvent('auth:role-updated', {
-      detail: { role: role ?? null, status: status ?? null },
+      detail: { role: role ?? null, status: status ?? null, mapCategory: window.currentUserMapCategory ?? null },
     }),
   );
 
@@ -125,9 +125,13 @@ const resolveFallbackAccess = (session) => {
   const profileStatus = session?.user?.profile?.status || null;
   const userStatus = session?.user?.user_metadata?.status || null;
   const appStatus = session?.user?.app_metadata?.status || null;
+  const profileMapCategory = session?.user?.profile?.map_category || null;
+  const userMapCategory = session?.user?.user_metadata?.map_category || null;
+  const appMapCategory = session?.user?.app_metadata?.map_category || null;
 
   const roleHint = profileRole || userRole || appRole || null;
   const statusHint = profileStatus || userStatus || appStatus || null;
+  const mapCategoryHint = profileMapCategory || userMapCategory || appMapCategory || null;
 
   const roleSource = cachedUserRole
     ? 'verified-cache'
@@ -147,6 +151,7 @@ const resolveFallbackAccess = (session) => {
   return {
     role,
     status,
+    map_category: normalizeRoleValue(mapCategoryHint || cachedUserProfile?.map_category || 'general', 'general'),
     source: roleSource === 'default' ? statusSource : roleSource,
     confident: false,
   };
@@ -204,10 +209,10 @@ const getUserAccess = async (
       data = result?.data?.profile || null;
       error = result?.error || null;
     } else {
-      const result = await withTimeout(
+      let result = await withTimeout(
         supabaseClient
           .from('profiles')
-          .select('role, status')
+          .select('role, status, map_category')
           .eq('id', userId)
           .maybeSingle(),
         timeoutMs,
@@ -215,6 +220,19 @@ const getUserAccess = async (
       );
       data = result?.data || null;
       error = result?.error || null;
+      if (error && String(error.message || '').toLowerCase().includes('map_category')) {
+        result = await withTimeout(
+          supabaseClient
+            .from('profiles')
+            .select('role, status')
+            .eq('id', userId)
+            .maybeSingle(),
+          timeoutMs,
+          'Profile access lookup',
+        );
+        data = result?.data || null;
+        error = result?.error || null;
+      }
     }
   } catch (error) {
     const isTimeout = String(error?.name || '') === 'TimeoutError';
@@ -314,12 +332,14 @@ const getUserAccess = async (
 
   const normalizedRole = normalizeRoleValue(data.role, 'user');
   const normalizedStatus = normalizeStatusValue(data.status, 'active');
+  const normalizedMapCategory = normalizeRoleValue(data.map_category, 'general');
   cachedUserRole = normalizedRole;
   cachedUserStatus = normalizedStatus;
   window.currentUserRole = normalizedRole;
   window.currentUserStatus = normalizedStatus;
+  window.currentUserMapCategory = normalizedMapCategory;
   broadcastRoleStatus(normalizedRole, normalizedStatus);
-  return { role: normalizedRole, status: normalizedStatus, source: 'db', confident: true };
+  return { role: normalizedRole, status: normalizedStatus, map_category: normalizedMapCategory, source: 'db', confident: true };
 };
 
 const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS } = {}) => {
@@ -365,7 +385,7 @@ const getUserProfile = async (session, { timeoutMs = PROFILE_LOOKUP_TIMEOUT_MS }
       error = result?.error || null;
     } else {
       const result = await withTimeout(
-        supabaseClient.from('profiles').select('name, email').eq('id', userId).maybeSingle(),
+        supabaseClient.from('profiles').select('name, email, map_category').eq('id', userId).maybeSingle(),
         timeoutMs,
         'Profile header lookup',
       );
@@ -478,7 +498,6 @@ const routeInfo = (() => {
 const routeRequiresAdministrator = () =>
   routeInfo.isProfilesPage ||
   routeInfo.isSettingsPage ||
-  routeInfo.isServicesPage ||
   routeInfo.isGpsBlacklistPage;
 
 const getCurrentSession = async () => {
@@ -522,6 +541,7 @@ const initializeAuthState = () => {
           cachedUserProfile = null;
           window.currentUserRole = null;
           window.currentUserStatus = null;
+          window.currentUserMapCategory = null;
           window.currentUserProfile = null;
           broadcastRoleStatus(null, null);
         }
@@ -754,7 +774,7 @@ const enforceAdminGuard = async () => {
     return session;
   }
 
-  if (routeInfo.isAdminRoute && !roleAllowsDashboard(role)) {
+  if (routeInfo.isAdminRoute && !routeInfo.isServicesPage && !roleAllowsDashboard(role)) {
     redirectToHome();
     return session;
   }
@@ -764,7 +784,7 @@ const enforceAdminGuard = async () => {
     return session;
   }
 
-  if (!confident && routeInfo.isAdminRoute) {
+  if (!confident && routeInfo.isAdminRoute && !routeInfo.isServicesPage) {
     redirectToHome();
     return session;
   }

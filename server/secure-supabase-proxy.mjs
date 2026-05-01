@@ -14,8 +14,8 @@ const ROOT_DIR = path.resolve(__dirname, '..');
 const DEFAULT_SUPABASE_URL = '';
 const DEFAULT_SUPABASE_PUBLISHABLE_KEY = '';
 
-const loadDotEnvFile = () => {
-  const envPath = path.join(ROOT_DIR, '.env');
+const loadDotEnvFile = (filename) => {
+  const envPath = path.join(ROOT_DIR, filename);
   if (!fs.existsSync(envPath)) return;
 
   const raw = fs.readFileSync(envPath, 'utf8');
@@ -39,7 +39,8 @@ const loadDotEnvFile = () => {
   });
 };
 
-loadDotEnvFile();
+loadDotEnvFile('.env');
+loadDotEnvFile('.env.prod');
 
 const PORT = Number.parseInt(process.env.PORT || '8080', 10);
 const SUPABASE_URL = String(process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL).trim().replace(/\/+$/, '');
@@ -52,7 +53,12 @@ const deriveProjectRefFromUrl = (url = '') => {
     return '';
   }
 };
-const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+const SUPABASE_SERVICE_ROLE_KEY = String(
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.SUPABASE_SERVICE_KEY
+  || process.env.SUPABASE_SECRET_KEY
+  || ''
+).trim();
 const SUPABASE_ANON_KEY = String(
   process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || DEFAULT_SUPABASE_PUBLISHABLE_KEY
 ).trim();
@@ -69,6 +75,17 @@ const SUPABASE_DB_SSLMODE = String(process.env.SUPABASE_DB_SSLMODE || 'require')
 const IS_VERCEL_RUNTIME = String(process.env.VERCEL || '').trim() === '1';
 const DIRECT_PG_ENABLED = !IS_VERCEL_RUNTIME && Boolean(SUPABASE_DB_HOST && SUPABASE_DB_USER && SUPABASE_DB_PASSWORD);
 const LOCAL_PROXY_PUBLISHABLE_KEY = 'local-techloc-proxy-key';
+const isPlaceholderSupabaseKey = (value = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return (
+    !normalized
+    || normalized === LOCAL_PROXY_PUBLISHABLE_KEY
+    || normalized.includes('your-anon-or-publishable-key')
+    || normalized.includes('replace-me')
+    || normalized.includes('changeme')
+  );
+};
+const HAS_SUPABASE_AUTH_HTTP = Boolean(SUPABASE_URL && !isPlaceholderSupabaseKey(SUPABASE_ANON_KEY));
 const PYTHON_BRIDGE_PATH = path.join(ROOT_DIR, 'scripts', 'supabase_pg_bridge.py');
 const PYTHON_BIN = String(process.env.PYTHON_BIN || (fs.existsSync('/usr/bin/python3') ? '/usr/bin/python3' : 'python3')).trim();
 const DEBUG_PT_UPLOAD = String(process.env.DEBUG_PT_UPLOAD || '').trim() === '1';
@@ -359,6 +376,7 @@ const PROFILE_PUBLIC_COLUMNS = makeSet([
   'name',
   'role',
   'status',
+  'map_category',
   'background_mode',
   'created_at',
   'last_connection',
@@ -622,7 +640,7 @@ const TABLE_ACCESS_POLICIES = new Map(Object.entries({
       PATCH: DATABASE_ROLES.ADMINISTRATOR,
     },
     readableColumns: PROFILE_PUBLIC_COLUMNS,
-    writableColumns: makeSet(['email', 'name', 'role', 'status', 'background_mode']),
+    writableColumns: makeSet(['email', 'name', 'role', 'status', 'map_category', 'background_mode']),
   },
   admin_change_log: {
     methods: {
@@ -718,6 +736,30 @@ const splitSelectColumns = (selectClause = '') => {
       : trimmed;
   });
 };
+
+const isMissingColumnPayload = (payload = null, columnName = '') => {
+  const needle = String(columnName || '').toLowerCase();
+  if (!needle) return false;
+  const haystack = [
+    payload?.code,
+    payload?.message,
+    payload?.hint,
+    payload?.details,
+    payload?.error,
+    payload?.error_description,
+    payload?.error?.message,
+    payload?.error?.details,
+  ].filter(Boolean).map((value) => (
+    typeof value === 'string' ? value : JSON.stringify(value)
+  )).join(' ').toLowerCase();
+  return haystack.includes(needle) || haystack.includes(needle.replace(/_/g, ' '));
+};
+
+const removeSelectColumn = (selectClause = '', columnName = '') =>
+  splitSelectColumns(selectClause)
+    .filter((column) => column !== columnName)
+    .map(formatSelectColumn)
+    .join(',');
 
 const formatSelectColumn = (column = '') =>
   /^[A-Za-z_][A-Za-z0-9_]*$/.test(column) ? column : `"${String(column).replace(/"/g, '""')}"`;
@@ -925,24 +967,32 @@ const handleDataVersionApi = async (req, res, pathname, searchParams) => {
 
 const CLIENT_RUNTIME_CONFIG_GLOBAL = '__TECHLOC_RUNTIME_CONFIG__';
 
-const buildClientRuntimeConfig = () => ({
-  supabaseUrl: APP_ORIGIN,
+const getRequestOrigin = (req) => {
+  const host = String(req?.headers?.host || '').trim();
+  if (!host) return APP_ORIGIN;
+  const forwardedProto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim();
+  const proto = forwardedProto || (String(req?.socket?.encrypted || '') === 'true' ? 'https' : 'http');
+  return `${proto}://${host}`.replace(/\/+$/, '');
+};
+
+const buildClientRuntimeConfig = (requestOrigin = APP_ORIGIN) => ({
+  supabaseUrl: requestOrigin,
   supabaseAnonKey: SUPABASE_ANON_KEY || LOCAL_PROXY_PUBLISHABLE_KEY,
   supabaseProjectRef: SUPABASE_PROJECT_REF,
-  insforgeUrl: APP_ORIGIN,
+  insforgeUrl: requestOrigin,
   insforgeAnonKey: SUPABASE_ANON_KEY || LOCAL_PROXY_PUBLISHABLE_KEY,
   insforgeProjectRef: SUPABASE_PROJECT_REF,
   provider: DIRECT_PG_ENABLED ? 'supabase' : 'insforge',
 });
 
-const renderClientRuntimeConfigScript = () => {
-  const payload = JSON.stringify(buildClientRuntimeConfig()).replace(/</g, '\\u003c');
+const renderClientRuntimeConfigScript = (requestOrigin = APP_ORIGIN) => {
+  const payload = JSON.stringify(buildClientRuntimeConfig(requestOrigin)).replace(/</g, '\\u003c');
   return `<script>window.${CLIENT_RUNTIME_CONFIG_GLOBAL}=${payload};</script>`;
 };
 
-const injectRuntimeConfigIntoHtml = (html = '') => {
+const injectRuntimeConfigIntoHtml = (html = '', requestOrigin = APP_ORIGIN) => {
   if (!html) return html;
-  const scriptTag = renderClientRuntimeConfigScript();
+  const scriptTag = renderClientRuntimeConfigScript(requestOrigin);
   if (/<\/head>/i.test(html)) {
     return html.replace(/<\/head>/i, `${scriptTag}\n</head>`);
   }
@@ -1037,14 +1087,17 @@ const getBearerToken = (req) => {
   return raw.slice(7).trim();
 };
 
+const isUuid = (value = '') =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+
 const supabaseRequest = async (
   endpoint,
   { method = 'GET', body = null, headers = {}, authToken = SUPABASE_SERVICE_ROLE_KEY } = {}
 ) => {
   const requestHeaders = {
+    ...headers,
     apikey: SUPABASE_SERVICE_ROLE_KEY,
     authorization: `Bearer ${authToken}`,
-    ...headers,
   };
   const requestOptions = {
     method,
@@ -1076,6 +1129,16 @@ const supabaseUserRequest = async (
     requestHeaders['content-type'] = 'application/json';
   }
   return fetch(`${SUPABASE_URL}${endpoint}`, requestOptions);
+};
+
+const requireServiceRoleKey = (res) => {
+  if (!isPlaceholderSupabaseKey(SUPABASE_SERVICE_ROLE_KEY)) return true;
+  json(res, 500, {
+    error: {
+      message: 'SUPABASE_SERVICE_ROLE_KEY is required for administrator password actions.',
+    },
+  });
+  return false;
 };
 
 const parseSupabaseError = async (response) => {
@@ -1177,6 +1240,27 @@ const runPgBridge = async (payload = {}) => {
   });
 };
 
+const isPgBridgeConnectionError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('psycopg2.operationalerror')
+    || message.includes('password authentication failed')
+    || message.includes('connection to server')
+    || message.includes('could not connect')
+  );
+};
+
+const handlePgBridgeAuthError = (res, error) => {
+  console.error('[secure-proxy] direct Supabase DB auth failed:', error?.message || error);
+  json(res, 503, {
+    error: {
+      message: isPgBridgeConnectionError(error)
+        ? 'Local direct database authentication is not configured correctly. Update SUPABASE_DB_PASSWORD or set a real SUPABASE_ANON_KEY/SUPABASE_PUBLISHABLE_KEY in .env.'
+        : 'Local direct database authentication failed.',
+    },
+  });
+};
+
 const buildSessionUser = (bundle = null) => {
   if (!bundle?.id) return null;
   return {
@@ -1189,6 +1273,7 @@ const buildSessionUser = (bundle = null) => {
       status: bundle.status || 'active',
       email: bundle.email || null,
       name: bundle.name || null,
+      map_category: bundle.map_category || 'general',
       background_mode: bundle.background_mode || 'auto',
     },
   };
@@ -1315,15 +1400,21 @@ const getUserProfile = async (userId, accessToken = '') => {
       status: payload?.user?.status || 'active',
       email: payload?.user?.email || null,
       name: payload?.user?.name || null,
+      map_category: payload?.user?.map_category || 'general',
       background_mode: payload?.user?.background_mode || 'auto',
     };
   }
 
   const profileEndpoint =
+    `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,email,name,map_category,background_mode&limit=1`;
+  const fallbackProfileEndpoint =
     `/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=role,status,email,name,background_mode&limit=1`;
 
   if (accessToken && SUPABASE_ANON_KEY) {
-    const userResponse = await supabaseUserRequest(profileEndpoint, accessToken);
+    let userResponse = await supabaseUserRequest(profileEndpoint, accessToken);
+    if (!userResponse.ok && userResponse.status === 400) {
+      userResponse = await supabaseUserRequest(fallbackProfileEndpoint, accessToken);
+    }
     if (userResponse.ok) {
       const rows = await userResponse.json();
       return Array.isArray(rows) && rows.length ? rows[0] : null;
@@ -1331,7 +1422,10 @@ const getUserProfile = async (userId, accessToken = '') => {
   }
 
   if (!SUPABASE_SERVICE_ROLE_KEY) return null;
-  const response = await supabaseRequest(profileEndpoint);
+  let response = await supabaseRequest(profileEndpoint);
+  if (!response.ok && response.status === 400) {
+    response = await supabaseRequest(fallbackProfileEndpoint);
+  }
   if (!response.ok) return null;
   const rows = await response.json();
   return Array.isArray(rows) && rows.length ? rows[0] : null;
@@ -1736,10 +1830,16 @@ const handleAdminApi = async (req, res, pathname) => {
   }
 
   if (pathname === '/api/admin/password-update') {
+    if (!requireServiceRoleKey(res)) return;
+
     const targetUserId = String(body?.userId || '').trim();
     const newPassword = String(body?.password || '');
     if (!targetUserId) {
       json(res, 400, { error: { message: 'Target userId is required.' } });
+      return;
+    }
+    if (!isUuid(targetUserId)) {
+      json(res, 400, { error: { message: 'Target userId must be a valid UUID.' } });
       return;
     }
     if (newPassword.length < 8) {
@@ -1769,6 +1869,8 @@ const handleAdminApi = async (req, res, pathname) => {
     return;
   }
 
+  if (!requireServiceRoleKey(res)) return;
+
   const targetUserId = String(body?.userId || '').trim();
   let targetEmail = '';
 
@@ -1776,6 +1878,14 @@ const handleAdminApi = async (req, res, pathname) => {
     json(res, 400, {
       error: {
         message: 'Target userId is required.',
+      },
+    });
+    return;
+  }
+  if (!isUuid(targetUserId)) {
+    json(res, 400, {
+      error: {
+        message: 'Target userId must be a valid UUID.',
       },
     });
     return;
@@ -1838,7 +1948,13 @@ const handleDirectAuthApi = async (req, res, pathname) => {
       json(res, 400, { error: { message: 'Email and password are required.' } });
       return;
     }
-    const payload = await runPgBridge({ action: 'verify_user_password', email, password });
+    let payload = null;
+    try {
+      payload = await runPgBridge({ action: 'verify_user_password', email, password });
+    } catch (error) {
+      handlePgBridgeAuthError(res, error);
+      return;
+    }
     if (!payload?.ok || !payload?.user?.id) {
       json(res, 401, { error: { message: 'Invalid login credentials.' } });
       return;
@@ -1858,7 +1974,13 @@ const handleDirectAuthApi = async (req, res, pathname) => {
       json(res, 401, { error: { message: 'Invalid or expired access token.' } });
       return;
     }
-    const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    let payload = null;
+    try {
+      payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    } catch (error) {
+      handlePgBridgeAuthError(res, error);
+      return;
+    }
     const user = buildSessionUser(payload?.user) || session.user;
     session.user = user;
     json(res, 200, { user });
@@ -1872,7 +1994,13 @@ const handleDirectAuthApi = async (req, res, pathname) => {
       json(res, 401, { error: { message: 'Refresh token is invalid or expired.' } });
       return;
     }
-    const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    let payload = null;
+    try {
+      payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    } catch (error) {
+      handlePgBridgeAuthError(res, error);
+      return;
+    }
     const nextSession = createLocalSession(payload?.user || session.user);
     destroyLocalSession(session);
     json(res, 200, {
@@ -1896,7 +2024,13 @@ const handleDirectAuthApi = async (req, res, pathname) => {
       json(res, 401, { error: { message: 'Invalid or expired access token.' } });
       return;
     }
-    const payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    let payload = null;
+    try {
+      payload = await runPgBridge({ action: 'get_user_bundle', userId: session.userId });
+    } catch (error) {
+      handlePgBridgeAuthError(res, error);
+      return;
+    }
     json(res, 200, { profile: buildSessionUser(payload?.user)?.profile || null });
     return;
   }
@@ -2432,13 +2566,24 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
       }
 
       let response = await supabaseUserRequest(
-        `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`,
+        `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,map_category,background_mode&limit=1`,
         token
       );
+      if (!response.ok && response.status === 400) {
+        response = await supabaseUserRequest(
+          `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`,
+          token
+        );
+      }
       if (!response.ok && SUPABASE_SERVICE_ROLE_KEY) {
         response = await supabaseRequest(
-          `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`
+          `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,map_category,background_mode&limit=1`
         );
+        if (!response.ok && response.status === 400) {
+          response = await supabaseRequest(
+            `/rest/v1/profiles?id=eq.${encodeURIComponent(auth.id)}&select=id,email,name,role,status,background_mode&limit=1`
+          );
+        }
       }
       const payload = await response.json().catch(async () => ({ message: await response.text().catch(() => '') }));
       if (!response.ok) {
@@ -2483,13 +2628,54 @@ const handleClientApiProxy = async (req, res, pathname, searchParams) => {
   }
 
   try {
-    const response = await fetch(targetUrl, {
+    let response = await fetch(targetUrl, {
       method,
       headers: requestHeaders,
       body: rawBody,
     });
 
-    const responseBuffer = Buffer.from(await response.arrayBuffer());
+    let responseBuffer = Buffer.from(await response.arrayBuffer());
+    if (
+      pathname === '/api/database/records/profiles'
+      && response.status === 400
+      && ['GET', 'HEAD'].includes(method)
+      && String(searchParams.get('select') || '').includes('map_category')
+    ) {
+      const payload = responseBuffer.length
+        ? JSON.parse(responseBuffer.toString('utf8') || '{}')
+        : null;
+      if (isMissingColumnPayload(payload, 'map_category')) {
+        const retryParams = new URLSearchParams(searchParams);
+        retryParams.set('select', removeSelectColumn(retryParams.get('select') || '', 'map_category'));
+        const retryUrl = `${SUPABASE_URL}/rest/v1/profiles${retryParams.toString() ? `?${retryParams.toString()}` : ''}`;
+        response = await fetch(retryUrl, {
+          method,
+          headers: requestHeaders,
+        });
+        responseBuffer = Buffer.from(await response.arrayBuffer());
+      }
+    } else if (
+      pathname === '/api/database/records/profiles'
+      && method === 'PATCH'
+      && response.status === 400
+      && rawBody
+    ) {
+      const payload = responseBuffer.length
+        ? JSON.parse(responseBuffer.toString('utf8') || '{}')
+        : null;
+      if (isMissingColumnPayload(payload, 'map_category')) {
+        const parsedBody = JSON.parse(rawBody.toString('utf8') || '{}');
+        if (parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody) && Object.hasOwn(parsedBody, 'map_category')) {
+          delete parsedBody.map_category;
+          response = await fetch(targetUrl, {
+            method,
+            headers: requestHeaders,
+            body: JSON.stringify(parsedBody),
+          });
+          responseBuffer = Buffer.from(await response.arrayBuffer());
+        }
+      }
+    }
     if (method === 'GET' && response.ok) {
       setCachedClientGetResponse(cacheKey, {
         status: response.status,
@@ -2580,8 +2766,9 @@ const serveStatic = async (req, res, pathname) => {
     const ext = path.extname(targetPath).toLowerCase();
     const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
     const content = await readFile(targetPath);
+    const requestOrigin = getRequestOrigin(req);
     const responseBody = ext === '.html'
-      ? Buffer.from(injectRuntimeConfigIntoHtml(content.toString('utf8')), 'utf8')
+      ? Buffer.from(injectRuntimeConfigIntoHtml(content.toString('utf8'), requestOrigin), 'utf8')
       : content;
     res.writeHead(200, {
       'content-type': mimeType,
@@ -2622,7 +2809,7 @@ export const createRequestHandler = () => async (req, res) => {
       return;
     }
 
-    if (DIRECT_PG_ENABLED && pathname.startsWith('/api/auth/')) {
+    if (DIRECT_PG_ENABLED && !HAS_SUPABASE_AUTH_HTTP && pathname.startsWith('/api/auth/')) {
       await handleDirectAuthApi(req, res, pathname);
       return;
     }

@@ -136,11 +136,19 @@ import {
       || session?.user?.app_metadata?.status
       || window.currentUserStatus
       || null;
+    const sessionMapCategory =
+      session?.user?.profile?.map_category
+      || session?.user?.user_metadata?.map_category
+      || session?.user?.app_metadata?.map_category
+      || window.currentUserMapCategory
+      || null;
     const fallbackRole = normalizeAccessValue(sessionRole, 'user');
     const fallbackStatus = normalizeAccessValue(sessionStatus, 'active');
+    const fallbackMapCategory = normalizeAccessValue(sessionMapCategory, 'general');
     return {
       role: fallbackRole,
       status: fallbackStatus,
+      map_category: fallbackMapCategory,
       email: session?.user?.profile?.email || session?.user?.email || null,
     };
   };
@@ -171,7 +179,7 @@ import {
         const result = await withTimeout(
           supabaseClient
             .from('profiles')
-            .select('role, status, email')
+            .select('role, status, email, map_category')
             .eq('id', userId)
             .maybeSingle(),
           PROFILE_LOOKUP_TIMEOUT_MS,
@@ -189,6 +197,7 @@ import {
       const resolvedProfile = {
         role: normalizeAccessValue(data.role, fallbackProfile.role || 'user'),
         status: normalizeAccessValue(data.status, fallbackProfile.status || 'active'),
+        map_category: normalizeAccessValue(data.map_category, fallbackProfile.map_category || 'general'),
         email: data.email || fallbackProfile.email || null,
       };
       profileCache.set(userId, { value: resolvedProfile, expiresAt: Date.now() + PROFILE_CACHE_TTL_MS });
@@ -206,6 +215,7 @@ import {
       return {
         role: 'user',
         status: 'active',
+        map_category: 'general',
         email: null,
       };
     }
@@ -220,7 +230,7 @@ import {
     }
     return fetchUserProfile(
       session.user.id,
-      { role: 'user', status: 'active', email: session?.user?.email || null },
+      { role: 'user', status: 'active', map_category: 'general', email: session?.user?.email || null },
       { allowFallback: false, useCache: false },
     );
   };
@@ -256,23 +266,28 @@ import {
     accountName.textContent = label;
   };
 
-  const applyAccessState = (role, status) => {
+  const applyAccessState = (role, status, mapCategory = null) => {
     const normalizedRole = normalizeAccessValue(role, 'user');
     const normalizedStatus = normalizeAccessValue(status, 'active');
+    const normalizedMapCategory = normalizeAccessValue(mapCategory, window.currentUserMapCategory || 'general');
     window.currentUserRole = normalizedRole;
     window.currentUserStatus = normalizedStatus;
+    window.currentUserMapCategory = normalizedMapCategory;
     document.body.setAttribute('data-user-role', normalizedRole);
     document.body.setAttribute('data-user-status', normalizedStatus);
+    document.body.setAttribute('data-user-map-category', normalizedMapCategory);
     window.dispatchEvent(
-      new CustomEvent('auth:role-ready', { detail: { role: normalizedRole, status: normalizedStatus } })
+      new CustomEvent('auth:role-ready', { detail: { role: normalizedRole, status: normalizedStatus, mapCategory: normalizedMapCategory } })
     );
   };
 
   const clearAccessState = () => {
     window.currentUserRole = null;
     window.currentUserStatus = null;
+    window.currentUserMapCategory = null;
     document.body.removeAttribute('data-user-role');
     document.body.removeAttribute('data-user-status');
+    document.body.removeAttribute('data-user-map-category');
   };
 
   const toggleDashboardLinks = (hasSession, role, status) =>
@@ -315,7 +330,7 @@ import {
 
       const isSuspended = status === 'suspended';
       const canShowDashboard = hasSession && !isSuspended && roleAllowsDashboard(role);
-      const canShowServices = hasSession && !isSuspended && roleAllowsServiceRequests(role);
+      const canShowServices = hasSession && !isSuspended;
 
       if (hasSession && !isSuspended) {
         // Lógica de visualización basada en sesión
@@ -450,12 +465,14 @@ import {
       const hasSession = Boolean(session);
       let userRole = 'user'; // Rol por defecto
       let userStatus = 'active';
+      let userMapCategory = 'general';
 
       if (hasSession && session.user) {
         const fallbackProfile = resolveFallbackProfileForSession(session);
         userRole = normalizeAccessValue(fallbackProfile.role, 'user');
         userStatus = normalizeAccessValue(fallbackProfile.status, 'active');
-        applyAccessState(userRole, userStatus);
+        userMapCategory = normalizeAccessValue(fallbackProfile.map_category, 'general');
+        applyAccessState(userRole, userStatus, userMapCategory);
         updateHeaderAccount(session, fallbackProfile.email);
 
         if (isServiceRequestPath()) {
@@ -463,13 +480,15 @@ import {
             const reliableProfile = await resolveReliableProfileForSession(session);
             userRole = normalizeAccessValue(reliableProfile.role, 'user');
             userStatus = normalizeAccessValue(reliableProfile.status, 'active');
-            applyAccessState(userRole, userStatus);
+            userMapCategory = normalizeAccessValue(reliableProfile.map_category, userMapCategory);
+            applyAccessState(userRole, userStatus, userMapCategory);
             updateHeaderAccount(session, reliableProfile.email);
           } catch (error) {
             console.warn('Could not confirm service-request access.', error);
             userRole = 'user';
             userStatus = 'active';
-            applyAccessState(userRole, userStatus);
+            userMapCategory = 'general';
+            applyAccessState(userRole, userStatus, userMapCategory);
           }
         }
       } else {
@@ -493,7 +512,8 @@ import {
           .then(async (profile) => {
             const resolvedRole = normalizeAccessValue(profile.role, userRole);
             const resolvedStatus = normalizeAccessValue(profile.status, userStatus);
-            applyAccessState(resolvedRole, resolvedStatus);
+            const resolvedMapCategory = normalizeAccessValue(profile.map_category, userMapCategory);
+            applyAccessState(resolvedRole, resolvedStatus, resolvedMapCategory);
             updateHeaderAccount(session, profile.email);
             updateNav(true, resolvedRole, resolvedStatus);
             enforceRouteProtection(true, resolvedRole);
@@ -513,12 +533,14 @@ import {
           const sessionExists = Boolean(effectiveSession);
           let updatedRole = 'user';
           let updatedStatus = 'active';
+          let updatedMapCategory = 'general';
 
           if (sessionExists && effectiveSession.user) {
              const fallbackProfile = resolveFallbackProfileForSession(effectiveSession);
              updatedRole = normalizeAccessValue(fallbackProfile.role, 'user');
              updatedStatus = normalizeAccessValue(fallbackProfile.status, 'active');
-             applyAccessState(updatedRole, updatedStatus);
+             updatedMapCategory = normalizeAccessValue(fallbackProfile.map_category, 'general');
+             applyAccessState(updatedRole, updatedStatus, updatedMapCategory);
              updateHeaderAccount(effectiveSession, fallbackProfile.email);
 
              if (isServiceRequestPath()) {
@@ -526,13 +548,15 @@ import {
                  const reliableProfile = await resolveReliableProfileForSession(effectiveSession);
                  updatedRole = normalizeAccessValue(reliableProfile.role, 'user');
                  updatedStatus = normalizeAccessValue(reliableProfile.status, 'active');
-                 applyAccessState(updatedRole, updatedStatus);
+                 updatedMapCategory = normalizeAccessValue(reliableProfile.map_category, updatedMapCategory);
+                 applyAccessState(updatedRole, updatedStatus, updatedMapCategory);
                  updateHeaderAccount(effectiveSession, reliableProfile.email);
                } catch (error) {
                  console.warn('Could not confirm service-request access.', error);
                  updatedRole = 'user';
                  updatedStatus = 'active';
-                 applyAccessState(updatedRole, updatedStatus);
+                 updatedMapCategory = 'general';
+                 applyAccessState(updatedRole, updatedStatus, updatedMapCategory);
                }
              }
 
@@ -546,7 +570,8 @@ import {
                .then(async (profile) => {
                  const strictRole = normalizeAccessValue(profile.role, updatedRole);
                  const strictStatus = normalizeAccessValue(profile.status, updatedStatus);
-                 applyAccessState(strictRole, strictStatus);
+                 const strictMapCategory = normalizeAccessValue(profile.map_category, updatedMapCategory);
+                 applyAccessState(strictRole, strictStatus, strictMapCategory);
                  updateHeaderAccount(effectiveSession, profile.email);
                  updateNav(true, strictRole, strictStatus);
                  enforceRouteProtection(true, strictRole);

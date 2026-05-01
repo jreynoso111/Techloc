@@ -92,7 +92,11 @@ const els = {
   colsAll: document.getElementById('cols-all'),
   colsNone: document.getElementById('cols-none'),
   analyticsWrap: document.getElementById('analytics-wrap'),
+  analyticsToggle: document.getElementById('analytics-toggle'),
+  analyticsToggleLabel: document.getElementById('analytics-toggle-label'),
   eraseFilters: document.getElementById('erase-filters'),
+  exportCsv: document.getElementById('export-csv'),
+  exportExcel: document.getElementById('export-excel'),
 };
 
 // ---------------- AUTH ----------------
@@ -385,6 +389,79 @@ const applySort = (rows) => {
 };
 
 const getVisibleOrderedColumns = () => state.columnOrder.filter(colId => state.columnVisibility[colId]);
+const getExportColumns = () =>
+  getVisibleOrderedColumns()
+    .filter((colId) => colId !== 'actions')
+    .map((colId) => {
+      const col = ALL_COLUMNS.find((candidate) => candidate.id === colId);
+      if (!col) return null;
+      return {
+        id: col.id,
+        key: col.key,
+        label: state.columnLabels[col.id] || col.label || col.id,
+      };
+    })
+    .filter(Boolean);
+
+const getExportRows = () => applySort(applyFilters());
+const makeExportFilename = (extension) => {
+  const stamp = new Date().toISOString().slice(0, 10);
+  return `techloc-services-${stamp}.${extension}`;
+};
+const downloadBlob = ({ content, filename, type }) => {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+const escapeCsvValue = (value) => {
+  const normalized = value === null || value === undefined ? '' : String(value);
+  return /[",\n\r]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
+};
+const escapeHtmlValue = (value) => {
+  const normalized = value === null || value === undefined ? '' : String(value);
+  return normalized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+const getExportCellValue = (row, col) => {
+  if (col.id === 'verified') return boolToLabel(row.verified);
+  return row[col.key] ?? '';
+};
+const exportServicesCsv = () => {
+  const cols = getExportColumns();
+  const rows = getExportRows();
+  const lines = [
+    cols.map((col) => escapeCsvValue(col.label)).join(','),
+    ...rows.map((row) => cols.map((col) => escapeCsvValue(getExportCellValue(row, col))).join(',')),
+  ];
+  downloadBlob({
+    content: `\ufeff${lines.join('\r\n')}`,
+    filename: makeExportFilename('csv'),
+    type: 'text/csv;charset=utf-8',
+  });
+};
+const exportServicesExcel = () => {
+  const cols = getExportColumns();
+  const rows = getExportRows();
+  const header = cols.map((col) => `<th>${escapeHtmlValue(col.label)}</th>`).join('');
+  const body = rows
+    .map((row) => `<tr>${cols.map((col) => `<td>${escapeHtmlValue(getExportCellValue(row, col))}</td>`).join('')}</tr>`)
+    .join('');
+  const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  downloadBlob({
+    content: html,
+    filename: makeExportFilename('xls'),
+    type: 'application/vnd.ms-excel;charset=utf-8',
+  });
+};
 
 // ---------------- TABLE RENDER ----------------
 const renderColgroup = () => {
@@ -1011,8 +1088,25 @@ els.colsNone.addEventListener('click', () => {
 // ---------------- CHARTS ----------------
 const renderCharts = (filteredRows) => renderChartsUI({ filteredRows, syncTopScrollbar });
 
+const setAnalyticsExpanded = (expanded) => {
+  if (!els.analyticsWrap) return;
+  const isExpanded = Boolean(expanded);
+  els.analyticsWrap.classList.toggle('hidden', !isExpanded);
+  els.analyticsWrap.setAttribute('aria-hidden', String(!isExpanded));
+  els.analyticsToggle?.setAttribute('aria-expanded', String(isExpanded));
+  if (els.analyticsToggleLabel) {
+    els.analyticsToggleLabel.textContent = isExpanded ? 'Hide charts' : 'Show charts';
+  }
+  if (isExpanded) {
+    requestAnimationFrame(() => {
+      resizeCharts();
+      syncTopScrollbar();
+    });
+  }
+};
+
 const attachAnalyticsResizeObserver = () => {
-  if (!('ResizeObserver' in window)) return;
+  if (!els.analyticsWrap || !('ResizeObserver' in window)) return;
   const ro = new ResizeObserver(() => {
     resizeCharts();
   });
@@ -1085,6 +1179,11 @@ const attachButtonEvents = () => {
 
   els.refresh.addEventListener('click', refresh);
   els.eraseFilters?.addEventListener('click', clearAllFilters);
+  els.exportCsv?.addEventListener('click', exportServicesCsv);
+  els.exportExcel?.addEventListener('click', exportServicesExcel);
+  els.analyticsToggle?.addEventListener('click', () => {
+    setAnalyticsExpanded(els.analyticsWrap?.classList.contains('hidden'));
+  });
 
   // Create new record inline (adds blank row in DB, then you edit cells)
   els.addRecord?.addEventListener('click', async () => {
@@ -1149,6 +1248,7 @@ const init = async () => {
   const session = await requireSession();
   await applySessionState(session);
   attachButtonEvents();
+  setAnalyticsExpanded(false);
   attachResizeHandles({ els, state, setColWidth });
   attachScrollSync({ els, syncTopScrollbar, resizeCharts });
   attachAnalyticsResizeObserver();

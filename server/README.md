@@ -60,17 +60,20 @@ http://127.0.0.1:8080
 
 ## 4) Admin password reset endpoint
 
-The proxy now exposes:
+The proxy exposes administrator password actions through Supabase Admin Auth. These endpoints require `SUPABASE_SERVICE_ROLE_KEY` on the server in addition to the public Supabase URL and anon/publishable key. The runtime also accepts `SUPABASE_SERVICE_KEY` or `SUPABASE_SECRET_KEY` as aliases.
 
 ```text
 POST /api/admin/password-reset
+POST /api/admin/password-update
 ```
 
 Requirements:
 
 - `Authorization: Bearer <admin-access-token>`
 - Caller must be an active administrator in `profiles`.
-- JSON body with `userId`.
+- `SUPABASE_SERVICE_ROLE_KEY` must be configured in the runtime environment.
+- Reset body: JSON with `userId`.
+- Update body: JSON with `userId` and `password` (minimum 8 characters).
 
 Example:
 
