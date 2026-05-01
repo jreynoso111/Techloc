@@ -24,13 +24,14 @@ scheduleNonCriticalBoot(() => {
 });
 
 const headerSlot = document.querySelector('[data-shared-header]');
-const HEADER_TEMPLATE_CACHE_KEY = 'techloc:shared-header-template:v4';
+const HEADER_TEMPLATE_CACHE_KEY = 'techloc:shared-header-template:v5';
 const HEADER_TEMPLATE_CACHE_TS_KEY = `${HEADER_TEMPLATE_CACHE_KEY}:ts`;
 const HEADER_TEMPLATE_CACHE_TTL_MS = 15 * 60 * 1000;
 const LEGACY_HEADER_CACHE_KEYS = [
   'techloc:shared-header-template:v1',
   'techloc:shared-header-template:v2',
   'techloc:shared-header-template:v3',
+  'techloc:shared-header-template:v4',
 ];
 let stopPendingIndicatorSubscription = null;
 let stopDataVersionStream = null;
