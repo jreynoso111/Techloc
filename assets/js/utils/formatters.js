@@ -195,7 +195,7 @@ export const getMovingStatus = (vehicle = {}) => {
     vehicle?.historyMovingOverride,
     vehicle?.details?.historyMovingOverride
   );
-  if (historyOverrideStatus === 'moving' || historyOverrideStatus === 'stopped' || historyOverrideStatus === 'unknown') {
+  if (historyOverrideStatus === 'moving' || historyOverrideStatus === 'stopped') {
     return historyOverrideStatus;
   }
 
@@ -207,16 +207,11 @@ export const getMovingStatus = (vehicle = {}) => {
     return historyOverrideDays <= 0 ? 'moving' : 'stopped';
   }
 
-  const lastReadStatus = getPtLastReadStatus(getVehicleLastReadCandidate(vehicle));
-  if (lastReadStatus === 'unknown') {
-    return 'unknown';
-  }
-
   const explicitV2Status = parseMovingIndicator(
     vehicle?.movementStatusV2,
     vehicle?.details?.movement_status_v2
   );
-  if (explicitV2Status === 'moving' || explicitV2Status === 'stopped' || explicitV2Status === 'unknown') {
+  if (explicitV2Status === 'moving' || explicitV2Status === 'stopped') {
     return explicitV2Status;
   }
 
@@ -248,6 +243,19 @@ export const getMovingStatus = (vehicle = {}) => {
   );
   if (explicitLegacyStatus === 'moving' || explicitLegacyStatus === 'stopped') {
     return explicitLegacyStatus;
+  }
+
+  if (historyOverrideStatus === 'unknown') {
+    return 'unknown';
+  }
+
+  const lastReadStatus = getPtLastReadStatus(getVehicleLastReadCandidate(vehicle));
+  if (lastReadStatus === 'unknown') {
+    return 'unknown';
+  }
+
+  if (explicitV2Status === 'unknown') {
+    return 'unknown';
   }
 
   if (stationaryDays !== null && stationaryDays > 0) {

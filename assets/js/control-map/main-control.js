@@ -33,7 +33,7 @@ import '../../scripts/authManager.js?v=20260501-snapshot-static-01';
       parsePtLastReadDate,
       parseDealCompletion,
       toStateCode
-    } from '../utils/formatters.js?v=movement-v2-20260425-fleet-pt-hydrate-01';
+    } from '../utils/formatters.js?v=movement-v2-20260502-moving-filter-01';
     import { ensureSupabaseSession as ensureSupabaseSessionBase, SERVICE_CATEGORY_HINTS, SERVICE_TABLE, SUPABASE_TIMEOUT_MS, TABLES } from './services/supabase.js?v=movement-v2-20250403-11';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';

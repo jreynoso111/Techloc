@@ -94,14 +94,14 @@
             <div class="space-y-4 rounded-2xl border border-slate-800 bg-slate-950 p-4">
               <div class="flex items-center justify-between">
                 <div>
-                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Manage profile</p>
-                  <h3 class="text-lg font-bold text-white">Edit existing profile</h3>
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-200">Manage account</p>
+                  <h3 class="text-lg font-bold text-white">Create or edit access</h3>
                 </div>
                 <div class="rounded-full bg-slate-800/80 p-2">
                   <i data-lucide="user-cog" class="h-5 w-5 text-blue-200"></i>
                 </div>
               </div>
-              <p class="text-xs text-slate-400">Account creation and deletion are disabled here because authentication is managed in Supabase Auth, not only in `profiles`.</p>
+              <p class="text-xs text-slate-400">New accounts are created in Supabase Auth and linked to a profile automatically.</p>
               
               <form id="profile-form" class="space-y-3">
                 <input type="hidden" id="profile-id" value="">
@@ -144,11 +144,16 @@
                     <option value="admin">Admin Operations</option>
                   </select>
                 </div>
+
+                <div class="space-y-1" id="initial-password-field">
+                  <label class="text-xs font-semibold uppercase text-slate-400">Initial Password</label>
+                  <input id="profile-password" type="password" autocomplete="new-password" class="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none" minlength="8" placeholder="Required for new accounts" />
+                </div>
                 
                 <div class="flex gap-2">
                   <button type="submit" id="btn-save" class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-500">
                     <i data-lucide="save" class="h-4 w-4"></i>
-                    <span id="btn-text">Update profile</span>
+                    <span id="btn-text">Create account</span>
                   </button>
                   <button type="button" id="btn-cancel" class="hidden rounded-lg border border-slate-700 px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white">
                     <i data-lucide="x" class="h-4 w-4"></i>
@@ -421,6 +426,8 @@
 
       const mapCategorySelect = document.getElementById('profile-map-category');
       mapCategorySelect.value = (profile.mapCategory || 'general').toLowerCase();
+      document.getElementById('profile-password').value = '';
+      document.getElementById('initial-password-field').classList.add('hidden');
       
       document.getElementById('btn-text').textContent = 'Update profile';
       const btnSave = document.getElementById('btn-save');
@@ -451,7 +458,12 @@
     window.resetForm = () => {
       document.getElementById('profile-form').reset();
       document.getElementById('profile-id').value = '';
-      document.getElementById('btn-text').textContent = 'Update profile';
+      document.getElementById('profile-role').value = 'user';
+      document.getElementById('profile-status').value = 'active';
+      document.getElementById('profile-map-category').value = 'general';
+      document.getElementById('profile-password').value = '';
+      document.getElementById('initial-password-field').classList.remove('hidden');
+      document.getElementById('btn-text').textContent = 'Create account';
       const btnSave = document.getElementById('btn-save');
       btnSave.classList.remove('bg-emerald-600');
       btnSave.classList.add('bg-blue-600');
@@ -480,10 +492,55 @@
       const role = document.getElementById('profile-role').value;
       const status = document.getElementById('profile-status').value;
       const mapCategory = document.getElementById('profile-map-category').value;
+      const password = document.getElementById('profile-password').value;
 
       if (!email) return;
       if (!id) {
-        alert('Creating accounts is disabled here. Create the user in Supabase Auth first, then edit the matching profile.');
+        if (password.length < 8) {
+          alert('Initial password must be at least 8 characters.');
+          return;
+        }
+        try {
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) throw sessionError;
+          const accessToken = sessionData?.session?.access_token || '';
+          if (!accessToken) throw new Error('Active session is required.');
+
+          const response = await fetch('/api/admin/accounts/create', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ name, email, role, status, mapCategory, password }),
+          });
+          const payload = await response.json().catch(() => null);
+          if (!response.ok) {
+            throw new Error(payload?.error?.message || payload?.message || 'Could not create account.');
+          }
+          const createdProfile = payload?.data?.profile || null;
+          const createdUser = payload?.data?.user || null;
+          profiles.unshift(normalizeProfile({
+            id: createdProfile?.id || createdUser?.id,
+            email: createdProfile?.email || email,
+            name: createdProfile?.name || name,
+            role: createdProfile?.role || role,
+            status: createdProfile?.status || status,
+            map_category: createdProfile?.map_category || mapCategory,
+            created_at: createdProfile?.created_at || new Date().toISOString(),
+          }));
+          await recordAudit({
+            action: 'create',
+            summary: `Created account for ${email}`,
+            recordId: createdProfile?.id || createdUser?.id,
+            newValue: JSON.stringify({ role, status, mapCategory, name }),
+          });
+          window.resetForm();
+          renderProfiles();
+        } catch (error) {
+          console.error('Account creation failed', error);
+          alert(error?.message || 'Could not create account.');
+        }
         return;
       }
 
@@ -540,7 +597,7 @@
         }),
       });
 
-      resetForm();
+      window.resetForm();
       renderProfiles();
     });
 

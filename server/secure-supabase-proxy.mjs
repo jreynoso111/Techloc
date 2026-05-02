@@ -175,7 +175,7 @@ const buildClientCacheKey = ({ pathname = '', search = '', authHeader = '' } = {
 const getClientCacheTtlMs = (pathname = '') => {
   const normalized = String(pathname || '').toLowerCase();
   if (normalized.includes('/api/database/records/services')) return 5 * 60 * 1000;
-  if (normalized.includes('/api/database/records/profiles')) return 5 * 60 * 1000;
+  if (normalized.includes('/api/database/records/profiles')) return 0;
   if (normalized.includes('/api/database/records/app_settings')) return 10 * 60 * 1000;
   if (normalized.includes('/api/database/records/admin_change_log')) return 60 * 1000;
   return 60 * 1000;
@@ -1595,6 +1595,52 @@ const resolveUserEmailForReset = async ({ userId }) => {
   return '';
 };
 
+const createProfileForAuthUser = async ({
+  userId,
+  email,
+  name = '',
+  role = 'user',
+  status = 'active',
+  mapCategory = 'general',
+} = {}) => {
+  const profilePayload = {
+    id: userId,
+    email: String(email || '').trim().toLowerCase(),
+    name: String(name || '').trim() || String(email || '').split('@')[0] || 'Unnamed',
+    role: String(role || 'user').trim().toLowerCase(),
+    status: String(status || 'active').trim().toLowerCase(),
+    created_at: new Date().toISOString(),
+    map_category: String(mapCategory || 'general').trim().toLowerCase(),
+  };
+
+  let response = await supabaseRequest('/rest/v1/profiles?on_conflict=id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: [profilePayload],
+  });
+
+  if (!response.ok) {
+    const parsed = await parseSupabaseError(response);
+    if (parsed?.details?.code !== 'PGRST204' && !String(parsed.message || '').toLowerCase().includes('map_category')) {
+      throw new Error(parsed.message || 'Could not create profile.');
+    }
+    const { map_category: _mapCategory, ...fallbackPayload } = profilePayload;
+    response = await supabaseRequest('/rest/v1/profiles?on_conflict=id', {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: [fallbackPayload],
+    });
+  }
+
+  if (!response.ok) {
+    const parsed = await parseSupabaseError(response);
+    throw new Error(parsed.message || 'Could not create profile.');
+  }
+
+  const rows = await response.json().catch(() => []);
+  return Array.isArray(rows) ? (rows[0] || null) : rows;
+};
+
 const fetchPtReferenceVinRows = async ({ tableName, vinSuffixes }) => {
   const normalizedSuffixes = Array.from(
     new Set((vinSuffixes || []).map((suffix) => String(suffix || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-6)).filter(Boolean))
@@ -1835,6 +1881,88 @@ const handleAdminApi = async (req, res, pathname) => {
         syncedVehicles: Number(syncPayload || 0),
       },
     });
+    return;
+  }
+
+  if (pathname === '/api/admin/accounts/create') {
+    if (!requireServiceRoleKey(res)) return;
+
+    const email = String(body?.email || '').trim().toLowerCase();
+    const password = String(body?.password || '');
+    const name = String(body?.name || '').trim();
+    const role = String(body?.role || 'user').trim().toLowerCase();
+    const status = String(body?.status || 'active').trim().toLowerCase();
+    const mapCategory = String(body?.mapCategory || body?.map_category || 'general').trim().toLowerCase();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      json(res, 400, { error: { message: 'A valid email is required.' } });
+      return;
+    }
+    if (password.length < 8) {
+      json(res, 400, { error: { message: 'Password must be at least 8 characters.' } });
+      return;
+    }
+    if (!['user', 'moderator', 'administrator'].includes(role)) {
+      json(res, 400, { error: { message: 'Invalid role.' } });
+      return;
+    }
+    if (!['active', 'suspended'].includes(status)) {
+      json(res, 400, { error: { message: 'Invalid status.' } });
+      return;
+    }
+
+    const createResponse = await supabaseRequest('/auth/v1/admin/users', {
+      method: 'POST',
+      body: {
+        email,
+        password,
+        email_confirm: true,
+        app_metadata: {
+          provider: 'email',
+          providers: ['email'],
+          role,
+          status,
+          map_category: mapCategory,
+        },
+        user_metadata: {
+          email_verified: true,
+          name: name || email.split('@')[0],
+        },
+      },
+    });
+
+    const createPayload = await createResponse.json().catch(async () => ({ message: await createResponse.text().catch(() => '') }));
+    if (!createResponse.ok) {
+      const message = createPayload?.message || createPayload?.msg || createPayload?.error_description || createPayload?.error || 'Could not create account.';
+      json(res, createResponse.status, { error: { message, details: createPayload } });
+      return;
+    }
+
+    const user = createPayload?.user || createPayload;
+    const userId = String(user?.id || '').trim();
+    if (!isUuid(userId)) {
+      json(res, 502, { error: { message: 'Auth account was created, but Supabase did not return a valid user id.' } });
+      return;
+    }
+
+    try {
+      const profile = await createProfileForAuthUser({
+        userId,
+        email,
+        name,
+        role,
+        status,
+        mapCategory,
+      });
+      json(res, 200, { data: { ok: true, user, profile } });
+    } catch (error) {
+      json(res, 502, {
+        error: {
+          message: error?.message || 'Auth account was created, but profile creation failed.',
+          userId,
+        },
+      });
+    }
     return;
   }
 
