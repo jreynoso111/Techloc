@@ -468,6 +468,8 @@ const SERVICES_BLACKLIST_COLUMNS = makeSet([
 
 const GPS_BLACKLIST_COLUMNS = makeSet(['serial', 'reason', 'is_active', 'added_at', 'added_by', 'uuid', 'effective_from']);
 
+const DATA_VERSIONS_COLUMNS = makeSet(['scope', 'version', 'updated_at', 'reason']);
+
 const USER_TABLE_CONFIG_COLUMNS = makeSet(['id', 'user_id', 'table_key', 'table_name', 'config', 'created_at', 'updated_at']);
 
 const SERVICES_REQUEST_COLUMNS = makeSet([
@@ -550,6 +552,13 @@ const TABLE_ACCESS_POLICIES = new Map(Object.entries({
     },
     readableColumns: makeSet(['id', 'user_id', 'vin', 'clicked_at', 'source', 'page', 'action', 'metadata', 'created_at']),
     writableColumns: makeSet(['user_id', 'vin', 'clicked_at', 'source', 'page', 'action', 'metadata']),
+  },
+  data_versions: {
+    methods: {
+      GET: DATABASE_ROLES.ACTIVE_USER,
+      HEAD: DATABASE_ROLES.ACTIVE_USER,
+    },
+    readableColumns: DATA_VERSIONS_COLUMNS,
   },
   user_table_configs: {
     methods: {

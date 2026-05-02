@@ -1,4 +1,4 @@
-import '../../scripts/authManager.js?v=movement-v2-20260413-01';
+import '../../scripts/authManager.js?v=20260501-snapshot-static-01';
     import { setupBackgroundManager } from '../../scripts/backgroundManager.js?v=movement-v2-20250403-11';
     import { subscribeDataSyncSignal } from '../../scripts/dataSyncSignal.js?v=movement-v2-20260413-01';
     import {
@@ -38,6 +38,12 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     import { createControlMapApiService } from './services/apiService.js?v=movement-v2-20250403-11';
     import { startSupabaseKeepAlive } from './services/realtime.js?v=movement-v2-20250403-11';
     import { createVehicleService } from './services/vehicleService.js?v=movement-v2-20260413-01';
+    import {
+      getControlMapSnapshotInfo,
+      getControlMapSnapshotRows,
+      loadControlMapSnapshot,
+      setControlMapSnapshotRows
+    } from './services/snapshotCache.js?v=20260501-01';
     import { SERVICE_HEADER_LABELS, getServiceModalHeaders, loadServiceModalPrefs, renderServiceModalColumnsList, saveServiceModalPrefs } from './components/service-modal.js?v=movement-v2-20250403-11';
     import { VEHICLE_HEADER_LABELS, getVehicleModalHeaders, loadVehicleModalPrefs, renderVehicleModalColumnsList, saveVehicleModalPrefs } from './components/vehicle-modal.js?v=movement-v2-20250403-11';
     import { createLayerToggle } from './utils/layer-toggles.js?v=movement-v2-20250403-11';
@@ -95,8 +101,6 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const DEFAULT_GPS_TRAIL_POINT_LIMIT = 10;
     const MIN_GPS_TRAIL_POINT_LIMIT = 1;
     const MAX_GPS_TRAIL_POINT_LIMIT = 120;
-    const DATA_SYNC_AUTO_REFRESH_INTERVAL_MS = 90 * 1000;
-    const DATA_SYNC_FOCUS_COOLDOWN_MS = 12 * 1000;
     let syncingVehicleSelection = false;
     let selectedTechId = null;
     const vehicleMarkers = new Map();
@@ -105,17 +109,17 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     let mapCategoryVisibilityUserOverridden = false;
     const vehiclePtRecalcPendingKeys = new Set();
     const vehicleMarkerHeadingPendingRequests = new Map();
-    const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 8;
+    const VEHICLE_MARKER_HEADING_PREFETCH_LIMIT = 0;
     const VEHICLE_MARKER_HEADING_PREFETCH_CONCURRENCY = 2;
-    const VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT = 80;
+    const VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT = 0;
     const VEHICLE_PT_SNAPSHOT_PREFETCH_CONCURRENCY = 4;
     const VEHICLE_PT_SNAPSHOT_REFRESH_TTL_MS = 5 * 60 * 1000;
     const VEHICLE_PT_PRIORITY_SNAPSHOT_WINDOW_DAYS = 45;
     const VEHICLE_PT_PRIORITY_SNAPSHOT_LIMIT = 80;
-    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 250;
+    const VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT = 0;
     const VEHICLE_INITIAL_PRIORITY_HYDRATE_CONCURRENCY = 4;
     const VEHICLE_BACKGROUND_PREFETCH_DEBOUNCE_MS = 420;
-    const VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT = 250;
+    const VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT = 0;
     const VEHICLE_TABLE_IS_CANONICAL_SOURCE = true;
     const GPS_HISTORY_MIN_SELECT = 'id,vehicle_id,VIN,Serial,Date,Lat,Long,address,moved,days_stationary,moved_v2,days_stationary_v2,city_bucket,read_day,day_half';
     const SERVICE_SELECT = 'id,company_name,region,phone,contact,email,website,availability,notes,city,state,zip,category,type,authorization,address,status,lat,long,verified';
@@ -175,9 +179,20 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     let mapRemoteSettingsAvailable = true;
     const MAP_ALERT_IGNORE_PATTERNS = [
       '/rest/v1/app_settings',
+      '/rest/v1/data_versions',
       'ipapi.co',
       'ipwho.is',
+      '/api/database/records/data_versions',
     ];
+
+    const isStaticSnapshotMode = () => {
+      if (typeof window === 'undefined') return false;
+      const host = String(window.location.hostname || '').toLowerCase();
+      const params = new URLSearchParams(window.location.search || '');
+      return host.endsWith('github.io')
+        || params.get('snapshot') === '1'
+        || params.get('static') === '1';
+    };
 
     if (typeof window !== 'undefined') {
       const currentPatterns = Array.isArray(window.__techlocIgnoredAlertRequestPatterns)
@@ -202,6 +217,17 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const hydrateMapSettingsFromSupabase = async () => {
+      const snapshotSettings = getControlMapSnapshotRows(APP_SETTINGS_TABLE)
+        .find((row) => String(row?.key || '').trim() === APP_SETTINGS_KEY);
+      if (snapshotSettings?.settings && typeof snapshotSettings.settings === 'object') {
+        const mergedSettings = normalizeAppSettings({
+          ...getAppSettings(),
+          ...snapshotSettings.settings
+        });
+        saveAppSettings(mergedSettings);
+        mapAppSettings = mergedSettings;
+        return;
+      }
       if (!supabaseClient?.from || !mapRemoteSettingsAvailable) return;
       try {
         const { data, error } = await supabaseClient
@@ -1218,6 +1244,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const hydrateVehicleClickHistory = async (vehicleRows = []) => {
+      if (isStaticSnapshotMode()) return;
       if (!supabaseClient?.from || !Array.isArray(vehicleRows) || !vehicleRows.length) return;
 
       const vins = Array.from(new Set(vehicleRows.map((vehicle) => getVehicleVin(vehicle)).filter(Boolean)));
@@ -1259,6 +1286,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const saveVehicleClickHistory = async (vehicle, clickedAtIso, isChecked) => {
+      if (isStaticSnapshotMode()) return;
       if (!supabaseClient?.from || !vehicle || !clickedAtIso || typeof isChecked !== 'boolean') return;
       const userId = await getCurrentUserId();
       const vin = getVehicleVin(vehicle);
@@ -1995,7 +2023,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const ensureServiceCache = async ({ force = false, silent = false } = {}) => {
-      if (!supabaseClient) return null;
+      if (!supabaseClient && !getControlMapSnapshotRows(SERVICE_TABLE).length) return null;
       if (!force && serviceCacheByCategory.size) return serviceCacheByCategory;
       if (serviceFetchPromise) return serviceFetchPromise;
 
@@ -2005,8 +2033,15 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
       const stopLoading = silent ? () => {} : startLoading('Loading Services…');
       serviceFetchPromise = (async () => {
-        const { data, error } = await supabaseClient.from(SERVICE_TABLE).select(SERVICE_SELECT);
-        if (error) throw error;
+        let data = (!force || !supabaseClient) ? getControlMapSnapshotRows(SERVICE_TABLE) : [];
+        if (!data.length) {
+          const response = await supabaseClient.from(SERVICE_TABLE).select(SERVICE_SELECT);
+          if (response.error) throw response.error;
+          data = response.data || [];
+          if (data.length) {
+            void setControlMapSnapshotRows(SERVICE_TABLE, data);
+          }
+        }
         serviceCacheByCategory = buildServiceCache(data || []);
         return serviceCacheByCategory;
       })().finally(() => {
@@ -2153,6 +2188,35 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     const getEnabledServiceTypes = () => SERVICE_TYPES.filter(isServiceTypeEnabled);
 
     async function syncAvailableServiceTypes() {
+      const snapshotServices = getControlMapSnapshotRows(SERVICE_TABLE);
+      if (snapshotServices.length) {
+        const rawCategories = new Map();
+        snapshotServices.forEach((row) => {
+          const raw = `${row?.category ?? ''}`.trim();
+          if (!raw) return;
+          const key = normalizeCategoryLabel(raw).toLowerCase();
+          if (!rawCategories.has(key)) rawCategories.set(key, raw);
+        });
+        updateServiceCategoryLabels(rawCategories);
+        const detected = SERVICE_TYPES.filter((type) => {
+          if (type === 'custom') return false;
+          return serviceCategoryLabelsByType.has(type);
+        });
+        const knownLabels = new Set(
+          Array.from(serviceCategoryLabelsByType.values()).map((c) => `${c}`.trim().toLowerCase())
+        );
+        customCategoryLabels = new Set(
+          Array.from(rawCategories.entries())
+            .filter(([key]) => !knownLabels.has(key))
+            .map(([, original]) => original)
+        );
+        if (customCategoryLabels.size) detected.push('custom');
+        rebuildCustomCategoryToggles();
+        enabledServiceTypes = detected.length ? new Set(detected) : new Set();
+        updateServiceVisibilityUI();
+        return;
+      }
+
       if (!supabaseClient) return;
 
       try {
@@ -3398,6 +3462,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     };
 
     const hydrateInitialVisibleVehicleSnapshots = async () => {
+      if (VEHICLE_INITIAL_PRIORITY_HYDRATE_LIMIT <= 0) return;
       const priorityVehicles = collectPriorityVehicleSnapshotTargets();
       if (!priorityVehicles.length) return;
 
@@ -3587,6 +3652,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       visibleVehicles = [],
       { rerenderOnChange = true } = {}
     ) => {
+      if (VEHICLE_PT_SNAPSHOT_PREFETCH_LIMIT <= 0) return;
       if (!Array.isArray(visibleVehicles) || !visibleVehicles.length) return;
 
       const candidates = visibleVehicles
@@ -3629,6 +3695,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         window.clearTimeout(vehicleBackgroundPrefetchTimer);
         vehicleBackgroundPrefetchTimer = null;
       }
+      if (VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT <= 0) return;
 
       const candidates = Array.isArray(visibleVehicles)
         ? visibleVehicles.slice(0, VEHICLE_BACKGROUND_PREFETCH_ACTIVE_LIMIT)
@@ -7479,7 +7546,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     // --- 2. Load data from the live dataset ---
     async function loadTechnicians({ force = false, silent = false } = {}) {
       if (!isServiceTypeEnabled('tech')) return;
-      if (!supabaseClient) {
+      if (!supabaseClient && !getControlMapSnapshotRows(SERVICE_TABLE).length) {
         console.warn('Database unavailable: showing local installer placeholders.');
         document.getElementById('tech-list').innerHTML = `
           <div class="text-center mt-10 px-6">
@@ -7522,7 +7589,13 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             .map((vehicle) => [getVehicleKey(vehicle), vehicle])
             .filter(([key]) => Boolean(key))
         );
-        const data = await vehicleService.listVehicles();
+        let data = (!force || !supabaseClient) ? getControlMapSnapshotRows(TABLES.vehicles) : [];
+        if (!data.length) {
+          data = await vehicleService.listVehicles();
+          if (data.length) {
+            void setControlMapSnapshotRows(TABLES.vehicles, data);
+          }
+        }
         const normalizedVehicles = data.map((row, idx) =>
           normalizeVehicle(row, idx, { getField, toStateCode, resolveCoords })
         );
@@ -7532,7 +7605,16 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         });
 
         let dealsByStockNo = new Map();
-        if (supabaseClient) {
+        const dealsSnapshotRows = (!force || !supabaseClient) ? getControlMapSnapshotRows(TABLES.deals) : [];
+        if (dealsSnapshotRows.length) {
+          dealsSnapshotRows.forEach((row) => {
+            const stockNo = normalizeStockNumber(row?.['Current Stock No']);
+            const regularAmount = parseNumber(row?.['Regular Amount']);
+            const vehicleStatus = String(row?.['Vehicle Status'] ?? '').trim();
+            if (!stockNo || regularAmount === null) return;
+            dealsByStockNo.set(stockNo, { regularAmount, vehicleStatus });
+          });
+        } else if (supabaseClient) {
           const stockNumbers = normalizedVehicles
             .map((vehicle) => normalizeStockNumber(vehicle.stockNo))
             .filter(Boolean);
@@ -7542,6 +7624,13 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             ]);
             if (dealsResult.status === 'fulfilled') {
               dealsByStockNo = dealsResult.value;
+              if (dealsByStockNo.size) {
+                void setControlMapSnapshotRows(TABLES.deals, Array.from(dealsByStockNo.entries()).map(([stockNo, entry]) => ({
+                  'Current Stock No': stockNo,
+                  'Regular Amount': entry.regularAmount,
+                  'Vehicle Status': entry.vehicleStatus
+                })));
+              }
             } else {
               console.warn('DealsJP1 load warning: ' + (dealsResult.reason?.message || dealsResult.reason));
             }
@@ -7660,15 +7749,22 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     }
 
     async function loadHotspots({ silent = false } = {}) {
-      if (!supabaseClient) {
+      if (!supabaseClient && !getControlMapSnapshotRows(TABLES.hotspots).length) {
         console.warn('Database unavailable: skipping hotspot load.');
         return;
       }
 
       const stopLoading = silent ? () => {} : startLoading('Loading hotspots…');
       try {
-        const { data, error } = await supabaseClient.from(TABLES.hotspots).select(HOTSPOT_SELECT);
-        if (error) throw error;
+        let data = getControlMapSnapshotRows(TABLES.hotspots);
+        if (!data.length) {
+          const response = await supabaseClient.from(TABLES.hotspots).select(HOTSPOT_SELECT);
+          if (response.error) throw response.error;
+          data = response.data || [];
+          if (data.length) {
+            void setControlMapSnapshotRows(TABLES.hotspots, data);
+          }
+        }
         hotspots = (data || []).map((row, idx) => normalizeHotspot(row, idx)).filter(hasValidCoords);
         renderHotspots();
       } catch (err) {
@@ -7679,15 +7775,22 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     }
 
     async function loadBlacklistSites({ silent = false } = {}) {
-      if (!supabaseClient) {
+      if (!supabaseClient && !getControlMapSnapshotRows(TABLES.blacklist).length) {
         console.warn('Database unavailable: skipping blacklist load.');
         return;
       }
 
       const stopLoading = silent ? () => {} : startLoading('Loading Blacklist Locations…');
       try {
-        const { data, error } = await supabaseClient.from(TABLES.blacklist).select(SERVICES_BLACKLIST_SELECT);
-        if (error) throw error;
+        let data = getControlMapSnapshotRows(TABLES.blacklist);
+        if (!data.length) {
+          const response = await supabaseClient.from(TABLES.blacklist).select(SERVICES_BLACKLIST_SELECT);
+          if (response.error) throw response.error;
+          data = response.data || [];
+          if (data.length) {
+            void setControlMapSnapshotRows(TABLES.blacklist, data);
+          }
+        }
         blacklistSites = (data || []).map((row, idx) => normalizeBlacklistEntry(row, idx)).filter(hasValidCoords);
         renderBlacklistSites();
       } catch (err) {
@@ -7712,7 +7815,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
     async function loadPartnerService(type, { force = false, silent = false } = {}) {
       if (!isServiceTypeEnabled(type)) return;
-      if (!supabaseClient) return;
+      if (!supabaseClient && !getControlMapSnapshotRows(SERVICE_TABLE).length) return;
 
       const config = SERVICE_LOAD_CONFIG[type];
       if (!config) {
@@ -7734,7 +7837,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
     }
 
     async function loadAllServices({ force = false, silent = false } = {}) {
-      if (!supabaseClient) return;
+      if (!supabaseClient && !getControlMapSnapshotRows(SERVICE_TABLE).length) return;
 
       await ensureServiceCache({ force, silent });
 
@@ -7766,7 +7869,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
 
     async function loadCustomServices({ force = false, silent = false } = {}) {
       if (!isServiceTypeEnabled('custom') || !customCategoryLabels.size) return;
-      if (!supabaseClient) {
+      if (!supabaseClient && !getControlMapSnapshotRows(SERVICE_TABLE).length) {
         console.warn('Database unavailable: skipping custom categories.');
         return;
       }
@@ -7798,6 +7901,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       includeServices = true,
       silent = true
     } = {}) => {
+      if (isStaticSnapshotMode()) return null;
       if (dataSyncRefreshPromise) return dataSyncRefreshPromise;
 
       dataSyncRefreshPromise = (async () => {
@@ -7822,33 +7926,45 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
       return dataSyncRefreshPromise;
     };
 
+    const SNAPSHOT_VERSION_SCOPES = [
+      'vehicles',
+      'dealsjp1',
+      'services',
+      'hotspots',
+      'services_blacklist',
+      'gps_blacklist',
+      'app_settings'
+    ];
+
+    const refreshFromDatabaseVersionIfNeeded = async () => {
+      if (isStaticSnapshotMode()) return false;
+      if (!supabaseClient?.from) return false;
+      const snapshotInfo = getControlMapSnapshotInfo();
+      const snapshotGeneratedAtMs = Date.parse(snapshotInfo?.generatedAt || '');
+      if (!Number.isFinite(snapshotGeneratedAtMs)) return false;
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('data_versions')
+          .select('scope,version,updated_at')
+          .in('scope', SNAPSHOT_VERSION_SCOPES);
+        if (error || !Array.isArray(data) || !data.length) return false;
+
+        const hasNewerData = data.some((entry) => {
+          const updatedAtMs = Date.parse(entry?.updated_at || '');
+          return Number.isFinite(updatedAtMs) && updatedAtMs > snapshotGeneratedAtMs;
+        });
+        if (!hasNewerData) return false;
+
+        await refreshControlMapData({ includeServices: true, silent: true });
+        return true;
+      } catch (_error) {
+        return false;
+      }
+    };
+
     const startDataSyncWatchdog = () => {
-      if (typeof window === 'undefined') return () => {};
-
-      const triggerForegroundRefresh = () => {
-        const now = Date.now();
-        if ((now - lastDataSyncRefreshAt) < DATA_SYNC_FOCUS_COOLDOWN_MS) return;
-        void refreshControlMapData({ includeServices: true, silent: true });
-      };
-
-      const intervalId = window.setInterval(() => {
-        if (document.hidden) return;
-        void refreshControlMapData({ includeServices: true, silent: true });
-      }, DATA_SYNC_AUTO_REFRESH_INTERVAL_MS);
-
-      const onFocus = () => triggerForegroundRefresh();
-      const onVisibilityChange = () => {
-        if (!document.hidden) triggerForegroundRefresh();
-      };
-
-      window.addEventListener('focus', onFocus);
-      document.addEventListener('visibilitychange', onVisibilityChange);
-
-      return () => {
-        window.clearInterval(intervalId);
-        window.removeEventListener('focus', onFocus);
-        document.removeEventListener('visibilitychange', onVisibilityChange);
-      };
+      return () => {};
     };
 
     // --- 4. Update map and list ---
@@ -11653,6 +11769,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
         try {
           setupBackgroundManager();
           await loadStateCenters();
+          await loadControlMapSnapshot();
           initMap();
           await syncAvailableServiceTypes();
           updateServiceVisibilityUI();
@@ -11669,6 +11786,7 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
               window.setTimeout(resolve, CONTROL_MAP_BOOT_VEHICLE_TIMEOUT_MS);
             })
           ]);
+          void refreshFromDatabaseVersionIfNeeded();
 
           const loadNonCriticalData = async () => {
             const backgroundTasks = [
@@ -11798,32 +11916,38 @@ import '../../scripts/authManager.js?v=movement-v2-20260413-01';
             lastDataSyncRefreshAt = Date.now();
           }, 800);
 
-          createControlMapApiService({
-            supabaseClient,
-            tables: TABLES,
-            handlers: {
-              vehicles: refreshVehicles,
-              deals: refreshVehicles,
-              hotspots: refreshHotspots,
-              blacklist: refreshBlacklist,
-              services: refreshServices
-            }
-          });
+          if (!isStaticSnapshotMode()) {
+            createControlMapApiService({
+              supabaseClient,
+              tables: TABLES,
+              handlers: {
+                vehicles: refreshVehicles,
+                deals: refreshVehicles,
+                hotspots: refreshHotspots,
+                blacklist: refreshBlacklist,
+                services: refreshServices
+              }
+            });
+          }
 
           startDataSyncWatchdog();
 
-          subscribeDataSyncSignal((payload = {}) => {
-            const scope = String(payload?.scope || 'all').toLowerCase();
-            const shouldRefreshVehicles = ['all', 'vehicles', 'deals', 'pt-lastping', 'pt_lastping', 'pt'].includes(scope);
-            const shouldRefreshMapData = shouldRefreshVehicles || ['hotspots', 'blacklist', 'services'].includes(scope);
-            if (!shouldRefreshMapData) return;
-            void refreshControlMapData({
-              includeServices: scope === 'all' || scope === 'services',
-              silent: true
+          if (!isStaticSnapshotMode()) {
+            subscribeDataSyncSignal((payload = {}) => {
+              const scope = String(payload?.scope || 'all').toLowerCase();
+              const shouldRefreshVehicles = ['all', 'vehicles', 'deals', 'pt-lastping', 'pt_lastping', 'pt'].includes(scope);
+              const shouldRefreshMapData = shouldRefreshVehicles || ['hotspots', 'blacklist', 'services'].includes(scope);
+              if (!shouldRefreshMapData) return;
+              void refreshControlMapData({
+                includeServices: scope === 'all' || scope === 'services',
+                silent: true
+              });
             });
-          });
 
-          startSupabaseKeepAlive({ supabaseClient, table: TABLES.vehicles });
+            if (!getControlMapSnapshotRows(TABLES.vehicles).length) {
+              startSupabaseKeepAlive({ supabaseClient, table: TABLES.vehicles });
+            }
+          }
 
           window.addEventListener('auth:role-ready', () => {
             applyMapCategoryDefaults();

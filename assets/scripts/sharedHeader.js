@@ -152,6 +152,15 @@ const clearLegacyHeaderTemplateCaches = () => {
   }
 };
 
+const isStaticSnapshotMode = () => {
+  if (typeof window === 'undefined') return false;
+  const host = String(window.location.hostname || '').toLowerCase();
+  const params = new URLSearchParams(window.location.search || '');
+  return host.endsWith('github.io')
+    || params.get('snapshot') === '1'
+    || params.get('static') === '1';
+};
+
 const renderHeaderTemplate = (template, { basePath, pageTitle, activeNav }) => {
   if (!headerSlot || !template) return;
   const rendered = template
@@ -174,6 +183,7 @@ const renderHeaderTemplate = (template, { basePath, pageTitle, activeNav }) => {
 };
 
 const ensureHeaderDataVersionStream = () => {
+  if (isStaticSnapshotMode()) return;
   if (stopDataVersionStream) return;
   stopDataVersionStream = subscribeToDataVersionStream({
     onError: (error) => {

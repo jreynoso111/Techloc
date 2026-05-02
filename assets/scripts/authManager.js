@@ -47,6 +47,44 @@ import {
     return path.endsWith('/services-request.html') || path.endsWith('services-request.html');
   };
 
+  const isControlMapPath = () => {
+    const path = window.location.pathname.toLowerCase();
+    return path.endsWith('/pages/control-map.html') || path.endsWith('pages/control-map.html');
+  };
+
+  const isStaticSnapshotReadonlyMode = () => {
+    const host = String(window.location.hostname || '').toLowerCase();
+    const params = new URLSearchParams(window.location.search || '');
+    return isControlMapPath() && (
+      host.endsWith('github.io')
+      || params.get('snapshot') === '1'
+      || params.get('static') === '1'
+    );
+  };
+
+  const getStaticSnapshotSession = () => ({
+    access_token: 'static-snapshot-readonly',
+    user: {
+      id: 'static-snapshot-readonly',
+      email: '',
+      profile: {
+        role: 'active_user',
+        status: 'active',
+        map_category: 'general',
+      },
+      app_metadata: {
+        role: 'active_user',
+        status: 'active',
+        map_category: 'general',
+      },
+      user_metadata: {
+        role: 'active_user',
+        status: 'active',
+        map_category: 'general',
+      },
+    },
+  });
+
   const mapsTo = (page) => {
     const normalizedPage = page.startsWith('/') ? page.slice(1) : page;
     const path = window.location.pathname;
@@ -93,6 +131,7 @@ import {
     });
 
   const getEffectiveSession = async () => {
+    if (isStaticSnapshotReadonlyMode()) return getStaticSnapshotSession();
     if (!hasSupabaseAuth) return null;
 
     try {
@@ -329,8 +368,9 @@ import {
       if (loginLink) loginLink.href = mapsTo('pages/login.html');
 
       const isSuspended = status === 'suspended';
+      const isStaticReadonly = isStaticSnapshotReadonlyMode();
       const canShowDashboard = hasSession && !isSuspended && roleAllowsDashboard(role);
-      const canShowServices = hasSession && !isSuspended;
+      const canShowServices = hasSession && !isSuspended && !isStaticReadonly;
 
       if (hasSession && !isSuspended) {
         // Lógica de visualización basada en sesión
@@ -351,7 +391,11 @@ import {
           dashboardLink?.classList.remove('md:inline-flex');
         }
 
-        logoutButton?.classList.remove('hidden');
+        if (isStaticReadonly) {
+          logoutButton?.classList.add('hidden');
+        } else {
+          logoutButton?.classList.remove('hidden');
+        }
         loginLink?.classList.add('hidden');
       } else {
         controlLink?.classList.add('hidden');
@@ -507,7 +551,7 @@ import {
       enforceRouteProtection(hasSession, userRole);
       bindLogout();
 
-      if (hasSession && session.user && !isServiceRequestPath()) {
+      if (hasSession && session.user && !isServiceRequestPath() && !isStaticSnapshotReadonlyMode()) {
         resolveProfileForSession(session)
           .then(async (profile) => {
             const resolvedRole = normalizeAccessValue(profile.role, userRole);
@@ -523,7 +567,7 @@ import {
           });
       }
 
-      if (hasSupabaseAuth && typeof supabaseClient.auth.onAuthStateChange === 'function') {
+      if (!isStaticSnapshotReadonlyMode() && hasSupabaseAuth && typeof supabaseClient.auth.onAuthStateChange === 'function') {
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_OUT') {
             clearWebAdminSession();
